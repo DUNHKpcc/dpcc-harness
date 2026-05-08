@@ -76,7 +76,8 @@ src/
 ├── components/
 │   ├── git/           # GitPanel decomposed (GitPanel, RepoSection, BranchPicker, CommitInput, etc.)
 │   ├── browser/       # BrowserPanel decomposed (BrowserNavBar, BrowserUrlBar, WebviewInstance, etc.)
-│   ├── input-bar/     # InputBar decomposed (CommandPicker, MentionPicker, EngineControls, etc.)
+│   ├── input-bar/     # InputBar decomposed (CommandPicker, MentionPicker, EngineControls,
+│   │                  #   AttachmentPreview, ContextGauge, EnginePickerDropdown, useMentionAutocomplete)
 │   ├── jira/          # Jira board UI (KanbanBoard, JiraIssueCard, JiraBoardSetup)
 │   ├── mcp/           # MCP server management UI (AddServerDialog, McpServerRow, McpAuthStatus)
 │   ├── mcp-renderers/ # MCP tool renderers (jira, confluence, atlassian, context7, shared, helpers)
@@ -116,7 +117,10 @@ src/
 │                      #   useMainToolWorkspace, useMainToolAreaLayout, useToolIslandContext,
 │                      #   useBrowserWebviewEvents, useProjectFiles, useMcpServers,
 │                      #   useSettingsCompat, useClickOutside, useContextMenuPosition,
-│                      #   useInlineRename, usePaneResize, etc.)
+│                      #   useInlineRename, usePaneResize, useSpaceTheme, useStreamingTextReveal,
+│                      #   useAnnotationHistory, useAgentRegistry, useAgentStore,
+│                      #   useAcpAgentAutoUpdate, useBackgroundAgents, useFolderManager,
+│                      #   useSpaceSwitchCooldown, useBottomHeightResize, etc.)
 ├── lib/               # Renderer utilities organized in subdirectories:
 │   ├── analytics/     #   analytics.ts, posthog.ts
 │   ├── background/    #   session-store.ts, claude/acp/codex-handler.ts, agent-store.ts, agent-store-utils.ts
@@ -386,7 +390,7 @@ Three tiers of settings storage, each suited to different access patterns:
   - `useSessionRestart` — engine-aware restart-session flow
   - `useSessionSettings` — session-scoped settings derivation
   - `useExtraPaneLoader` — loads sessions for the secondary pane in split mode
-- `useEngineBase` — shared foundation for all engine hooks (state, rAF flush, reset effect)
+- `useEngineBase` — shared foundation for all engine hooks (state, rAF flush, reset effect); tracks `isCompacting` flag for context compaction in-progress
 - `useClaude` / `useACP` / `useCodex` — engine-specific event handling built on `useEngineBase`
 - `useSpaceTheme` — space color tinting via CSS custom properties
 - `useSpaceManager` — space CRUD (create, delete, rename, reorder, worktree assignment)
@@ -426,7 +430,7 @@ Three tiers of settings storage, each suited to different access patterns:
 - `useContextMenuPosition` — shared positioning logic for right-click and button-triggered context menus (open state, align, coordinates)
 - `useInlineRename` — controlled edit state for inline rename inputs (isEditing, editName, handlers)
 
-**BackgroundSessionStore** — accumulates events for non-active sessions to prevent state loss when switching. On switch-away, session state is captured into the store; on switch-back, state is consumed from the store (or loaded from disk if no live process). Event handling is split into per-engine handler modules (`background-claude-handler.ts`, `background-acp-handler.ts`, `background-codex-handler.ts`).
+**BackgroundSessionStore** — accumulates events for non-active sessions to prevent state loss when switching. On switch-away, session state is captured into the store; on switch-back, state is consumed from the store (or loaded from disk if no live process). Event handling is split into per-engine handler modules (`background-claude-handler.ts`, `background-acp-handler.ts`, `background-codex-handler.ts`). `InternalState` also tracks `contextUsage`, `isCompacting`, `codexPlanText`/`codexPlanTurnCounter` (Codex plan mode output), `activeTask`, `slashCommands`, and `pendingPermission`/`rawAcpPermission` for per-engine permission bridging.
 
 ### Claude CLI Stream-JSON Protocol
 
@@ -456,7 +460,11 @@ Key event types in order:
 
 **Chat UI state persistence**: The virtualized list unmounts rows that scroll out of view. To preserve per-message UI state (e.g. collapsed/expanded tool calls, copy button hover states), `ChatUiStateProvider` (`src/components/chat-ui-state.tsx`) + `useChatPersistedState` store these flags in a `Map` outside the row component tree. Rows read and write to this map via the context hook rather than local state.
 
-**Pane controller pattern**: `usePaneController` (`src/hooks/usePaneController.ts`) builds a `PaneController` object (defined in `src/types/pane-controller.ts`) containing all per-pane callbacks — send, stop, interrupt, set-model, set-permission-mode. Both the single-pane layout and each `SplitChatPane` receive a `PaneController`, enabling full parity without prop drilling or conditional logic.
+**Pane controller pattern**: `usePaneController` (`src/hooks/usePaneController.ts`) builds a `PaneController` object (defined in `src/types/pane-controller.ts`) containing all per-pane callbacks — send, stop, interrupt, set-model, set-permission-mode, onElementGrab. Both the single-pane layout and each `SplitChatPane` receive a `PaneController`, enabling full parity without prop drilling or conditional logic.
+
+**Codex plan mode**: Codex sessions support a `planMode` flag that restricts the agent to planning/read-only operations before execution. `planMode: boolean` is a setting in `useSettings`. `codexPlanModeEnabled` is derived in `useSessionManager` from either the active `startOptions.planMode` (for draft sessions) or the persisted `session.planMode` (for live sessions). `getSyncedPlanMode(sessionPlanMode, livePermissionMode)` in `useAppOrchestrator` reconciles the session flag with the live permission mode string — the live mode takes priority when present. Plan text output streams into `codexPlanText` in `InternalState`.
+
+**Context compaction**: The `compact` operation (via `codex:compact` IPC for Codex or SDK-native for Claude) condenses the conversation history to free context window space. `isCompacting` in `EngineHookState` is set true during compaction, toggling a visual indicator. Claude sessions emit a `system (compact_boundary)` event to mark compaction boundaries in the transcript.
 
 ### Tools Panel System
 
@@ -508,6 +516,8 @@ Tool name normalization: `extractMcpToolName(toolName)` strips the `"mcp__Server
 - `confluence.tsx` — `ConfluenceSearchResults`, `ConfluenceSpaces`
 - `atlassian.tsx` — `RovoSearchResults`, `RovoFetchResult`, `AtlassianResourcesList`
 - `context7.tsx` — `Context7LibraryList` (resolve-library-id), `Context7DocsResult` (query-docs)
+- `shared.tsx` — `Field`, `McpListHeader`, `McpEmptyState` shared renderer components; `MCP_ROW_CLASS` and `REMARK_PLUGINS` constants used across all renderers
+- `helpers.ts` — `stripHtml()` utility for sanitizing HTML in MCP response text
 
 ### Git Integration
 
@@ -574,6 +584,23 @@ Each Space can have a custom color and icon. `SpaceCustomizer.tsx` provides the 
 ### Notification System
 
 `src/lib/notification-utils.ts` triggers OS notifications (via Electron's `Notification` API) when sessions complete or produce output while unfocused. Settings control trigger mode: `always`, `unfocused` (default), or `never`. `src/lib/session-notifications.ts` maps session result events to notification calls. `useNotifications` hook wires this to the active session state.
+
+### Context Window Gauge
+
+`ContextGauge` (`src/components/input-bar/ContextGauge.tsx`) is an SVG ring gauge embedded in the input bar that visualizes context window consumption:
+- Displays used vs. available tokens as a radial progress ring; color-coded neutral → amber (>60%) → red (>80%)
+- Tooltip breakdown shows inputTokens, cacheReadTokens, cacheCreationTokens, outputTokens, and total contextWindow
+- Clicking the gauge triggers context compaction via the `onCompact` callback
+- Driven by `ContextUsage` type (`src/types/mcp.ts`): `{ inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens, contextWindow }`
+- `contextUsage` is tracked in `EngineHookState` and `ChatSession`; `extractAssistantContextUsage()` in `src/lib/engine/protocol.ts` parses it from Claude SDK result events
+
+### Grabbed DOM Elements
+
+The Browser Panel supports a "grab element" feature that attaches DOM elements from the webview as context for the next message:
+- `GrabbedElement` type (`src/types/attachments.ts`) — `{ id, tag, text, html, timestamp }`
+- `onElementGrab` callback on `PaneController` receives grabbed elements from the browser
+- `AttachmentPreview` (`src/components/input-bar/AttachmentPreview.tsx`) renders both image attachment thumbnails and grabbed element context chips above the input toolbar
+- `src/lib/element-inspector.ts` — injectable IIFE injected into the `<webview>` that intercepts clicks and sends the selected element's data back to the renderer via `ipcRenderer.sendToHost`
 
 ### Bottom Composer
 
@@ -663,7 +690,9 @@ Types shared between electron and renderer live in `shared/types/`. Both tsconfi
 - `InstalledAgent` (was `AgentDefinition` — renamed to avoid SDK clash)
 - `AppPermissionBehavior` (was `PermissionBehavior` — renamed to avoid SDK clash)
 - `SessionBase` — shared base for `ChatSession` and `PersistedSession`
-- `BackgroundSessionSnapshot` — `{ isProcessing, isConnected, sessionInfo, totalCost }` snapshot for background store
+- `BackgroundSessionSnapshot` — `{ isProcessing, isConnected, isCompacting, sessionInfo, totalCost, contextUsage }` snapshot for background store
+- `ContextUsage` (`src/types/mcp.ts`) — `{ inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens, contextWindow }` — context window consumption tracked per session
+- `GrabbedElement` (`src/types/attachments.ts`) — `{ id, tag, text, html, timestamp }` — DOM element captured from the Browser Panel for use as session context
 
 **Electron SDK types**: `electron/src/lib/sdk.ts` imports `Query` and `query` types directly from `@anthropic-ai/claude-agent-sdk` (no more manual type definitions or double-casts). ACP connection is typed as `ClientSideConnection` from `@agentclientprotocol/sdk`.
 
@@ -690,6 +719,7 @@ Types shared between electron and renderer live in `shared/types/`. Both tsconfi
 - **`src/lib/session-notifications.ts`** — maps session events to notification triggers
 - **`src/lib/session/records.ts`** — `UIMessage` and `ChatSession` type guards
 - **`src/lib/session/derived-data.ts`** — computed session stats (token counts, cost summaries)
+- **`src/lib/session/space-projects.ts`** — helpers for resolving which project/space a session belongs to
 - **`src/lib/sidebar/grouping.ts`** — groups sessions by date/project for sidebar rendering
 - **`src/lib/sidebar/dnd.ts`** — drag-and-drop logic for sidebar session reordering
 - **`src/lib/workspace/tool-docking.ts`** — tool panel docking state (which tools are docked where)
@@ -708,7 +738,7 @@ Types shared between electron and renderer live in `shared/types/`. Both tsconfi
 - **`src/lib/file-tree.ts`** — `FileTreeNode`/`FlatTreeItem` types + `buildFileTree()` for `useProjectFiles`
 - **`src/lib/clipboard.ts`** — `copyToClipboard()` with IPC + `navigator.clipboard` + textarea fallback
 - **`src/lib/ask-user-question.ts`** — answer extraction for the `AskUserQuestion` tool (pairs with `AskUserQuestion.tsx` renderer)
-- **`src/lib/element-inspector.ts`** — injectable IIFE for the Browser Panel's "Element Grab" feature
+- **`src/lib/element-inspector.ts`** — injectable IIFE injected into the Browser Panel's `<webview>` that intercepts element clicks and sends `GrabbedElement` data back via `ipcRenderer.sendToHost`
 - **`src/lib/local-storage-migration.ts`** — runs once at startup to migrate `openacpui-*` localStorage keys to `harnss-*`
 - **`src/lib/terminal-tabs.ts`** — `TerminalTab`, `SpaceTerminalState`, `LiveTerminalRecord` types
 - **`src/lib/monaco.ts`** — file extension → Monaco language id map

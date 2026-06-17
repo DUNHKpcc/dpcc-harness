@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
 import { getAskUserQuestionAnswer, getAskUserQuestionKey } from "@/lib/ask-user-question";
 import type { UIMessage } from "@/types";
@@ -16,6 +17,7 @@ interface AskQuestionItem {
 }
 
 export function AskUserQuestionContent({ message }: { message: UIMessage }) {
+  const { t } = useTranslation("toolcall");
   const questions = (message.toolInput?.questions ?? []) as AskQuestionItem[];
   const hasResult = !!message.toolResult;
 
@@ -36,13 +38,13 @@ export function AskUserQuestionContent({ message }: { message: UIMessage }) {
             {!hasResult && (
               <div className="mt-1 flex items-center gap-1.5 text-[11px] text-foreground/25 italic">
                 <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                Waiting for answer…
+                {t("askQuestion.waiting")}
               </div>
             )}
 
             {answer && (
               <div className="mt-0.5">
-                <span className="text-[11px] text-foreground/35">Answer: </span>
+                <span className="text-[11px] text-foreground/35">{t("askQuestion.answer")}</span>
                 <span className="text-[12px] text-foreground/75">{answer}</span>
               </div>
             )}

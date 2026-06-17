@@ -1,4 +1,5 @@
 import React, { type Dispatch, type MutableRefObject, type ReactNode, type SetStateAction } from "react";
+import { useTranslation } from "react-i18next";
 import { motion } from "motion/react";
 import { normalizeRatios } from "@/hooks/useSettings";
 import type { MainToolWorkspaceState } from "@/hooks/useMainToolWorkspace";
@@ -54,6 +55,7 @@ export function MainTopToolArea({
   drag,
   renderToolContent,
 }: MainTopToolAreaProps) {
+  const { t } = useTranslation("workspace");
   const {
     isIsland,
     shouldAnimateTopRowLayout,
@@ -373,7 +375,7 @@ export function MainTopToolArea({
                             {renderToolContent(stackEntry.island.toolId, (
                               <PanelDockControls
                                 isBottom={false}
-                                moveLabel="Move to bottom"
+                                moveLabel={t("dock.moveToBottom")}
                                 onMovePlacement={() => workspace.moveToolIsland(stackEntry.island.id, "bottom")}
                                 onDragStart={(event) => {
                                   event.dataTransfer.setData("text/plain", stackEntry.island.id);

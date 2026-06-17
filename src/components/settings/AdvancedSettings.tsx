@@ -1,4 +1,5 @@
 import { memo, useState, useCallback, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Server } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -19,6 +20,7 @@ export const AdvancedSettings = memo(function AdvancedSettings({
   onUpdateAppSettings,
   onReplayWelcome,
 }: AdvancedSettingsProps) {
+  const { t } = useTranslation("settings");
   const [codexClientName, setCodexClientName] = useState("PccAgent");
   const [showDevFillInChatTitleBar, setShowDevFillInChatTitleBar] = useState(false);
   const [showJiraBoard, setShowJiraBoard] = useState(false);
@@ -62,16 +64,16 @@ export const AdvancedSettings = memo(function AdvancedSettings({
   return (
     <div className="flex h-full flex-col">
       <SettingsHeader
-        title="Advanced"
-        description="Low-level settings for protocol behavior and server communication"
+        title={t("advanced.title")}
+        description={t("advanced.description")}
       />
 
       <ScrollArea className="min-h-0 flex-1">
         <div className="px-6 py-2">
-          <SettingsSection icon={Server} label="Codex" first>
+          <SettingsSection icon={Server} label={t("advanced.codexSection")} first>
             <SettingRow
-              label="Client name"
-              description="How this app identifies itself to Codex servers during the handshake. Changes take effect on new sessions."
+              label={t("advanced.clientNameLabel")}
+              description={t("advanced.clientNameDesc")}
             >
               <input
                 type="text"
@@ -89,8 +91,8 @@ export const AdvancedSettings = memo(function AdvancedSettings({
 
             {isDev && (
               <SettingRow
-                label="Show Dev Fill in chat title bar"
-                description="Enable developer seeding actions in the active chat title bar. Hidden by default."
+                label={t("advanced.devFillLabel")}
+                description={t("advanced.devFillDesc")}
               >
                 <Switch
                   checked={showDevFillInChatTitleBar}
@@ -100,8 +102,8 @@ export const AdvancedSettings = memo(function AdvancedSettings({
             )}
 
             <SettingRow
-              label="Enable Jira board"
-              description="Show the Jira board UI in project sidebars and chats. This is a developer preview."
+              label={t("advanced.jiraBoardLabel")}
+              description={t("advanced.jiraBoardDesc")}
             >
               <Switch
                 checked={showJiraBoard}
@@ -111,14 +113,14 @@ export const AdvancedSettings = memo(function AdvancedSettings({
 
             {isDev && (
               <SettingRow
-                label="Replay welcome wizard"
-                description="Reset the onboarding flag and relaunch the welcome wizard."
+                label={t("advanced.replayWelcomeLabel")}
+                description={t("advanced.replayWelcomeDesc")}
               >
                 <button
                   onClick={onReplayWelcome}
                   className="rounded-md border border-foreground/10 bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-foreground/20 hover:bg-foreground/[0.03]"
                 >
-                  Replay
+                  {t("advanced.replay")}
                 </button>
               </SettingRow>
             )}

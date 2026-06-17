@@ -1,0 +1,113 @@
+{
+  "permission": {
+    "tool": {
+      "read": "读取文件",
+      "write": "创建文件",
+      "edit": "编辑文件",
+      "bash": "执行命令",
+      "notebookEdit": "编辑 notebook",
+      "useTool": "使用工具：{{name}}"
+    },
+    "detail": {
+      "command": "命令",
+      "file": "文件",
+      "notebook": "Notebook",
+      "target": "目标",
+      "pages": "页码：{{pages}}"
+    },
+    "scope": {
+      "label": {
+        "session": "本次会话",
+        "localSettings": "本项目（仅你自己）",
+        "projectSettings": "本项目（共享）",
+        "userSettings": "所有项目"
+      },
+      "description": {
+        "session": "仅本次会话（不保存）",
+        "localSettings": "保存到 .claude/settings.local.json（已被 gitignore）",
+        "projectSettings": "保存到 .claude/settings.json（与团队共享）",
+        "userSettings": "保存到 ~/.claude/settings.json"
+      },
+      "alwaysAllowFor": "始终允许{{scope}}"
+    },
+    "deny": "拒绝",
+    "denying": "正在拒绝…",
+    "allow": "允许",
+    "allowing": "正在允许…",
+    "allowForSession": "本次会话允许",
+    "exitPlan": {
+      "prompt": "准备开始实现。权限应如何处理？",
+      "acceptEdits": "接受编辑",
+      "acceptEditsDesc": "自动批准文件编辑",
+      "askFirst": "先询问",
+      "askFirstDesc": "每个工具前都询问",
+      "allowAll": "全部允许",
+      "allowAllDesc": "不再提示权限",
+      "feedbackPlaceholder": "提供反馈以完善计划…",
+      "stayInPlan": "保持计划模式",
+      "sendFeedback": "发送反馈"
+    },
+    "question": {
+      "answeredCount": "已回答 {{answered}}/{{total}} 个问题",
+      "expand": "展开",
+      "orTypeYourOwn": "或输入你自己的答案…",
+      "typeYourAnswer": "输入你的答案…",
+      "skip": "跳过",
+      "answer": "回答"
+    }
+  },
+  "acpAuth": {
+    "title": "{{agent}} 身份验证",
+    "description": "此 ACP agent 需要先完成身份验证才能开始会话。",
+    "stillRequired": "仍需要进行身份验证。",
+    "cursorHint": "Cursor 可能需要先在终端中运行 <code>cursor-agent login</code>。",
+    "noMethods": "此 agent 未提供受支持的身份验证方式。",
+    "terminalUnsupported": "PccAgent 暂不支持终端身份验证。",
+    "envVarUnsupported": "PccAgent 暂不支持环境变量身份验证。所需变量：{{vars}}"
+  },
+  "codexAuth": {
+    "title": "Codex 身份验证",
+    "description": "Codex 需要身份验证才能访问 OpenAI 模型。",
+    "waitingForBrowser": "正在等待浏览器登录…",
+    "loginTimedOut": "登录超时，请重试",
+    "loginFailed": "登录失败",
+    "apiKey": "API key",
+    "apiKeyDesc": "使用 OpenAI API key",
+    "chatgptLogin": "ChatGPT 登录",
+    "chatgptLoginDesc": "使用你的 ChatGPT 账户登录",
+    "connect": "连接"
+  },
+  "jiraAuth": {
+    "title": "连接 Jira",
+    "description": "输入你的 Jira API token 以连接。你可以在 Atlassian 账户设置中创建 API token。",
+    "emailRequired": "请输入邮箱",
+    "apiTokenRequired": "请输入 API token",
+    "instanceUrl": "实例 URL",
+    "email": "邮箱",
+    "emailPlaceholder": "you@example.com",
+    "emailHelp": "与你的 Atlassian 账户关联的邮箱",
+    "apiToken": "API Token",
+    "apiTokenPlaceholder": "输入你的 Jira API token",
+    "createTokenAt": "在此创建 token：",
+    "authenticating": "正在验证…",
+    "connect": "连接"
+  },
+  "updateBanner": {
+    "available": " 可用",
+    "update": "更新",
+    "downloading": "正在下载…",
+    "ready": " 已就绪",
+    "restarting": "正在重启…",
+    "restart": "重启",
+    "installFailed": "重启并安装更新失败"
+  },
+  "preReleaseBanner": {
+    "title": "预发布版本",
+    "message": "v{{version}} 为实验性版本，可能存在问题。",
+    "switchToStable": "切换到稳定版"
+  },
+  "errorBoundary": {
+    "title": "出错了",
+    "reload": "重新加载"
+  }
+}

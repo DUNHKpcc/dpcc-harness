@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { PackageSearch, Check, Search } from "lucide-react";
 import type { UIMessage } from "@/types";
 
@@ -26,6 +27,7 @@ function parseQueryMode(query: string): { mode: "select" | "search"; value: stri
 }
 
 export function ToolSearchContent({ message }: { message: UIMessage }) {
+  const { t } = useTranslation("toolcall");
   const query = String(message.toolInput?.query ?? "");
   const result = message.toolResult;
 
@@ -55,7 +57,7 @@ export function ToolSearchContent({ message }: { message: UIMessage }) {
         )}
         <span>{value}</span>
         <span className="text-foreground/25">
-          {mode === "select" ? "direct" : "search"}
+          {mode === "select" ? t("toolSearch.direct") : t("toolSearch.search")}
         </span>
       </div>
 
@@ -78,13 +80,13 @@ export function ToolSearchContent({ message }: { message: UIMessage }) {
         </div>
       ) : (
         <span className="text-[10px] text-foreground/30 italic">
-          No matching tools
+          {t("toolSearch.noMatchingTools")}
         </span>
       )}
 
       {/* Pool badge */}
       <span className="text-[10px] text-foreground/25">
-        {matches.length} loaded · {total_deferred_tools} available
+        {t("toolSearch.poolBadge", { loaded: matches.length, total: total_deferred_tools })}
       </span>
     </div>
   );

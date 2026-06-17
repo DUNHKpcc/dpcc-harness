@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { motion } from "motion/react";
 import {
   Terminal,
@@ -24,6 +25,7 @@ const TOOL_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
 };
 
 export function FeatureTourStep(_props: WizardStepProps) {
+  const { t } = useTranslation("welcome");
   return (
     <div className="flex flex-1 flex-col overflow-y-auto px-8">
       <div className="m-auto flex w-full max-w-lg flex-col py-10">
@@ -41,10 +43,10 @@ export function FeatureTourStep(_props: WizardStepProps) {
               color: "oklch(0.60 0.22 300)",
             }}
           >
-            What&apos;s inside
+            {t("tourStep.title")}
           </h2>
           <p className="mt-3 text-lg text-muted-foreground">
-            A few things that make PccAgent different.
+            {t("tourStep.subtitle")}
           </p>
         </motion.div>
 
@@ -57,16 +59,15 @@ export function FeatureTourStep(_props: WizardStepProps) {
         >
           <div className="mb-3 flex items-center gap-2.5">
             <Palette className="h-4.5 w-4.5 text-foreground/40" />
-            <h3 className="text-sm font-semibold text-foreground">Spaces</h3>
+            <h3 className="text-sm font-semibold text-foreground">{t("tourStep.spaces")}</h3>
           </div>
           <p className="mb-5 text-sm leading-relaxed text-muted-foreground">
-            Organize projects into color-coded workspaces. Each space tints the
-            entire UI with its own hue.
+            {t("tourStep.spacesDesc")}
           </p>
           <div className="flex items-center gap-4">
             {SHOWCASE_SPACES.map((space, i) => (
               <motion.div
-                key={space.name}
+                key={space.nameKey}
                 className="flex flex-col items-center gap-1.5"
                 initial={{ opacity: 0, scale: 0.85 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -79,7 +80,7 @@ export function FeatureTourStep(_props: WizardStepProps) {
                   <span className="text-base">{space.emoji}</span>
                 </div>
                 <span className="text-[10px] font-medium text-muted-foreground/60">
-                  {space.name}
+                  {t(`tourStep.spaceNames.${space.nameKey}`)}
                 </span>
               </motion.div>
             ))}
@@ -95,11 +96,10 @@ export function FeatureTourStep(_props: WizardStepProps) {
         >
           <div className="mb-3 flex items-center gap-2.5">
             <Layers className="h-4.5 w-4.5 text-foreground/40" />
-            <h3 className="text-sm font-semibold text-foreground">Tool Panels</h3>
+            <h3 className="text-sm font-semibold text-foreground">{t("tourStep.toolPanels")}</h3>
           </div>
           <p className="mb-5 text-sm leading-relaxed text-muted-foreground">
-            Terminal, source control, browser, and more — integrated into the
-            sidebar. Toggle them on and off as you work.
+            {t("tourStep.toolPanelsDesc")}
           </p>
           <div className="grid grid-cols-3 gap-x-4 gap-y-3">
             {SHOWCASE_TOOLS.map((tool, i) => {
@@ -117,7 +117,7 @@ export function FeatureTourStep(_props: WizardStepProps) {
                     <Icon className="h-3.5 w-3.5 text-foreground/40" />
                   </div>
                   <span className="text-xs font-medium text-muted-foreground">
-                    {tool.label}
+                    {t(`tourStep.tools.${tool.labelKey}`)}
                   </span>
                 </motion.div>
               );

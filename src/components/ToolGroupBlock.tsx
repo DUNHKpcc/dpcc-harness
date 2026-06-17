@@ -1,4 +1,5 @@
 import { memo, useState, useEffect, useLayoutEffect, useRef, useMemo, type CSSProperties } from "react";
+import { useTranslation } from "react-i18next";
 import { ChevronRight, AlertCircle } from "lucide-react";
 import {
   Collapsible,
@@ -81,6 +82,7 @@ export const ToolGroupBlock = memo(function ToolGroupBlock({
   disableCollapseAnimation = false,
   animate,
 }: ToolGroupBlockProps) {
+  const { t } = useTranslation("toolcall");
   // Lock animation decision at mount. Parent re-renders may flip `animate` to false
   // after first paint; we still want one morph animation for newly formed groups.
   const animateOnMount = useRef(animate).current;
@@ -180,20 +182,20 @@ export const ToolGroupBlock = memo(function ToolGroupBlock({
     }
 
     const parts: string[] = [];
-    if (editCount > 0) parts.push(`edited ${editCount} file${editCount !== 1 ? "s" : ""}`);
-    if (readCount > 0) parts.push(`read ${readCount} file${readCount !== 1 ? "s" : ""}`);
-    if (commandCount > 0) parts.push(`ran ${commandCount} command${commandCount !== 1 ? "s" : ""}`);
-    if (searchCount > 0) parts.push(`ran ${searchCount} search${searchCount !== 1 ? "es" : ""}`);
-    if (otherCount > 0) parts.push(`used ${otherCount} tool${otherCount !== 1 ? "s" : ""}`);
+    if (editCount > 0) parts.push(t("group.edited", { count: editCount }));
+    if (readCount > 0) parts.push(t("group.read", { count: readCount }));
+    if (commandCount > 0) parts.push(t("group.ran", { count: commandCount }));
+    if (searchCount > 0) parts.push(t("group.searched", { count: searchCount }));
+    if (otherCount > 0) parts.push(t("group.used", { count: otherCount }));
 
     if (parts.length === 0) return "";
     let result: string;
     if (parts.length === 1) result = parts[0];
-    else if (parts.length === 2) result = `${parts[0]} and ${parts[1]}`;
-    else result = `${parts.slice(0, -1).join(", ")}, and ${parts[parts.length - 1]}`;
+    else if (parts.length === 2) result = t("group.joinTwo", { a: parts[0], b: parts[1] });
+    else result = t("group.joinLast", { init: parts.slice(0, -1).join(", "), last: parts[parts.length - 1] });
 
     return result.charAt(0).toUpperCase() + result.slice(1);
-  }, [tools]);
+  }, [tools, t]);
 
   const toolIcons = useMemo(() => {
     if (!showToolIcons) return null;
@@ -218,12 +220,12 @@ export const ToolGroupBlock = memo(function ToolGroupBlock({
       const isRunning = !tool.toolResult && !isError;
       const Icon = isError ? AlertCircle : getToolIcon(toolName);
       const label = isError
-        ? `Failed to ${getToolLabel(toolName, "failure") ?? "run tool"}`
-        : ((getToolLabel(toolName, isRunning ? "active" : "past") ?? toolName) || (isRunning ? "Running" : "Tool"));
-      const summary = formatCompactSummary(tool);
+        ? t("fallback.failedTo", { action: getToolLabel(toolName, "failure", t) ?? t("fallback.runTool") })
+        : ((getToolLabel(toolName, isRunning ? "active" : "past", t) ?? toolName) || (isRunning ? t("fallback.running") : t("fallback.tool")));
+      const summary = formatCompactSummary(tool, t);
       return { id: tool.id, Icon, toolName, label, summary, isError };
     });
-  }, [tools]);
+  }, [tools, t]);
 
   const groupedRows = useMemo(() => {
     return messages.filter((message) => {

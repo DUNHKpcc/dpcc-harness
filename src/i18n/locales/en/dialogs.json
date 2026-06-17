@@ -1,0 +1,113 @@
+{
+  "permission": {
+    "tool": {
+      "read": "Read a file",
+      "write": "Create a file",
+      "edit": "Edit a file",
+      "bash": "Run a command",
+      "notebookEdit": "Edit a notebook",
+      "useTool": "Use tool: {{name}}"
+    },
+    "detail": {
+      "command": "Command",
+      "file": "File",
+      "notebook": "Notebook",
+      "target": "Target",
+      "pages": "Pages: {{pages}}"
+    },
+    "scope": {
+      "label": {
+        "session": "this session",
+        "localSettings": "this project (just you)",
+        "projectSettings": "this project (shared)",
+        "userSettings": "all projects"
+      },
+      "description": {
+        "session": "Only for this session (not saved)",
+        "localSettings": "Saves to .claude/settings.local.json (gitignored)",
+        "projectSettings": "Saves to .claude/settings.json (shared with team)",
+        "userSettings": "Saves to ~/.claude/settings.json"
+      },
+      "alwaysAllowFor": "Always allow for {{scope}}"
+    },
+    "deny": "Deny",
+    "denying": "Denying...",
+    "allow": "Allow",
+    "allowing": "Allowing...",
+    "allowForSession": "Allow for Session",
+    "exitPlan": {
+      "prompt": "Ready to implement. How should permissions work?",
+      "acceptEdits": "Accept Edits",
+      "acceptEditsDesc": "Auto-approve file edits",
+      "askFirst": "Ask First",
+      "askFirstDesc": "Prompt before each tool",
+      "allowAll": "Allow All",
+      "allowAllDesc": "No permission prompts",
+      "feedbackPlaceholder": "Give feedback to refine the plan...",
+      "stayInPlan": "Stay in Plan",
+      "sendFeedback": "Send Feedback"
+    },
+    "question": {
+      "answeredCount": "{{answered}}/{{total}} questions answered",
+      "expand": "Expand",
+      "orTypeYourOwn": "Or type your own…",
+      "typeYourAnswer": "Type your answer…",
+      "skip": "Skip",
+      "answer": "Answer"
+    }
+  },
+  "acpAuth": {
+    "title": "{{agent}} Authentication",
+    "description": "This ACP agent needs authentication before a session can start.",
+    "stillRequired": "Authentication is still required.",
+    "cursorHint": "Cursor may require running <code>cursor-agent login</code> in a terminal first.",
+    "noMethods": "No supported authentication methods were advertised by this agent.",
+    "terminalUnsupported": "Terminal auth is not supported in PccAgent yet.",
+    "envVarUnsupported": "Env-var auth is not supported in PccAgent yet. Required vars: {{vars}}"
+  },
+  "codexAuth": {
+    "title": "Codex Authentication",
+    "description": "Codex requires authentication to access OpenAI models.",
+    "waitingForBrowser": "Waiting for browser login...",
+    "loginTimedOut": "Login timed out — please try again",
+    "loginFailed": "Login failed",
+    "apiKey": "API Key",
+    "apiKeyDesc": "Use an OpenAI API key",
+    "chatgptLogin": "ChatGPT Login",
+    "chatgptLoginDesc": "Login with your ChatGPT account",
+    "connect": "Connect"
+  },
+  "jiraAuth": {
+    "title": "Authenticate with Jira",
+    "description": "Enter your Jira API token to connect. You can create an API token from your Atlassian account settings.",
+    "emailRequired": "Email is required",
+    "apiTokenRequired": "API token is required",
+    "instanceUrl": "Instance URL",
+    "email": "Email",
+    "emailPlaceholder": "you@example.com",
+    "emailHelp": "The email associated with your Atlassian account",
+    "apiToken": "API Token",
+    "apiTokenPlaceholder": "Enter your Jira API token",
+    "createTokenAt": "Create a token at ",
+    "authenticating": "Authenticating...",
+    "connect": "Connect"
+  },
+  "updateBanner": {
+    "available": " available",
+    "update": "Update",
+    "downloading": "Downloading...",
+    "ready": " ready",
+    "restarting": "Restarting...",
+    "restart": "Restart",
+    "installFailed": "Failed to restart and install update"
+  },
+  "preReleaseBanner": {
+    "title": "Pre-release version",
+    "message": "v{{version}} is experimental and may contain bugs.",
+    "switchToStable": "Switch to stable"
+  },
+  "errorBoundary": {
+    "title": "Something went wrong",
+    "reload": "Reload"
+  }
+}

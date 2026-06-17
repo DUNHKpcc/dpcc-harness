@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { useClickOutside } from "@/hooks/useClickOutside";
 import { ChevronDown, Check } from "lucide-react";
 import type { SelectorOption } from "./git-panel-utils";
@@ -16,12 +17,13 @@ export function InlineSelector({
   disabled?: boolean;
   className?: string;
 }) {
+  const { t } = useTranslation("git");
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   const selectedLabel = useMemo(
-    () => options.find((o) => o.value === value)?.label ?? (value || "Select…"),
-    [options, value],
+    () => options.find((o) => o.value === value)?.label ?? (value || t("selector.select")),
+    [options, value, t],
   );
 
   const closeDropdown = useCallback(() => setOpen(false), []);

@@ -1,4 +1,5 @@
 import { ChevronDown, Map, Shield } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -34,6 +35,7 @@ function PermissionDropdown({
   showDetails?: boolean;
   disabled?: boolean;
 }) {
+  const { t } = useTranslation("input");
   const selectedMode =
     PERMISSION_MODES.find((m) => m.id === permissionMode) ??
     PERMISSION_MODES[0];
@@ -47,7 +49,7 @@ function PermissionDropdown({
           disabled={disabled}
         >
           <Shield className="size-3" />
-          {selectedMode.label}
+          {t(`control.permissionMode.${selectedMode.id}`)}
           <ChevronDown className="size-3" />
         </Button>
       </DropdownMenuTrigger>
@@ -56,6 +58,7 @@ function PermissionDropdown({
           const details = showDetails
             ? CODEX_PERMISSION_MODE_DETAILS[m.id]
             : undefined;
+          const label = t(`control.permissionMode.${m.id}`);
           return (
             <DropdownMenuItem
               key={m.id}
@@ -64,17 +67,17 @@ function PermissionDropdown({
             >
               {details ? (
                 <div className="flex min-w-0 flex-col">
-                  <span>{m.label}</span>
+                  <span>{label}</span>
                   <span className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">
                     <span className="font-mono text-foreground/80">
                       {details.policy}
                     </span>
                     <span aria-hidden="true">&middot;</span>
-                    <span>{details.description}</span>
+                    <span>{t(`control.codexPermissionDesc.${m.id}`)}</span>
                   </span>
                 </div>
               ) : (
-                m.label
+                label
               )}
             </DropdownMenuItem>
           );
@@ -94,6 +97,7 @@ function PlanModeToggle({
   onPlanModeChange: (enabled: boolean) => void;
   disabled?: boolean;
 }) {
+  const { t } = useTranslation("input");
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -109,12 +113,12 @@ function PlanModeToggle({
           }`}
         >
           <Map className="size-3" />
-          Plan
+          {t("control.plan")}
         </Button>
       </TooltipTrigger>
       <TooltipContent side="top">
         <p className="text-xs">
-          {planMode ? "Plan mode on" : "Plan mode off"} (Shift+Tab)
+          {planMode ? t("control.planModeOn") : t("control.planModeOff")} (Shift+Tab)
         </p>
       </TooltipContent>
     </Tooltip>
@@ -149,6 +153,7 @@ export function EngineControls({
   acpPermissionBehavior,
   onAcpPermissionBehaviorChange,
 }: EngineControlsProps) {
+  const { t } = useTranslation("input");
   if (isACPAgent) {
     if (!onAcpPermissionBehaviorChange) return null;
     return (
@@ -161,9 +166,13 @@ export function EngineControls({
             disabled={isProcessing || disabled}
           >
             <Shield className="size-3" />
-            {ACP_PERMISSION_BEHAVIORS.find(
-              (b) => b.id === acpPermissionBehavior,
-            )?.label ?? "Ask"}
+            {t(
+              `control.acpBehavior.${
+                ACP_PERMISSION_BEHAVIORS.find(
+                  (b) => b.id === acpPermissionBehavior,
+                )?.id ?? "ask"
+              }`,
+            )}
             <ChevronDown className="size-3" />
           </Button>
         </DropdownMenuTrigger>
@@ -175,9 +184,9 @@ export function EngineControls({
               className={b.id === acpPermissionBehavior ? "bg-accent" : ""}
             >
               <div>
-                <div>{b.label}</div>
+                <div>{t(`control.acpBehavior.${b.id}`)}</div>
                 <div className="text-[10px] text-muted-foreground">
-                  {b.description}
+                  {t(`control.acpBehavior.${b.id}Desc`)}
                 </div>
               </div>
             </DropdownMenuItem>

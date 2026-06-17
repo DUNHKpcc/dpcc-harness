@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -57,6 +58,7 @@ export const JiraBoardPanel = React.memo(function JiraBoardPanel({
   onToggleSidebar,
   onCreateTask,
 }: JiraBoardPanelProps) {
+  const { t } = useTranslation("jira");
   const { config, loading: configLoading, saveConfig, deleteConfig } = useJiraConfig(projectId);
   const isMainView = variant === "main";
   const headerPaddingClass = isMainView && !sidebarOpen && isMac ? "ps-[78px]" : "";
@@ -118,7 +120,7 @@ export const JiraBoardPanel = React.memo(function JiraBoardPanel({
   if (!projectId) {
     return (
       <div className="flex items-center justify-center h-full p-4 text-center text-muted-foreground">
-        <p>No project selected</p>
+        <p>{t("panel.noProject")}</p>
       </div>
     );
   }
@@ -176,7 +178,7 @@ export const JiraBoardPanel = React.memo(function JiraBoardPanel({
             <div className="min-w-0">
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <KanbanSquare className="h-4 w-4 shrink-0" />
-                <h3 className="truncate">{projectName ? `${projectName} Jira Board` : "Jira Board"}</h3>
+                <h3 className="truncate">{projectName ? t("panel.boardTitle", { project: projectName }) : t("panel.boardTitleDefault")}</h3>
               </div>
               {config && (
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -189,7 +191,7 @@ export const JiraBoardPanel = React.memo(function JiraBoardPanel({
             {onClose && (
               <Button variant="ghost" size="sm" onClick={onClose} className="no-drag h-8 gap-1.5 px-2">
                 <ArrowLeft className="h-4 w-4" />
-                Back to Chat
+                {t("panel.backToChat")}
               </Button>
             )}
             <Button
@@ -209,7 +211,7 @@ export const JiraBoardPanel = React.memo(function JiraBoardPanel({
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="w-full justify-between">
                 <span className="truncate">
-                  {boardData.boards.find((b) => b.id === boardData.selectedBoardId)?.name || "Select a board"}
+                  {boardData.boards.find((b) => b.id === boardData.selectedBoardId)?.name || t("panel.selectBoard")}
                 </span>
                 <ChevronDown className="w-4 h-4 ms-2 flex-shrink-0" />
               </Button>
@@ -231,8 +233,8 @@ export const JiraBoardPanel = React.memo(function JiraBoardPanel({
               <Button variant="outline" size="sm" className="w-full justify-between text-xs">
                 <span className="truncate">
                   {boardData.selectedSprintId
-                    ? (boardData.sprints.find((s) => s.id === boardData.selectedSprintId)?.name ?? "Select sprint")
-                    : "All issues"}
+                    ? (boardData.sprints.find((s) => s.id === boardData.selectedSprintId)?.name ?? t("panel.selectSprint"))
+                    : t("panel.allIssues")}
                 </span>
                 <ChevronDown className="w-3 h-3 ms-2 flex-shrink-0" />
               </Button>
@@ -242,7 +244,7 @@ export const JiraBoardPanel = React.memo(function JiraBoardPanel({
                 onClick={() => boardData.setSelectedSprintId("")}
                 className="flex items-center justify-between"
               >
-                All issues
+                {t("panel.allIssues")}
                 {!boardData.selectedSprintId && <Check className="w-3 h-3 ms-2 text-muted-foreground" />}
               </DropdownMenuItem>
               {boardData.sprints.map((sprint) => (
@@ -255,7 +257,7 @@ export const JiraBoardPanel = React.memo(function JiraBoardPanel({
                     <span className="truncate">{sprint.name}</span>
                     {sprint.state === "active" && (
                       <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
-                        active
+                        {t("panel.sprintActive")}
                       </Badge>
                     )}
                   </span>
@@ -275,7 +277,7 @@ export const JiraBoardPanel = React.memo(function JiraBoardPanel({
               <Button variant="ghost" size="sm" className="h-7 w-full justify-between text-xs text-muted-foreground">
                 <span className="flex items-center gap-1.5">
                   <ArrowUpDown className="w-3 h-3" />
-                  Sort: {SORT_LABELS[boardData.sortBy]}
+                  {t("panel.sort", { label: t(`panel.sortLabels.${boardData.sortBy}`) })}
                 </span>
                 <ChevronDown className="w-3 h-3" />
               </Button>
@@ -287,7 +289,7 @@ export const JiraBoardPanel = React.memo(function JiraBoardPanel({
                   onClick={() => boardData.setSortBy(option)}
                   className="flex items-center justify-between"
                 >
-                  {SORT_LABELS[option]}
+                  {t(`panel.sortLabels.${option}`)}
                   {boardData.sortBy === option && <Check className="w-3 h-3 ms-2 text-muted-foreground" />}
                 </DropdownMenuItem>
               ))}
@@ -298,7 +300,7 @@ export const JiraBoardPanel = React.memo(function JiraBoardPanel({
 
       {/* Drag hint */}
       <div className="border-b border-border/50 px-4 py-2 text-[11px] text-muted-foreground">
-        Drag cards between columns to transition them in Jira.
+        {t("panel.dragHint")}
       </div>
 
       {/* Board grid */}
@@ -339,9 +341,9 @@ export const JiraBoardPanel = React.memo(function JiraBoardPanel({
         open={showDeleteConfirm}
         onOpenChange={setShowDeleteConfirm}
         onConfirm={() => void handleDeleteConfig()}
-        title="Remove Jira Configuration"
-        description="This will disconnect the Jira board from this project. You can reconnect it later."
-        confirmLabel="Remove"
+        title={t("panel.removeConfigTitle")}
+        description={t("panel.removeConfigDescription")}
+        confirmLabel={t("panel.removeConfigConfirm")}
       />
     </div>
   );

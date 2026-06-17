@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Loader2,
   AlertCircle,
@@ -77,6 +78,7 @@ export function AgentTranscriptViewer({
   expandEditToolCallsByDefault,
   onClose,
 }: AgentTranscriptViewerProps) {
+  const { t } = useTranslation("chat");
   const [items, setItems] = useState<DisplayItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -110,7 +112,7 @@ export function AgentTranscriptViewer({
         <DialogHeader className="px-5 pt-5 pb-3 border-b border-border/50 shrink-0">
           <DialogTitle className="flex items-center gap-2 text-sm">
             <AgentIcon icon={CLAUDE_ICON} size={16} className="opacity-60" />
-            Agent Transcript — {agentDescription}
+            {t("transcript.title", { description: agentDescription })}
           </DialogTitle>
         </DialogHeader>
 
@@ -119,7 +121,7 @@ export function AgentTranscriptViewer({
             {loading && (
               <div className="flex items-center justify-center gap-2 py-8 text-sm text-foreground/40">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Loading transcript…
+                {t("transcript.loading")}
               </div>
             )}
 
@@ -132,7 +134,7 @@ export function AgentTranscriptViewer({
 
             {!loading && !error && items.length === 0 && (
               <div className="py-8 text-center text-sm text-foreground/40">
-                No transcript data available.
+                {t("transcript.empty")}
               </div>
             )}
 
@@ -196,6 +198,7 @@ function TextRow({ text }: { text: string }) {
 }
 
 function ThinkingRow({ text }: { text: string }) {
+  const { t } = useTranslation("chat");
   const [open, setOpen] = useState(false);
   const preview = text.slice(0, 80) + (text.length > 80 ? "…" : "");
 
@@ -204,7 +207,7 @@ function ThinkingRow({ text }: { text: string }) {
       <CollapsibleTrigger asChild>
         <div className="flex items-center gap-1.5 px-5 py-0.5 text-[11px] text-foreground/30 cursor-pointer hover:text-foreground/50 transition-colors">
           <ChevronRight className={`h-2.5 w-2.5 shrink-0 transition-transform ${open ? "rotate-90" : ""}`} />
-          <span className="italic truncate">Thinking: {preview}</span>
+          <span className="italic truncate">{t("transcript.thinkingPrefix", { preview })}</span>
         </div>
       </CollapsibleTrigger>
       <CollapsibleContent>

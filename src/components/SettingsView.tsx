@@ -1,4 +1,5 @@
 import { memo, useState, useCallback, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   SlidersHorizontal,
   Bell,
@@ -36,24 +37,25 @@ export type SettingsSection = "general" | "appearance" | "notifications" | "anal
 
 interface NavItem {
   id: SettingsSection;
-  label: string;
+  /** i18n key under the "settings" namespace, resolved at render time */
+  labelKey: string;
   icon: LucideIcon;
   /** Renders a subtle "soon" indicator next to the label */
   comingSoon?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: "general", label: "General", icon: SlidersHorizontal },
-  { id: "appearance", label: "Appearance", icon: Palette },
-  { id: "notifications", label: "Notifications", icon: Bell },
-  { id: "analytics", label: "Analytics", icon: BarChart3 },
-  { id: "agents", label: "ACP Agents", icon: Bot },
-  { id: "mcp", label: "MCP Servers", icon: Plug },
-  { id: "engines", label: "Engines", icon: Cpu },
-  { id: "skills", label: "Skills", icon: Sparkles, comingSoon: true },
-  { id: "custom-agents", label: "Agents", icon: Users, comingSoon: true },
-  { id: "advanced", label: "Advanced", icon: Wrench },
-  { id: "about", label: "About", icon: Info },
+  { id: "general", labelKey: "nav.general", icon: SlidersHorizontal },
+  { id: "appearance", labelKey: "nav.appearance", icon: Palette },
+  { id: "notifications", labelKey: "nav.notifications", icon: Bell },
+  { id: "analytics", labelKey: "nav.analytics", icon: BarChart3 },
+  { id: "agents", labelKey: "nav.agents", icon: Bot },
+  { id: "mcp", labelKey: "nav.mcp", icon: Plug },
+  { id: "engines", labelKey: "nav.engines", icon: Cpu },
+  { id: "skills", labelKey: "nav.skills", icon: Sparkles, comingSoon: true },
+  { id: "custom-agents", labelKey: "nav.customAgents", icon: Users, comingSoon: true },
+  { id: "advanced", labelKey: "nav.advanced", icon: Wrench },
+  { id: "about", labelKey: "nav.about", icon: Info },
 ];
 
 // ── Props ──
@@ -81,6 +83,7 @@ export const SettingsView = memo(function SettingsView({
   onReplayWelcome,
   initialSection,
 }: SettingsViewProps) {
+  const { t } = useTranslation("settings");
   const { agents, saveAgent, deleteAgent } = useAgentContext();
   const islandLayout = useSettingsStore((s) => s.islandLayout);
   const [activeSection, setActiveSection] = useState<SettingsSection>(initialSection ?? "general");
@@ -168,8 +171,8 @@ export const SettingsView = memo(function SettingsView({
       case "skills":
         return (
           <PlaceholderSection
-            title="Skills"
-            description="Create, install, and manage agent skills that extend what your AI coding agents can do."
+            title={t("placeholder.skills.title")}
+            description={t("placeholder.skills.description")}
             icon={Sparkles}
             comingSoon
           />
@@ -177,8 +180,8 @@ export const SettingsView = memo(function SettingsView({
       case "custom-agents":
         return (
           <PlaceholderSection
-            title="Agents"
-            description="Build and configure custom agents with specialized tools, prompts, and workflows."
+            title={t("placeholder.customAgents.title")}
+            description={t("placeholder.customAgents.description")}
             icon={Users}
             comingSoon
           />
@@ -209,7 +212,7 @@ export const SettingsView = memo(function SettingsView({
             <PanelLeft className="h-4 w-4" />
           </Button>
         )}
-        <span className={`leading-none text-sm font-semibold text-foreground ${macIslandTitlebarOffsetClass}`}>Settings</span>
+        <span className={`leading-none text-sm font-semibold text-foreground ${macIslandTitlebarOffsetClass}`}>{t("titlebar")}</span>
       </div>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
@@ -231,10 +234,10 @@ export const SettingsView = memo(function SettingsView({
                   }`}
                 >
                   <Icon className="h-4 w-4 shrink-0" />
-                  <span className="flex-1">{item.label}</span>
+                  <span className="flex-1">{t(item.labelKey)}</span>
                   {item.comingSoon && (
                     <span className="rounded bg-foreground/[0.06] px-1.5 py-px text-[10px] font-medium text-muted-foreground/70">
-                      Soon
+                      {t("nav.comingSoon")}
                     </span>
                   )}
                 </button>

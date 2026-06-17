@@ -1,4 +1,5 @@
 import React, { type Dispatch, type ReactNode, type RefObject, type SetStateAction } from "react";
+import { useTranslation } from "react-i18next";
 import type { MainToolWorkspaceState } from "@/hooks/useMainToolWorkspace";
 import { equalWidthFractions } from "@/lib/layout/constants";
 import { getHorizontalInsertSide } from "@/lib/workspace/drag";
@@ -40,6 +41,7 @@ export function MainBottomToolDock({
   drag,
   renderToolContent,
 }: MainBottomToolDockProps) {
+  const { t } = useTranslation("workspace");
   const {
     isIsland,
     isResizeActive,
@@ -188,7 +190,7 @@ export function MainBottomToolDock({
                   {renderToolContent(entry.island.toolId, (
                     <PanelDockControls
                       isBottom={true}
-                      moveLabel="Move to top row"
+                      moveLabel={t("dock.moveToTopRow")}
                       onMovePlacement={() => onMoveBottomToolToTop(entry.island.id)}
                       onDragStart={(event) => {
                         event.dataTransfer.setData("text/plain", entry.island.id);

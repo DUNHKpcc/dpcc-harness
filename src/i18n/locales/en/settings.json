@@ -1,0 +1,308 @@
+{
+  "titlebar": "Settings",
+  "nav": {
+    "general": "General",
+    "appearance": "Appearance",
+    "notifications": "Notifications",
+    "analytics": "Analytics",
+    "agents": "ACP Agents",
+    "mcp": "MCP Servers",
+    "engines": "Engines",
+    "skills": "Skills",
+    "customAgents": "Agents",
+    "advanced": "Advanced",
+    "about": "About",
+    "comingSoon": "Coming soon"
+  },
+  "placeholder": {
+    "comingSoon": "Coming Soon",
+    "skills": {
+      "title": "Skills",
+      "description": "Create, install, and manage agent skills that extend what your AI coding agents can do."
+    },
+    "customAgents": {
+      "title": "Agents",
+      "description": "Build and configure custom agents with specialized tools, prompts, and workflows."
+    }
+  },
+  "appearance": {
+    "title": "Appearance",
+    "description": "Customize the look and feel of the interface",
+    "language": {
+      "section": "Language",
+      "label": "Display language",
+      "description": "Choose the interface language. System follows your operating system locale.",
+      "system": "System",
+      "en": "English",
+      "zh": "简体中文"
+    },
+    "theme": {
+      "section": "Theme",
+      "label": "Color theme",
+      "description": "Choose between light and dark appearance, or follow your system setting.",
+      "dark": "Dark",
+      "light": "Light",
+      "system": "System"
+    },
+    "tools": {
+      "section": "Tools",
+      "autoGroup": "Auto-group tools",
+      "autoGroupDesc": "Collapse consecutive tool calls into a single group. Disable to keep every tool call and in-between thinking row visible on its own.",
+      "avoidGroupingEdits": "Avoid grouping edits",
+      "avoidGroupingEditsDesc": "Treat Edit and Write tool calls as standalone rows, even when auto-grouping is enabled. Reads before and after an edit will form separate groups.",
+      "autoExpand": "Auto-expand tool results",
+      "autoExpandDesc": "Temporarily expand completed tool calls, then collapse them again after a short delay. Disable to keep tool rows stable unless you open them yourself.",
+      "expandEditWrite": "Expand Edit and Write tools by default",
+      "expandEditWriteDesc": "Start Edit and Write tool calls open when they appear. Disable to keep them collapsed until you open them.",
+      "showIcons": "Show tool icons",
+      "showIconsDesc": "Display icons next to tool call labels. Disable for a text-only view.",
+      "coloredIcons": "Colored tool icons",
+      "coloredIconsDesc": "Tint tool call icons with per-tool colors. Disable for monochrome icons."
+    },
+    "layout": {
+      "section": "Layout",
+      "windowLayout": "Window layout",
+      "windowLayoutDesc": "Choose how panels are arranged in the window.",
+      "islands": "Islands",
+      "flat": "Flat",
+      "coloredSidebarIcons": "Colored sidebar icons",
+      "coloredSidebarIconsDesc": "Tint tool picker and panel header icons with per-tool colors. Disable for neutral monochrome icons.",
+      "islandShine": "Island border shine",
+      "islandShineDesc": "Show a subtle diagonal reflection on island panel borders. Only visible in island layout mode."
+    },
+    "transparency": {
+      "section": "Transparency",
+      "macLabel": "Window background effect",
+      "winLabel": "Window transparency",
+      "macDescGlass": "Choose the native macOS background material. Blur Off keeps the window opaque, while switching from Liquid Glass to Vibrancy needs a restart.",
+      "macDescNoGlass": "Choose the native macOS background material. Liquid Glass is unavailable on this Mac, so Vibrancy and Off are available.",
+      "winDescSupported": "Allow the desktop to show through the window background. Uses Mica on Windows when enabled.",
+      "winDescUnsupported": "Window transparency is not available on this platform.",
+      "liquidGlass": "Liquid Glass",
+      "vibrancy": "Vibrancy",
+      "blurOff": "Blur Off",
+      "transparentToolPicker": "Transparent tool picker",
+      "transparentToolPickerDesc": "Remove the background from the right-side tool picker strip so icons float directly over the window."
+    }
+  },
+  "engines": {
+    "title": "Engines",
+    "description": "Configure engine-level runtime behavior and binary selection",
+    "claude": {
+      "section": "Claude Code",
+      "sourceLabel": "Claude binary source",
+      "sourceDesc": "Choose how PccAgent resolves the Claude executable.",
+      "customLabel": "Custom Claude path",
+      "customDesc": "Absolute path to claude executable (claude or claude.exe).",
+      "customPlaceholder": "Absolute path to claude executable"
+    },
+    "codex": {
+      "section": "Codex",
+      "sourceLabel": "Codex binary source",
+      "sourceDesc": "Choose how PccAgent resolves the Codex executable.",
+      "versionLabel": "Codex version",
+      "versionDesc": "{{version}} · {{origin}}. Codex ships bundled and works offline — check for updates to pull the latest from npm.",
+      "updated": "Updated to {{version}}",
+      "updateFailed": "Update failed: {{error}}",
+      "customLabel": "Custom Codex path",
+      "customDesc": "Absolute path to codex executable (codex or codex.exe).",
+      "customPlaceholder": "Absolute path to codex executable",
+      "origin": {
+        "bundled": "Bundled (offline)",
+        "managed": "Downloaded",
+        "known": "System install",
+        "path": "System PATH",
+        "env": "Env override",
+        "custom": "Custom path",
+        "none": "Not found"
+      }
+    },
+    "source": {
+      "auto": "Auto detect",
+      "managedInstall": "Managed install",
+      "managedDownload": "Managed download",
+      "custom": "Custom path"
+    }
+  },
+  "general": {
+    "title": "General",
+    "description": "Application-wide preferences",
+    "updates": {
+      "section": "Updates",
+      "prereleaseLabel": "Include pre-release updates",
+      "prereleaseDesc": "Receive beta versions with the latest features. Disable to only get stable releases."
+    },
+    "sidebar": {
+      "section": "Sidebar",
+      "recentChatsLabel": "Recent chats per project",
+      "recentChatsDesc": "Number of chats shown by default in each project. Click 'Show more' in the sidebar to load additional chats."
+    },
+    "editor": {
+      "section": "Editor",
+      "defaultLabel": "Default editor",
+      "defaultDesc": "Choose which editor opens when you click 'Open in Editor'. Auto tries Cursor, VS Code, then Zed.",
+      "auto": "Auto"
+    },
+    "voice": {
+      "section": "Voice Dictation",
+      "modeLabel": "Dictation mode",
+      "modeDesc": "Native uses your OS dictation (macOS only). Whisper runs a local AI model for speech-to-text on all platforms (~40 MB download on first use).",
+      "native": "Native (OS)",
+      "whisper": "Whisper (Local AI)"
+    }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "description": "Configure when OS notifications and sounds play for different events.",
+    "events": {
+      "sessionComplete": {
+        "label": "Session Complete",
+        "description": "When Claude finishes processing and the session becomes idle."
+      },
+      "exitPlanMode": {
+        "label": "Exit Plan Mode",
+        "description": "When Claude finishes planning and is ready to implement."
+      },
+      "permissions": {
+        "label": "Permission Request",
+        "description": "When Claude needs approval to run a command, edit a file, etc."
+      },
+      "askUserQuestion": {
+        "label": "Ask User Question",
+        "description": "When Claude asks you a question to guide the work."
+      }
+    },
+    "osNotification": "OS Notification",
+    "sound": "Sound",
+    "trigger": {
+      "always": "Always",
+      "unfocused": "When Unfocused",
+      "never": "Never"
+    }
+  },
+  "advanced": {
+    "title": "Advanced",
+    "description": "Low-level settings for protocol behavior and server communication",
+    "codexSection": "Codex",
+    "clientNameLabel": "Client name",
+    "clientNameDesc": "How this app identifies itself to Codex servers during the handshake. Changes take effect on new sessions.",
+    "devFillLabel": "Show Dev Fill in chat title bar",
+    "devFillDesc": "Enable developer seeding actions in the active chat title bar. Hidden by default.",
+    "jiraBoardLabel": "Enable Jira board",
+    "jiraBoardDesc": "Show the Jira board UI in project sidebars and chats. This is a developer preview.",
+    "replayWelcomeLabel": "Replay welcome wizard",
+    "replayWelcomeDesc": "Reset the onboarding flag and relaunch the welcome wizard.",
+    "replay": "Replay"
+  },
+  "about": {
+    "title": "About",
+    "description": "Version info, links & credits",
+    "tagline": "Open-source desktop client for AI coding agents.",
+    "taglineLine2": "One app for Claude Code, Codex, and any ACP agent.",
+    "links": "Links",
+    "githubLabel": "GitHub Repository",
+    "githubDesc": "Source code, issues & releases",
+    "licenseLabel": "MIT License",
+    "licenseDesc": "Free and open-source software",
+    "credits": "Credits",
+    "builtBy": "Built by OpenSource",
+    "creditsBody": "PccAgent is open-source under the MIT License. Contributions, bug reports, and feature requests are welcome on GitHub.",
+    "builtWith": "Built with"
+  },
+  "analytics": {
+    "title": "Analytics",
+    "description": "Help improve PccAgent by sharing anonymous usage data",
+    "section": "Usage Analytics",
+    "sendLabel": "Send anonymous analytics",
+    "sendDesc": "Share anonymous usage data to help us understand how people use PccAgent and improve the app. We collect app version, platform, and basic feature usage. No code, prompts, or personal data is collected.",
+    "userIdLabel": "Anonymous User ID",
+    "userIdDesc": "This randomly generated ID is used to count unique users without identifying you.",
+    "collectTitle": "What we collect",
+    "collect": {
+      "platform": "App version and platform (macOS, Windows, Linux)",
+      "dau": "Daily active users (to measure engagement)",
+      "features": "Basic feature usage (e.g., which engines are used)"
+    },
+    "noCollectTitle": "What we don't collect",
+    "noCollect": {
+      "code": "Your code, prompts, or conversations with AI",
+      "paths": "File paths, project names, or repository URLs",
+      "personal": "Any personal or identifying information",
+      "keys": "API keys or credentials"
+    }
+  },
+  "agents": {
+    "title": "ACP Agents",
+    "description": "Browse the agent store or manage your installed agents",
+    "tabStore": "Agent Store",
+    "tabMyAgents": "My Agents",
+    "builtIn": "Built-in",
+    "addAgent": "Add Agent",
+    "editAgent": "Edit Agent",
+    "edit": "Edit",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "empty": "No agents configured",
+    "emptyHint": "Add an ACP agent from the store or manually",
+    "deleteTitle": "Delete Agent",
+    "deleteConfirm": "Are you sure you want to delete <0>{{name}}</0>? This action cannot be undone.",
+    "pasteJson": "Paste JSON",
+    "pasteJsonTooltip": "Paste an agent definition from agents.json to auto-fill the form",
+    "saving": "Saving...",
+    "saveChanges": "Save Changes",
+    "idLabel": "ID",
+    "idPlaceholder": "my-agent",
+    "idLocked": "Agent ID cannot be changed after creation",
+    "nameLabel": "Name",
+    "namePlaceholder": "My Custom Agent",
+    "binaryLabel": "Binary",
+    "binaryPlaceholder": "npx",
+    "binaryDesc": "Command to spawn the ACP agent process",
+    "argsLabel": "Arguments",
+    "argsPlaceholder": "@scope/package --flag",
+    "argsDesc": "Space-separated command arguments",
+    "envLabel": "Environment Variables",
+    "envKeyPlaceholder": "KEY",
+    "envValuePlaceholder": "value",
+    "addVariable": "Add variable",
+    "iconLabel": "Icon",
+    "errors": {
+      "idRequired": "ID is required",
+      "idReserved": "This ID is reserved",
+      "idExists": "An agent with this ID already exists",
+      "nameRequired": "Name is required",
+      "binaryRequired": "Binary command is required",
+      "saveFailed": "Failed to save agent",
+      "clipboardInvalid": "Clipboard doesn't contain a valid agent JSON",
+      "clipboardUnreadable": "Could not read clipboard"
+    },
+    "store": {
+      "searchPlaceholder": "Search agents...",
+      "refresh": "Refresh registry",
+      "viewRepository": "View repository",
+      "loadFailed": "Failed to load registry: {{error}}",
+      "retry": "Retry",
+      "add": "Add",
+      "adding": "Adding...",
+      "added": "Added",
+      "removeAgent": "Remove agent",
+      "update": "Update",
+      "updating": "Updating...",
+      "download": "Download",
+      "setup": "Setup",
+      "empty": "No agents found",
+      "emptyHint": "Try a different search term"
+    }
+  },
+  "mcp": {
+    "title": "MCP Servers",
+    "intro": "MCP servers are managed from the <0></0> <1>MCP Servers</1> panel in the right-side toolbar.",
+    "whyTitle": "Why the toolbar?",
+    "perProjectTitle": "Per-project configuration",
+    "perProjectDesc": "each project has its own set of MCP servers, so they live alongside your project workspace.",
+    "liveStatusTitle": "Live status monitoring",
+    "liveStatusDesc": "servers can disconnect mid-session. The toolbar panel shows real-time connection status so you can spot and fix issues quickly.",
+    "alwaysTitle": "Always accessible",
+    "alwaysDesc": "add, remove, authenticate, and reconnect servers without leaving your chat."
+  }
+}

@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "motion/react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useSettingsStore } from "@/stores/settings-store";
@@ -49,6 +50,7 @@ export function WelcomeWizard({
   hasProjects,
   onComplete,
 }: WelcomeWizardProps) {
+  const { t } = useTranslation("welcome");
   const { agents, saveAgent, deleteAgent } = useAgentContext();
   const islandLayout = useSettingsStore((s) => s.islandLayout);
   const [currentStep, setCurrentStep] = useState(0);
@@ -200,7 +202,7 @@ export function WelcomeWizard({
                 onClick={skip}
                 className="text-sm text-muted-foreground/50 transition-colors hover:text-muted-foreground"
               >
-                Skip
+                {t("nav.skip")}
               </button>
             ) : !isLast ? (
               <button
@@ -208,7 +210,7 @@ export function WelcomeWizard({
                 className="flex items-center gap-1 text-sm text-muted-foreground/50 transition-colors hover:text-muted-foreground"
               >
                 <ChevronLeft className="h-3.5 w-3.5" />
-                Back
+                {t("action.back", { ns: "common" })}
               </button>
             ) : null}
           </div>
@@ -221,7 +223,7 @@ export function WelcomeWizard({
                 onClick={goNext}
                 className="flex items-center gap-1 text-sm font-medium text-foreground/60 transition-colors hover:text-foreground"
               >
-                Next
+                {t("action.next", { ns: "common" })}
                 <ChevronRight className="h-3.5 w-3.5" />
               </button>
             )}

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { FileText } from "lucide-react";
 import type { UIMessage } from "@/types";
 import { formatResult } from "@/components/lib/tool-formatting";
@@ -44,6 +45,7 @@ function FilesMatchList({ filenames }: { filenames: string[] }) {
 }
 
 function ContentResult({ content, numLines }: { content: string; numLines?: number }) {
+  const { t } = useTranslation("toolcall");
   if (!content) return null;
 
   // Parse lines to identify match lines (with :lineNum:) vs context (with -lineNum-)
@@ -68,7 +70,7 @@ function ContentResult({ content, numLines }: { content: string; numLines?: numb
       })}
       {numLines != null && numLines > 0 && (
         <div className="mt-1 text-[10px] text-foreground/25">
-          {numLines} line{numLines !== 1 ? "s" : ""}
+          {t("search.lines", { count: numLines })}
         </div>
       )}
     </pre>
@@ -78,6 +80,7 @@ function ContentResult({ content, numLines }: { content: string; numLines?: numb
 // ── Main component ──
 
 export function SearchContent({ message }: { message: UIMessage }) {
+  const { t } = useTranslation("toolcall");
   const pattern = String(message.toolInput?.pattern ?? "");
   const glob = message.toolInput?.glob ? String(message.toolInput.glob) : "";
   const path = message.toolInput?.path ? String(message.toolInput.path) : "";
@@ -89,8 +92,8 @@ export function SearchContent({ message }: { message: UIMessage }) {
       {pattern && (
         <div className="font-mono text-[11px] text-foreground/50">
           {pattern}
-          {glob && <span className="text-foreground/30 ms-1.5">in {glob}</span>}
-          {!glob && path && <span className="text-foreground/30 ms-1.5">in {shortenPath(path)}</span>}
+          {glob && <span className="text-foreground/30 ms-1.5">{t("search.in", { scope: glob })}</span>}
+          {!glob && path && <span className="text-foreground/30 ms-1.5">{t("search.in", { scope: shortenPath(path) })}</span>}
         </div>
       )}
     </>
@@ -109,21 +112,21 @@ export function SearchContent({ message }: { message: UIMessage }) {
         {/* Summary badge */}
         {mode === "files_with_matches" && numFiles > 0 && (
           <span className="text-[10px] text-foreground/40 uppercase tracking-wider font-medium">
-            {numFiles} file{numFiles !== 1 ? "s" : ""}
+            {t("search.files", { count: numFiles })}
           </span>
         )}
         {mode === "content" && numLines != null && numLines > 0 && numFiles > 0 && (
           <span className="text-[10px] text-foreground/40 uppercase tracking-wider font-medium">
-            {numLines} line{numLines !== 1 ? "s" : ""} in {numFiles} file{numFiles !== 1 ? "s" : ""}
+            {t("search.linesInFiles", { lines: numLines, count: numFiles })}
           </span>
         )}
         {mode === "content" && numLines != null && numLines > 0 && numFiles === 0 && (
           <span className="text-[10px] text-foreground/40 uppercase tracking-wider font-medium">
-            {numLines} line{numLines !== 1 ? "s" : ""}
+            {t("search.lines", { count: numLines })}
           </span>
         )}
         {(mode === "files_with_matches" || mode === "content" || mode === "count") && numFiles === 0 && !content && (
-          <span className="text-[10px] text-foreground/30 italic">No matches</span>
+          <span className="text-[10px] text-foreground/30 italic">{t("search.noMatches")}</span>
         )}
 
         {/* File list for files_with_matches mode */}
@@ -147,7 +150,7 @@ export function SearchContent({ message }: { message: UIMessage }) {
   }
 
   // Fallback: legacy stdout-based result (ACP or older SDK)
-  const formattedResult = result ? formatResult(result) : "";
+  const formattedResult = result ? formatResult(result, t) : "";
 
   return (
     <div className="space-y-1.5 text-xs">

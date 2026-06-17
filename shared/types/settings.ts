@@ -9,6 +9,8 @@
 export type PreferredEditor = "auto" | "cursor" | "code" | "zed";
 export type VoiceDictationMode = "native" | "whisper";
 export type ThemeOption = "light" | "dark" | "system";
+/** UI language. "system" follows the OS locale (zh-* → Chinese, otherwise English). */
+export type LanguageOption = "system" | "en" | "zh";
 export type MacBackgroundEffect = "liquid-glass" | "vibrancy" | "off";
 export type CodexBinarySource = "auto" | "managed" | "custom";
 export type ClaudeBinarySource = "auto" | "managed" | "custom";

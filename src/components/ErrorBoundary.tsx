@@ -1,5 +1,6 @@
 import { Component } from "react";
 import type { ReactNode, ErrorInfo } from "react";
+import i18n from "@/i18n";
 import { posthog } from "@/lib/analytics/posthog";
 
 interface Props {
@@ -69,7 +70,7 @@ export class ErrorBoundary extends Component<Props, State> {
           }}
         >
           <h1 style={{ fontSize: "1.25rem", fontWeight: 600, marginBottom: "0.75rem" }}>
-            Something went wrong
+            {i18n.t("errorBoundary.title", { ns: "dialogs" })}
           </h1>
           <pre
             style={{
@@ -97,7 +98,7 @@ export class ErrorBoundary extends Component<Props, State> {
               cursor: "pointer",
             }}
           >
-            Reload
+            {i18n.t("errorBoundary.reload", { ns: "dialogs" })}
           </button>
         </div>
       </div>

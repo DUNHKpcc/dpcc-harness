@@ -1,4 +1,5 @@
 import { memo, startTransition, useMemo, useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { FileText, Loader2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -38,6 +39,7 @@ export const FilesPanel = memo(function FilesPanel({
   enabled = true,
   headerControls,
 }: FilesPanelProps) {
+  const { t } = useTranslation("tools");
   const [hasClaudeMd, setHasClaudeMd] = useState(false);
   const [data, setData] = useState<FilePanelData | null>(null);
 
@@ -115,7 +117,7 @@ export const FilesPanel = memo(function FilesPanel({
 
   return (
     <div className="flex h-full flex-col">
-      <PanelHeader icon={FileText} label="Open Files" iconClass="text-amber-600/70 dark:text-amber-200/50">
+      <PanelHeader icon={FileText} label={t("files.title")} iconClass="text-amber-600/70 dark:text-amber-200/50">
         {files.length > 0 && (
           <span className="text-[10px] tabular-nums text-foreground/35">{files.length}</span>
         )}
@@ -126,14 +128,14 @@ export const FilesPanel = memo(function FilesPanel({
         <div className="flex flex-1 flex-col items-center justify-center gap-1 p-4">
           <Loader2 className="h-3 w-3 animate-spin text-foreground/25" />
           <p className="text-center text-[10px] text-muted-foreground/40">
-            Indexing…
+            {t("files.indexing")}
           </p>
         </div>
       ) : files.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-1.5 p-6">
           <FileText className="h-4 w-4 text-foreground/15" />
           <p className="text-center text-[10px] leading-relaxed text-muted-foreground/40">
-            Accessed files will appear here
+            {t("files.empty")}
           </p>
         </div>
       ) : (

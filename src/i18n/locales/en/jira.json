@@ -1,0 +1,59 @@
+{
+  "panel": {
+    "noProject": "No project selected",
+    "boardTitle": "{{project}} Jira Board",
+    "boardTitleDefault": "Jira Board",
+    "backToChat": "Back to Chat",
+    "selectBoard": "Select a board",
+    "selectSprint": "Select sprint",
+    "allIssues": "All issues",
+    "sprintActive": "active",
+    "sort": "Sort: {{label}}",
+    "sortLabels": {
+      "default": "Rank",
+      "status": "Status",
+      "priority": "Priority",
+      "type": "Type",
+      "assignee": "Assignee",
+      "key": "Key"
+    },
+    "dragHint": "Drag cards between columns to transition them in Jira.",
+    "removeConfigTitle": "Remove Jira Configuration",
+    "removeConfigDescription": "This will disconnect the Jira board from this project. You can reconnect it later.",
+    "removeConfigConfirm": "Remove"
+  },
+  "board": {
+    "noIssues": "No issues found in this board"
+  },
+  "card": {
+    "unassigned": "Unassigned",
+    "createTask": "Create Task"
+  },
+  "preview": {
+    "openInJira": "Open in Jira",
+    "assignedTo": "Assigned to: ",
+    "description": "Description",
+    "noDescription": "No description provided",
+    "comments": "Comments",
+    "loadingComments": "Loading comments..."
+  },
+  "setup": {
+    "boardTitle": "{{project}} Jira Board",
+    "setupTitle": "Setup Jira Board",
+    "connectPrompt": "Connect this project to a Jira board.",
+    "back": "Back",
+    "instanceUrlLabel": "Jira Instance URL",
+    "instanceUrlHint": "Your Atlassian cloud instance URL",
+    "projectFilterLabel": "Jira Project Filter",
+    "allProjects": "All projects",
+    "projectFilterHint": "Optional. Filter visible Jira boards by project before picking one.",
+    "boardLabel": "Jira Board",
+    "selectBoard": "Select a board",
+    "boardHint": "This board will be bound to the current PccAgent project.",
+    "errorEnterUrl": "Please enter your Jira instance URL",
+    "errorSelectBoard": "Please select a Jira board",
+    "loading": "Loading...",
+    "connectBoard": "Connect Board",
+    "loadBoards": "Load Jira Boards"
+  }
+}

@@ -1,4 +1,5 @@
 import { memo, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { motion } from "motion/react";
 import { ArrowRight, FolderOpen } from "lucide-react";
 import {
@@ -91,6 +92,7 @@ interface SidebarArrowProps {
 }
 
 function SidebarArrow({ anchorElement }: SidebarArrowProps) {
+  const { t } = useTranslation("welcome");
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [metrics, setMetrics] = useState({ svgWidth: 900, tailX: 660 });
 
@@ -219,7 +221,7 @@ function SidebarArrow({ anchorElement }: SidebarArrowProps) {
           className="italic text-foreground/[0.16]"
           style={{ fontFamily: DISPLAY_FONT, fontSize: "17px" }}
         >
-          your threads are in the sidebar
+          {t("screen.sidebarHint")}
         </span>
       </motion.div>
 
@@ -278,6 +280,7 @@ export const WelcomeScreen = memo(function WelcomeScreen({
   hasProjects,
   onCreateProject,
 }: WelcomeScreenProps) {
+  const { t } = useTranslation("welcome");
   const [subtitleElement, setSubtitleElement] = useState<HTMLParagraphElement | null>(null);
   const [continueMessage, setContinueMessage] = useState<ContinueMessage>(() =>
     getContinueMessage(),
@@ -354,10 +357,10 @@ export const WelcomeScreen = memo(function WelcomeScreen({
               className="text-5xl italic"
               style={{ fontFamily: DISPLAY_FONT, color: "oklch(0.65 0.22 25)" }}
             >
-              Open a project
+              {t("screen.openProject")}
             </h1>
             <p className="max-w-[300px] text-center text-base leading-relaxed text-muted-foreground">
-              Choose a folder to anchor your sessions, tools, and file context.
+              {t("screen.openProjectSubtitle")}
             </p>
           </motion.div>
 
@@ -371,7 +374,7 @@ export const WelcomeScreen = memo(function WelcomeScreen({
             whileTap={{ scale: 0.97 }}
           >
             <FolderOpen className="h-4 w-4" />
-            Choose folder
+            {t("screen.chooseFolder")}
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
           </motion.button>
         </motion.div>

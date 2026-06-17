@@ -1,6 +1,6 @@
 // ── Re-exports from shared (backward compat -- new code should import from @shared/) ──
 
-export type { PreferredEditor, VoiceDictationMode, ThemeOption, MacBackgroundEffect, CodexBinarySource, ClaudeBinarySource, NotificationTrigger, NotificationEventSettings, NotificationSettings, AppSettings } from "@shared/types/settings";
+export type { PreferredEditor, VoiceDictationMode, ThemeOption, LanguageOption, MacBackgroundEffect, CodexBinarySource, ClaudeBinarySource, NotificationTrigger, NotificationEventSettings, NotificationSettings, AppSettings } from "@shared/types/settings";
 export type { InstalledAgent } from "@shared/types/registry";
 export type { BinaryCheckResult } from "@shared/types/registry";
 export type { GitFileStatus, GitFileGroup, GitFileChange, GitBranch, GitRepoInfo, GitStatus, GitLogEntry } from "@shared/types/git";

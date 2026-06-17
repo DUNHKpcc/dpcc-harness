@@ -1,4 +1,5 @@
 import { memo, useMemo, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { FileDiff, Pencil, Plus, ChevronRight, ChevronDown } from "lucide-react";
 import { DiffViewer } from "./DiffViewer";
 import { OpenInEditorButton } from "./OpenInEditorButton";
@@ -23,6 +24,7 @@ const InlineFileChange = memo(function InlineFileChange({
   isExpanded: boolean;
   onToggle: () => void;
 }) {
+  const { t } = useTranslation("chat");
   const Icon = CHANGE_ICON[change.changeType];
   const color = CHANGE_COLOR[change.changeType];
   // Show directory path for context
@@ -50,7 +52,7 @@ const InlineFileChange = memo(function InlineFileChange({
           )}
         </span>
         <span className="text-muted-foreground/40 capitalize text-[10px] shrink-0">
-          {change.changeType === "created" ? "new" : "modified"}
+          {change.changeType === "created" ? t("turnChanges.new") : t("turnChanges.modified")}
         </span>
         <OpenInEditorButton
           filePath={change.filePath}
@@ -77,7 +79,7 @@ const InlineFileChange = memo(function InlineFileChange({
               />
             ) : (
               <div className="px-3 py-2 text-xs text-muted-foreground/50 italic">
-                Empty file
+                {t("turnChanges.emptyFile")}
               </div>
             )
           )}
@@ -96,6 +98,7 @@ interface TurnChangesSummaryProps {
 export const TurnChangesSummary = memo(function TurnChangesSummary({
   summary,
 }: TurnChangesSummaryProps) {
+  const { t } = useTranslation("chat");
   const [isOpen, setIsOpen] = useChatPersistedState(
     `turn-summary:${summary.userMessageId}`,
     false,
@@ -122,16 +125,16 @@ export const TurnChangesSummary = memo(function TurnChangesSummary({
   const compactFileList = useMemo(() => {
     const names = uniqueFiles.map((f) => f.fileName);
     if (names.length <= 3) return names.join(", ");
-    return `${names.slice(0, 3).join(", ")} +${names.length - 3} more`;
-  }, [uniqueFiles]);
+    return t("turnChanges.moreFiles", { names: names.slice(0, 3).join(", "), n: names.length - 3 });
+  }, [uniqueFiles, t]);
 
   // Stats text: "2 modified · 1 new"
   const statsText = useMemo(() => {
     const parts: string[] = [];
-    if (summary.modifiedCount > 0) parts.push(`${summary.modifiedCount} modified`);
-    if (summary.createdCount > 0) parts.push(`${summary.createdCount} new`);
+    if (summary.modifiedCount > 0) parts.push(t("turnChanges.statsModified", { n: summary.modifiedCount }));
+    if (summary.createdCount > 0) parts.push(t("turnChanges.statsNew", { n: summary.createdCount }));
     return parts.join(" · ");
-  }, [summary.modifiedCount, summary.createdCount]);
+  }, [summary.modifiedCount, summary.createdCount, t]);
 
   const toggleFile = useCallback((filePath: string) => {
     setExpandedFiles((prev) => {
@@ -155,7 +158,7 @@ export const TurnChangesSummary = memo(function TurnChangesSummary({
 
           <span className="flex-1 min-w-0 truncate">
             <span className="font-medium text-foreground/80">
-              {summary.fileCount} file{summary.fileCount !== 1 ? "s" : ""} changed
+              {t("turnChanges.filesChanged", { count: summary.fileCount })}
             </span>
             <span className="ms-1.5 text-xs text-muted-foreground/60">
               {compactFileList}

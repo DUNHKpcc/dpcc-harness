@@ -1,3 +1,5 @@
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 import { ExternalLink, Globe, Search } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -15,20 +17,21 @@ function readStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];
 }
 
-function getActionLabel(actionType: string): string {
+function getActionLabel(actionType: string, t: TFunction<"toolcall">): string {
   switch (actionType) {
     case "search":
-      return "search";
+      return t("webSearch.action.search");
     case "openPage":
-      return "open page";
+      return t("webSearch.action.openPage");
     case "findInPage":
-      return "find in page";
+      return t("webSearch.action.findInPage");
     default:
-      return "web";
+      return t("webSearch.action.web");
   }
 }
 
 export function WebSearchContent({ message }: { message: UIMessage }) {
+  const { t } = useTranslation("toolcall");
   const input = message.toolInput ?? {};
   const resultText = extractResultText(message.toolResult);
   const query = readString(input.query);
@@ -50,14 +53,14 @@ export function WebSearchContent({ message }: { message: UIMessage }) {
       {(query || actionType) && (
         <div className="flex items-center gap-1.5 font-mono text-[11px] text-foreground/50">
           <Search className="h-3 w-3 shrink-0 text-foreground/25" />
-          {query ? <span className="min-w-0 truncate">&quot;{query}&quot;</span> : <span>Web search</span>}
-          {actionType && <span className="text-foreground/25">{getActionLabel(actionType)}</span>}
+          {query ? <span className="min-w-0 truncate">&quot;{query}&quot;</span> : <span>{t("webSearch.webSearch")}</span>}
+          {actionType && <span className="text-foreground/25">{getActionLabel(actionType, t)}</span>}
         </div>
       )}
 
       {actionQuery && actionQuery !== query && (
         <div className="text-[11px] text-foreground/35">
-          Search query: <span className="font-mono text-foreground/55">{actionQuery}</span>
+          {t("webSearch.searchQuery")} <span className="font-mono text-foreground/55">{actionQuery}</span>
         </div>
       )}
 
@@ -92,7 +95,7 @@ export function WebSearchContent({ message }: { message: UIMessage }) {
 
       {pattern && (
         <div className="text-[11px] text-foreground/35">
-          Pattern: <span className="font-mono text-foreground/55">{pattern}</span>
+          {t("webSearch.pattern")} <span className="font-mono text-foreground/55">{pattern}</span>
         </div>
       )}
 
@@ -123,7 +126,7 @@ export function WebSearchContent({ message }: { message: UIMessage }) {
           })}
           {overflow > 0 && (
             <div className="border-t border-foreground/[0.06] px-3 py-1 text-[11px] text-foreground/30">
-              +{overflow} more result{overflow !== 1 ? "s" : ""}
+              {t("webSearch.moreResults", { count: overflow })}
             </div>
           )}
         </div>

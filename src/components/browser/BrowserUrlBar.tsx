@@ -5,6 +5,7 @@
  */
 
 import { useMemo, type FormEvent, type KeyboardEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { Globe, Lock, Search, ArrowUpRight } from "lucide-react";
 import type { BrowserHistoryEntry } from "./browser-types";
 import { filterHistory, findCompletion, extractHostname } from "./browser-utils";
@@ -16,8 +17,6 @@ interface UrlBarVariant {
   container: string;
   /** Classes for the text input. */
   input: string;
-  /** Placeholder text. */
-  placeholder: string;
   /** Classes for the suggestion dropdown. */
   dropdown: string;
   /** Size of the leading icon. */
@@ -29,7 +28,6 @@ const VARIANT_START_PAGE: UrlBarVariant = {
     "flex items-center gap-2 rounded-md border border-foreground/[0.08] bg-foreground/[0.03] px-2.5 py-1.5 transition-colors focus-within:border-foreground/[0.15] focus-within:bg-foreground/[0.05]",
   input:
     "w-full bg-transparent text-[12px] text-foreground/80 outline-none placeholder:text-foreground/25",
-  placeholder: "Search or enter URL\u2026",
   dropdown:
     "absolute inset-x-0 top-[calc(100%+4px)] z-20 max-h-48 overflow-y-auto rounded-lg border border-foreground/[0.1] bg-[var(--background)] shadow-lg",
   iconSize: "h-3.5 w-3.5",
@@ -40,7 +38,6 @@ const VARIANT_NAV_BAR: UrlBarVariant = {
     "flex items-center gap-1.5 rounded-md bg-foreground/[0.05] px-2 py-1 transition-colors focus-within:bg-foreground/[0.08] focus-within:ring-1 focus-within:ring-foreground/[0.08]",
   input:
     "min-w-0 flex-1 bg-transparent text-[11px] text-foreground/70 outline-none placeholder:text-foreground/20",
-  placeholder: "Search or enter URL",
   dropdown:
     "absolute inset-x-0 top-[calc(100%+4px)] z-20 max-h-52 overflow-y-auto rounded-md border border-foreground/[0.08] bg-background py-1 shadow-lg",
   iconSize: "h-3 w-3",
@@ -85,7 +82,9 @@ export function BrowserUrlBar({
   autoFocus,
   onEscape,
 }: BrowserUrlBarProps) {
+  const { t } = useTranslation("tools");
   const style = variant === "start-page" ? VARIANT_START_PAGE : VARIANT_NAV_BAR;
+  const placeholder = t("browser.searchOrEnterUrl");
 
   const filteredHistory = useMemo(() => filterHistory(history, value), [history, value]);
   const completion = useMemo(() => findCompletion(history, value), [history, value]);
@@ -199,7 +198,7 @@ export function BrowserUrlBar({
             }}
             onKeyDown={handleKeyDown}
             className={style.input}
-            placeholder={style.placeholder}
+            placeholder={placeholder}
             autoComplete="off"
             spellCheck={false}
             autoFocus={autoFocus}

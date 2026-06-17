@@ -1,3 +1,10 @@
+/**
+ * Internal sentinel for "no diff available" — not user-facing copy. The diff
+ * panel renders translated text when it sees this value; it is compared by
+ * identity so it must stay a stable, non-translated literal.
+ */
+export const NO_DIFF_SENTINEL = "(no diff available)";
+
 export function formatRelativeDate(iso: string): string {
   const now = Date.now();
   const then = new Date(iso).getTime();

@@ -12,5 +12,6 @@ export default defineConfig({
     include: ["electron/src/**/*.test.ts", "src/**/*.test.{ts,tsx}"],
     environment: "node",
     restoreMocks: true,
+    setupFiles: ["./src/test-setup.ts"],
   },
 });

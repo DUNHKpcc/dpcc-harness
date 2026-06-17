@@ -1,0 +1,127 @@
+{
+  "picker": {
+    "terminal": "Terminal",
+    "browser": "Browser",
+    "git": "Source Control",
+    "files": "Open Files",
+    "projectFiles": "Project Files",
+    "mcp": "MCP Servers",
+    "tasks": "Tasks",
+    "agents": "Background Agents",
+    "moveToBottom": "Move to Bottom",
+    "moveToSide": "Move to Side",
+    "moveToTopRow": "Move to Top Row",
+    "bottomPanel": "Bottom panel",
+    "openInEditor": "Open in Editor",
+    "rightClickForOptions": "Right-click for options",
+    "completed": "{{completed}}/{{total}} completed"
+  },
+  "terminal": {
+    "title": "Terminal",
+    "newTerminal": "New Terminal",
+    "restoring": "Restoring terminals..."
+  },
+  "files": {
+    "title": "Open Files",
+    "indexing": "Indexing…",
+    "empty": "Accessed files will appear here"
+  },
+  "projectFiles": {
+    "title": "Project Files",
+    "noProject": "No project selected",
+    "refresh": "Refresh files",
+    "searchPlaceholder": "Search files…",
+    "loading": "Loading…",
+    "noMatches": "No matches for \"{{query}}\"",
+    "noFiles": "No files found",
+    "folderNamePlaceholder": "folder name",
+    "filenamePlaceholder": "filename",
+    "menu": {
+      "openInEditor": "Open in Editor",
+      "preview": "Preview",
+      "newFile": "New File",
+      "newFolder": "New Folder",
+      "copyName": "Copy Name",
+      "copyPath": "Copy Path",
+      "copyAbsolutePath": "Copy Absolute Path",
+      "revealInFinder": "Reveal in Finder",
+      "showInExplorer": "Show in Explorer",
+      "rename": "Rename",
+      "moveToTrash": "Move to Trash",
+      "moveToRecycleBin": "Move to Recycle Bin"
+    }
+  },
+  "todos": {
+    "title": "Tasks"
+  },
+  "agents": {
+    "title": "Agents",
+    "stopping": "Stopping… ",
+    "stopAgent": "Stop agent",
+    "viewTranscript": "View full transcript",
+    "more": "more",
+    "less": "less"
+  },
+  "mcp": {
+    "title": "MCP Servers",
+    "noProject": "Open a project to manage MCP servers",
+    "refreshStatus": "Refresh status",
+    "preliminaryNote": "Preliminary — actual status confirmed once session starts",
+    "loading": "Loading...",
+    "empty": "No MCP servers",
+    "emptyHint": "Add servers to extend agent capabilities",
+    "status": {
+      "connected": "Connected",
+      "connecting": "Connecting...",
+      "needsAuth": "Needs authentication",
+      "failed": "Connection failed",
+      "disabled": "Disabled"
+    },
+    "toolCount_one": "{{count}} tool",
+    "toolCount_other": "{{count}} tools",
+    "envVarCount_one": "{{count}} env var",
+    "envVarCount_other": "{{count}} env vars",
+    "reconnect": "Reconnect",
+    "reconnecting": "Reconnecting...",
+    "auth": {
+      "authenticate": "Authenticate",
+      "authenticating": "Authenticating...",
+      "retryAuth": "Retry auth",
+      "authenticated": "Authenticated",
+      "reconnectToApply": "Reconnect to apply",
+      "orStartNewSession": "Or start a new session to use the token",
+      "tokenExpired": "Token expired",
+      "reAuth": "Re-auth",
+      "restartToApply": "Restart to apply"
+    },
+    "dialog": {
+      "title": "Add MCP Server",
+      "name": "Name",
+      "namePlaceholder": "my-server",
+      "transport": "Transport",
+      "command": "Command",
+      "arguments": "Arguments",
+      "argumentsHint": "(space-separated)",
+      "envVars": "Environment Variables",
+      "envVarsHint": "(KEY=value, one per line)",
+      "url": "URL",
+      "headers": "Headers",
+      "headersHint": "(Name=Value, one per line)",
+      "addServer": "Add Server"
+    }
+  },
+  "browser": {
+    "title": "Browser",
+    "back": "Back",
+    "forward": "Forward",
+    "stop": "Stop",
+    "reload": "Reload",
+    "cancelInspect": "Cancel inspect",
+    "grabElement": "Grab element",
+    "closeInspector": "Close inspector",
+    "openInspector": "Open inspector",
+    "simulatingMode": "Simulating {{mode}} mode",
+    "searchOrEnterUrl": "Search or enter URL",
+    "recent": "Recent"
+  }
+}

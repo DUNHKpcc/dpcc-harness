@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Tooltip,
   TooltipContent,
@@ -40,6 +41,7 @@ export const ContextGauge = memo(function ContextGauge({
   isProcessing,
   onCompact,
 }: ContextGaugeProps) {
+  const { t } = useTranslation("input");
   if (contextUsage.contextWindow <= 0) return null;
 
   const totalInput =
@@ -94,43 +96,43 @@ export const ContextGauge = memo(function ContextGauge({
       <TooltipContent side="top" className="max-w-64">
         <div className="space-y-1.5 text-xs">
           <div className="font-medium">
-            {isCompacting ? "Compacting..." : `Context: ${percent.toFixed(1)}%`}
+            {isCompacting ? t("context.compacting") : t("context.percent", { percent: percent.toFixed(1) })}
           </div>
           <div className="space-y-0.5 opacity-70">
             <div className="flex justify-between gap-4">
-              <span>Input tokens</span>
+              <span>{t("context.inputTokens")}</span>
               <span className="font-mono">
                 {formatTokenCount(contextUsage.inputTokens)}
               </span>
             </div>
             <div className="flex justify-between gap-4">
-              <span>Cache read</span>
+              <span>{t("context.cacheRead")}</span>
               <span className="font-mono">
                 {formatTokenCount(contextUsage.cacheReadTokens)}
               </span>
             </div>
             <div className="flex justify-between gap-4">
-              <span>Cache creation</span>
+              <span>{t("context.cacheCreation")}</span>
               <span className="font-mono">
                 {formatTokenCount(contextUsage.cacheCreationTokens)}
               </span>
             </div>
             <div className="flex justify-between gap-4">
-              <span>Output tokens</span>
+              <span>{t("context.outputTokens")}</span>
               <span className="font-mono">
                 {formatTokenCount(contextUsage.outputTokens)}
               </span>
             </div>
           </div>
           <div className="flex justify-between gap-4 border-t border-background/20 pt-1">
-            <span>Total / Window</span>
+            <span>{t("context.totalWindow")}</span>
             <span className="font-mono">
               {formatTokenCount(totalInput)} /{" "}
               {formatTokenCount(contextUsage.contextWindow)}
             </span>
           </div>
           <div className="border-t border-background/20 pt-1.5 opacity-50">
-            Click to compact context
+            {t("context.clickToCompact")}
           </div>
         </div>
       </TooltipContent>

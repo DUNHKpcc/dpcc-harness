@@ -1,0 +1,57 @@
+{
+  "header": {
+    "addProject": "添加项目"
+  },
+  "draftSpace": {
+    "title": "创建空间",
+    "subtitle": "为工作、生活等分隔你的项目。",
+    "namePlaceholder": "空间名称...",
+    "chooseTheme": "选择主题",
+    "createSpace": "创建空间"
+  },
+  "empty": {
+    "addProjectToStart": "添加一个项目开始使用",
+    "noProjectsInSpace": "此空间暂无项目",
+    "noConversations": "暂无对话",
+    "noChats": "暂无聊天"
+  },
+  "beta": {
+    "label": "PccAgent 处于早期测试阶段",
+    "reportBug": "反馈问题"
+  },
+  "search": {
+    "placeholder": "搜索聊天...",
+    "searching": "搜索中...",
+    "noResults": "未找到结果",
+    "chats": "聊天",
+    "messages": "消息"
+  },
+  "project": {
+    "openJiraBoard": "打开 Jira 看板",
+    "newFolder": "新建文件夹",
+    "organizeByBranch": "按 branch 分组",
+    "setIcon": "设置图标",
+    "removeIcon": "移除图标",
+    "resumeCCChat": "恢复 CC 聊天",
+    "moveToSpace": "移动到空间",
+    "showMore": "显示更多",
+    "showMoreCount": "（{{shown}} / {{total}}）"
+  },
+  "session": {
+    "generatingTitle": "正在生成标题...",
+    "moveToFolder": "移动到文件夹",
+    "removeFromFolder": "从文件夹移除",
+    "openInSplitView": "在分屏中打开"
+  },
+  "folder": {
+    "unpin": "取消固定",
+    "pin": "固定"
+  },
+  "cc": {
+    "noSessions": "未找到 Claude Code 会话",
+    "justNow": "刚刚",
+    "minutesAgo": "{{count}} 分钟前",
+    "hoursAgo": "{{count}} 小时前",
+    "daysAgo": "{{count}} 天前"
+  }
+}

@@ -1,0 +1,84 @@
+{
+  "placeholder": {
+    "compacting": "Compacting context...",
+    "loadingAgentOptions": "Loading agent options...",
+    "responding": "{{name}} is responding... (messages will be queued)",
+    "askWithCommands": "Ask anything, @ to tag files, / for commands",
+    "ask": "Ask anything, @ to tag files"
+  },
+  "model": {
+    "loadingCodex": "Loading Codex models...",
+    "loading": "Loading models..."
+  },
+  "voice": {
+    "attachImage": "Attach image",
+    "loadingSpeechModel": "Loading speech model... {{percent}}%",
+    "transcribing": "Transcribing...",
+    "stopDictation": "Stop dictation",
+    "dictation": "Voice dictation"
+  },
+  "deepFolder": {
+    "title": "Large Context Warning",
+    "sendAnyway": "Send Anyway",
+    "introBefore": "This deep folder includes ",
+    "filesCount": "{{count}} files",
+    "introTotaling": " totaling ",
+    "sizeKb": "{{size}}KB",
+    "introTokens": " (~",
+    "tokensCount": "{{tokens}} tokens",
+    "introAfter": ").",
+    "impact": "Sending this much content will consume a significant portion of the context window and may impact response quality.",
+    "skipNote": "Note: Some files will be skipped:",
+    "andMore": "... and {{count}} more"
+  },
+  "engine": {
+    "effort": "Effort",
+    "current": "Current",
+    "customReasoningEffort": "Custom reasoning effort",
+    "loadingOptions": "Loading options...",
+    "noOptions": "Could not load options for this agent",
+    "opensNewChat": "Opens new chat",
+    "engines": "Engines",
+    "acpAgents": "ACP Agents",
+    "manageACPs": "Manage ACPs",
+    "effortDesc": {
+      "low": "Minimal thinking, fastest responses",
+      "medium": "Moderate thinking",
+      "high": "Deep reasoning",
+      "max": "Maximum effort"
+    }
+  },
+  "control": {
+    "plan": "Plan",
+    "planModeOn": "Plan mode on",
+    "planModeOff": "Plan mode off",
+    "permissionMode": {
+      "default": "Ask Before Edits",
+      "acceptEdits": "Accept Edits",
+      "bypassPermissions": "Allow All"
+    },
+    "codexPermissionDesc": {
+      "default": "Prompt before commands and file edits",
+      "acceptEdits": "Auto-approve trusted edits; prompt for untrusted actions",
+      "bypassPermissions": "No approval prompts"
+    },
+    "acpBehavior": {
+      "ask": "Ask",
+      "askDesc": "Show permission prompt",
+      "auto_accept": "Auto Accept",
+      "auto_acceptDesc": "Auto-approve each tool call",
+      "allow_all": "Allow All",
+      "allow_allDesc": "Auto-approve with always-allow"
+    }
+  },
+  "context": {
+    "compacting": "Compacting...",
+    "percent": "Context: {{percent}}%",
+    "inputTokens": "Input tokens",
+    "cacheRead": "Cache read",
+    "cacheCreation": "Cache creation",
+    "outputTokens": "Output tokens",
+    "totalWindow": "Total / Window",
+    "clickToCompact": "Click to compact context"
+  }
+}

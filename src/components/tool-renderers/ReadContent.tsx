@@ -1,8 +1,10 @@
+import { useTranslation } from "react-i18next";
 import type { UIMessage } from "@/types";
 import { OpenInEditorButton } from "@/components/OpenInEditorButton";
 import { GenericContent } from "./GenericContent";
 
 export function ReadContent({ message }: { message: UIMessage }) {
+  const { t } = useTranslation("toolcall");
   const result = message.toolResult;
   const filePath = String(message.toolInput?.file_path ?? "");
 
@@ -15,8 +17,8 @@ export function ReadContent({ message }: { message: UIMessage }) {
         {filePath}
         <span className="text-foreground/30">
           {isFull
-            ? `${totalLines} lines`
-            : `L${startLine}–${endLine} of ${totalLines}`}
+            ? t("read.lines", { count: totalLines })
+            : t("read.rangeOf", { start: startLine, end: endLine, total: totalLines })}
         </span>
         <OpenInEditorButton filePath={filePath} line={startLine} className="group-hover/read:text-foreground/25" />
       </div>
@@ -29,7 +31,7 @@ export function ReadContent({ message }: { message: UIMessage }) {
     return (
       <div className="group/read flex items-center gap-1.5 text-xs text-foreground/50 font-mono text-[11px]">
         {filePath}
-        <span className="text-foreground/30">{lineCount} lines</span>
+        <span className="text-foreground/30">{t("read.lines", { count: lineCount })}</span>
         <OpenInEditorButton filePath={filePath} className="group-hover/read:text-foreground/25" />
       </div>
     );

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { motion } from "motion/react";
 import { Shield, ShieldCheck, ShieldOff, Check } from "lucide-react";
 import { PERMISSION_MODES, type PermissionsStepProps } from "./shared";
@@ -8,6 +9,7 @@ export function PermissionsStep({
   permissionMode,
   onPermissionModeChange,
 }: PermissionsStepProps) {
+  const { t } = useTranslation("welcome");
   return (
     <div className="flex flex-1 flex-col overflow-y-auto px-8">
       <div className="m-auto flex w-full max-w-lg flex-col py-10">
@@ -25,10 +27,10 @@ export function PermissionsStep({
               color: "oklch(0.62 0.20 155)",
             }}
           >
-            Your rules
+            {t("permissionsStep.title")}
           </h2>
           <p className="mt-3 text-lg text-muted-foreground">
-            Set how much freedom Claude gets. Change this anytime.
+            {t("permissionsStep.subtitle")}
           </p>
         </motion.div>
 
@@ -59,10 +61,10 @@ export function PermissionsStep({
                 {/* Text */}
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-semibold text-foreground">
-                    {mode.label}
+                    {t(`permissionsStep.modes.${mode.id}.label`)}
                   </div>
                   <div className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                    {mode.description}
+                    {t(`permissionsStep.modes.${mode.id}.description`)}
                   </div>
                 </div>
 

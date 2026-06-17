@@ -1,4 +1,5 @@
 import { lazy, memo, Suspense } from "react";
+import { useTranslation } from "react-i18next";
 import type { UIMessage } from "@/types";
 import { useResolvedTheme } from "@/hooks/useTheme";
 import { getMonacoLanguageFromPath, disableMonacoDiagnostics } from "@/lib/monaco";
@@ -79,6 +80,7 @@ const PatchEntryWrite = memo(function PatchEntryWrite({ patch }: { patch: Struct
 // ── Main component ──
 
 export function WriteContent({ message }: { message: UIMessage }) {
+  const { t } = useTranslation("toolcall");
   const resolvedTheme = useResolvedTheme();
   const structuredPatch = getStructuredPatches(message.toolResult);
 
@@ -136,7 +138,7 @@ export function WriteContent({ message }: { message: UIMessage }) {
       <Suspense
         fallback={
           <div className="flex items-center justify-center text-[11px] text-foreground/35" style={{ height: `${heightPx}px` }}>
-            Loading editor
+            {t("write.loadingEditor")}
           </div>
         }
       >

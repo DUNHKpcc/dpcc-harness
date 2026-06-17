@@ -3,6 +3,7 @@
  * Displays a centered URL bar with recent history links below.
  */
 
+import { useTranslation } from "react-i18next";
 import { Globe } from "lucide-react";
 import type { BrowserHistoryEntry } from "./browser-types";
 import { extractHostname } from "./browser-utils";
@@ -38,6 +39,7 @@ export function BrowserStartPage({
   onOpen,
   recentHistory,
 }: BrowserStartPageProps) {
+  const { t } = useTranslation("tools");
   return (
     <div className="h-full overflow-y-auto overflow-x-hidden">
       <div className="flex min-h-full flex-col items-center justify-center px-4 py-6">
@@ -58,7 +60,7 @@ export function BrowserStartPage({
           {recentHistory.length > 0 && (
             <div className="mt-4">
               <div className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-foreground/25">
-                Recent
+                {t("browser.recent")}
               </div>
               <div className="space-y-px">
                 {recentHistory.map((entry) => {

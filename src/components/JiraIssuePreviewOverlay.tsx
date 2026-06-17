@@ -4,6 +4,7 @@
  */
 
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
 import ReactMarkdown from "react-markdown";
@@ -71,6 +72,7 @@ const OverlayContent = memo(function OverlayContent({
   instanceUrl,
   onClose,
 }: OverlayContentProps) {
+  const { t } = useTranslation("jira");
   const [comments, setComments] = useState<JiraComment[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
 
@@ -213,7 +215,7 @@ const OverlayContent = memo(function OverlayContent({
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" sideOffset={4}>
-                  <p className="text-xs">Open in Jira</p>
+                  <p className="text-xs">{t("preview.openInJira")}</p>
                 </TooltipContent>
               </Tooltip>
               <button
@@ -270,7 +272,7 @@ const OverlayContent = memo(function OverlayContent({
                     </AvatarFallback>
                   </Avatar>
                   <div>
-                    <span className="text-muted-foreground/60">Assigned to: </span>
+                    <span className="text-muted-foreground/60">{t("preview.assignedTo")}</span>
                     {issue.assignee.displayName}
                   </div>
                 </div>
@@ -279,7 +281,7 @@ const OverlayContent = memo(function OverlayContent({
               {/* Description */}
               {descriptionMarkdown ? (
                 <div className="space-y-1.5">
-                  <h3 className="text-xs font-medium text-muted-foreground/60 uppercase tracking-wider">Description</h3>
+                  <h3 className="text-xs font-medium text-muted-foreground/60 uppercase tracking-wider">{t("preview.description")}</h3>
                   <div className="prose dark:prose-invert prose-sm max-w-none text-foreground/80 wrap-break-word">
                     <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>
                       {descriptionMarkdown}
@@ -287,7 +289,7 @@ const OverlayContent = memo(function OverlayContent({
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground/40 italic">No description provided</p>
+                <p className="text-sm text-muted-foreground/40 italic">{t("preview.noDescription")}</p>
               )}
 
               {/* Comments */}
@@ -296,7 +298,7 @@ const OverlayContent = memo(function OverlayContent({
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <h3 className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
                       <MessageSquare className="h-3 w-3" />
-                      Comments
+                      {t("preview.comments")}
                     </h3>
                     {!loadingComments && (
                       <Badge variant="outline" className="text-[10px] text-muted-foreground/70">
@@ -310,7 +312,7 @@ const OverlayContent = memo(function OverlayContent({
                   {loadingComments ? (
                     <div className="flex items-center gap-2 py-2">
                       <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground/40" />
-                      <span className="text-xs text-muted-foreground/40">Loading comments...</span>
+                      <span className="text-xs text-muted-foreground/40">{t("preview.loadingComments")}</span>
                     </div>
                   ) : (
                     <div className="space-y-3">

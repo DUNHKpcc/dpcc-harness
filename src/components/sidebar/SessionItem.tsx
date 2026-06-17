@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { useInlineRename } from "@/hooks/useInlineRename";
 import {
   Columns2,
@@ -61,6 +62,7 @@ export function SessionItem({
   onOpenInSplitView?: () => void;
   canOpenInSplitView?: boolean;
 }) {
+  const { t } = useTranslation("sidebar");
   const { isEditing, startEditing, inputProps: renameInputProps } = useInlineRename({
     initialName: session.title,
     onRename,
@@ -153,7 +155,7 @@ export function SessionItem({
                 : "text-sidebar-foreground/60 italic"
             }
           >
-            Generating title...
+            {t("session.generatingTitle")}
           </span>
         ) : (
           <span className="min-w-0 truncate">{session.title}</span>
@@ -182,12 +184,12 @@ export function SessionItem({
               {session.pinned ? (
                 <>
                   <PinOff className="me-2 h-3.5 w-3.5" />
-                  Unpin
+                  {t("folder.unpin")}
                 </>
               ) : (
                 <>
                   <Pin className="me-2 h-3.5 w-3.5" />
-                  Pin
+                  {t("folder.pin")}
                 </>
               )}
             </DropdownMenuItem>
@@ -198,13 +200,13 @@ export function SessionItem({
             <DropdownMenuSub>
               <DropdownMenuSubTrigger>
                 <FolderInput className="me-2 h-3.5 w-3.5" />
-                Move to folder
+                {t("session.moveToFolder")}
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="w-44">
                 {session.folderId && (
                   <DropdownMenuItem onClick={() => onMoveToFolder(null)}>
                     <FolderMinus className="me-2 h-3.5 w-3.5" />
-                    Remove from folder
+                    {t("session.removeFromFolder")}
                   </DropdownMenuItem>
                 )}
                 {folders
@@ -227,20 +229,20 @@ export function SessionItem({
           {onOpenInSplitView && canOpenInSplitView && (
             <DropdownMenuItem onClick={onOpenInSplitView}>
               <Columns2 className="me-2 h-3.5 w-3.5" />
-              Open in Split View
+              {t("session.openInSplitView")}
             </DropdownMenuItem>
           )}
 
           <DropdownMenuItem onClick={startEditing}>
             <Pencil className="me-2 h-3.5 w-3.5" />
-            Rename
+            {t("action.rename", { ns: "common" })}
           </DropdownMenuItem>
           <DropdownMenuItem
             className="text-destructive focus:text-destructive"
             onClick={onDelete}
           >
             <Trash2 className="me-2 h-3.5 w-3.5" />
-            Delete
+            {t("action.delete", { ns: "common" })}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

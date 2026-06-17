@@ -1,0 +1,104 @@
+{
+  "nav": {
+    "skip": "跳过"
+  },
+  "welcomeStep": {
+    "intro": "欢迎使用",
+    "tagline": "在这里，你与 AI",
+    "taglineLine2": "携手构建软件。",
+    "getStarted": "开始使用"
+  },
+  "appearanceStep": {
+    "title": "打造专属体验",
+    "subtitle": "选择你喜欢的风格，所有更改即时生效。",
+    "themeSection": "主题",
+    "theme": {
+      "dark": "深色",
+      "light": "浅色",
+      "system": "跟随系统"
+    },
+    "layoutSection": "布局",
+    "layout": {
+      "islands": "悬浮岛",
+      "islandsDesc": "圆角、分隔",
+      "flat": "平铺",
+      "flatDesc": "无间隔铺满"
+    },
+    "toolBehaviorSection": "工具行为",
+    "autoGroup": "自动分组工具",
+    "autoGroupDesc": "将连续的工具调用折叠为一个分组。",
+    "autoExpand": "自动展开工具结果",
+    "autoExpandDesc": "短暂展开已完成的工具调用，随后再次折叠。",
+    "expandEditWrite": "默认展开 Edit 和 Write 工具",
+    "expandEditWriteDesc": "文件编辑类工具调用默认展开，而非折叠。",
+    "transparency": "窗口透明度",
+    "transparencySupported": "透过窗口看到桌面",
+    "transparencyUnsupported": "当前平台不支持"
+  },
+  "permissionsStep": {
+    "title": "你的规则",
+    "subtitle": "设置赋予 Claude 多大的自由度，随时可更改。",
+    "modes": {
+      "default": {
+        "label": "编辑前询问",
+        "description": "Claude 在修改文件或运行命令前会请求确认。"
+      },
+      "acceptEdits": {
+        "label": "自动接受编辑",
+        "description": "文件编辑自动批准，命令仍需确认。"
+      },
+      "bypassPermissions": {
+        "label": "全部允许",
+        "description": "所有操作自动执行，不再提示。"
+      }
+    }
+  },
+  "projectStep": {
+    "title": "你的第一个项目",
+    "subtitle": "将 PccAgent 指向任意文件夹，即可开始构建。",
+    "chooseFolder": "选择文件夹",
+    "skipForNow": "暂时跳过"
+  },
+  "agentsStep": {
+    "title": "连接智能体",
+    "subtitle": "浏览商店，一键添加 ACP 智能体。",
+    "builtIn": "Claude Code 与 Codex 已内置。"
+  },
+  "tourStep": {
+    "title": "内置功能一览",
+    "subtitle": "让 PccAgent 与众不同的几项特色。",
+    "spaces": "工作空间",
+    "spacesDesc": "将项目整理到按颜色区分的工作空间，每个空间会以自身色调为整个界面着色。",
+    "toolPanels": "工具面板",
+    "toolPanelsDesc": "终端、源代码管理、浏览器等工具均集成于侧边栏，可随时开关。",
+    "spaceNames": {
+      "frontend": "前端",
+      "api": "API",
+      "mobile": "移动端",
+      "devops": "DevOps"
+    },
+    "tools": {
+      "terminal": "终端",
+      "git": "源代码管理",
+      "browser": "浏览器",
+      "files": "已打开文件",
+      "projectFiles": "项目"
+    }
+  },
+  "readyStep": {
+    "title": "准备就绪",
+    "themeBadge": "{{theme}}主题",
+    "startBuilding": "开始构建",
+    "theme": {
+      "dark": "深色",
+      "light": "浅色",
+      "system": "跟随系统"
+    }
+  },
+  "screen": {
+    "sidebarHint": "你的会话都在侧边栏",
+    "openProject": "打开一个项目",
+    "openProjectSubtitle": "选择一个文件夹，用以承载你的会话、工具和文件上下文。",
+    "chooseFolder": "选择文件夹"
+  }
+}

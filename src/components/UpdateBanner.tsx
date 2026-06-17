@@ -1,4 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AlertTriangle, ArrowDownToLine, RefreshCw, X } from "lucide-react";
 import { captureException } from "@/lib/analytics/analytics";
 
@@ -10,6 +11,7 @@ type UpdateState =
   | { phase: "error"; message: string };
 
 export const UpdateBanner = memo(function UpdateBanner() {
+  const { t } = useTranslation("dialogs");
   const [state, setState] = useState<UpdateState>({ phase: "idle" });
   const [dismissed, setDismissed] = useState(false);
   const [isInstalling, setIsInstalling] = useState(false);
@@ -73,7 +75,7 @@ export const UpdateBanner = memo(function UpdateBanner() {
       setDismissed(false);
       setState({
         phase: "error",
-        message: err instanceof Error ? err.message : "Failed to restart and install update",
+        message: err instanceof Error ? err.message : t("updateBanner.installFailed"),
       });
     });
   }, []);
@@ -88,7 +90,7 @@ export const UpdateBanner = memo(function UpdateBanner() {
             <ArrowDownToLine className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/50" />
             <div className="min-w-0 flex-1">
               <span className="font-medium text-sidebar-foreground/90">v{state.version}</span>
-              <span className="text-sidebar-foreground/50"> available</span>
+              <span className="text-sidebar-foreground/50">{t("updateBanner.available")}</span>
             </div>
             <button
               className="shrink-0 text-sidebar-foreground/30 opacity-0 transition-opacity hover:text-sidebar-foreground/60 group-hover:opacity-100"
@@ -100,7 +102,7 @@ export const UpdateBanner = memo(function UpdateBanner() {
               className="shrink-0 rounded px-2 py-0.5 font-medium text-sidebar-foreground/90 transition-colors hover:bg-sidebar-foreground/10"
               onClick={handleDownload}
             >
-              Update
+              {t("updateBanner.update")}
             </button>
           </>
         )}
@@ -108,7 +110,7 @@ export const UpdateBanner = memo(function UpdateBanner() {
         {state.phase === "downloading" && (
           <div className="min-w-0 flex-1">
             <div className="mb-1 flex items-center justify-between">
-              <span className="text-sidebar-foreground/60">Downloading...</span>
+              <span className="text-sidebar-foreground/60">{t("updateBanner.downloading")}</span>
               <span className="tabular-nums text-sidebar-foreground/50">{state.percent}%</span>
             </div>
             <div className="h-1 overflow-hidden rounded-full bg-sidebar-foreground/10">
@@ -125,7 +127,7 @@ export const UpdateBanner = memo(function UpdateBanner() {
             <RefreshCw className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/50" />
             <div className="min-w-0 flex-1">
               <span className="font-medium text-sidebar-foreground/90">v{state.version}</span>
-              <span className="text-sidebar-foreground/50"> ready</span>
+              <span className="text-sidebar-foreground/50">{t("updateBanner.ready")}</span>
             </div>
             <button
               className="shrink-0 text-sidebar-foreground/30 opacity-0 transition-opacity hover:text-sidebar-foreground/60 group-hover:opacity-100"
@@ -142,10 +144,10 @@ export const UpdateBanner = memo(function UpdateBanner() {
               {isInstalling ? (
                 <span className="inline-flex items-center gap-1">
                   <RefreshCw className="h-3 w-3 animate-spin" />
-                  Restarting...
+                  {t("updateBanner.restarting")}
                 </span>
               ) : (
-                "Restart"
+                t("updateBanner.restart")
               )}
             </button>
           </>

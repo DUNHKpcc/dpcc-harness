@@ -4,6 +4,7 @@
  */
 
 import React, { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { getCategoryTone, getCategoryLabel } from "@/lib/jira-utils";
@@ -42,6 +43,7 @@ export const KanbanBoard = React.memo(function KanbanBoard({
   onCreateTask,
   onPreview,
 }: KanbanBoardProps) {
+  const { t } = useTranslation("jira");
   if (loadingIssues) {
     return (
       <div className="flex items-center justify-center h-32">
@@ -56,7 +58,7 @@ export const KanbanBoard = React.memo(function KanbanBoard({
 
   if (issueCount === 0) {
     return (
-      <div className="p-4 text-center text-muted-foreground text-sm">No issues found in this board</div>
+      <div className="p-4 text-center text-muted-foreground text-sm">{t("board.noIssues")}</div>
     );
   }
 

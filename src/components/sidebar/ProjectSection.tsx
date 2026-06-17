@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { useInlineRename } from "@/hooks/useInlineRename";
 import { useContextMenuPosition } from "@/hooks/useContextMenuPosition";
 import {
@@ -102,6 +103,7 @@ export function ProjectSection({
   isDraggingProject: boolean;
   agents?: InstalledAgent[];
 }) {
+  const { t } = useTranslation("sidebar");
   const {
     selectSession,
     deleteSession,
@@ -304,7 +306,7 @@ export function ProjectSection({
                     : "text-sidebar-foreground/50 hover:bg-black/5 hover:text-sidebar-foreground dark:hover:bg-white/10"
                 }`}
                 onClick={onToggleJiraBoard}
-                title="Open Jira board"
+                title={t("project.openJiraBoard")}
               >
                 <KanbanSquare className="h-4 w-4" />
               </Button>
@@ -362,19 +364,19 @@ export function ProjectSection({
             >
               <DropdownMenuItem onClick={onCreateFolder}>
                 <FolderPlus className="me-2 h-3.5 w-3.5" />
-                New folder
+                {t("project.newFolder")}
               </DropdownMenuItem>
               <DropdownMenuCheckboxItem
                 checked={organizeByChatBranch}
                 onCheckedChange={onSetOrganizeByChatBranch}
               >
                 <GitBranch className="me-2 h-3.5 w-3.5" />
-                Organize by branch
+                {t("project.organizeByBranch")}
               </DropdownMenuCheckboxItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={startEditing}>
                 <Pencil className="me-2 h-3.5 w-3.5" />
-                Rename
+                {t("action.rename", { ns: "common" })}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onSelect={(e) => {
@@ -385,19 +387,19 @@ export function ProjectSection({
                 }}
               >
                 <Smile className="me-2 h-3.5 w-3.5" />
-                Set icon
+                {t("project.setIcon")}
               </DropdownMenuItem>
               {project.icon && (
                 <DropdownMenuItem onClick={() => onUpdateIcon(null, null)}>
                   <X className="me-2 h-3.5 w-3.5" />
-                  Remove icon
+                  {t("project.removeIcon")}
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
                   <History className="me-2 h-3.5 w-3.5" />
-                  Resume CC Chat
+                  {t("project.resumeCCChat")}
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent className="max-h-80 w-72 overflow-y-auto">
                   <CCSessionList projectPath={project.path} onSelect={onImportCCSession} />
@@ -407,7 +409,7 @@ export function ProjectSection({
                 <DropdownMenuSub>
                   <DropdownMenuSubTrigger>
                     <ArrowRightLeft className="me-2 h-3.5 w-3.5" />
-                    Move to space
+                    {t("project.moveToSpace")}
                   </DropdownMenuSubTrigger>
                   <DropdownMenuSubContent className="w-44">
                     {otherSpaces.map((s) => {
@@ -432,7 +434,7 @@ export function ProjectSection({
                 onClick={onDeleteProject}
               >
                 <Trash2 className="me-2 h-3.5 w-3.5" />
-                Delete
+                {t("action.delete", { ns: "common" })}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -464,9 +466,9 @@ export function ProjectSection({
             >
               <ChevronDown className="h-3 w-3 shrink-0 transition-transform group-hover/more:translate-y-0.5" />
               <span>
-                Show more
+                {t("project.showMore")}
                 <span className="ms-1 text-sidebar-foreground/35">
-                  ({Math.min(20, remainingCount)} of {remainingCount})
+                  {t("project.showMoreCount", { shown: Math.min(20, remainingCount), total: remainingCount })}
                 </span>
               </span>
             </button>
@@ -474,7 +476,7 @@ export function ProjectSection({
 
           {sessions.length === 0 && (
             <p className="px-3 py-2 text-[13px] font-medium text-sidebar-foreground/40">
-              No conversations yet
+              {t("empty.noConversations")}
             </p>
           )}
         </div>

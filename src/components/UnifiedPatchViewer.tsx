@@ -1,4 +1,5 @@
 import { memo, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ChevronsUpDown } from "lucide-react";
 import { OpenInEditorButton } from "./OpenInEditorButton";
 
@@ -29,6 +30,7 @@ export const UnifiedPatchViewer = memo(function UnifiedPatchViewer({
   diffText,
   filePath,
 }: UnifiedPatchViewerProps) {
+  const { t } = useTranslation("workspace");
   const lines = useMemo(() => diffText.replace(/\r\n/g, "\n").split("\n"), [diffText]);
   const fileName = filePath ? filePath.split("/").pop() : null;
   const [expanded, setExpanded] = useState(false);
@@ -60,7 +62,7 @@ export const UnifiedPatchViewer = memo(function UnifiedPatchViewer({
             className="mt-1 flex items-center gap-1 text-[10px] font-medium text-foreground/40 hover:text-foreground/70 transition-colors"
           >
             <ChevronsUpDown className="h-3 w-3" />
-            {expanded ? "Collapse" : `Show all ${totalLines} lines`}
+            {expanded ? t("patch.collapse") : t("patch.showAll", { count: totalLines })}
           </button>
         )}
       </div>

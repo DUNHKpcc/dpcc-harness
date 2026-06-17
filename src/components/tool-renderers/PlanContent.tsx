@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Map } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -10,11 +11,12 @@ const REMARK_PLUGINS = [remarkGfm];
 // ── EnterPlanMode: subtle mode-transition indicator ──
 
 export function EnterPlanModeContent({ message }: { message: UIMessage }) {
+  const { t } = useTranslation("toolcall");
   const resultText = message.toolResult ? extractResultText(message.toolResult) : "";
 
   return (
     <div className="rounded-md bg-foreground/[0.03] px-3 py-2 text-xs text-foreground/50">
-      {resultText || "Exploring codebase and designing implementation approach."}
+      {resultText || t("plan.enterPlaceholder")}
     </div>
   );
 }

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
+import type { TFunction } from "i18next";
 import type { UIMessage } from "@/types";
 import { formatCompactSummary } from "./tool-formatting";
+
+// Minimal stub: returns the key (sufficient for branches that don't hit a t() call).
+const t = ((key: string) => key) as unknown as TFunction<"toolcall">;
 
 describe("formatCompactSummary", () => {
   it("does not report Claude multi-hunk single-file edits as multiple files", () => {
@@ -27,6 +31,6 @@ describe("formatCompactSummary", () => {
       timestamp: 0,
     };
 
-    expect(formatCompactSummary(message)).toBe("LtiTeacherAssignmentPreview.tsx");
+    expect(formatCompactSummary(message, t)).toBe("LtiTeacherAssignmentPreview.tsx");
   });
 });

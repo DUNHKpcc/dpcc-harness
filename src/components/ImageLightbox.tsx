@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import {
   Dialog,
   DialogContent,
@@ -19,14 +20,15 @@ export const ImageLightbox = React.memo(function ImageLightbox({
   open,
   onOpenChange,
 }: ImageLightboxProps) {
+  const { t } = useTranslation("workspace");
   if (!image) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[90vh] max-w-[90vw] items-center justify-center border-none bg-transparent p-0 shadow-none">
-        <DialogTitle className="sr-only">Image preview</DialogTitle>
+        <DialogTitle className="sr-only">{t("imageLightbox.title")}</DialogTitle>
         <DialogDescription className="sr-only">
-          Full-size view of the attached image.
+          {t("imageLightbox.description")}
         </DialogDescription>
         <img
           src={`data:${image.mediaType};base64,${image.data}`}

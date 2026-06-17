@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { CheckCircle2, Loader2, ListChecks, Circle } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { PanelHeader } from "@/components/PanelHeader";
@@ -9,6 +10,7 @@ interface TodoPanelProps {
 }
 
 export function TodoPanel({ todos }: TodoPanelProps) {
+  const { t } = useTranslation("tools");
   const items = getTodoItems(todos);
   const completed = items.filter((t) => t.status === "completed").length;
   const total = items.length;
@@ -17,7 +19,7 @@ export function TodoPanel({ todos }: TodoPanelProps) {
     <div className="flex h-full flex-col">
       <PanelHeader
         icon={ListChecks}
-        label="Tasks"
+        label={t("todos.title")}
         separator={false}
         iconClass="text-blue-600/70 dark:text-blue-200/50"
       >

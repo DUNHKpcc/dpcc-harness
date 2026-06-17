@@ -5,6 +5,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { useRef, useEffect, useCallback, memo, createContext, useContext } from "react";
+import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
@@ -68,6 +69,7 @@ export const ThinkingBlock = memo(function ThinkingBlock({
   thinkingComplete,
   storageKey,
 }: ThinkingBlockProps) {
+  const { t } = useTranslation("chat");
   const [open, setOpen] = useChatPersistedState(
     storageKey ?? "thinking",
     false,
@@ -190,10 +192,10 @@ export const ThinkingBlock = memo(function ThinkingBlock({
         <Minus className={`h-3 w-3 ${isThinking ? "text-foreground/40" : "text-foreground/30"}`} />
         {isThinking ? (
           <TextShimmer as="span" className="italic opacity-60" duration={1.8} spread={1.5}>
-            Thinking...
+            {t("thinking.thinking")}
           </TextShimmer>
         ) : (
-          <span className="italic text-foreground/40">Thought</span>
+          <span className="italic text-foreground/40">{t("thinking.thought")}</span>
         )}
       </CollapsibleTrigger>
       {/* 3-line 3D preview — only visible while actively thinking + collapsed */}

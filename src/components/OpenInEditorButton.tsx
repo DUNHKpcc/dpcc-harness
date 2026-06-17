@@ -1,4 +1,5 @@
 import { memo, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { ExternalLink } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -14,6 +15,7 @@ export const OpenInEditorButton = memo(function OpenInEditorButton({
   line,
   className = "",
 }: OpenInEditorButtonProps) {
+  const { t } = useTranslation("workspace");
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -37,7 +39,7 @@ export const OpenInEditorButton = memo(function OpenInEditorButton({
         </button>
       </TooltipTrigger>
       <TooltipContent side="top" sideOffset={4}>
-        <p className="text-xs">Open in editor{line ? ` at line ${line}` : ""}</p>
+        <p className="text-xs">{line ? t("openInEditor.labelAtLine", { line }) : t("openInEditor.label")}</p>
       </TooltipContent>
     </Tooltip>
   );

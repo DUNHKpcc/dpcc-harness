@@ -1,4 +1,5 @@
 import { lazy, memo, Suspense, startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Check, Copy } from "lucide-react";
 import { OpenInEditorButton } from "./OpenInEditorButton";
 import { useResolvedTheme } from "@/hooks/useTheme";
@@ -366,6 +367,7 @@ export const DiffViewer = memo(function DiffViewer({
   unifiedDiff,
   fillHeight,
 }: DiffViewerProps) {
+  const { t } = useTranslation("workspace");
   const isChatScrolling = useChatIsScrolling();
   const [hydrated, setHydrated] = useState(() => !isChatScrolling);
   const [fullFileContent, setFullFileContent] = useState<string | null>(() =>
@@ -608,7 +610,7 @@ export const DiffViewer = memo(function DiffViewer({
         <button
           onClick={handleCopy}
           className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground/50 transition-colors hover:bg-accent/30 hover:text-muted-foreground/80"
-          title="Copy new content"
+          title={t("diff.copyNewContent")}
           type="button"
         >
           {copied ? (
@@ -624,7 +626,7 @@ export const DiffViewer = memo(function DiffViewer({
           <DiffBodyPlaceholder
             heightPx={editorHeightPx}
             fillHeight={fillHeight}
-            label="Preparing diff"
+            label={t("diff.preparing")}
           />
         ) : (
           <Suspense
@@ -632,7 +634,7 @@ export const DiffViewer = memo(function DiffViewer({
               <DiffBodyPlaceholder
                 heightPx={editorHeightPx}
                 fillHeight={fillHeight}
-                label="Loading Monaco diff"
+                label={t("diff.loadingMonaco")}
               />
             }
           >
@@ -653,7 +655,7 @@ export const DiffViewer = memo(function DiffViewer({
                 <DiffBodyPlaceholder
                   heightPx={editorHeightPx}
                   fillHeight={fillHeight}
-                  label="Loading Monaco diff"
+                  label={t("diff.loadingMonaco")}
                 />
               }
             />

@@ -9,6 +9,7 @@
  */
 
 import { memo } from "react";
+import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -50,6 +51,7 @@ export const AuthDialogShell = memo(function AuthDialogShell({
   showCancelButton = true,
   children,
 }: AuthDialogShellProps) {
+  const { t } = useTranslation("common");
   return (
     <Dialog
       open={open}
@@ -88,7 +90,7 @@ export const AuthDialogShell = memo(function AuthDialogShell({
         {showCancelButton && (
           <DialogFooter className="mt-4">
             <Button variant="ghost" size="sm" onClick={onClose} disabled={loading}>
-              Cancel
+              {t("action.cancel")}
             </Button>
           </DialogFooter>
         )}

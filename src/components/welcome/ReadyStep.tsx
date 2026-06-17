@@ -1,29 +1,23 @@
+import { useTranslation } from "react-i18next";
 import { motion } from "motion/react";
 import { ArrowRight } from "lucide-react";
 import { useSettingsStore } from "@/stores/settings-store";
 import { PERMISSION_MODES, type ReadyStepProps } from "./shared";
 
-function themeLabel(theme: string): string {
-  switch (theme) {
-    case "dark":
-      return "Dark";
-    case "light":
-      return "Light";
-    case "system":
-      return "System";
-    default:
-      return theme;
-  }
-}
-
 export function ReadyStep({
   permissionMode,
   onComplete,
 }: ReadyStepProps) {
+  const { t } = useTranslation("welcome");
   const theme = useSettingsStore((s) => s.theme);
-  const modeLabel =
-    PERMISSION_MODES.find((m) => m.id === permissionMode)?.label ??
-    permissionMode;
+  const selectedMode = PERMISSION_MODES.find((m) => m.id === permissionMode);
+  const modeLabel = selectedMode
+    ? t(`permissionsStep.modes.${selectedMode.id}.label`)
+    : permissionMode;
+  const themeName =
+    theme === "dark" || theme === "light" || theme === "system"
+      ? t(`readyStep.theme.${theme}`)
+      : theme;
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-8">
@@ -37,7 +31,7 @@ export function ReadyStep({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.05 }}
       >
-        Ready to go
+        {t("readyStep.title")}
       </motion.h2>
 
       {/* Settings recap */}
@@ -48,7 +42,7 @@ export function ReadyStep({
         transition={{ duration: 0.5, delay: 0.15 }}
       >
         <span className="rounded-full bg-foreground/[0.06] px-3.5 py-1.5 text-sm font-medium text-foreground/60">
-          {themeLabel(theme)} theme
+          {t("readyStep.themeBadge", { theme: themeName })}
         </span>
         <span className="text-muted-foreground/30">·</span>
         <span className="rounded-full bg-foreground/[0.06] px-3.5 py-1.5 text-sm font-medium text-foreground/60">
@@ -63,7 +57,7 @@ export function ReadyStep({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.3 }}
       >
-        Start building
+        {t("readyStep.startBuilding")}
         <ArrowRight className="h-4 w-4" />
       </motion.button>
     </div>

@@ -1,4 +1,5 @@
 import { memo, useState, useCallback, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useClickOutside } from "@/hooks/useClickOutside";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -58,6 +59,7 @@ export const WorktreeBar = memo(function WorktreeBar({
   onSend,
   isEmptySession,
 }: WorktreeBarProps) {
+  const { t } = useTranslation("git");
   const { worktrees, hasSetupFile, refresh } = useWorktreeChips(projectPath);
 
   // Inline create form state
@@ -132,16 +134,18 @@ export const WorktreeBar = memo(function WorktreeBar({
       // Show setup errors if any commands failed (worktree was still created)
       const failedSetup = result.setupResults?.filter((s) => !s.ok);
       if (failedSetup && failedSetup.length > 0) {
-        setError(`Worktree created, but setup had errors:\n${failedSetup.map((s) => `• ${s.command}: ${s.error}`).join("\n")}`);
+        setError(t("worktree.createdWithErrors", {
+          errors: failedSetup.map((s) => `• ${s.command}: ${s.error}`).join("\n"),
+        }));
       } else {
         setError(null);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create worktree");
+      setError(err instanceof Error ? err.message : t("worktree.failedToCreate"));
     } finally {
       setIsCreating(false);
     }
-  }, [branchName, projectPath, worktrees, isCreating, refresh, onSelectWorktree, deriveWorktreePath]);
+  }, [branchName, projectPath, worktrees, isCreating, refresh, onSelectWorktree, deriveWorktreePath, t]);
 
   const handleRemove = useCallback(async (worktreePath: string) => {
     if (!projectPath || removingPath) return;
@@ -167,11 +171,11 @@ export const WorktreeBar = memo(function WorktreeBar({
 
       refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to remove worktree");
+      setError(err instanceof Error ? err.message : t("worktree.failedToRemove"));
     } finally {
       setRemovingPath(null);
     }
-  }, [projectPath, worktrees, removingPath, selectedWorktreePath, onSelectWorktree, refresh]);
+  }, [projectPath, worktrees, removingPath, selectedWorktreePath, onSelectWorktree, refresh, t]);
 
   const handleOpenSetupFile = useCallback(() => {
     if (!projectPath) return;
@@ -223,7 +227,7 @@ export const WorktreeBar = memo(function WorktreeBar({
                           handleRemove(wt.path);
                         }}
                         className="absolute -end-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-background/90 text-muted-foreground/60 opacity-0 shadow-sm transition-opacity hover:bg-background hover:text-destructive group-hover/wt:opacity-100"
-                        title="Remove worktree"
+                        title={t("worktree.removeWorktree")}
                       >
                         <X className="h-2.5 w-2.5" />
                       </button>
@@ -239,7 +243,7 @@ export const WorktreeBar = memo(function WorktreeBar({
                   className="inline-flex shrink-0 items-center gap-1 rounded-full border border-dashed border-border/30 px-2.5 py-1 text-xs font-medium text-foreground/35 transition-colors duration-150 hover:border-border/50 hover:bg-foreground/[0.04] hover:text-foreground/55"
                 >
                   <Plus className="h-3 w-3" />
-                  <span>Worktree</span>
+                  <span>{t("worktree.label")}</span>
                 </button>
               )}
             </div>
@@ -268,7 +272,7 @@ export const WorktreeBar = memo(function WorktreeBar({
                         setError(null);
                       }
                     }}
-                    placeholder="Branch name for new worktree"
+                    placeholder={t("worktree.branchNamePlaceholder")}
                     className="min-w-0 flex-1 bg-transparent text-xs text-foreground/75 outline-none placeholder:text-foreground/25"
                     disabled={isCreating}
                   />
@@ -312,7 +316,7 @@ export const WorktreeBar = memo(function WorktreeBar({
             {hasSetupFile === false && (
               <div className="flex items-center gap-3 rounded-lg border border-border/30 bg-foreground/[0.03] px-3 py-2.5">
                 <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-foreground/45">
-                  Set up a worktree initialization script to auto-install dependencies and copy environment files.
+                  {t("worktree.setupDescription")}
                 </p>
                 <div className="flex shrink-0 items-center gap-1.5">
                   <Button
@@ -322,7 +326,7 @@ export const WorktreeBar = memo(function WorktreeBar({
                     onClick={handleOpenSetupFile}
                   >
                     <Settings className="h-3 w-3" />
-                    Settings
+                    {t("worktree.settings")}
                   </Button>
                   <Button
                     size="xs"
@@ -331,7 +335,7 @@ export const WorktreeBar = memo(function WorktreeBar({
                     disabled={!onSend}
                   >
                     <Sparkles className="h-3 w-3" />
-                    Generate with AI
+                    {t("worktree.generateWithAI")}
                   </Button>
                 </div>
               </div>

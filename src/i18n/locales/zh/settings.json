@@ -1,0 +1,308 @@
+{
+  "titlebar": "设置",
+  "nav": {
+    "general": "通用",
+    "appearance": "外观",
+    "notifications": "通知",
+    "analytics": "数据分析",
+    "agents": "ACP Agents",
+    "mcp": "MCP 服务器",
+    "engines": "引擎",
+    "skills": "Skills",
+    "customAgents": "Agents",
+    "advanced": "高级",
+    "about": "关于",
+    "comingSoon": "即将推出"
+  },
+  "placeholder": {
+    "comingSoon": "即将推出",
+    "skills": {
+      "title": "Skills",
+      "description": "创建、安装和管理用于扩展 AI 编程 agent 能力的技能。"
+    },
+    "customAgents": {
+      "title": "Agents",
+      "description": "构建并配置带有专用工具、提示词和工作流的自定义 agent。"
+    }
+  },
+  "appearance": {
+    "title": "外观",
+    "description": "自定义界面的外观与风格",
+    "language": {
+      "section": "语言",
+      "label": "显示语言",
+      "description": "选择界面语言。「跟随系统」会使用操作系统的语言设置。",
+      "system": "跟随系统",
+      "en": "English",
+      "zh": "简体中文"
+    },
+    "theme": {
+      "section": "主题",
+      "label": "颜色主题",
+      "description": "在浅色和深色外观之间选择，或跟随系统设置。",
+      "dark": "深色",
+      "light": "浅色",
+      "system": "跟随系统"
+    },
+    "tools": {
+      "section": "工具",
+      "autoGroup": "自动分组工具",
+      "autoGroupDesc": "将连续的工具调用折叠为一个分组。关闭后，每个工具调用及其之间的思考行都会单独显示。",
+      "avoidGroupingEdits": "不分组编辑操作",
+      "avoidGroupingEditsDesc": "即使启用了自动分组，也将 Edit 和 Write 工具调用作为独立行显示。编辑前后的读取会形成各自独立的分组。",
+      "autoExpand": "自动展开工具结果",
+      "autoExpandDesc": "临时展开已完成的工具调用，短暂延迟后再次折叠。关闭后，工具行保持稳定，除非你自己展开。",
+      "expandEditWrite": "默认展开 Edit 和 Write 工具",
+      "expandEditWriteDesc": "Edit 和 Write 工具调用出现时默认展开。关闭后保持折叠，直到你手动展开。",
+      "showIcons": "显示工具图标",
+      "showIconsDesc": "在工具调用标签旁显示图标。关闭后仅显示文字。",
+      "coloredIcons": "彩色工具图标",
+      "coloredIconsDesc": "为工具调用图标按工具着色。关闭后为单色图标。"
+    },
+    "layout": {
+      "section": "布局",
+      "windowLayout": "窗口布局",
+      "windowLayoutDesc": "选择面板在窗口中的排列方式。",
+      "islands": "悬浮岛",
+      "flat": "平铺",
+      "coloredSidebarIcons": "彩色侧边栏图标",
+      "coloredSidebarIconsDesc": "为工具选择器和面板标题图标按工具着色。关闭后为中性单色图标。",
+      "islandShine": "悬浮岛边框光泽",
+      "islandShineDesc": "在悬浮岛面板边框上显示淡淡的对角反光。仅在悬浮岛布局模式下可见。"
+    },
+    "transparency": {
+      "section": "透明效果",
+      "macLabel": "窗口背景效果",
+      "winLabel": "窗口透明度",
+      "macDescGlass": "选择 macOS 原生背景材质。Blur Off 保持窗口不透明；从 Liquid Glass 切换到 Vibrancy 需要重启。",
+      "macDescNoGlass": "选择 macOS 原生背景材质。本机不支持 Liquid Glass，可使用 Vibrancy 和 Off。",
+      "winDescSupported": "让桌面透过窗口背景显示。启用后在 Windows 上使用 Mica。",
+      "winDescUnsupported": "当前平台不支持窗口透明效果。",
+      "liquidGlass": "Liquid Glass",
+      "vibrancy": "Vibrancy",
+      "blurOff": "Blur Off",
+      "transparentToolPicker": "透明工具选择器",
+      "transparentToolPickerDesc": "移除右侧工具选择器条的背景，使图标直接浮在窗口之上。"
+    }
+  },
+  "engines": {
+    "title": "引擎",
+    "description": "配置引擎级别的运行行为与二进制选择",
+    "claude": {
+      "section": "Claude Code",
+      "sourceLabel": "Claude 二进制来源",
+      "sourceDesc": "选择 PccAgent 如何解析 Claude 可执行文件。",
+      "customLabel": "自定义 Claude 路径",
+      "customDesc": "claude 可执行文件的绝对路径（claude 或 claude.exe）。",
+      "customPlaceholder": "claude 可执行文件的绝对路径"
+    },
+    "codex": {
+      "section": "Codex",
+      "sourceLabel": "Codex 二进制来源",
+      "sourceDesc": "选择 PccAgent 如何解析 Codex 可执行文件。",
+      "versionLabel": "Codex 版本",
+      "versionDesc": "{{version}} · {{origin}}。Codex 已内置并可离线使用——检查更新可从 npm 拉取最新版本。",
+      "updated": "已更新至 {{version}}",
+      "updateFailed": "更新失败：{{error}}",
+      "customLabel": "自定义 Codex 路径",
+      "customDesc": "codex 可执行文件的绝对路径（codex 或 codex.exe）。",
+      "customPlaceholder": "codex 可执行文件的绝对路径",
+      "origin": {
+        "bundled": "内置（离线）",
+        "managed": "已下载",
+        "known": "系统安装",
+        "path": "系统 PATH",
+        "env": "环境变量覆盖",
+        "custom": "自定义路径",
+        "none": "未找到"
+      }
+    },
+    "source": {
+      "auto": "自动检测",
+      "managedInstall": "托管安装",
+      "managedDownload": "托管下载",
+      "custom": "自定义路径"
+    }
+  },
+  "general": {
+    "title": "通用",
+    "description": "应用全局偏好设置",
+    "updates": {
+      "section": "更新",
+      "prereleaseLabel": "接收预发布更新",
+      "prereleaseDesc": "获取包含最新功能的测试版本。关闭后仅接收稳定版更新。"
+    },
+    "sidebar": {
+      "section": "侧边栏",
+      "recentChatsLabel": "每个项目的最近对话数",
+      "recentChatsDesc": "每个项目默认显示的对话数量。在侧边栏点击「显示更多」可加载更多对话。"
+    },
+    "editor": {
+      "section": "编辑器",
+      "defaultLabel": "默认编辑器",
+      "defaultDesc": "选择点击「在编辑器中打开」时使用的编辑器。「自动」会依次尝试 Cursor、VS Code 和 Zed。",
+      "auto": "自动"
+    },
+    "voice": {
+      "section": "语音听写",
+      "modeLabel": "听写模式",
+      "modeDesc": "Native 使用操作系统的听写功能（仅限 macOS）。Whisper 在所有平台上运行本地 AI 模型进行语音转文字（首次使用约需下载 40 MB）。",
+      "native": "Native（系统）",
+      "whisper": "Whisper（本地 AI）"
+    }
+  },
+  "notifications": {
+    "title": "通知",
+    "description": "配置不同事件触发系统通知和提示音的时机。",
+    "events": {
+      "sessionComplete": {
+        "label": "会话完成",
+        "description": "当 Claude 处理完毕、会话进入空闲状态时。"
+      },
+      "exitPlanMode": {
+        "label": "退出计划模式",
+        "description": "当 Claude 完成计划、准备开始实现时。"
+      },
+      "permissions": {
+        "label": "权限请求",
+        "description": "当 Claude 需要批准才能运行命令、编辑文件等时。"
+      },
+      "askUserQuestion": {
+        "label": "向用户提问",
+        "description": "当 Claude 向你提问以引导工作时。"
+      }
+    },
+    "osNotification": "系统通知",
+    "sound": "提示音",
+    "trigger": {
+      "always": "始终",
+      "unfocused": "未聚焦时",
+      "never": "从不"
+    }
+  },
+  "advanced": {
+    "title": "高级",
+    "description": "用于协议行为和服务器通信的底层设置",
+    "codexSection": "Codex",
+    "clientNameLabel": "客户端名称",
+    "clientNameDesc": "本应用在握手时向 Codex 服务器标识自身的名称。更改将在新会话中生效。",
+    "devFillLabel": "在对话标题栏显示 Dev Fill",
+    "devFillDesc": "在当前对话标题栏启用开发者填充操作。默认隐藏。",
+    "jiraBoardLabel": "启用 Jira 看板",
+    "jiraBoardDesc": "在项目侧边栏和对话中显示 Jira 看板界面。此为开发者预览功能。",
+    "replayWelcomeLabel": "重新播放欢迎向导",
+    "replayWelcomeDesc": "重置引导标记并重新启动欢迎向导。",
+    "replay": "重新播放"
+  },
+  "about": {
+    "title": "关于",
+    "description": "版本信息、链接与致谢",
+    "tagline": "面向 AI 编程 agent 的开源桌面客户端。",
+    "taglineLine2": "一款应用即可使用 Claude Code、Codex 以及任何 ACP agent。",
+    "links": "链接",
+    "githubLabel": "GitHub 仓库",
+    "githubDesc": "源代码、问题与发布版本",
+    "licenseLabel": "MIT 许可证",
+    "licenseDesc": "免费的开源软件",
+    "credits": "致谢",
+    "builtBy": "由 OpenSource 打造",
+    "creditsBody": "PccAgent 基于 MIT 许可证开源。欢迎在 GitHub 上贡献代码、报告问题和提出功能需求。",
+    "builtWith": "技术栈"
+  },
+  "analytics": {
+    "title": "数据分析",
+    "description": "通过分享匿名使用数据帮助改进 PccAgent",
+    "section": "使用数据分析",
+    "sendLabel": "发送匿名分析数据",
+    "sendDesc": "分享匿名使用数据，帮助我们了解人们如何使用 PccAgent 并改进应用。我们会收集应用版本、平台和基本功能使用情况。不会收集任何代码、提示词或个人数据。",
+    "userIdLabel": "匿名用户 ID",
+    "userIdDesc": "此随机生成的 ID 用于统计独立用户数量，不会用于识别你的身份。",
+    "collectTitle": "我们收集的内容",
+    "collect": {
+      "platform": "应用版本和平台（macOS、Windows、Linux）",
+      "dau": "每日活跃用户（用于衡量活跃度）",
+      "features": "基本功能使用情况（例如使用了哪些引擎）"
+    },
+    "noCollectTitle": "我们不收集的内容",
+    "noCollect": {
+      "code": "你的代码、提示词或与 AI 的对话",
+      "paths": "文件路径、项目名称或仓库 URL",
+      "personal": "任何个人或身份识别信息",
+      "keys": "API 密钥或凭据"
+    }
+  },
+  "agents": {
+    "title": "ACP Agents",
+    "description": "浏览 agent 商店或管理已安装的 agent",
+    "tabStore": "Agent 商店",
+    "tabMyAgents": "我的 Agent",
+    "builtIn": "内置",
+    "addAgent": "添加 Agent",
+    "editAgent": "编辑 Agent",
+    "edit": "编辑",
+    "delete": "删除",
+    "cancel": "取消",
+    "empty": "尚未配置任何 agent",
+    "emptyHint": "从商店或手动添加 ACP agent",
+    "deleteTitle": "删除 Agent",
+    "deleteConfirm": "确定要删除 <0>{{name}}</0> 吗？此操作无法撤销。",
+    "pasteJson": "粘贴 JSON",
+    "pasteJsonTooltip": "从 agents.json 粘贴 agent 定义以自动填充表单",
+    "saving": "保存中…",
+    "saveChanges": "保存更改",
+    "idLabel": "ID",
+    "idPlaceholder": "my-agent",
+    "idLocked": "Agent ID 创建后无法更改",
+    "nameLabel": "名称",
+    "namePlaceholder": "我的自定义 Agent",
+    "binaryLabel": "二进制文件",
+    "binaryPlaceholder": "npx",
+    "binaryDesc": "用于启动 ACP agent 进程的命令",
+    "argsLabel": "参数",
+    "argsPlaceholder": "@scope/package --flag",
+    "argsDesc": "以空格分隔的命令参数",
+    "envLabel": "环境变量",
+    "envKeyPlaceholder": "KEY",
+    "envValuePlaceholder": "value",
+    "addVariable": "添加变量",
+    "iconLabel": "图标",
+    "errors": {
+      "idRequired": "ID 为必填项",
+      "idReserved": "此 ID 为保留 ID",
+      "idExists": "已存在使用此 ID 的 agent",
+      "nameRequired": "名称为必填项",
+      "binaryRequired": "二进制命令为必填项",
+      "saveFailed": "保存 agent 失败",
+      "clipboardInvalid": "剪贴板中不包含有效的 agent JSON",
+      "clipboardUnreadable": "无法读取剪贴板"
+    },
+    "store": {
+      "searchPlaceholder": "搜索 agent…",
+      "refresh": "刷新注册表",
+      "viewRepository": "查看仓库",
+      "loadFailed": "加载注册表失败：{{error}}",
+      "retry": "重试",
+      "add": "添加",
+      "adding": "添加中…",
+      "added": "已添加",
+      "removeAgent": "移除 agent",
+      "update": "更新",
+      "updating": "更新中…",
+      "download": "下载",
+      "setup": "设置",
+      "empty": "未找到 agent",
+      "emptyHint": "尝试其他搜索关键词"
+    }
+  },
+  "mcp": {
+    "title": "MCP 服务器",
+    "intro": "MCP 服务器在右侧工具栏的 <0></0> <1>MCP 服务器</1> 面板中管理。",
+    "whyTitle": "为什么放在工具栏？",
+    "perProjectTitle": "按项目配置",
+    "perProjectDesc": "每个项目都有各自的一组 MCP 服务器，因此它们与项目工作区一同存在。",
+    "liveStatusTitle": "实时状态监控",
+    "liveStatusDesc": "服务器可能在会话中途断开。工具栏面板会实时显示连接状态，方便你快速发现并解决问题。",
+    "alwaysTitle": "随时可用",
+    "alwaysDesc": "无需离开对话即可添加、移除、认证和重新连接服务器。"
+  }
+}

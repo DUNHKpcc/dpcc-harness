@@ -1,4 +1,5 @@
 import ReactMarkdown from "react-markdown";
+import { useTranslation } from "react-i18next";
 import {
   Library,
   FileCode2,
@@ -47,6 +48,7 @@ function parseContext7Libraries(text: string): Context7Library[] {
 }
 
 function Context7LibraryListView({ rawText }: { rawText: string }) {
+  const { t } = useTranslation("toolcall");
   const libraries = parseContext7Libraries(rawText);
 
   if (libraries.length === 0) {
@@ -58,12 +60,12 @@ function Context7LibraryListView({ rawText }: { rawText: string }) {
         </div>
       );
     }
-    return <McpEmptyState message="No libraries found" />;
+    return <McpEmptyState message={t("mcpList.empty.libraries")} />;
   }
 
   return (
     <div className="space-y-0.5">
-      <McpListHeader count={libraries.length} noun="library" plural="libraries" />
+      <McpListHeader count={libraries.length} nounKey="library" />
       {libraries.map((lib) => {
         const reputationColor = lib.sourceReputation === "High"
           ? "text-emerald-400"
@@ -105,7 +107,7 @@ function Context7LibraryListView({ rawText }: { rawText: string }) {
                 {lib.codeSnippets != null && (
                   <span className="text-[10px] text-foreground/30 flex items-center gap-0.5">
                     <FileCode2 className="h-2.5 w-2.5" />
-                    {lib.codeSnippets.toLocaleString()} snippets
+                    {t("context7.codeSnippets", { value: lib.codeSnippets.toLocaleString() })}
                   </span>
                 )}
               </div>
@@ -185,6 +187,7 @@ function parseContext7Docs(text: string): Context7DocSnippet[] {
 }
 
 function Context7DocsResultView({ rawText, toolInput }: { rawText: string; toolInput: Record<string, unknown> }) {
+  const { t } = useTranslation("toolcall");
   const snippets = parseContext7Docs(rawText);
   const query = String(toolInput.query ?? "");
   const libraryId = String(toolInput.libraryId ?? "");
@@ -197,7 +200,7 @@ function Context7DocsResultView({ rawText, toolInput }: { rawText: string; toolI
         </div>
       );
     }
-    return <McpEmptyState message="No documentation found" />;
+    return <McpEmptyState message={t("mcpList.empty.documentation")} />;
   }
 
   return (
@@ -205,7 +208,7 @@ function Context7DocsResultView({ rawText, toolInput }: { rawText: string; toolI
       {/* Header */}
       <div className="flex items-center gap-2">
         <span className="text-[10px] text-foreground/40 uppercase tracking-wider font-medium">
-          {snippets.length} snippet{snippets.length !== 1 ? "s" : ""}
+          {t("context7.snippets", { count: snippets.length })}
         </span>
         {libraryId && (
           <span className="text-[10px] font-mono text-foreground/30">{libraryId}</span>

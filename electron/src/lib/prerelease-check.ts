@@ -22,8 +22,8 @@ interface PreReleaseInfo {
   releaseUrl: string | null;
 }
 
-const GITHUB_OWNER = "OpenSource03";
-const GITHUB_REPO = "harnss";
+const GITHUB_OWNER = "DUNHKpcc";
+const GITHUB_REPO = "dpcc-harness";
 const FETCH_TIMEOUT_MS = 10_000;
 
 let cachedResult: PreReleaseInfo | null = null;

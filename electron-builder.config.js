@@ -175,8 +175,8 @@ module.exports = {
   // --- Auto-update ---
   publish: {
     provider: "github",
-    owner: "OpenSource03",
-    repo: "harnss",
+    owner: "DUNHKpcc",
+    repo: "dpcc-harness",
     releaseType: "release",
   },
 

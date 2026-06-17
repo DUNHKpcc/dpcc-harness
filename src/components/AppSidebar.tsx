@@ -677,7 +677,7 @@ export const AppSidebar = memo(function AppSidebar({
             <span>Harnss is in early beta</span>
             <span className="text-sidebar-foreground/20">·</span>
             <a
-              href="https://github.com/OpenSource03/harnss/issues"
+              href="https://github.com/DUNHKpcc/dpcc-harness/issues"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-sidebar-foreground/50 transition-colors hover:text-sidebar-foreground/80"

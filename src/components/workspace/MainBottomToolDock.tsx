@@ -191,7 +191,9 @@ export function MainBottomToolDock({
                     <PanelDockControls
                       isBottom={true}
                       moveLabel={t("dock.moveToTopRow")}
+                      closeLabel={t("dock.close")}
                       onMovePlacement={() => onMoveBottomToolToTop(entry.island.id)}
+                      onClose={() => workspace.closeToolIsland(entry.island.id)}
                       onDragStart={(event) => {
                         event.dataTransfer.setData("text/plain", entry.island.id);
                         event.dataTransfer.effectAllowed = "move";

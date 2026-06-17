@@ -314,7 +314,9 @@ function TerminalInstance({
         cursorStyle: "bar",
         fontSize: 12,
         fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', 'JetBrains Mono', Menlo, monospace",
-        lineHeight: 1.35,
+        // lineHeight must stay at 1.0 so Unicode half-block characters (▀ ▄ █) used by
+        // claude code's pixel mascot and other TUI art stack without gaps.
+        lineHeight: 1.0,
         letterSpacing: 0,
         allowProposedApi: true,
         allowTransparency: true,

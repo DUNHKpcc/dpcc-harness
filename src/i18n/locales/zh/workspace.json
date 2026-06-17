@@ -68,6 +68,7 @@
   },
   "dock": {
     "moveToBottom": "移到底部",
-    "moveToTopRow": "移到顶部行"
+    "moveToTopRow": "移到顶部行",
+    "close": "关闭面板"
   }
 }

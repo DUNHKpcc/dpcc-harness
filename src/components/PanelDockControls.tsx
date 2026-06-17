@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { ArrowDown, ArrowRight, GripHorizontal, type LucideIcon } from "lucide-react";
+import { ArrowDown, ArrowRight, GripHorizontal, X, type LucideIcon } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface PanelDockControlsProps {
@@ -7,7 +7,9 @@ interface PanelDockControlsProps {
   onMovePlacement: () => void;
   onDragStart: (event: React.DragEvent<HTMLButtonElement>) => void;
   onDragEnd: () => void;
+  onClose?: () => void;
   moveLabel?: string;
+  closeLabel?: string;
   moveIcon?: LucideIcon;
 }
 
@@ -16,11 +18,14 @@ export const PanelDockControls = memo(function PanelDockControls({
   onMovePlacement,
   onDragStart,
   onDragEnd,
+  onClose,
   moveLabel,
+  closeLabel,
   moveIcon,
 }: PanelDockControlsProps) {
   const MoveIcon = moveIcon ?? (isBottom ? ArrowRight : ArrowDown);
   const resolvedMoveLabel = moveLabel ?? (isBottom ? "Move to side" : "Move to bottom");
+  const resolvedCloseLabel = closeLabel ?? "Close panel";
 
   return (
     <>
@@ -54,6 +59,22 @@ export const PanelDockControls = memo(function PanelDockControls({
           <p className="text-xs font-medium">Drag to dock</p>
         </TooltipContent>
       </Tooltip>
+      {onClose && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-5 w-5 items-center justify-center rounded-md text-foreground/25 transition-colors hover:bg-foreground/[0.05] hover:text-foreground/55"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="left" sideOffset={8}>
+            <p className="text-xs font-medium">{resolvedCloseLabel}</p>
+          </TooltipContent>
+        </Tooltip>
+      )}
     </>
   );
 });

@@ -32,6 +32,7 @@ export interface ContextGaugeProps {
   isCompacting: boolean;
   isProcessing: boolean;
   onCompact: () => void;
+  className?: string;
 }
 
 /** SVG ring gauge showing context window usage with a tooltip breakdown. */
@@ -40,6 +41,7 @@ export const ContextGauge = memo(function ContextGauge({
   isCompacting,
   isProcessing,
   onCompact,
+  className,
 }: ContextGaugeProps) {
   const { t } = useTranslation("input");
   if (contextUsage.contextWindow <= 0) return null;
@@ -61,7 +63,7 @@ export const ContextGauge = memo(function ContextGauge({
           onClick={() => {
             if (!isProcessing) onCompact();
           }}
-          className={`inline-flex shrink-0 cursor-pointer rounded-full hover:opacity-80 ${isProcessing ? "opacity-40 cursor-default" : ""} ${getContextColor(percent)}`}
+          className={`inline-flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full hover:opacity-80 ${isProcessing ? "opacity-40 cursor-default" : ""} ${getContextColor(percent)} ${className ?? ""}`}
         >
           <svg
             width="20"

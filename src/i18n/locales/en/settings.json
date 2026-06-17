@@ -8,6 +8,7 @@
     "agents": "ACP Agents",
     "mcp": "MCP Servers",
     "engines": "Engines",
+    "localClaude": "Local Claude Code",
     "skills": "Skills",
     "customAgents": "Agents",
     "advanced": "Advanced",
@@ -205,6 +206,45 @@
       "always": "Always",
       "unfocused": "When Unfocused",
       "never": "Never"
+    }
+  },
+  "localClaude": {
+    "title": "Local Claude Code",
+    "description": "Read-only view of your ~/.claude configuration — agents, slash commands, MCP servers, CLAUDE.md, and gateway env. The Claude Code CLI already loads these during sessions.",
+    "rootLabel": "Config root",
+    "refresh": "Refresh",
+    "notFound": "No ~/.claude directory found. Install the Claude Code CLI or create configuration files to see them here.",
+    "settingsError": "Could not parse settings.json",
+    "gateway": {
+      "section": "Gateway env (settings.json)",
+      "description": "Anthropic gateway environment variables pulled from ~/.claude/settings.json → env. Token / key values are masked.",
+      "allKeys": "All env keys",
+      "priority": "Overrides Harnss gateway"
+    },
+    "codex": {
+      "section": "Codex (~/.codex/config.toml)",
+      "empty": "No ~/.codex/config.toml found. Codex CLI will use Harnss settings or its defaults.",
+      "priority": "Overrides Harnss Codex gateway"
+    },
+    "agents": {
+      "section": "Agents",
+      "empty": "No agent definitions found in ~/.claude/agents/."
+    },
+    "commands": {
+      "section": "Slash commands",
+      "empty": "No slash commands found in ~/.claude/commands/."
+    },
+    "mcp": {
+      "section": "MCP servers",
+      "empty": "No mcpServers configured in ~/.claude/settings.json."
+    },
+    "claudeMd": {
+      "section": "CLAUDE.md",
+      "empty": "No CLAUDE.md found in ~/.claude or in the current project root.",
+      "scope": {
+        "user": "User CLAUDE.md",
+        "project": "Project CLAUDE.md"
+      }
     }
   },
   "advanced": {

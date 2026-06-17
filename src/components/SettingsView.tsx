@@ -13,6 +13,7 @@ import {
   Users,
   BarChart3,
   PanelLeft,
+  FileCode,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ import { EngineSettings } from "@/components/settings/EngineSettings";
 import { PlaceholderSection } from "@/components/settings/PlaceholderSection";
 import { AboutSettings } from "@/components/settings/AboutSettings";
 import { AnalyticsSettings } from "@/components/settings/AnalyticsSettings";
+import { LocalClaudeSettings } from "@/components/settings/LocalClaudeSettings";
 import { useSettingsStore } from "@/stores/settings-store";
 import { isMac } from "@/lib/utils";
 import type { AppSettings } from "@/types";
@@ -33,7 +35,7 @@ import { useAgentContext } from "./AgentContext";
 
 // ── Section definitions ──
 
-export type SettingsSection = "general" | "appearance" | "notifications" | "analytics" | "agents" | "mcp" | "engines" | "skills" | "custom-agents" | "advanced" | "about";
+export type SettingsSection = "general" | "appearance" | "notifications" | "analytics" | "agents" | "mcp" | "engines" | "local-claude" | "skills" | "custom-agents" | "advanced" | "about";
 
 interface NavItem {
   id: SettingsSection;
@@ -52,6 +54,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "agents", labelKey: "nav.agents", icon: Bot },
   { id: "mcp", labelKey: "nav.mcp", icon: Plug },
   { id: "engines", labelKey: "nav.engines", icon: Cpu },
+  { id: "local-claude", labelKey: "nav.localClaude", icon: FileCode },
   { id: "skills", labelKey: "nav.skills", icon: Sparkles, comingSoon: true },
   { id: "custom-agents", labelKey: "nav.customAgents", icon: Users, comingSoon: true },
   { id: "advanced", labelKey: "nav.advanced", icon: Wrench },
@@ -160,6 +163,8 @@ export const SettingsView = memo(function SettingsView({
             onUpdateAppSettings={updateAppSettings}
           />
         );
+      case "local-claude":
+        return <LocalClaudeSettings />;
       case "advanced":
         return (
           <AdvancedSettings

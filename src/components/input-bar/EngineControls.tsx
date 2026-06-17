@@ -23,7 +23,7 @@ import {
 // ── Sub-components ──
 
 /** Permission mode dropdown -- used by Claude and Codex engines */
-function PermissionDropdown({
+export function PermissionDropdown({
   permissionMode,
   onPermissionModeChange,
   showDetails,
@@ -140,75 +140,71 @@ export interface EngineControlsProps {
   onAcpPermissionBehaviorChange?: (behavior: AcpPermissionBehavior) => void;
 }
 
-/** Renders plan/permission controls per engine (model/config moved to engine picker). */
-export function EngineControls({
-  isCodexAgent,
-  isACPAgent,
-  isProcessing,
-  disabled,
-  permissionMode,
-  onPermissionModeChange,
-  planMode,
-  onPlanModeChange,
+/** ACP permission behavior dropdown -- used by ACP agents */
+export function AcpBehaviorDropdown({
   acpPermissionBehavior,
   onAcpPermissionBehaviorChange,
-}: EngineControlsProps) {
+  disabled,
+}: {
+  acpPermissionBehavior: AcpPermissionBehavior | undefined;
+  onAcpPermissionBehaviorChange: (behavior: AcpPermissionBehavior) => void;
+  disabled?: boolean;
+}) {
   const { t } = useTranslation("input");
-  if (isACPAgent) {
-    if (!onAcpPermissionBehaviorChange) return null;
-    return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="xs"
-            className={TOOLBAR_BTN}
-            disabled={isProcessing || disabled}
-          >
-            <Shield className="size-3" />
-            {t(
-              `control.acpBehavior.${
-                ACP_PERMISSION_BEHAVIORS.find(
-                  (b) => b.id === acpPermissionBehavior,
-                )?.id ?? "ask"
-              }`,
-            )}
-            <ChevronDown className="size-3" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start">
-          {ACP_PERMISSION_BEHAVIORS.map((b) => (
-            <DropdownMenuItem
-              key={b.id}
-              onClick={() => onAcpPermissionBehaviorChange(b.id)}
-              className={b.id === acpPermissionBehavior ? "bg-accent" : ""}
-            >
-              <div>
-                <div>{t(`control.acpBehavior.${b.id}`)}</div>
-                <div className="text-[10px] text-muted-foreground">
-                  {t(`control.acpBehavior.${b.id}Desc`)}
-                </div>
-              </div>
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    );
-  }
-
   return (
-    <>
-      <PlanModeToggle
-        planMode={planMode}
-        onPlanModeChange={onPlanModeChange}
-        disabled={disabled}
-      />
-      <PermissionDropdown
-        permissionMode={permissionMode}
-        onPermissionModeChange={onPermissionModeChange}
-        showDetails={isCodexAgent}
-        disabled={disabled}
-      />
-    </>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="xs"
+          className={TOOLBAR_BTN}
+          disabled={disabled}
+        >
+          <Shield className="size-3" />
+          {t(
+            `control.acpBehavior.${
+              ACP_PERMISSION_BEHAVIORS.find(
+                (b) => b.id === acpPermissionBehavior,
+              )?.id ?? "ask"
+            }`,
+          )}
+          <ChevronDown className="size-3" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        {ACP_PERMISSION_BEHAVIORS.map((b) => (
+          <DropdownMenuItem
+            key={b.id}
+            onClick={() => onAcpPermissionBehaviorChange(b.id)}
+            className={b.id === acpPermissionBehavior ? "bg-accent" : ""}
+          >
+            <div>
+              <div>{t(`control.acpBehavior.${b.id}`)}</div>
+              <div className="text-[10px] text-muted-foreground">
+                {t(`control.acpBehavior.${b.id}Desc`)}
+              </div>
+            </div>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/** Renders the in-capsule Plan toggle. Permission/ACP-behavior have been moved
+ *  out into a sunken row below the capsule. */
+export function EngineControls({
+  isACPAgent,
+  disabled,
+  planMode,
+  onPlanModeChange,
+}: EngineControlsProps) {
+  if (isACPAgent) return null;
+  return (
+    <PlanModeToggle
+      planMode={planMode}
+      onPlanModeChange={onPlanModeChange}
+      disabled={disabled}
+    />
   );
 }

@@ -36,7 +36,7 @@ import type {
 } from "@/types";
 import { BOTTOM_CHAT_MAX_WIDTH_CLASS } from "@/lib/layout/constants";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
-import { resolveModelValue } from "@/lib/model-utils";
+import { resolveModelValue, formatClaudeModelLabel } from "@/lib/model-utils";
 import { ImageAnnotationEditor } from "@/components/ImageAnnotationEditor";
 import { TOOLBAR_BTN } from "./constants";
 import {
@@ -52,7 +52,7 @@ import {
 import { ContextGauge } from "./ContextGauge";
 import { AttachmentPreview } from "./AttachmentPreview";
 import { EnginePickerDropdown } from "./EnginePickerDropdown";
-import { EngineControls } from "./EngineControls";
+import { EngineControls, PermissionDropdown, AcpBehaviorDropdown } from "./EngineControls";
 import { MentionPicker } from "./MentionPicker";
 import { useMentionAutocomplete } from "./useMentionAutocomplete";
 import { CommandPicker } from "./CommandPicker";
@@ -213,6 +213,11 @@ export const InputBar = memo(function InputBar({
 
   // Claude effort
   const claudeCurrentModel = supportedModels?.find((m) => m.value === selectedModelId);
+  // For Claude, prefer a friendly versioned label (e.g. "Sonnet 4.6") over the
+  // bare family name returned by the SDK as displayName.
+  const selectedModelDisplayLabel = !isACPAgent && !isCodexAgent && claudeCurrentModel
+    ? formatClaudeModelLabel(claudeCurrentModel)
+    : (selectedModel?.label ?? "");
   const claudeEffortOptions = claudeCurrentModel?.supportsEffort
     ? (claudeCurrentModel.supportedEffortLevels ?? [])
     : [];
@@ -908,7 +913,7 @@ export const InputBar = memo(function InputBar({
               agents={agents ?? []}
               onAgentChange={onAgentChange ?? (() => {})}
               selectedModelId={selectedModelId}
-              selectedModelLabel={selectedModel?.label ?? ""}
+              selectedModelLabel={selectedModelDisplayLabel}
               modelList={modelList}
               modelsLoading={modelsLoading}
               modelsLoadingText={modelsLoadingText}
@@ -928,52 +933,42 @@ export const InputBar = memo(function InputBar({
               onManageACPs={onManageACPs}
             />
 
-            <span
-              className="mx-0.5 h-3.5 w-px shrink-0 bg-border/20"
-              aria-hidden="true"
-            />
-
-            <EngineControls
-              isCodexAgent={isCodexAgent}
-              isACPAgent={isACPAgent}
-              isProcessing={isProcessing}
-              permissionMode={permissionMode}
-              onPermissionModeChange={onPermissionModeChange}
-              planMode={planMode}
-              onPlanModeChange={onPlanModeChange}
-              acpPermissionBehavior={acpPermissionBehavior}
-              onAcpPermissionBehaviorChange={onAcpPermissionBehaviorChange}
-            />
+            {!isACPAgent && (
+              <>
+                <span
+                  className="mx-0.5 h-3.5 w-px shrink-0 bg-border/20"
+                  aria-hidden="true"
+                />
+                <EngineControls
+                  isCodexAgent={isCodexAgent}
+                  isACPAgent={isACPAgent}
+                  isProcessing={isProcessing}
+                  permissionMode={permissionMode}
+                  onPermissionModeChange={onPermissionModeChange}
+                  planMode={planMode}
+                  onPlanModeChange={onPlanModeChange}
+                  acpPermissionBehavior={acpPermissionBehavior}
+                  onAcpPermissionBehaviorChange={onAcpPermissionBehaviorChange}
+                />
+              </>
+            )}
           </div>
 
-          {/* Right controls */}
+          {/* Right controls -- unified send/stop button */}
           <div className="flex shrink-0 items-center gap-2">
-            {contextUsage && contextUsage.contextWindow > 0 && onCompact && (
-              <ContextGauge
-                contextUsage={contextUsage}
-                isCompacting={isCompacting ?? false}
-                isProcessing={isProcessing}
-                onCompact={onCompact}
-              />
-            )}
-            {isProcessing && (
-              <Button
-                size="icon"
-                variant="ghost"
-                onClick={onStop}
-                className="h-7 w-7 rounded-full text-muted-foreground transition-colors duration-150 hover:bg-destructive/10 hover:text-destructive"
-              >
-                <Square className="h-3 w-3" />
-              </Button>
-            )}
             <div className="relative">
               <Button
                 size="icon"
-                onClick={handleSend}
-                disabled={sendDisabled}
+                onClick={isProcessing ? onStop : handleSend}
+                disabled={!isProcessing && sendDisabled}
+                aria-label={isProcessing ? t("action.stop", { ns: "common" }) : t("action.send", { ns: "common" })}
                 className="h-8 w-8 rounded-full shadow-sm transition-all duration-150 hover:shadow-md active:scale-95 disabled:shadow-none disabled:active:scale-100"
               >
-                <ArrowUp className="h-4 w-4" />
+                {isProcessing ? (
+                  <Square className="h-3 w-3" />
+                ) : (
+                  <ArrowUp className="h-4 w-4" />
+                )}
               </Button>
               {queuedCount > 0 && (
                 <span className="absolute -end-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium text-primary-foreground">
@@ -983,6 +978,62 @@ export const InputBar = memo(function InputBar({
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Sunken meta row -- model · effort, permission, context usage */}
+      <div className="pointer-events-auto mt-1.5 flex items-center gap-1 px-1 text-xs text-muted-foreground/80">
+        <EnginePickerDropdown
+          triggerMode="label"
+          isProcessing={isProcessing}
+          isACPAgent={isACPAgent}
+          isCodexAgent={isCodexAgent}
+          selectedAgent={selectedAgent ?? null}
+          agents={agents ?? []}
+          onAgentChange={onAgentChange ?? (() => {})}
+          selectedModelId={selectedModelId}
+          selectedModelLabel={selectedModelDisplayLabel}
+          modelList={modelList}
+          modelsLoading={modelsLoading}
+          modelsLoadingText={modelsLoadingText}
+          onModelChange={onModelChange}
+          claudeEffortOptions={claudeEffortOptions}
+          claudeActiveEffort={claudeActiveEffort as ClaudeEffort}
+          onClaudeModelEffortChange={onClaudeModelEffortChange}
+          codexEffortOptions={codexEffortOptions}
+          codexActiveEffort={codexActiveEffort ?? "medium"}
+          onCodexEffortChange={onCodexEffortChange}
+          showACPConfigOptions={showACPConfigOptions}
+          acpConfigOptions={acpConfigOptions}
+          acpConfigOptionsLoading={acpConfigOptionsLoading}
+          onACPConfigChange={onACPConfigChange}
+          lockedEngine={lockedEngine}
+          lockedAgentId={lockedAgentId}
+          onManageACPs={onManageACPs}
+        />
+        {isACPAgent ? (
+          onAcpPermissionBehaviorChange && (
+            <AcpBehaviorDropdown
+              acpPermissionBehavior={acpPermissionBehavior}
+              onAcpPermissionBehaviorChange={onAcpPermissionBehaviorChange}
+              disabled={isProcessing}
+            />
+          )
+        ) : (
+          <PermissionDropdown
+            permissionMode={permissionMode}
+            onPermissionModeChange={onPermissionModeChange}
+            showDetails={isCodexAgent}
+          />
+        )}
+        {contextUsage && contextUsage.contextWindow > 0 && onCompact && (
+          <ContextGauge
+            contextUsage={contextUsage}
+            isCompacting={isCompacting ?? false}
+            isProcessing={isProcessing}
+            onCompact={onCompact}
+            className="ms-auto"
+          />
+        )}
       </div>
 
       {/* Deep folder confirmation dialog */}

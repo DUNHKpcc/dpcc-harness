@@ -21,7 +21,9 @@
     "download": "Download",
     "downloading": "Downloading…",
     "refresh": "Refresh",
-    "search": "Search"
+    "search": "Search",
+    "send": "Send",
+    "stop": "Stop"
   },
   "state": {
     "loading": "Loading…",

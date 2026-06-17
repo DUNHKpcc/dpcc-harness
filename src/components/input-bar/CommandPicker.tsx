@@ -18,18 +18,18 @@ export function useCommandAutocomplete({
   const [commandIndex, setCommandIndex] = useState(0);
   const commandListRef = useRef<HTMLDivElement>(null);
 
-  // Memoized filtered results (was previously an un-memoized IIFE)
+  // Memoized filtered results. No hard cap -- the dropdown scrolls within
+  // its max-height, so showing the full command list is fine and avoids
+  // hiding commands that exist beyond an arbitrary cutoff.
   const cmdResults = useMemo(() => {
     if (!showCommands || availableSlashCommands.length === 0) return [];
     const q = commandQuery.toLowerCase();
-    if (!q) return availableSlashCommands.slice(0, 15);
-    return availableSlashCommands
-      .filter(
-        (cmd) =>
-          cmd.name.toLowerCase().includes(q) ||
-          cmd.description.toLowerCase().includes(q),
-      )
-      .slice(0, 15);
+    if (!q) return availableSlashCommands;
+    return availableSlashCommands.filter(
+      (cmd) =>
+        cmd.name.toLowerCase().includes(q) ||
+        cmd.description.toLowerCase().includes(q),
+    );
   }, [showCommands, availableSlashCommands, commandQuery]);
 
   const selectCommand = useCallback(
@@ -105,7 +105,7 @@ export const CommandPicker = memo(function CommandPicker({
   return (
     <div
       ref={commandListRef}
-      className="mx-2 mb-1 mt-2 max-h-64 overflow-y-auto rounded-lg border border-border/60 bg-popover p-1 shadow-lg"
+      className="mx-2 mb-1 mt-2 max-h-80 overflow-y-auto rounded-lg border border-border/60 bg-popover p-1 shadow-lg"
     >
       {cmdResults.map((cmd, i) => (
         <button

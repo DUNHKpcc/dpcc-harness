@@ -6,6 +6,7 @@ import type { ModelInfo, McpServerConfig, McpServerStatus } from "./mcp";
 import type { PermissionUpdate } from "./permissions";
 import type { GitRepoInfo, GitStatus, GitBranch, GitLogEntry } from "@shared/types/git";
 import type { InstalledAgent } from "@shared/types/registry";
+import type { LocalClaudeConfig, LocalCliConfig } from "@shared/types/cc-config";
 import type { AppSettings, MacBackgroundEffect, ThemeOption } from "@shared/types/settings";
 import type {
   ACPSessionEvent,
@@ -202,6 +203,12 @@ declare global {
           ccSessionId?: string;
           error?: string;
         }>;
+      };
+      ccConfig: {
+        /** Read user's local ~/.claude/ config (settings.json, agents, commands, MCP, CLAUDE.md). */
+        read: (options?: { cwd?: string }) => Promise<LocalClaudeConfig>;
+        /** Read both Claude and Codex local CLI configs in one call. */
+        readAll: (options?: { cwd?: string }) => Promise<LocalCliConfig>;
       };
       files: {
         list: (cwd: string) => Promise<{ files: string[]; dirs: string[] }>;

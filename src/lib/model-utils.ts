@@ -147,6 +147,34 @@ export function canonicalizeModelValue(
   return undefined;
 }
 
+/**
+ * Format a Claude model into a friendly versioned label.
+ *
+ * The SDK returns models keyed by short aliases (e.g. `value: "sonnet"`,
+ * `displayName: "Sonnet"`), with the actual version buried in the
+ * description (e.g. `"Sonnet 4.6 · Efficient for routine tasks · ..."`).
+ * This helper parses `"{Family} {Version}"` out of the description and
+ * appends a `1M` marker for long-context variants.
+ *
+ * Examples:
+ *   value: "sonnet",     description starting with "Sonnet 4.6 · ..."             → "Sonnet 4.6"
+ *   value: "opus[1m]",   description starting with "Opus 4.8 with 1M context ..."  → "Opus 4.8 · 1M"
+ *   value: "default",    description "...currently Opus 4.8 (1M context)..."       → "Opus 4.8 · 1M"
+ *
+ * Falls back to `displayName` when no version can be extracted.
+ */
+export function formatClaudeModelLabel(model: ModelInfo): string {
+  const description = model.description ?? "";
+  const match = /(Opus|Sonnet|Haiku|Fable)\s+(\d+(?:\.\d+)?)/i.exec(description);
+  if (!match) return model.displayName;
+  const family = match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase();
+  const version = match[2];
+  const has1M = /\[1m\]|1m\s*context|\(1m\)/i.test(
+    `${model.value} ${model.displayName} ${description}`,
+  );
+  return has1M ? `${family} ${version} · 1M` : `${family} ${version}`;
+}
+
 export function findEquivalentModel(
   model: string | null | undefined,
   supportedModels: ModelInfo[],

@@ -2,7 +2,6 @@ import { execSync } from "child_process";
 import { app, BrowserWindow, clipboard, globalShortcut, ipcMain, Menu, nativeTheme, session, shell, systemPreferences, webContents } from "electron";
 import path from "path";
 import http from "http";
-import contextMenu from "electron-context-menu";
 import { getBootstrapMinWindowWidth } from "../../src/lib/layout/constants";
 
 // Packaged .app bundles launched from Finder get a minimal PATH (/usr/bin:/bin).
@@ -36,6 +35,7 @@ import * as projectsIpc from "./ipc/projects";
 import * as sessionsIpc from "./ipc/sessions";
 import * as foldersIpc from "./ipc/folders";
 import * as ccImportIpc from "./ipc/cc-import";
+import * as ccConfigIpc from "./ipc/cc-config";
 import * as filesIpc from "./ipc/files";
 import * as claudeSessionsIpc from "./ipc/claude-sessions";
 import * as titleGenIpc from "./ipc/title-gen";
@@ -215,11 +215,16 @@ function createWindow(): void {
     });
   }
 
-  contextMenu({
-    window: mainWindow,
-    showSearchWithGoogle: false,
-    showLookUpSelection: false,
-    showInspectElement: false,
+  // electron-context-menu is ESM-only (and pulls in ESM-only electron-dl), so it
+  // must be loaded via dynamic import rather than a synchronous require.
+  void import("electron-context-menu").then(({ default: contextMenu }) => {
+    if (!mainWindow) return;
+    contextMenu({
+      window: mainWindow,
+      showSearchWithGoogle: false,
+      showLookUpSelection: false,
+      showInspectElement: false,
+    });
   });
 
   const isDev = !app.isPackaged;
@@ -364,6 +369,7 @@ projectsIpc.register(getMainWindow);
 sessionsIpc.register();
 foldersIpc.register();
 ccImportIpc.register();
+ccConfigIpc.register();
 filesIpc.register(getMainWindow);
 claudeSessionsIpc.register(getMainWindow);
 titleGenIpc.register();

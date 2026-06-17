@@ -8,6 +8,7 @@
     "agents": "ACP Agents",
     "mcp": "MCP 服务器",
     "engines": "引擎",
+    "localClaude": "本地 Claude Code",
     "skills": "Skills",
     "customAgents": "Agents",
     "advanced": "高级",
@@ -205,6 +206,45 @@
       "always": "始终",
       "unfocused": "未聚焦时",
       "never": "从不"
+    }
+  },
+  "localClaude": {
+    "title": "本地 Claude Code",
+    "description": "只读查看你本机 ~/.claude 下的配置 —— agents、slash 命令、MCP 服务器、CLAUDE.md 以及网关环境变量。Claude Code CLI 在会话时已经会加载这些内容。",
+    "rootLabel": "配置目录",
+    "refresh": "刷新",
+    "notFound": "未找到 ~/.claude 目录。请安装 Claude Code CLI 或先创建相应的配置文件。",
+    "settingsError": "无法解析 settings.json",
+    "gateway": {
+      "section": "网关环境变量 (settings.json)",
+      "description": "来自 ~/.claude/settings.json 中 env 字段的 Anthropic 网关环境变量。Token / Key 类字段会被脱敏显示。",
+      "allKeys": "全部 env 键",
+      "priority": "已覆盖网关"
+    },
+    "codex": {
+      "section": "Codex (~/.codex/config.toml)",
+      "empty": "未找到 ~/.codex/config.toml。Codex CLI 将使用 Harnss 内置设置或其默认值。",
+      "priority": "已覆盖网关"
+    },
+    "agents": {
+      "section": "Agents",
+      "empty": "在 ~/.claude/agents/ 下没有找到 agent 定义文件。"
+    },
+    "commands": {
+      "section": "Slash 命令",
+      "empty": "在 ~/.claude/commands/ 下没有找到 slash 命令。"
+    },
+    "mcp": {
+      "section": "MCP 服务器",
+      "empty": "~/.claude/settings.json 里没有配置 mcpServers。"
+    },
+    "claudeMd": {
+      "section": "CLAUDE.md",
+      "empty": "未在 ~/.claude 或当前项目根目录找到 CLAUDE.md。",
+      "scope": {
+        "user": "用户级 CLAUDE.md",
+        "project": "项目级 CLAUDE.md"
+      }
     }
   },
   "advanced": {

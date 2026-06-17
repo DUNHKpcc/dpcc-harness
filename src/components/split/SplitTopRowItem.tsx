@@ -151,7 +151,9 @@ function buildToolIslandControls(
   island: ToolIsland,
   isBottom: boolean,
   moveLabel: string,
+  closeLabel: string,
   onMovePlacement: () => void,
+  onClose: () => void,
   setSplitToolDrag: React.Dispatch<React.SetStateAction<ToolDragState | null>>,
   resetSplitToolDrag: () => void,
 ): React.ReactNode {
@@ -159,7 +161,9 @@ function buildToolIslandControls(
     <PanelDockControls
       isBottom={isBottom}
       moveLabel={moveLabel}
+      closeLabel={closeLabel}
       onMovePlacement={onMovePlacement}
+      onClose={onClose}
       onDragStart={(event) => {
         event.dataTransfer.setData("text/plain", island.id);
         event.dataTransfer.effectAllowed = "move";
@@ -189,6 +193,7 @@ function renderToolIsland(
   props: SplitTopRowItemProps,
   columnId: string,
   moveLabel: string,
+  closeLabel: string,
 ) {
   const {
     projects, activeProjectPath, splitView,
@@ -208,7 +213,9 @@ function renderToolIsland(
     island,
     false,
     moveLabel,
+    closeLabel,
     () => splitView.moveToolIsland(island.id, "bottom"),
+    () => splitView.closeToolIsland(island.id),
     setSplitToolDrag,
     resetSplitToolDrag,
   );
@@ -281,6 +288,7 @@ function renderToolColumn(
   isActiveSessionPane: boolean,
   props: SplitTopRowItemProps,
   moveLabel: string,
+  closeLabel: string,
 ) {
   const {
     isIsland, shouldAnimateTopRowLayout,
@@ -390,7 +398,7 @@ function renderToolColumn(
               renderToolIsland(
                 entry.island, fraction, stackInsertBeforeIndex, insertBeforeIndex,
                 session, paneState, isActiveSessionPane,
-                props, item.column.id, moveLabel,
+                props, item.column.id, moveLabel, closeLabel,
               )
             )}
           </React.Fragment>
@@ -430,6 +438,7 @@ function SplitTopRowItemInner(props: SplitTopRowItemProps) {
   } = props;
   const { t } = useTranslation("workspace");
   const moveToBottomLabel = t("dock.moveToBottom");
+  const closeLabel = t("dock.close");
 
   const { widthPercent, handleSharePx } = getMetrics(previewIndex);
 
@@ -439,7 +448,7 @@ function SplitTopRowItemInner(props: SplitTopRowItemProps) {
     if (!primaryIsland) return null;
 
     if (primaryIsland.sourceSessionId === activeSessionId) {
-      return renderToolColumn(item, activeSession, primaryPane, true, { ...props, previewIndex, insertBeforeIndex }, moveToBottomLabel);
+      return renderToolColumn(item, activeSession, primaryPane, true, { ...props, previewIndex, insertBeforeIndex }, moveToBottomLabel, closeLabel);
     }
 
     return (
@@ -449,7 +458,7 @@ function SplitTopRowItemInner(props: SplitTopRowItemProps) {
         acpPermissionBehavior={acpPermissionBehavior}
         loadBootstrap={loadSplitPaneBootstrap}
       >
-        {({ session, paneState }) => renderToolColumn(item, session, paneState, false, { ...props, previewIndex, insertBeforeIndex }, moveToBottomLabel)}
+        {({ session, paneState }) => renderToolColumn(item, session, paneState, false, { ...props, previewIndex, insertBeforeIndex }, moveToBottomLabel, closeLabel)}
       </SplitPaneHost>
     );
   }

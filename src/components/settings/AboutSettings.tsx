@@ -4,27 +4,15 @@ import { ExternalLink, Github, Scale, Heart } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SettingsHeader } from "@/components/settings/shared";
 
-// ── PccAgent logo mark — circular icon with stylized "R" symbol ──
+// ── PccAgent logo mark — app icon image ──
 
-function PccAgentLogo({ className }: { className?: string }) {
+function PccAgentLogo({ className }: { className: string }) {
   return (
-    <svg
-      viewBox="0 0 1024 1024"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
+    <img
+      src="/icon.png"
+      alt="PccAgent"
       className={className}
-    >
-      <circle cx="512" cy="512" r="512" fill="currentColor" />
-      {/* Vertical bar */}
-      <rect x="310" y="270" width="100" height="484" rx="50" fill="var(--background, #fff)" />
-      {/* Quarter circle */}
-      <path
-        d="M410 754 Q410 474 610 474 L610 754 Z"
-        fill="var(--background, #fff)"
-      />
-      {/* Dot */}
-      <circle cx="610" cy="370" r="70" fill="var(--background, #fff)" />
-    </svg>
+    />
   );
 }
 
@@ -80,7 +68,7 @@ export const AboutSettings = memo(function AboutSettings() {
         <div className="px-6 py-5">
           {/* ── App identity ── */}
           <div className="flex items-start gap-4">
-            <PccAgentLogo className="h-12 w-12 shrink-0 text-foreground" />
+            <PccAgentLogo className="h-12 w-12 shrink-0 rounded-xl" />
             <div className="min-w-0">
               <h3 className="text-lg font-semibold tracking-tight text-foreground">
                 PccAgent

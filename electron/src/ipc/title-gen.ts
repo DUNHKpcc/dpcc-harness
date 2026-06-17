@@ -4,6 +4,7 @@ import { getSDK, clientAppEnv } from "../lib/sdk";
 import { reportError } from "../lib/error-utils";
 import { gitExec } from "../lib/git-exec";
 import { getClaudeBinaryPath } from "../lib/claude-binary";
+import { loadLocalClaudeEnv } from "../lib/local-cli-config";
 
 function firstNonEmptyLine(text: string): string | undefined {
   for (const line of text.split(/\r?\n/g)) {
@@ -57,7 +58,7 @@ async function oneShotSdkQuery(
         allowDangerouslySkipPermissions: true,
         persistSession: false,
         pathToClaudeCodeExecutable: cliPath,
-        env: { ...process.env, ...clientAppEnv() },
+        env: { ...process.env, ...loadLocalClaudeEnv(), ...clientAppEnv() },
         stderr: (data: string) => {
           const trimmed = data.trim();
           if (!trimmed) return;

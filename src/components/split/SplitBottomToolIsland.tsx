@@ -67,6 +67,7 @@ function renderIslandContent(
   isActiveSessionPane: boolean,
   props: SplitBottomToolIslandProps,
   moveLabel: string,
+  closeLabel: string,
 ) {
   const {
     projects, activeProjectPath, splitView,
@@ -87,8 +88,10 @@ function renderIslandContent(
     <PanelDockControls
       isBottom={true}
       moveLabel={moveLabel}
+      closeLabel={closeLabel}
       moveIcon={ArrowUp}
       onMovePlacement={() => splitView.moveToolIsland(island.id, "top")}
+      onClose={() => splitView.closeToolIsland(island.id)}
       onDragStart={(event) => {
         event.dataTransfer.setData("text/plain", island.id);
         event.dataTransfer.effectAllowed = "move";
@@ -159,9 +162,10 @@ function SplitBottomToolIslandInner(props: SplitBottomToolIslandProps) {
   } = props;
   const { t } = useTranslation("workspace");
   const moveLabel = t("dock.moveToTopRow");
+  const closeLabel = t("dock.close");
 
   if (island.sourceSessionId === activeSessionId) {
-    return renderIslandContent(island, fraction, insertBeforeIndex, activeSession, primaryPane, true, props, moveLabel);
+    return renderIslandContent(island, fraction, insertBeforeIndex, activeSession, primaryPane, true, props, moveLabel, closeLabel);
   }
 
   return (
@@ -172,7 +176,7 @@ function SplitBottomToolIslandInner(props: SplitBottomToolIslandProps) {
       loadBootstrap={loadSplitPaneBootstrap}
     >
       {({ session, paneState }) =>
-        renderIslandContent(island, fraction, insertBeforeIndex, session, paneState, false, props, moveLabel)
+        renderIslandContent(island, fraction, insertBeforeIndex, session, paneState, false, props, moveLabel, closeLabel)
       }
     </SplitPaneHost>
   );

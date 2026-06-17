@@ -68,6 +68,7 @@
   },
   "dock": {
     "moveToBottom": "Move to bottom",
-    "moveToTopRow": "Move to top row"
+    "moveToTopRow": "Move to top row",
+    "close": "Close panel"
   }
 }

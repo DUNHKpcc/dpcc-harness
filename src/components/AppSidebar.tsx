@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback, memo, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { motion } from "motion/react";
 import { Bug, PanelLeft, Plus, Paintbrush } from "lucide-react";
 import { isMac } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import type { ChatFolder, ChatSession, Project, Space, SpaceColor } from "@/types";
-import { APP_SIDEBAR_WIDTH } from "@/lib/layout/constants";
 import { SidebarSearch } from "./SidebarSearch";
 import { SpaceBar, SpaceIcon } from "./SpaceBar";
 import { SpaceCustomizer } from "./SpaceCustomizer";
@@ -84,6 +84,8 @@ function resolveProjectReorderTarget(
 
 interface AppSidebarState {
   isOpen: boolean;
+  width: number;
+  isResizing: boolean;
   islandLayout: boolean;
   projects: Project[];
   sessions: ChatSession[];
@@ -157,6 +159,8 @@ export const AppSidebar = memo(function AppSidebar({
   const { t } = useTranslation("sidebar");
   const {
     isOpen,
+    width,
+    isResizing,
     islandLayout,
     projects,
     sessions,
@@ -486,11 +490,14 @@ export const AppSidebar = memo(function AppSidebar({
   }, []);
 
   return (
-    <div
-      className={`flex shrink-0 flex-col overflow-hidden bg-sidebar transition-[width] duration-200 ${
+    <motion.div
+      initial={false}
+      animate={{ width: isOpen ? width : 0 }}
+      transition={isResizing ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 34, mass: 0.65 }}
+      className={`flex shrink-0 flex-col overflow-hidden bg-sidebar ${
         isOpen ? (islandLayout ? "ps-[var(--island-gap)]" : "ps-2") : ""
       }`}
-      style={{ width: isOpen ? APP_SIDEBAR_WIDTH : 0 }}
+      style={{ minWidth: 0 }}
     >
       <div
         className={`drag-region flex h-[52px] items-center gap-2 pe-3 ${isMac ? "ps-[84px]" : "ps-2"}`}
@@ -509,10 +516,13 @@ export const AppSidebar = memo(function AppSidebar({
         {!isCreating && (
           <button
             onClick={onCreateProject}
-            className="no-drag flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-medium text-sidebar-foreground/70 transition-all hover:bg-black/5 hover:text-sidebar-foreground dark:hover:bg-white/10"
+            title={width < 260 ? t("header.addProject") : undefined}
+            className={`no-drag flex items-center gap-1.5 rounded-full text-[13px] font-medium text-sidebar-foreground/70 transition-all hover:bg-black/5 hover:text-sidebar-foreground dark:hover:bg-white/10 ${
+              width < 260 ? "h-8 w-8 justify-center p-0" : "px-3 py-1.5"
+            }`}
           >
             <Plus className="h-3.5 w-3.5 shrink-0" />
-            <span>{t("header.addProject")}</span>
+            {width >= 260 && <span className="whitespace-nowrap">{t("header.addProject")}</span>}
           </button>
         )}
       </div>
@@ -675,17 +685,22 @@ export const AppSidebar = memo(function AppSidebar({
           <UpdateBanner />
           <PreReleaseBanner onOpenSettings={onOpenSettings} />
 
-          <div className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] text-sidebar-foreground/40">
-            <span>{t("beta.label")}</span>
-            <span className="text-sidebar-foreground/20">·</span>
+          <div className="flex items-center justify-center gap-1.5 overflow-hidden px-3 py-1.5 text-[11px] text-sidebar-foreground/40">
+            {width >= 260 && (
+              <>
+                <span className="whitespace-nowrap">{t("beta.label")}</span>
+                <span className="text-sidebar-foreground/20">·</span>
+              </>
+            )}
             <a
               href="https://github.com/DUNHKpcc/dpcc-harness/issues"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-sidebar-foreground/50 transition-colors hover:text-sidebar-foreground/80"
+              title={width < 260 ? t("beta.reportBug") : undefined}
+              className="inline-flex items-center gap-1 whitespace-nowrap text-sidebar-foreground/50 transition-colors hover:text-sidebar-foreground/80"
             >
               <Bug className="h-3 w-3" />
-              <span>{t("beta.reportBug")}</span>
+              {width >= 260 && <span>{t("beta.reportBug")}</span>}
             </a>
           </div>
         </div>
@@ -703,6 +718,6 @@ export const AppSidebar = memo(function AppSidebar({
         onOpenSettings={onOpenSettings}
         draftSpace={draftSpace}
       />
-    </div>
+    </motion.div>
   );
 });

@@ -178,6 +178,10 @@ contextBridge.exposeInMainWorld("claude", {
     list: (projectPath: string) => ipcRenderer.invoke("cc-sessions:list", projectPath),
     import: (projectPath: string, ccSessionId: string) => ipcRenderer.invoke("cc-sessions:import", projectPath, ccSessionId),
   },
+  ccConfig: {
+    read: (options?: { cwd?: string }) => ipcRenderer.invoke("cc-config:read", options),
+    readAll: (options?: { cwd?: string }) => ipcRenderer.invoke("cc-config:read-all", options),
+  },
   files: {
     list: (cwd: string) => ipcRenderer.invoke("files:list", cwd),
     listAll: (cwd: string) => ipcRenderer.invoke("files:list-all", cwd),

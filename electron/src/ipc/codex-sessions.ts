@@ -22,6 +22,7 @@ import {
 import { getAppSetting } from "../lib/app-settings";
 import { reportError } from "../lib/error-utils";
 import { captureEvent } from "../lib/posthog";
+import { localCodexGatewayTakesPriority } from "../lib/local-cli-config";
 
 import type {
   CodexServerNotification,
@@ -79,8 +80,13 @@ function getAppServerClientInfo(): { name: string; title: string; version: strin
 const CODEX_GATEWAY_PROVIDER_ID = "harnss-gateway";
 const CODEX_GATEWAY_ENV_KEY = "HARNSS_GATEWAY_API_KEY";
 
-/** Extra spawn env for the Codex gateway — injects the API key under the provider's env_key. */
+/**
+ * Extra spawn env for the Codex gateway — injects the API key under the provider's env_key.
+ * If the user's local ~/.codex/config.toml already configures a custom provider,
+ * Harnss defers entirely so it doesn't fight the user's CLI setup.
+ */
 function codexGatewayEnv(): Record<string, string> {
+  if (localCodexGatewayTakesPriority()) return {};
   const g = getAppSetting("codexGateway");
   if (!g?.enabled || !g.apiKey.trim()) return {};
   return { [CODEX_GATEWAY_ENV_KEY]: g.apiKey.trim() };
@@ -89,9 +95,14 @@ function codexGatewayEnv(): Record<string, string> {
 /**
  * thread/start params for the custom Codex gateway: a `model_providers.<id>`
  * override table (base_url / env_key / wire_api) plus provider + model selection.
- * Returns {} when the gateway is disabled or has no base URL.
+ * Returns {} when the gateway is disabled, has no base URL, or when the user's
+ * ~/.codex/config.toml already defines a custom provider (local takes priority).
  */
 function codexGatewayThreadParams(): Record<string, unknown> {
+  if (localCodexGatewayTakesPriority()) {
+    log("CODEX_GATEWAY_DEFER", "local ~/.codex/config.toml overrides Harnss gateway");
+    return {};
+  }
   const g = getAppSetting("codexGateway");
   if (!g?.enabled || !g.baseUrl.trim()) return {};
   const id = CODEX_GATEWAY_PROVIDER_ID;
@@ -325,7 +336,9 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         const authResult = await rpc.request<CodexAccountResponse>("account/read", { refreshToken: false });
 
         // Custom gateway carries its own credentials (env_key) — skip the OpenAI auth gate.
-        const gatewayEnabled = getAppSetting("codexGateway")?.enabled === true;
+        // Either Harnss gateway (when enabled) or the user's local config.toml provider counts.
+        const gatewayEnabled =
+          getAppSetting("codexGateway")?.enabled === true || localCodexGatewayTakesPriority();
         const needsAuth = !gatewayEnabled && authResult.requiresOpenaiAuth && !authResult.account;
         if (needsAuth) {
           // Notify renderer that auth is required — don't start thread yet

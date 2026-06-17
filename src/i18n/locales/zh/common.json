@@ -21,7 +21,9 @@
     "download": "下载",
     "downloading": "下载中…",
     "refresh": "刷新",
-    "search": "搜索"
+    "search": "搜索",
+    "send": "发送",
+    "stop": "终止"
   },
   "state": {
     "loading": "加载中…",

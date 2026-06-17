@@ -4,6 +4,7 @@ import { log } from "../lib/logger";
 import { safeSend } from "../lib/safe-send";
 import { captureEvent } from "../lib/posthog";
 import { reportError } from "../lib/error-utils";
+import { loadLocalClaudeEnv } from "../lib/local-cli-config";
 import {
   appendTerminalHistory,
   EMPTY_TERMINAL_HISTORY,
@@ -52,12 +53,22 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         : process.env.SHELL || "/bin/zsh";
       const terminalId = crypto.randomUUID();
 
+      // Seed env with the user's ~/.claude/settings.json env block AFTER process.env
+      // so it overrides any stale ANTHROPIC_* values inherited from the GUI launcher.
+      // Without this, running `claude` in the toolbar terminal would hit the official
+      // API even when the user has a custom gateway configured locally.
+      const localClaudeEnv = loadLocalClaudeEnv();
       const ptyProcess = pty.spawn(shellPath, [], {
         name: "xterm-256color",
         cols: cols || 80,
         rows: rows || 24,
         cwd: cwd || (isWin ? process.env.USERPROFILE : process.env.HOME),
-        env: { ...process.env, TERM: "xterm-256color", COLORTERM: "truecolor" },
+        env: {
+          ...process.env,
+          ...localClaudeEnv,
+          TERM: "xterm-256color",
+          COLORTERM: "truecolor",
+        },
       });
 
       const entry: TerminalEntry = {

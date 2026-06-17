@@ -161,6 +161,17 @@ pnpm test:watch    # Run vitest in watch mode
 
 **Dev logs**: Main process logs go to `logs/main-{timestamp}.log` (dev) or `{userData}/logs/main-{timestamp}.log` (packaged). Check the latest file with `ls -t logs/main-*.log | head -1 | xargs cat`.
 
+### Dev restart gotchas
+
+Two recurring traps when iterating on `pnpm dev`:
+
+**1. New IPC handlers don't appear without a full Electron restart.** `pnpm dev` runs Vite (renderer HMR), tsup `--watch` (rebuilds `electron/dist/main.js`), and Electron concurrently. Adding, renaming, or removing an `ipcMain.handle()` modifies main-process code; tsup rebuilds the bundle, **but the already-running Electron process does not reload it** — IPC handlers are registered once at startup. Symptom: renderer calls fail with `Error: No handler registered for '<channel>'` in the dev log. Fix: kill the dev session and rerun `pnpm dev` (or just `pkill -f "Electron.app/Contents/MacOS/Electron"` and relaunch only Electron via `node_modules/.bin/electron .`). Renderer-only changes (React components, hooks, CSS, i18n) do NOT need this — they hot-reload.
+
+**2. `Error launching app — Cannot find module 'electron/dist/main.js'` on cold dev start.** Race: tsup's first build does `Cleaning output folder` (deletes `main.js`) → write new `main.js`. `scripts/delay.js` only waits for Vite's HTTP port, not for `main.js` to be written. If Electron launches in that ~200 ms window, it dies before tsup finishes the rebuild. Workarounds:
+- Just rerun — by the second attempt, `main.js` exists from the previous build.
+- Run `pnpm build:electron` once before `pnpm dev` to seed `electron/dist/`.
+- If Electron died but Vite + tsup are still alive, relaunch only Electron: `node_modules/.bin/electron .` (no need to restart the whole stack).
+
 ## Architecture
 
 ### SDK-Based Session Management

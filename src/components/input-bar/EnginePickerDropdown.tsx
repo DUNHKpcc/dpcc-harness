@@ -69,6 +69,10 @@ export interface EnginePickerDropdownProps {
   lockedAgentId?: string | null;
   // Navigation
   onManageACPs?: () => void;
+  // Trigger styling: "icon" renders agent icon only (default, sits inside the
+  // input capsule); "label" renders the model name + effort label (sits in the
+  // sunken row below the capsule).
+  triggerMode?: "icon" | "label";
 }
 
 /** Engine/model/effort/agent picker dropdown in the input bar toolbar. */
@@ -98,6 +102,7 @@ export const EnginePickerDropdown = memo(function EnginePickerDropdown({
   lockedEngine,
   lockedAgentId,
   onManageACPs,
+  triggerMode = "icon",
 }: EnginePickerDropdownProps) {
   const { t } = useTranslation("input");
   // Engine-specific config items (model/effort/ACP config) -- shared between
@@ -263,18 +268,31 @@ export const EnginePickerDropdown = memo(function EnginePickerDropdown({
 
   // ── Trigger button content ──
 
-  const triggerContent = (
+  const triggerContent = triggerMode === "icon" ? (
     <>
       <AgentIcon
         icon={selectedAgent ? getAgentIcon(selectedAgent) : ENGINE_ICONS.claude}
         size={14}
         className="shrink-0"
       />
-      {selectedAgent?.name ?? "Claude Code"}
+      {!isACPAgent && modelsLoading && (
+        <Loader2 className="h-3 w-3 animate-spin text-muted-foreground/50" />
+      )}
+      {isACPAgent && acpConfigOptionsLoading && !showACPConfigOptions && (
+        <Loader2 className="h-3 w-3 animate-spin text-muted-foreground/50" />
+      )}
+      <ChevronDown className="size-3" />
+    </>
+  ) : (
+    <>
       {!isACPAgent && !modelsLoading && selectedModelLabel && (
-        <span className="text-muted-foreground/70">
-          · {selectedModelLabel}
-        </span>
+        <span>{selectedModelLabel}</span>
+      )}
+      {!isACPAgent && !isCodexAgent && !modelsLoading && KNOWN_CLAUDE_EFFORTS.has(claudeActiveEffort) && (
+        <span className="text-muted-foreground/70">· {claudeActiveEffort}</span>
+      )}
+      {isCodexAgent && !modelsLoading && codexActiveEffort && (
+        <span className="text-muted-foreground/70">· {codexActiveEffort}</span>
       )}
       {!isACPAgent && modelsLoading && (
         <Loader2 className="h-3 w-3 animate-spin text-muted-foreground/50" />
@@ -288,9 +306,7 @@ export const EnginePickerDropdown = memo(function EnginePickerDropdown({
           const flat = flattenConfigOptions(first.options);
           const current = flat.find((o) => o.value === first.currentValue);
           return (
-            <span className="text-muted-foreground/70">
-              · {current?.name ?? first.currentValue}
-            </span>
+            <span>{current?.name ?? first.currentValue}</span>
           );
         })()}
       {isACPAgent && acpConfigOptionsLoading && !showACPConfigOptions && (

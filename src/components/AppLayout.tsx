@@ -1024,6 +1024,8 @@ export function AppLayout() {
       <AppSidebar
         state={{
           isOpen: sidebar.isOpen,
+          width: sidebar.width,
+          isResizing: sidebar.isResizing,
           islandLayout: settings.islandLayout,
           projects: projectManager.projects,
           sessions: manager.sessions,
@@ -1078,7 +1080,22 @@ export function AppLayout() {
         }}
       />
 
-      <div ref={contentRef} className={`flex min-w-0 flex-1 flex-col ${settings.islandLayout ? "m-[var(--island-gap)]" : sidebar.isOpen ? "flat-divider-s" : ""} ${isResizing ? "select-none" : ""}`}>
+      {sidebar.isOpen && (
+        <div
+          className="resize-col flat-divider-soft group relative z-10 flex w-1.5 shrink-0 cursor-col-resize items-center justify-center"
+          onMouseDown={sidebar.handleResizeStart}
+        >
+          <div
+            className={`h-10 w-0.5 rounded-full transition-colors duration-150 ${
+              sidebar.isResizing
+                ? "bg-foreground/40"
+                : "bg-transparent group-hover:bg-foreground/25"
+            }`}
+          />
+        </div>
+      )}
+
+      <div ref={contentRef} className={`flex min-w-0 flex-1 flex-col ${settings.islandLayout ? "m-[var(--island-gap)]" : sidebar.isOpen ? "flat-divider-s" : ""} ${isResizing || sidebar.isResizing ? "select-none" : ""}`}>
         {showSettings && (
           <SettingsView
             onClose={() => setShowSettings(false)}

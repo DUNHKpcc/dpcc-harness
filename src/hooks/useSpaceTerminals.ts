@@ -10,7 +10,7 @@ import {
 
 export type { TerminalTab, SpaceTerminalState };
 
-const STORAGE_KEY = "harnss-space-terminals";
+const STORAGE_KEY = "pcc-agent-space-terminals";
 
 export function useSpaceTerminals() {
   const [stateBySpace, setStateBySpace] = useState<SpaceTerminalsState>({});

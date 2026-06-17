@@ -13,7 +13,7 @@ const {
   mockGetAppSetting: vi.fn<(key: string) => string>((key: string) => {
     if (key === "claudeBinarySource") return "auto";
     if (key === "claudeCustomBinaryPath") return "";
-    return "Harnss";
+    return "PccAgent";
   }),
   mockGetCliPath: vi.fn(() => "/app.asar.unpacked/node_modules/@anthropic-ai/claude-agent-sdk/cli.js"),
   mockLog: vi.fn(),
@@ -71,7 +71,7 @@ describe("claude binary resolution", () => {
     mockGetAppSetting.mockImplementation((key: string): string => {
       if (key === "claudeBinarySource") return "auto";
       if (key === "claudeCustomBinaryPath") return "";
-      return "Harnss";
+      return "PccAgent";
     });
     mockGetCliPath.mockReset();
     mockGetCliPath.mockReturnValue("/app.asar.unpacked/node_modules/@anthropic-ai/claude-agent-sdk/cli.js");
@@ -83,7 +83,7 @@ describe("claude binary resolution", () => {
     mockGetAppSetting.mockImplementation((key: string): string => {
       if (key === "claudeBinarySource") return "custom";
       if (key === "claudeCustomBinaryPath") return "/opt/bin/claude";
-      return "Harnss";
+      return "PccAgent";
     });
     allowExecutable("/opt/bin/claude");
 

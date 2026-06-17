@@ -1,5 +1,5 @@
 /**
- * Setup wizard for connecting a Harnss project to a Jira board.
+ * Setup wizard for connecting a PccAgent project to a Jira board.
  * Handles URL input, authentication trigger, project filtering, and board selection.
  */
 
@@ -240,7 +240,7 @@ export const JiraBoardSetup = React.memo(function JiraBoardSetup({
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
-              <p className="text-xs text-muted-foreground">This board will be bound to the current Harnss project.</p>
+              <p className="text-xs text-muted-foreground">This board will be bound to the current PccAgent project.</p>
             </div>
           )}
 

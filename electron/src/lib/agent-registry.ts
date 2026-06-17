@@ -35,7 +35,7 @@ agents.set(BUILTIN_CLAUDE.id, BUILTIN_CLAUDE);
 agents.set(BUILTIN_CODEX.id, BUILTIN_CODEX);
 
 function getConfigPath(): string {
-  return path.join(app.getPath("userData"), "openacpui-data", "agents.json");
+  return path.join(app.getPath("userData"), "pcc-agent-data", "agents.json");
 }
 
 export function loadUserAgents(): void {

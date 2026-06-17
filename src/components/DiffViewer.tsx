@@ -152,7 +152,7 @@ function createDiffViewerInstanceId(): string {
 }
 
 function buildDiffModelPath(filePath: string, instanceId: string, side: "original" | "modified"): string {
-  return `inmemory://harnss-diff/${instanceId}/${side}/${encodeURIComponent(filePath || "untitled")}`;
+  return `inmemory://pcc-agent-diff/${instanceId}/${side}/${encodeURIComponent(filePath || "untitled")}`;
 }
 
 function disposeMonacoModel(monaco: MonacoLike, modelPath: string) {

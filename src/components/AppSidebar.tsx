@@ -674,7 +674,7 @@ export const AppSidebar = memo(function AppSidebar({
           <PreReleaseBanner onOpenSettings={onOpenSettings} />
 
           <div className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] text-sidebar-foreground/40">
-            <span>Harnss is in early beta</span>
+            <span>PccAgent is in early beta</span>
             <span className="text-sidebar-foreground/20">·</span>
             <a
               href="https://github.com/DUNHKpcc/dpcc-harness/issues"

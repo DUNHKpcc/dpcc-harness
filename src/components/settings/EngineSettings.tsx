@@ -1,6 +1,7 @@
 import { memo, useState, useCallback, useEffect } from "react";
-import { Server } from "lucide-react";
+import { Server, RefreshCw, Loader2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
 import { SettingRow, SettingsSelect, SettingsHeader, SettingsSection } from "@/components/settings/shared";
 import type { AppSettings } from "@/types";
 
@@ -8,6 +9,18 @@ interface EngineSettingsProps {
   appSettings: AppSettings | null;
   onUpdateAppSettings: (patch: Partial<AppSettings>) => Promise<void>;
 }
+
+type CodexOrigin = "env" | "managed" | "known" | "path" | "bundled" | "custom" | "none";
+
+const CODEX_ORIGIN_LABEL: Record<CodexOrigin, string> = {
+  bundled: "Bundled (offline)",
+  managed: "Downloaded",
+  known: "System install",
+  path: "System PATH",
+  env: "Env override",
+  custom: "Custom path",
+  none: "Not found",
+};
 
 // ── Component ──
 
@@ -19,6 +32,10 @@ export const EngineSettings = memo(function EngineSettings({
   const [claudeCustomBinaryPath, setClaudeCustomBinaryPath] = useState("");
   const [codexBinarySource, setCodexBinarySource] = useState<"auto" | "managed" | "custom">("auto");
   const [codexCustomBinaryPath, setCodexCustomBinaryPath] = useState("");
+  const [codexVersion, setCodexVersion] = useState<string | null>(null);
+  const [codexOrigin, setCodexOrigin] = useState<CodexOrigin>("none");
+  const [codexUpdating, setCodexUpdating] = useState(false);
+  const [codexUpdateMsg, setCodexUpdateMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (appSettings) {
@@ -28,6 +45,35 @@ export const EngineSettings = memo(function EngineSettings({
       setCodexCustomBinaryPath(appSettings.codexCustomBinaryPath || "");
     }
   }, [appSettings]);
+
+  const refreshCodexInfo = useCallback(async () => {
+    const info = await window.claude.codex.binaryInfo();
+    if (info.error) return;
+    setCodexVersion(info.version ?? null);
+    setCodexOrigin((info.origin as CodexOrigin) ?? "none");
+  }, []);
+
+  useEffect(() => {
+    void refreshCodexInfo();
+  }, [refreshCodexInfo, codexBinarySource, codexCustomBinaryPath]);
+
+  const handleCodexCheckUpdate = useCallback(async () => {
+    setCodexUpdating(true);
+    setCodexUpdateMsg(null);
+    try {
+      const result = await window.claude.codex.downloadUpdate();
+      if (result.error) {
+        setCodexUpdateMsg(`Update failed: ${result.error}`);
+      } else {
+        setCodexUpdateMsg(result.version ? `Updated to ${result.version}` : "Updated");
+        await refreshCodexInfo();
+      }
+    } catch (err) {
+      setCodexUpdateMsg(`Update failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setCodexUpdating(false);
+    }
+  }, [refreshCodexInfo]);
 
   const handleClaudeBinarySourceChange = useCallback(
     async (source: "auto" | "managed" | "custom") => {
@@ -75,7 +121,7 @@ export const EngineSettings = memo(function EngineSettings({
           <SettingsSection icon={Server} label="Claude Code" first>
             <SettingRow
               label="Claude binary source"
-              description="Choose how Harnss resolves the Claude executable."
+              description="Choose how PccAgent resolves the Claude executable."
             >
               <SettingsSelect
                 value={claudeBinarySource}
@@ -113,7 +159,7 @@ export const EngineSettings = memo(function EngineSettings({
           <SettingsSection icon={Server} label="Codex">
             <SettingRow
               label="Codex binary source"
-              description="Choose how Harnss resolves the Codex executable."
+              description="Choose how PccAgent resolves the Codex executable."
             >
               <SettingsSelect
                 value={codexBinarySource}
@@ -126,6 +172,31 @@ export const EngineSettings = memo(function EngineSettings({
                 className="w-44"
               />
             </SettingRow>
+
+            {codexBinarySource !== "custom" && (
+              <SettingRow
+                label="Codex version"
+                description={
+                  codexUpdateMsg ??
+                  `${codexVersion ?? "Not found"} · ${CODEX_ORIGIN_LABEL[codexOrigin]}. Codex ships bundled and works offline — check for updates to pull the latest from npm.`
+                }
+              >
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCodexCheckUpdate}
+                  disabled={codexUpdating}
+                  className="gap-1.5"
+                >
+                  {codexUpdating ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-3.5 w-3.5" />
+                  )}
+                  {codexUpdating ? "Downloading…" : "Check for updates"}
+                </Button>
+              </SettingRow>
+            )}
 
             {codexBinarySource === "custom" && (
               <SettingRow

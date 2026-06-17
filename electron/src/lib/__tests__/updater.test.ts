@@ -31,7 +31,7 @@ const {
     getPath: vi.fn((name: string) => {
       const paths: Record<string, string> = {
         appData: "/mock/Library/Application Support",
-        exe: "/Applications/Harnss.app/Contents/MacOS/Harnss",
+        exe: "/Applications/PccAgent.app/Contents/MacOS/PccAgent",
         temp: "/tmp",
       };
       return paths[name] ?? "/mock";
@@ -255,7 +255,7 @@ describe("getErrorMessage", () => {
 });
 
 describe("findUpdateZip", () => {
-  const cacheDir = "/mock/Library/Caches/harnss-updater/pending";
+  const cacheDir = "/mock/Library/Caches/pcc-agent-updater/pending";
 
   it("returns null when cache directory does not exist", () => {
     (fs.existsSync as Mock).mockReturnValue(false);
@@ -269,43 +269,43 @@ describe("findUpdateZip", () => {
 
     (fs.existsSync as Mock).mockReturnValue(true);
     (fs.readdirSync as Mock).mockReturnValue([
-      "Harnss-0.12.1-arm64-mac.zip",
-      "Harnss-0.11.0-arm64-mac.zip",
+      "PccAgent-0.12.1-arm64-mac.zip",
+      "PccAgent-0.11.0-arm64-mac.zip",
     ]);
 
     const result = findUpdateZip();
-    expect(result).toBe(`${cacheDir}/Harnss-0.12.1-arm64-mac.zip`);
+    expect(result).toBe(`${cacheDir}/PccAgent-0.12.1-arm64-mac.zip`);
   });
 
   it("falls back to newest ZIP when no version match", () => {
     (fs.existsSync as Mock).mockReturnValue(true);
     (fs.readdirSync as Mock).mockReturnValue([
-      "Harnss-0.11.0-arm64-mac.zip",
-      "Harnss-0.10.0-arm64-mac.zip",
+      "PccAgent-0.11.0-arm64-mac.zip",
+      "PccAgent-0.10.0-arm64-mac.zip",
     ]);
     (fs.statSync as Mock).mockImplementation((p: string) => ({
       mtimeMs: (p as string).includes("0.11.0") ? 2000 : 1000,
     }));
 
     const result = findUpdateZip();
-    expect(result).toBe(`${cacheDir}/Harnss-0.11.0-arm64-mac.zip`);
+    expect(result).toBe(`${cacheDir}/PccAgent-0.11.0-arm64-mac.zip`);
   });
 
   it("ignores temp-prefixed files in fallback", () => {
     (fs.existsSync as Mock).mockReturnValue(true);
     (fs.readdirSync as Mock).mockReturnValue([
-      "temp-Harnss-0.12.1-arm64-mac.zip",
-      "Harnss-0.11.0-arm64-mac.zip",
+      "temp-PccAgent-0.12.1-arm64-mac.zip",
+      "PccAgent-0.11.0-arm64-mac.zip",
     ]);
     (fs.statSync as Mock).mockReturnValue({ mtimeMs: 1000 });
 
     const result = findUpdateZip();
-    expect(result).toBe(`${cacheDir}/Harnss-0.11.0-arm64-mac.zip`);
+    expect(result).toBe(`${cacheDir}/PccAgent-0.11.0-arm64-mac.zip`);
   });
 
   it("ignores non-mac.zip files", () => {
     (fs.existsSync as Mock).mockReturnValue(true);
-    (fs.readdirSync as Mock).mockReturnValue(["Harnss-Setup-0.12.1-x64.exe"]);
+    (fs.readdirSync as Mock).mockReturnValue(["PccAgent-Setup-0.12.1-x64.exe"]);
 
     expect(findUpdateZip()).toBeNull();
   });
@@ -619,9 +619,9 @@ describe("initAutoUpdater", () => {
       (fs.existsSync as Mock).mockReturnValue(true);
       (fs.readdirSync as Mock)
         // First call: findUpdateZip cache dir
-        .mockReturnValueOnce(["Harnss-0.12.1-arm64-mac.zip"])
+        .mockReturnValueOnce(["PccAgent-0.12.1-arm64-mac.zip"])
         // Second call: extracted tmpDir contents
-        .mockReturnValueOnce(["Harnss.app"]);
+        .mockReturnValueOnce(["PccAgent.app"]);
       (fs.statSync as Mock).mockReturnValue({ mtimeMs: 1000 });
 
       // Simulate download to set lastDownloadedVersion
@@ -685,8 +685,8 @@ describe("initAutoUpdater", () => {
         return false;
       });
       (fs.readdirSync as Mock)
-        .mockReturnValueOnce(["Harnss-0.12.1-arm64-mac.zip"]) // findUpdateZip
-        .mockReturnValueOnce(["Harnss.app"]); // extracted dir
+        .mockReturnValueOnce(["PccAgent-0.12.1-arm64-mac.zip"]) // findUpdateZip
+        .mockReturnValueOnce(["PccAgent.app"]); // extracted dir
       (fs.statSync as Mock).mockReturnValue({ mtimeMs: 1000 });
       (fs.mkdirSync as Mock).mockImplementation(() => calls.push("mkdirSync"));
       (fs.renameSync as Mock).mockImplementation(() => calls.push("renameSync"));
@@ -713,8 +713,8 @@ describe("initAutoUpdater", () => {
         return false;
       });
       (fs.readdirSync as Mock)
-        .mockReturnValueOnce(["Harnss-0.12.1-arm64-mac.zip"])
-        .mockReturnValueOnce(["Harnss.app"]);
+        .mockReturnValueOnce(["PccAgent-0.12.1-arm64-mac.zip"])
+        .mockReturnValueOnce(["PccAgent.app"]);
       (fs.statSync as Mock).mockReturnValue({ mtimeMs: 1000 });
 
       // Make the second ditto call (copy) fail
@@ -763,8 +763,8 @@ describe("initAutoUpdater", () => {
         return false;
       });
       (fs.readdirSync as Mock)
-        .mockReturnValueOnce(["Harnss-0.12.1-arm64-mac.zip"])
-        .mockReturnValueOnce(["Harnss.app"]);
+        .mockReturnValueOnce(["PccAgent-0.12.1-arm64-mac.zip"])
+        .mockReturnValueOnce(["PccAgent.app"]);
       (fs.statSync as Mock).mockReturnValue({ mtimeMs: 1000 });
 
       // Make xattr fail but ditto succeed
@@ -792,12 +792,12 @@ describe("initAutoUpdater", () => {
 
     it("throws when exe path does not match .app pattern", async () => {
       (fs.existsSync as Mock).mockReturnValue(true);
-      (fs.readdirSync as Mock).mockReturnValueOnce(["Harnss-0.12.1-arm64-mac.zip"]);
+      (fs.readdirSync as Mock).mockReturnValueOnce(["PccAgent-0.12.1-arm64-mac.zip"]);
       (fs.statSync as Mock).mockReturnValue({ mtimeMs: 1000 });
 
       // Return an exe path without .app bundle pattern
       mockApp.getPath.mockImplementation((name: string) => {
-        if (name === "exe") return "/usr/local/bin/harnss";
+        if (name === "exe") return "/usr/local/bin/pcc-agent";
         if (name === "appData") return "/mock/Library/Application Support";
         if (name === "temp") return "/tmp";
         return "/mock";
@@ -813,7 +813,7 @@ describe("initAutoUpdater", () => {
       mockApp.getPath.mockImplementation((name: string) => {
         const paths: Record<string, string> = {
           appData: "/mock/Library/Application Support",
-          exe: "/Applications/Harnss.app/Contents/MacOS/Harnss",
+          exe: "/Applications/PccAgent.app/Contents/MacOS/PccAgent",
           temp: "/tmp",
         };
         return paths[name] ?? "/mock";
@@ -825,7 +825,7 @@ describe("initAutoUpdater", () => {
         if (p.includes("pending")) return true;
         return false;
       });
-      (fs.readdirSync as Mock).mockReturnValueOnce(["Harnss-0.12.1-arm64-mac.zip"]);
+      (fs.readdirSync as Mock).mockReturnValueOnce(["PccAgent-0.12.1-arm64-mac.zip"]);
       (fs.statSync as Mock).mockReturnValue({ mtimeMs: 1000 });
       (fs.accessSync as Mock).mockImplementation(() => {
         throw new Error("EACCES");

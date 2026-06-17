@@ -43,7 +43,7 @@ export interface AppSettings {
   voiceDictation: VoiceDictationMode;
   /** Per-event notification and sound configuration */
   notifications: NotificationSettings;
-  /** Custom client name sent to Codex servers during handshake (default: "Harnss") */
+  /** Custom client name sent to Codex servers during handshake (default: "PccAgent") */
   codexClientName: string;
   /** Which Codex binary source to use */
   codexBinarySource: CodexBinarySource;

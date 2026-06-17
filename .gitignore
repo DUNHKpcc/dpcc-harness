@@ -6,6 +6,7 @@ logs/
 .DS_Store
 docs/
 /release/
+/build/codex-vendor/
 .claude/agent-memory/
 frontend/
 cli

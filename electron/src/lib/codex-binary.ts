@@ -3,12 +3,13 @@
  *
  * Search order:
  * 1. CODEX_CLI_PATH env var (explicit override)
- * 2. App data dir ({userData}/openacpui-data/bin/codex) — our managed copy (kept as openacpui-data for backward compat)
- * 3. System PATH (which codex)
- * 4. Known install locations (Homebrew, Codex Desktop app bundle)
+ * 2. App data dir ({userData}/pcc-agent-data/bin/codex) — our managed copy
+ * 3. Known install locations (Homebrew, Codex Desktop app bundle)
+ * 4. System PATH (which codex)
+ * 5. Bundled binary shipped in the packaged app ({resourcesPath}/codex-vendor)
  *
- * If not found anywhere, downloads via `npm pack @openai/codex` and extracts
- * the platform-specific binary to the app data dir.
+ * If not found anywhere (e.g. dev build without a bundle), downloads via
+ * `npm pack @openai/codex` and extracts the platform binary to the app data dir.
  */
 
 import fs from "fs";
@@ -36,9 +37,24 @@ const KNOWN_PATHS: string[] =
 
 /** Where we store our managed copy of the codex binary. */
 function getManagedBinDir(): string {
-  const dir = path.join(app.getPath("userData"), "openacpui-data", "bin");
+  const dir = path.join(app.getPath("userData"), "pcc-agent-data", "bin");
   fs.mkdirSync(dir, { recursive: true });
   return dir;
+}
+
+/**
+ * Path to the Codex binary bundled into the packaged app via extraResources
+ * (build/codex-vendor → {resourcesPath}/codex-vendor). The full vendor layout
+ * is preserved so the binary finds its sibling resources (ripgrep, zsh,
+ * codex-package.json). Returns null in dev (unpackaged) or if absent.
+ */
+function getBundledBinaryPath(): string | null {
+  if (!app.isPackaged) return null;
+  const triple = getVendorTargetTriple();
+  if (!triple) return null;
+  const name = process.platform === "win32" ? "codex.exe" : "codex";
+  const candidate = path.join(process.resourcesPath, "codex-vendor", triple, "bin", name);
+  return isExecutable(candidate) ? candidate : null;
 }
 
 function getManagedBinaryPath(): string {
@@ -105,6 +121,12 @@ function resolveCodexPathSync(): string {
   } catch {
     /* not in PATH */
   }
+
+  // 5. Bundled binary (shipped in the packaged app). Last resort before the
+  //    npm auto-download — guarantees Codex works offline on a fresh machine
+  //    while still preferring a newer system install (Desktop app, Homebrew).
+  const bundled = getBundledBinaryPath();
+  if (bundled) return bundled;
 
   throw new Error("Codex binary not found");
 }
@@ -180,8 +202,11 @@ export async function getCodexBinaryPath(): Promise<string> {
     cachedSource = source;
     log("codex-binary", `Found codex at: ${cachedPath}`);
 
-    // Best-effort refresh for managed binary so bundled Codex keeps up with updates.
-    if (cachedPath === getManagedBinaryPath() && isManagedBinaryRefreshDue()) {
+    // Auto-refresh ONLY in explicit "managed download" mode. In the default
+    // "auto" mode the bundled binary is used offline and updates are opt-in via
+    // the manual "check for updates" action (downloadCodexUpdate). This keeps
+    // "auto" fully offline / no silent network refresh.
+    if (source === "managed" && cachedPath === getManagedBinaryPath() && isManagedBinaryRefreshDue()) {
       try {
         log("codex-binary", "Managed codex is stale; refreshing via npm...");
         cachedPath = await downloadCodexBinary();
@@ -223,6 +248,70 @@ export function getCodexBinaryStatus(): {
     installed: isCodexInstalled(),
     downloading: downloadInFlight != null,
   };
+}
+
+export type CodexBinaryOrigin = "env" | "managed" | "known" | "path" | "bundled" | "custom" | "none";
+
+/** Classify where the currently-resolved codex binary comes from (for the UI). */
+function classifyCodexOrigin(resolvedPath: string): CodexBinaryOrigin {
+  if (getAppSetting("codexBinarySource") === "custom") return "custom";
+  if (process.env.CODEX_CLI_PATH && path.resolve(process.env.CODEX_CLI_PATH) === path.resolve(resolvedPath)) {
+    return "env";
+  }
+  if (resolvedPath === getManagedBinaryPath()) return "managed";
+  const bundled = getBundledBinaryPath();
+  if (bundled && resolvedPath === bundled) return "bundled";
+  if (KNOWN_PATHS.includes(resolvedPath)) return "known";
+  return "path";
+}
+
+/**
+ * Describe the resolved Codex binary for the settings UI: its path, origin,
+ * version, and whether a managed/bundled copy exists. Never throws.
+ */
+export async function getCodexBinaryInfo(): Promise<{
+  path: string | null;
+  origin: CodexBinaryOrigin;
+  version: string | null;
+  hasBundled: boolean;
+  hasManaged: boolean;
+}> {
+  let resolvedPath: string | null = null;
+  let origin: CodexBinaryOrigin = "none";
+  try {
+    resolvedPath = resolveCodexPathSync();
+    origin = classifyCodexOrigin(resolvedPath);
+  } catch {
+    /* not found */
+  }
+  return {
+    path: resolvedPath,
+    origin,
+    version: await getCodexVersion(),
+    hasBundled: getBundledBinaryPath() != null,
+    hasManaged: isExecutable(getManagedBinaryPath()),
+  };
+}
+
+/**
+ * Manually download the latest Codex from npm into the managed bin dir.
+ * After this, the managed copy takes resolution priority over the bundled
+ * binary, so the freshly-downloaded version is used. Returns the new version.
+ */
+export async function downloadCodexUpdate(): Promise<{ version: string | null }> {
+  if (!downloadInFlight) {
+    downloadInFlight = downloadCodexBinary()
+      .then((binaryPath) => {
+        cachedPath = binaryPath;
+        cachedSource = getAppSetting("codexBinarySource");
+        return binaryPath;
+      })
+      .finally(() => {
+        downloadInFlight = null;
+      });
+  }
+  await downloadInFlight;
+  return { version: await getCodexVersion() };
 }
 
 /** Get the codex version string, or null if not available. */

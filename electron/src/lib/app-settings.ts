@@ -5,7 +5,7 @@
  * startup before any BrowserWindow exists. Use it for settings that the
  * main process needs synchronously (e.g. autoUpdater.allowPrerelease).
  *
- * File location: {userData}/openacpui-data/settings.json (kept as openacpui-data for backward compat)
+ * File location: {userData}/pcc-agent-data/settings.json
  */
 
 import path from "path";
@@ -29,7 +29,7 @@ const DEFAULTS: AppSettings = {
   preferredEditor: "auto",
   voiceDictation: "native",
   notifications: NOTIFICATION_DEFAULTS,
-  codexClientName: "Harnss",
+  codexClientName: "PccAgent",
   codexBinarySource: "auto",
   codexCustomBinaryPath: "",
   claudeBinarySource: "auto",

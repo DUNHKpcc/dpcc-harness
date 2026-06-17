@@ -20,7 +20,7 @@ interface PreloadGlobals {
 import type { ThemeOption as ThemeSource, MacBackgroundEffect } from "@shared/types/settings";
 
 function readStoredThemeSource(storage: PreloadStorage | undefined): ThemeSource {
-  const stored = storage?.getItem("harnss-theme");
+  const stored = storage?.getItem("pcc-agent-theme");
   return stored === "light" || stored === "dark" || stored === "system"
     ? stored
     : "dark";
@@ -37,7 +37,7 @@ try {
   // On Windows, glass support does not mean the user has transparency enabled.
   root?.classList.add(`platform-${process.platform}`);
   ipcRenderer.send("app:set-theme-source", themeSource);
-  const transparencyEnabled = (globals.localStorage?.getItem("harnss-transparency") ?? null) !== "false";
+  const transparencyEnabled = (globals.localStorage?.getItem("pcc-agent-transparency") ?? null) !== "false";
   const canUseTransparentWindow = process.platform === "darwin" || process.platform === "win32";
   if (canUseTransparentWindow && transparencyEnabled) {
     root?.classList.add("glass-enabled");
@@ -45,8 +45,8 @@ try {
 
   // Push stored theme to main process early so glass appearance is correct
   // before React mounts. Default to "dark" to match useSettings, which falls
-  // back to "dark" when harnss-theme is unset — avoids a system→dark flash.
-  const storedTheme = globals.localStorage?.getItem("harnss-theme");
+  // back to "dark" when pcc-agent-theme is unset — avoids a system→dark flash.
+  const storedTheme = globals.localStorage?.getItem("pcc-agent-theme");
   if (storedTheme === "light" || storedTheme === "dark" || storedTheme === "system") {
     ipcRenderer.send("glass:set-theme", storedTheme);
   } else {
@@ -293,6 +293,8 @@ contextBridge.exposeInMainWorld("claude", {
       ipcRenderer.invoke("codex:set-model", { sessionId, model }),
     version: () => ipcRenderer.invoke("codex:version"),
     binaryStatus: () => ipcRenderer.invoke("codex:binary-status"),
+    binaryInfo: () => ipcRenderer.invoke("codex:binary-info"),
+    downloadUpdate: () => ipcRenderer.invoke("codex:download-update"),
     onEvent: (callback: (data: unknown) => void) => {
       const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);
       ipcRenderer.on("codex:event", listener);

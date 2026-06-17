@@ -11,7 +11,7 @@ import { useSplitView } from "@/hooks/useSplitView";
 import { useSpaceTerminals } from "@/hooks/useSpaceTerminals";
 import { SPACE_COLOR_PRESETS } from "@/hooks/useSpaceManager";
 
-const LAST_SESSION_KEY = "harnss-last-session-per-space";
+const LAST_SESSION_KEY = "pcc-agent-last-session-per-space";
 
 type ProjectManagerState = ReturnType<typeof useProjectManager>;
 type SpaceManagerState = ReturnType<typeof useSpaceManager>;

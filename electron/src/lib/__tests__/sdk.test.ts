@@ -10,9 +10,9 @@ const {
   mockApp: {
     isPackaged: false,
     getVersion: vi.fn(() => "0.16.0"),
-    getAppPath: vi.fn(() => "/Applications/Harnss.app/Contents/Resources/app.asar"),
+    getAppPath: vi.fn(() => "/Applications/PccAgent.app/Contents/Resources/app.asar"),
   },
-  mockGetAppSetting: vi.fn(() => "Harnss"),
+  mockGetAppSetting: vi.fn(() => "PccAgent"),
   mockExistsSync: vi.fn(() => false),
   mockLog: vi.fn(),
 }));
@@ -44,9 +44,9 @@ describe("sdk path resolution", () => {
   beforeEach(() => {
     mockApp.isPackaged = false;
     mockApp.getAppPath.mockReset();
-    mockApp.getAppPath.mockReturnValue("/Applications/Harnss.app/Contents/Resources/app.asar");
+    mockApp.getAppPath.mockReturnValue("/Applications/PccAgent.app/Contents/Resources/app.asar");
     mockGetAppSetting.mockReset();
-    mockGetAppSetting.mockReturnValue("Harnss");
+    mockGetAppSetting.mockReturnValue("PccAgent");
     mockExistsSync.mockReset();
     mockExistsSync.mockReturnValue(false);
     mockLog.mockReset();
@@ -65,11 +65,11 @@ describe("sdk path resolution", () => {
 
     expect(
       mod.resolveCliPathFromEntry(
-        "/Applications/Harnss.app/Contents/Resources/app.asar/node_modules/@anthropic-ai/claude-agent-sdk/embed.js",
+        "/Applications/PccAgent.app/Contents/Resources/app.asar/node_modules/@anthropic-ai/claude-agent-sdk/embed.js",
         true,
       ),
     ).toBe(
-      "/Applications/Harnss.app/Contents/Resources/app.asar.unpacked/node_modules/@anthropic-ai/claude-agent-sdk/cli.js",
+      "/Applications/PccAgent.app/Contents/Resources/app.asar.unpacked/node_modules/@anthropic-ai/claude-agent-sdk/cli.js",
     );
   });
 
@@ -97,7 +97,7 @@ describe("sdk path resolution", () => {
 
   it("falls back to the packaged app path only after SDK-based strategies fail", async () => {
     mockApp.isPackaged = true;
-    const packagedCliPath = "/Applications/Harnss.app/Contents/Resources/app.asar.unpacked/node_modules/@anthropic-ai/claude-agent-sdk/cli.js";
+    const packagedCliPath = "/Applications/PccAgent.app/Contents/Resources/app.asar.unpacked/node_modules/@anthropic-ai/claude-agent-sdk/cli.js";
     mockExistsSync.mockReturnValueOnce(false).mockReturnValueOnce(false).mockReturnValueOnce(true);
 
     const mod = await loadSdkModule();

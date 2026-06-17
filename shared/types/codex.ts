@@ -2,7 +2,7 @@
  * Codex engine types — re-exports from generated protocol schema plus our own wrappers.
  *
  * Protocol types are auto-generated via `codex app-server generate-ts --out src/types/codex-protocol/`.
- * This file provides convenience aliases and Harnss-specific wrappers (e.g. _sessionId tags).
+ * This file provides convenience aliases and PccAgent-specific wrappers (e.g. _sessionId tags).
  */
 
 import type { ServerNotification as CodexServerNotification } from "./codex-protocol/ServerNotification";
@@ -76,7 +76,7 @@ export type { PatchApplyStatus as CodexPatchApplyStatus } from "./codex-protocol
 export type { McpToolCallStatus as CodexMcpToolCallStatus } from "./codex-protocol/v2/McpToolCallStatus";
 export type { ToolRequestUserInputQuestion as CodexToolRequestUserInputQuestion } from "./codex-protocol/v2/ToolRequestUserInputQuestion";
 
-// ── Harnss-specific wrappers ──
+// ── PccAgent-specific wrappers ──
 
 /** Local renderer-only notification emitted before thread start when auth is missing. */
 export interface CodexAuthRequiredNotification {

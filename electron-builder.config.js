@@ -18,10 +18,50 @@ const KEEP_ENTRIES = new Set([
   "node_modules", // production dependencies (already filtered by electron-builder)
 ]);
 
+// The bundled Codex vendor dir (build/codex-vendor/) may contain multiple arch
+// triples when a single electron-builder invocation packs more than one arch
+// (e.g. mac arm64+x64). extraResources copies the whole dir into every arch's
+// app identically, so each packed app would carry both binaries (~225 MB each).
+// In afterPack we know which arch was just packed and strip the others.
+// Arch enum (electron-builder): ia32=0, x64=1, armv7l=2, arm64=3, universal=4.
+function codexTripleForBuild(platformName, archEnum) {
+  const platform = platformName === "mas" ? "darwin" : platformName;
+  const arch = archEnum === 3 ? "arm64" : archEnum === 1 ? "x64" : null;
+  if (!arch) return null;
+  const key = `${platform}-${arch}`;
+  const map = {
+    "darwin-arm64": "aarch64-apple-darwin",
+    "darwin-x64": "x86_64-apple-darwin",
+    "win32-x64": "x86_64-pc-windows-msvc",
+    "win32-arm64": "aarch64-pc-windows-msvc",
+    "linux-x64": "x86_64-unknown-linux-gnu",
+    "linux-arm64": "aarch64-unknown-linux-gnu",
+  };
+  return map[key] ?? null;
+}
+
+function stripForeignCodexTriples(resourcesDir, context) {
+  const codexVendorDir = path.join(resourcesDir, "codex-vendor");
+  if (!fs.existsSync(codexVendorDir)) return;
+
+  const wantTriple = codexTripleForBuild(context.electronPlatformName, context.arch);
+  if (!wantTriple) return;
+
+  for (const entry of fs.readdirSync(codexVendorDir)) {
+    if (entry !== wantTriple) {
+      console.log(`  • afterPack: stripping non-target Codex triple ${entry}`);
+      fs.rmSync(path.join(codexVendorDir, entry), { recursive: true, force: true });
+    }
+  }
+}
+
 async function afterPackHook(context) {
   const resourcesDir = ["darwin", "mas"].includes(context.electronPlatformName)
     ? path.join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`, "Contents", "Resources")
     : path.join(context.appOutDir, "resources");
+
+  // Drop the codex binaries for arches other than the one just packed.
+  stripForeignCodexTriples(resourcesDir, context);
 
   const asarPath = path.join(resourcesDir, "app.asar");
   if (!fs.existsSync(asarPath)) return;
@@ -64,8 +104,8 @@ async function afterPackHook(context) {
 
 /** @type {import('electron-builder').Configuration} */
 module.exports = {
-  appId: "com.harnss.app",
-  productName: "Harnss",
+  appId: "com.pccagent.app",
+  productName: "PccAgent",
 
   directories: {
     output: "release/${version}",
@@ -99,6 +139,20 @@ module.exports = {
   nodeGypRebuild: false,
   includePdb: false,
 
+  // --- Bundled Codex binary ---
+  // build/codex-vendor/<triple>/ is populated by scripts/bundle-codex.js before
+  // packaging. Copied alongside the app (outside the asar — native binaries can't
+  // run from inside an asar). The afterPack hook strips non-target arch triples.
+  // If the dir is absent (e.g. local dev build without bundling), this is a no-op
+  // and Codex falls back to its npm auto-download path at runtime.
+  extraResources: [
+    {
+      from: "build/codex-vendor",
+      to: "codex-vendor",
+      filter: ["**/*"],
+    },
+  ],
+
   afterPack: afterPackHook,
 
   // --- macOS ---
@@ -112,7 +166,7 @@ module.exports = {
     entitlements: "build/entitlements.mac.plist",
     entitlementsInherit: "build/entitlements.mac.plist",
     extendInfo: {
-      NSMicrophoneUsageDescription: "Harnss uses the microphone for voice dictation to transcribe speech into text.",
+      NSMicrophoneUsageDescription: "PccAgent uses the microphone for voice dictation to transcribe speech into text.",
     },
   },
 

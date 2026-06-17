@@ -3,7 +3,7 @@ import path from "path";
 import fs from "fs";
 
 export function getDataDir(): string {
-  const dir = path.join(app.getPath("userData"), "openacpui-data");
+  const dir = path.join(app.getPath("userData"), "pcc-agent-data");
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 }

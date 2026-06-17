@@ -275,7 +275,7 @@ function describeWebSearchAction(payload: CodexWebSearchToolPayload): string {
 // ── Approval policy mapping ──
 
 /**
- * Map Harnss permission modes to Codex approvalPolicy values.
+ * Map PccAgent permission modes to Codex approvalPolicy values.
  * Keep this in sync with src/types/codex-protocol/v2/AskForApproval.ts.
  */
 export function permissionModeToCodexPolicy(mode: string): string | undefined {
@@ -292,7 +292,7 @@ export function permissionModeToCodexPolicy(mode: string): string | undefined {
 }
 
 /**
- * Map Harnss permission modes to Codex sandbox mode.
+ * Map PccAgent permission modes to Codex sandbox mode.
  *
  * Codex approval policy controls prompts, while sandbox controls write access.
  * Without setting sandbox, Codex may inherit a read-only default from user config.

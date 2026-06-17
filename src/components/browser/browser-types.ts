@@ -65,6 +65,6 @@ export interface PersistedBrowserSession {
 
 // ── Storage constants ───────────────────────────────────────────────────
 
-export const BROWSER_HISTORY_KEY = "harnss-browser-history";
-export const BROWSER_SESSION_KEY_PREFIX = "harnss-browser-session:";
+export const BROWSER_HISTORY_KEY = "pcc-agent-browser-history";
+export const BROWSER_SESSION_KEY_PREFIX = "pcc-agent-browser-session:";
 export const MAX_BROWSER_HISTORY = 100;

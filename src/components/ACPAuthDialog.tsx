@@ -97,12 +97,12 @@ export const ACPAuthDialog = memo(function ACPAuthDialog({
                 )}
                 {method.type === "terminal" && (
                   <div className="mt-1 text-xs text-muted-foreground">
-                    Terminal auth is not supported in Harnss yet.
+                    Terminal auth is not supported in PccAgent yet.
                   </div>
                 )}
                 {method.type === "env_var" && method.vars.length > 0 && (
                   <div className="mt-1 text-xs text-muted-foreground">
-                    Env-var auth is not supported in Harnss yet. Required vars: {method.vars.map((entry) => entry.name).join(", ")}
+                    Env-var auth is not supported in PccAgent yet. Required vars: {method.vars.map((entry) => entry.name).join(", ")}
                   </div>
                 )}
               </div>

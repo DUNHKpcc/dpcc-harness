@@ -152,7 +152,7 @@ export async function codexUtilityPrompt(
     }, timeoutMs);
 
     await rpc.request<CodexInitializeResponse>("initialize", {
-      clientInfo: { name: "Harnss", title: "Harnss", version: "utility" },
+      clientInfo: { name: "PccAgent", title: "PccAgent", version: "utility" },
       capabilities: { experimentalApi: true },
     });
     rpc.notify("initialized", {});

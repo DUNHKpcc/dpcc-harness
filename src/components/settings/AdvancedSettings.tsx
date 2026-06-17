@@ -19,13 +19,13 @@ export const AdvancedSettings = memo(function AdvancedSettings({
   onUpdateAppSettings,
   onReplayWelcome,
 }: AdvancedSettingsProps) {
-  const [codexClientName, setCodexClientName] = useState("Harnss");
+  const [codexClientName, setCodexClientName] = useState("PccAgent");
   const [showDevFillInChatTitleBar, setShowDevFillInChatTitleBar] = useState(false);
   const [showJiraBoard, setShowJiraBoard] = useState(false);
 
   useEffect(() => {
     if (appSettings) {
-      setCodexClientName(appSettings.codexClientName || "Harnss");
+      setCodexClientName(appSettings.codexClientName || "PccAgent");
       setShowDevFillInChatTitleBar(!!appSettings.showDevFillInChatTitleBar);
       setShowJiraBoard(!!appSettings.showJiraBoard);
     }
@@ -83,7 +83,7 @@ export const AdvancedSettings = memo(function AdvancedSettings({
                 }}
                 spellCheck={false}
                 className="h-8 w-40 rounded-md border border-foreground/10 bg-background px-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground hover:border-foreground/20 focus:border-foreground/30 focus:ring-1 focus:ring-foreground/20"
-                placeholder="Harnss"
+                placeholder="PccAgent"
               />
             </SettingRow>
 

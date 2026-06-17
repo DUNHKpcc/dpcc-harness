@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import type { Space, SpaceColor } from "@/types";
 import { capture } from "@/lib/analytics/analytics";
 
-const ACTIVE_SPACE_KEY = "harnss-active-space";
+const ACTIVE_SPACE_KEY = "pcc-agent-active-space";
 
 // ── Color presets (shared with SpaceCustomizer) ──
 

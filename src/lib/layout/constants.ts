@@ -1,4 +1,4 @@
-export const CHAT_CONTENT_RESIZED_EVENT = "harnss:chat-content-resized";
+export const CHAT_CONTENT_RESIZED_EVENT = "pcc-agent:chat-content-resized";
 
 export const MIN_CHAT_WIDTH_ISLAND = 704;
 export const MIN_CHAT_WIDTH_FLAT = 704;

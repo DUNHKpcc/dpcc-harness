@@ -9,7 +9,7 @@ export interface WorktreeChip {
 }
 
 /** Path to the worktree setup config relative to the repo root */
-export const WORKTREE_SETUP_PATH = ".harnss/worktree.json";
+export const WORKTREE_SETUP_PATH = ".pcc-agent/worktree.json";
 
 const worktreeCache = new Map<string, WorktreeChip[]>();
 

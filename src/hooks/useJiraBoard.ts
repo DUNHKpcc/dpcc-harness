@@ -10,7 +10,7 @@ import type { JiraIssue } from "@shared/types/jira";
 
 // ── Persistence ──
 
-const JIRA_BOARD_BY_SPACE_KEY = "harnss-jira-board-by-space";
+const JIRA_BOARD_BY_SPACE_KEY = "pcc-agent-jira-board-by-space";
 
 function readJiraBoardBySpace(): Record<string, string> {
   try {

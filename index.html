@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Harnss</title>
+    <title>PccAgent</title>
     <style>
       html, body {
         background-color: transparent !important;
@@ -13,7 +13,7 @@
          Runs after <html> exists but before CSS renders the first frame. -->
     <script>
       (function() {
-        var stored = localStorage.getItem("harnss-theme");
+        var stored = localStorage.getItem("pcc-agent-theme");
         var isDark = true;
         if (stored === "light") isDark = false;
         else if (stored === "system") isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;

@@ -28,7 +28,7 @@ export function WelcomeStep({ onNext }: WizardStepProps) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.7, delay: 0.06 }}
       >
-        Harnss
+        PccAgent
       </motion.h1>
 
       <motion.p

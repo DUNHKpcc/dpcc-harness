@@ -1,11 +1,11 @@
 {
-  "name": "harnss",
+  "name": "pcc-agent",
   "version": "0.22.0-beta.2",
-  "productName": "Harnss",
+  "productName": "PccAgent",
   "description": "Harness your AI coding agents — one desktop app for Claude Code, Codex, and any ACP agent",
   "author": {
-    "name": "Dejan Zegarac",
-    "email": "dejanzegarac3@gmail.com"
+    "name": "DUNHKpcc",
+    "email": "sjh2329952249@gmail.com"
   },
   "license": "MIT",
   "homepage": "https://github.com/DUNHKpcc/dpcc-harness",
@@ -19,11 +19,12 @@
     "dev": "concurrently \"vite\" \"pnpm build:electron --watch\" \"node scripts/delay.js 3 && cross-env ELECTRON_ENABLE_LOGGING=1 electron .\"",
     "build": "pnpm build:electron && vite build",
     "start": "electron .",
-    "dist": "pnpm build && electron-builder --config electron-builder.config.js",
-    "dist:fast": "pnpm build && electron-builder --config electron-builder.config.js --dir",
-    "dist:mac": "pnpm build && electron-builder --mac --config electron-builder.config.js",
-    "dist:win": "pnpm build && electron-builder --win --config electron-builder.config.js",
-    "dist:linux": "pnpm build && electron-builder --linux --config electron-builder.config.js",
+    "bundle:codex": "node scripts/bundle-codex.js",
+    "dist": "pnpm build && pnpm bundle:codex && electron-builder --config electron-builder.config.js",
+    "dist:fast": "pnpm build && pnpm bundle:codex && electron-builder --config electron-builder.config.js --dir",
+    "dist:mac": "pnpm build && node scripts/bundle-codex.js --triples aarch64-apple-darwin,x86_64-apple-darwin && electron-builder --mac --config electron-builder.config.js",
+    "dist:win": "pnpm build && node scripts/bundle-codex.js --triples x86_64-pc-windows-msvc,aarch64-pc-windows-msvc && electron-builder --win --config electron-builder.config.js",
+    "dist:linux": "pnpm build && node scripts/bundle-codex.js --triples x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu && electron-builder --linux --config electron-builder.config.js",
     "postinstall": "node -e \"require('child_process').execSync('electron-rebuild'+(process.platform==='darwin'?'':' --ignore electron-liquid-glass'),{stdio:'inherit'})\"",
     "test": "vitest run --config vitest.config.electron.ts",
     "test:watch": "vitest --config vitest.config.electron.ts"

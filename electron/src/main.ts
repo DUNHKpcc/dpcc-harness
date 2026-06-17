@@ -403,7 +403,7 @@ function openDevToolsWindow(): void {
         devToolsWindow = new BrowserWindow({
           width: 1000,
           height: 700,
-          title: "Harnss DevTools",
+          title: "PccAgent DevTools",
           webPreferences: {
             contextIsolation: true,
             nodeIntegration: false,

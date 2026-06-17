@@ -14,7 +14,7 @@ export const WIZARD_STEPS = [
 
 export type WizardStepId = (typeof WIZARD_STEPS)[number];
 
-export const WELCOME_COMPLETED_KEY = "harnss-welcome-completed";
+export const WELCOME_COMPLETED_KEY = "pcc-agent-welcome-completed";
 
 // ── Step props ──
 

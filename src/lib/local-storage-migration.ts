@@ -1,13 +1,13 @@
 /**
- * One-time localStorage key migration from "openacpui-*" to "harnss-*".
+ * One-time localStorage key migration from "openacpui-*" to "pcc-agent-*".
  *
  * Runs synchronously before any React hooks initialize so settings are
  * available under the new key prefix from the first render.
  */
 
 const OLD_PREFIX = "openacpui-";
-const NEW_PREFIX = "harnss-";
-const MIGRATION_FLAG = "harnss-localstorage-migrated";
+const NEW_PREFIX = "pcc-agent-";
+const MIGRATION_FLAG = "pcc-agent-localstorage-migrated";
 
 export function migrateLocalStorage(): void {
   // Already migrated — skip
@@ -35,6 +35,6 @@ export function migrateLocalStorage(): void {
 
   if (migrated > 0) {
     // eslint-disable-next-line no-console
-    console.log(`[Harnss] Migrated ${migrated} localStorage keys from openacpui-* → harnss-*`);
+    console.log(`[PccAgent] Migrated ${migrated} localStorage keys from openacpui-* → pcc-agent-*`);
   }
 }

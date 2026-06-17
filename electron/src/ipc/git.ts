@@ -57,7 +57,7 @@ async function readRepoMetadata(cwd: string): Promise<RepoMetadata | null> {
   }
 }
 
-const WORKTREE_SETUP_FILE = ".harnss/worktree.json";
+const WORKTREE_SETUP_FILE = ".pcc-agent/worktree.json";
 
 /** Run a shell command in a given cwd, returning stdout. */
 function shellExec(command: string, cwd: string): Promise<string> {
@@ -72,7 +72,7 @@ function shellExec(command: string, cwd: string): Promise<string> {
 }
 
 /**
- * Run post-creation setup commands from .harnss/worktree.json.
+ * Run post-creation setup commands from .pcc-agent/worktree.json.
  * Returns an array of { command, ok, output?, error? } per step.
  * Non-fatal — failures are reported but don't block worktree creation.
  */
@@ -412,7 +412,7 @@ export function register(): void {
       if (fromRef?.trim()) args.push(fromRef.trim());
       const output = await gitExec(args, cwd);
 
-      // Run post-creation setup from .harnss/worktree.json (non-blocking)
+      // Run post-creation setup from .pcc-agent/worktree.json (non-blocking)
       const setupResults = await runWorktreeSetup(cwd, resolvedPath);
 
       return { ok: true, path: resolvedPath, output, setupResults };

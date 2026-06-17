@@ -102,7 +102,7 @@ export async function authenticateMcpServer(
         });
 
         res.writeHead(200, { "Content-Type": "text/html" });
-        res.end("<html><body><h2>Authentication successful!</h2><p>You can close this tab and return to Harnss.</p></body></html>");
+        res.end("<html><body><h2>Authentication successful!</h2><p>You can close this tab and return to PccAgent.</p></body></html>");
 
         if (!resolved) {
           resolved = true;

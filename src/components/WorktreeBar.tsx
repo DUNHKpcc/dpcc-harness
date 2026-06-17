@@ -19,7 +19,7 @@ const SETUP_PROMPT = `Analyze this project and generate a worktree setup configu
 
 Your task:
 1. Inspect the project structure to determine what a new worktree needs to be fully functional
-2. Create the file \`.harnss/worktree.json\` with the appropriate setup commands
+2. Create the file \`.pcc-agent/worktree.json\` with the appropriate setup commands
 
 The configuration should reproduce the exact same working state as the original repo inside a new worktree.
 
@@ -30,7 +30,7 @@ Guidelines:
 - Reference the original repo with \`$ROOT_WORKTREE_PATH\`
 - Only include build steps if the project cannot function without them
 
-Expected format for \`.harnss/worktree.json\`:
+Expected format for \`.pcc-agent/worktree.json\`:
 \`\`\`json
 {
   "setup-worktree": [
@@ -41,7 +41,7 @@ Expected format for \`.harnss/worktree.json\`:
 }
 \`\`\`
 
-Analyze this project now and create the \`.harnss/worktree.json\` file.`;
+Analyze this project now and create the \`.pcc-agent/worktree.json\` file.`;
 
 interface WorktreeBarProps {
   projectPath: string | undefined;
@@ -308,7 +308,7 @@ export const WorktreeBar = memo(function WorktreeBar({
               </div>
             )}
 
-            {/* Setup file notification — persistent until .harnss/worktree.json exists */}
+            {/* Setup file notification — persistent until .pcc-agent/worktree.json exists */}
             {hasSetupFile === false && (
               <div className="flex items-center gap-3 rounded-lg border border-border/30 bg-foreground/[0.03] px-3 py-2.5">
                 <p className="min-w-0 flex-1 text-[11px] leading-relaxed text-foreground/45">

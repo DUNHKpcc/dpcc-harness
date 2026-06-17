@@ -170,7 +170,7 @@ export interface Settings {
 
 /** Ensure toolOrder contains all known panel tools (filling in any missing ones) */
 function readToolOrder(pid: string): ToolId[] {
-  const stored = readJson<ToolId[]>(`harnss-${pid}-tool-order`, []).filter((id) => VALID_TOOL_IDS.has(id));
+  const stored = readJson<ToolId[]>(`pcc-agent-${pid}-tool-order`, []).filter((id) => VALID_TOOL_IDS.has(id));
   if (stored.length === 0) return [...DEFAULT_TOOL_ORDER];
   // Ensure all default tools appear (append any missing ones)
   const set = new Set(stored);
@@ -182,11 +182,11 @@ function readToolOrder(pid: string): ToolId[] {
 }
 
 function engineModelKey(pid: string, engine: EngineId): string {
-  return `harnss-${pid}-model-${engine}`;
+  return `pcc-agent-${pid}-model-${engine}`;
 }
 
 function legacyModelKey(pid: string): string {
-  return `harnss-${pid}-model`;
+  return `pcc-agent-${pid}-model`;
 }
 
 function isCodexLikeModel(model: string): boolean {
@@ -244,10 +244,10 @@ function readProjectLayoutState(pid: string): ProjectLayoutState {
   if (cached) return cloneProjectLayoutState(cached);
 
   const loaded: ProjectLayoutState = {
-    rightPanelWidth: readNumber(`harnss-${pid}-right-panel-width`, DEFAULT_RIGHT_PANEL, MIN_RIGHT_PANEL, MAX_RIGHT_PANEL),
-    rightSplitRatio: readNumber(`harnss-${pid}-right-split`, DEFAULT_SPLIT, MIN_SPLIT, MAX_SPLIT),
-    bottomToolsHeight: readNumber(`harnss-${pid}-bottom-tools-height`, DEFAULT_BOTTOM_HEIGHT, MIN_BOTTOM_HEIGHT, MAX_BOTTOM_HEIGHT),
-    bottomToolsSplitRatios: readJson<number[]>(`harnss-${pid}-bottom-tools-split-ratios`, []),
+    rightPanelWidth: readNumber(`pcc-agent-${pid}-right-panel-width`, DEFAULT_RIGHT_PANEL, MIN_RIGHT_PANEL, MAX_RIGHT_PANEL),
+    rightSplitRatio: readNumber(`pcc-agent-${pid}-right-split`, DEFAULT_SPLIT, MIN_SPLIT, MAX_SPLIT),
+    bottomToolsHeight: readNumber(`pcc-agent-${pid}-bottom-tools-height`, DEFAULT_BOTTOM_HEIGHT, MIN_BOTTOM_HEIGHT, MAX_BOTTOM_HEIGHT),
+    bottomToolsSplitRatios: readJson<number[]>(`pcc-agent-${pid}-bottom-tools-split-ratios`, []),
   };
   projectLayoutCache.set(pid, loaded);
   return cloneProjectLayoutState(loaded);
@@ -263,34 +263,34 @@ export function useSettings(projectId: string | null, engine: EngineId = "claude
   // ── Global settings ──
 
   const [theme, setThemeRaw] = useState<ThemeOption>(() => {
-    const stored = localStorage.getItem("harnss-theme");
+    const stored = localStorage.getItem("pcc-agent-theme");
     if (stored === "light" || stored === "dark" || stored === "system") return stored;
     return "dark";
   });
   const setTheme = useCallback((t: ThemeOption) => {
     setThemeRaw(t);
-    localStorage.setItem("harnss-theme", t);
+    localStorage.setItem("pcc-agent-theme", t);
   }, []);
 
   const [islandLayout, setIslandLayoutRaw] = useState(() =>
-    readBool("harnss-island-layout", true),
+    readBool("pcc-agent-island-layout", true),
   );
   const setIslandLayout = useCallback((enabled: boolean) => {
     setIslandLayoutRaw(enabled);
-    localStorage.setItem("harnss-island-layout", String(enabled));
+    localStorage.setItem("pcc-agent-island-layout", String(enabled));
   }, []);
 
   const [islandShine, setIslandShineRaw] = useState(() =>
-    readBool("harnss-island-shine", true),
+    readBool("pcc-agent-island-shine", true),
   );
   const setIslandShine = useCallback((enabled: boolean) => {
     setIslandShineRaw(enabled);
-    localStorage.setItem("harnss-island-shine", String(enabled));
+    localStorage.setItem("pcc-agent-island-shine", String(enabled));
   }, []);
 
   const [macNativeBackgroundEffect, setMacNativeBackgroundEffectRaw] = useState<MacNativeBackgroundEffect>("liquid-glass");
   const [transparencyRaw, setTransparencyRaw] = useState(() =>
-    readBool("harnss-transparency", true),
+    readBool("pcc-agent-transparency", true),
   );
   useEffect(() => {
     if (!IS_MAC_PLATFORM || typeof window === "undefined" || !window.claude?.settings) return;
@@ -316,40 +316,40 @@ export function useSettings(projectId: string | null, engine: EngineId = "claude
   const setMacBackgroundEffect = useCallback((effect: MacBackgroundEffect) => {
     if (effect === "off") {
       setTransparencyRaw(false);
-      localStorage.setItem("harnss-transparency", "false");
+      localStorage.setItem("pcc-agent-transparency", "false");
       return;
     }
 
     setMacNativeBackgroundEffectRaw(effect);
     setTransparencyRaw(true);
-    localStorage.setItem("harnss-transparency", "true");
+    localStorage.setItem("pcc-agent-transparency", "true");
     persistMacBackgroundEffect(effect);
   }, []);
   const transparency = transparencyRaw;
   const setTransparency = useCallback((enabled: boolean) => {
     setTransparencyRaw(enabled);
-    localStorage.setItem("harnss-transparency", String(enabled));
+    localStorage.setItem("pcc-agent-transparency", String(enabled));
     if (IS_MAC_PLATFORM && enabled) {
       persistMacBackgroundEffect(macNativeBackgroundEffect);
     }
   }, [macNativeBackgroundEffect]);
 
   const [planMode, setPlanModeRaw] = useState(() => {
-    const stored = localStorage.getItem("harnss-plan-mode");
+    const stored = localStorage.getItem("pcc-agent-plan-mode");
     if (stored !== null) return stored === "true";
     // Legacy migration: old builds encoded plan in permissionMode.
-    const legacyPermissionMode = localStorage.getItem("harnss-permission-mode");
+    const legacyPermissionMode = localStorage.getItem("pcc-agent-permission-mode");
     if (legacyPermissionMode === "plan") return true;
     return DEFAULT_PLAN_MODE;
   });
   const setPlanMode = useCallback((enabled: boolean) => {
     setPlanModeRaw(enabled);
-    localStorage.setItem("harnss-plan-mode", String(enabled));
+    localStorage.setItem("pcc-agent-plan-mode", String(enabled));
   }, []);
 
   const [permissionMode, setPermissionModeRaw] = useState(() =>
     (() => {
-      const stored = localStorage.getItem("harnss-permission-mode");
+      const stored = localStorage.getItem("pcc-agent-permission-mode");
       if (!stored || stored === "plan") return DEFAULT_PERMISSION_MODE;
       return stored;
     })(),
@@ -358,15 +358,15 @@ export function useSettings(projectId: string | null, engine: EngineId = "claude
     // Legacy fallback: treat selecting "plan" as enabling the dedicated plan toggle.
     if (mode === "plan") {
       setPlanModeRaw(true);
-      localStorage.setItem("harnss-plan-mode", "true");
+      localStorage.setItem("pcc-agent-plan-mode", "true");
       mode = DEFAULT_PERMISSION_MODE;
     }
     setPermissionModeRaw(mode);
-    localStorage.setItem("harnss-permission-mode", mode);
+    localStorage.setItem("pcc-agent-permission-mode", mode);
   }, []);
 
   const [acpPermissionBehavior, setAcpPermissionBehaviorRaw] = useState<AcpPermissionBehavior>(() => {
-    const stored = localStorage.getItem("harnss-acp-permission-behavior");
+    const stored = localStorage.getItem("pcc-agent-acp-permission-behavior");
     const valid: AcpPermissionBehavior[] = ["ask", "auto_accept", "allow_all"];
     return stored && valid.includes(stored as AcpPermissionBehavior)
       ? (stored as AcpPermissionBehavior)
@@ -374,90 +374,90 @@ export function useSettings(projectId: string | null, engine: EngineId = "claude
   });
   const setAcpPermissionBehavior = useCallback((behavior: AcpPermissionBehavior) => {
     setAcpPermissionBehaviorRaw(behavior);
-    localStorage.setItem("harnss-acp-permission-behavior", behavior);
+    localStorage.setItem("pcc-agent-acp-permission-behavior", behavior);
   }, []);
 
   const [thinking, setThinkingRaw] = useState(() =>
-    readBool("harnss-thinking", true),
+    readBool("pcc-agent-thinking", true),
   );
   const setThinking = useCallback((on: boolean) => {
     setThinkingRaw(on);
-    localStorage.setItem("harnss-thinking", String(on));
+    localStorage.setItem("pcc-agent-thinking", String(on));
   }, []);
 
   const [claudeEffort, setClaudeEffortRaw] = useState<ClaudeEffort>(() => {
-    const stored = localStorage.getItem("harnss-claude-effort");
+    const stored = localStorage.getItem("pcc-agent-claude-effort");
     return stored === "low" || stored === "medium" || stored === "high" || stored === "max"
       ? stored
       : DEFAULT_CLAUDE_EFFORT;
   });
   const setClaudeEffort = useCallback((effort: ClaudeEffort) => {
     setClaudeEffortRaw(effort);
-    localStorage.setItem("harnss-claude-effort", effort);
+    localStorage.setItem("pcc-agent-claude-effort", effort);
   }, []);
 
   const [autoGroupTools, setAutoGroupToolsRaw] = useState(() =>
-    readBool("harnss-auto-group-tools", true),
+    readBool("pcc-agent-auto-group-tools", true),
   );
   const setAutoGroupTools = useCallback((on: boolean) => {
     setAutoGroupToolsRaw(on);
-    localStorage.setItem("harnss-auto-group-tools", String(on));
+    localStorage.setItem("pcc-agent-auto-group-tools", String(on));
   }, []);
 
   const [avoidGroupingEdits, setAvoidGroupingEditsRaw] = useState(() =>
-    readBool("harnss-avoid-grouping-edits", false),
+    readBool("pcc-agent-avoid-grouping-edits", false),
   );
   const setAvoidGroupingEdits = useCallback((on: boolean) => {
     setAvoidGroupingEditsRaw(on);
-    localStorage.setItem("harnss-avoid-grouping-edits", String(on));
+    localStorage.setItem("pcc-agent-avoid-grouping-edits", String(on));
   }, []);
 
   const [autoExpandTools, setAutoExpandToolsRaw] = useState(() =>
-    readBool("harnss-auto-expand-tools", false),
+    readBool("pcc-agent-auto-expand-tools", false),
   );
   const setAutoExpandTools = useCallback((on: boolean) => {
     setAutoExpandToolsRaw(on);
-    localStorage.setItem("harnss-auto-expand-tools", String(on));
+    localStorage.setItem("pcc-agent-auto-expand-tools", String(on));
   }, []);
 
   const [expandEditToolCallsByDefault, setExpandEditToolCallsByDefaultRaw] = useState(() =>
-    readBool("harnss-expand-edit-tool-calls-by-default", true),
+    readBool("pcc-agent-expand-edit-tool-calls-by-default", true),
   );
   const setExpandEditToolCallsByDefault = useCallback((on: boolean) => {
     setExpandEditToolCallsByDefaultRaw(on);
-    localStorage.setItem("harnss-expand-edit-tool-calls-by-default", String(on));
+    localStorage.setItem("pcc-agent-expand-edit-tool-calls-by-default", String(on));
   }, []);
 
   const [transparentToolPicker, setTransparentToolPickerRaw] = useState(() =>
-    readBool("harnss-transparent-tool-picker", false),
+    readBool("pcc-agent-transparent-tool-picker", false),
   );
   const setTransparentToolPicker = useCallback((on: boolean) => {
     setTransparentToolPickerRaw(on);
-    localStorage.setItem("harnss-transparent-tool-picker", String(on));
+    localStorage.setItem("pcc-agent-transparent-tool-picker", String(on));
   }, []);
 
   const [coloredSidebarIcons, setColoredSidebarIconsRaw] = useState(() =>
-    readBool("harnss-colored-sidebar-icons", true),
+    readBool("pcc-agent-colored-sidebar-icons", true),
   );
   const setColoredSidebarIcons = useCallback((on: boolean) => {
     setColoredSidebarIconsRaw(on);
-    localStorage.setItem("harnss-colored-sidebar-icons", String(on));
+    localStorage.setItem("pcc-agent-colored-sidebar-icons", String(on));
   }, []);
 
   const [showToolIcons, setShowToolIconsRaw] = useState(() =>
-    readBool("harnss-show-tool-icons", true),
+    readBool("pcc-agent-show-tool-icons", true),
   );
   const setShowToolIcons = useCallback((on: boolean) => {
     setShowToolIconsRaw(on);
-    localStorage.setItem("harnss-show-tool-icons", String(on));
+    localStorage.setItem("pcc-agent-show-tool-icons", String(on));
   }, []);
 
   const [coloredToolIcons, setColoredToolIconsRaw] = useState(() =>
-    readBool("harnss-colored-tool-icons", false),
+    readBool("pcc-agent-colored-tool-icons", false),
   );
   const setColoredToolIcons = useCallback((on: boolean) => {
     setColoredToolIconsRaw(on);
-    localStorage.setItem("harnss-colored-tool-icons", String(on));
+    localStorage.setItem("pcc-agent-colored-tool-icons", String(on));
   }, []);
 
   // ── Per-project settings ──
@@ -490,12 +490,12 @@ export function useSettings(projectId: string | null, engine: EngineId = "claude
   );
 
   const [gitCwd, setGitCwdRaw] = useState<string | null>(() =>
-    localStorage.getItem(`harnss-${pid}-git-cwd`),
+    localStorage.getItem(`pcc-agent-${pid}-git-cwd`),
   );
   const setGitCwd = useCallback(
     (nextPath: string | null) => {
       setGitCwdRaw(nextPath);
-      const key = `harnss-${pid}-git-cwd`;
+      const key = `pcc-agent-${pid}-git-cwd`;
       if (nextPath && nextPath.trim()) localStorage.setItem(key, nextPath.trim());
       else localStorage.removeItem(key);
     },
@@ -503,14 +503,14 @@ export function useSettings(projectId: string | null, engine: EngineId = "claude
   );
 
   const [activeTools, setActiveToolsRaw] = useState<Set<ToolId>>(() => {
-    const arr = readJson<ToolId[]>(`harnss-${pid}-active-tools`, []).filter((id) => VALID_TOOL_IDS.has(id));
+    const arr = readJson<ToolId[]>(`pcc-agent-${pid}-active-tools`, []).filter((id) => VALID_TOOL_IDS.has(id));
     return new Set(arr);
   });
   const setActiveTools = useCallback(
     (updater: Set<ToolId> | ((prev: Set<ToolId>) => Set<ToolId>)) => {
       setActiveToolsRaw((prev) => {
         const next = typeof updater === "function" ? updater(prev) : updater;
-        localStorage.setItem(`harnss-${pid}-active-tools`, JSON.stringify([...next]));
+        localStorage.setItem(`pcc-agent-${pid}-active-tools`, JSON.stringify([...next]));
         return next;
       });
     },
@@ -541,7 +541,7 @@ export function useSettings(projectId: string | null, engine: EngineId = "claude
   rightPanelWidthRef.current = rightPanelWidth;
   const saveRightPanelWidth = useCallback(() => {
     writeProjectLayoutState(pid, { ...readProjectLayoutState(pid), rightPanelWidth: rightPanelWidthRef.current });
-    localStorage.setItem(`harnss-${pid}-right-panel-width`, String(rightPanelWidthRef.current));
+    localStorage.setItem(`pcc-agent-${pid}-right-panel-width`, String(rightPanelWidthRef.current));
   }, [pid]);
 
   // ── Tool order (display order in the tools column) ──
@@ -551,7 +551,7 @@ export function useSettings(projectId: string | null, engine: EngineId = "claude
     (updater: ToolId[] | ((prev: ToolId[]) => ToolId[])) => {
       setToolOrderRaw((prev) => {
         const next = typeof updater === "function" ? updater(prev) : updater;
-        localStorage.setItem(`harnss-${pid}-tool-order`, JSON.stringify(next));
+        localStorage.setItem(`pcc-agent-${pid}-tool-order`, JSON.stringify(next));
         return next;
       });
     },
@@ -573,13 +573,13 @@ export function useSettings(projectId: string | null, engine: EngineId = "claude
   }, [pid]);
   const saveRightSplitRatio = useCallback(() => {
     writeProjectLayoutState(pid, { ...readProjectLayoutState(pid), rightSplitRatio: rightSplitRatioRef.current });
-    localStorage.setItem(`harnss-${pid}-right-split`, String(rightSplitRatioRef.current));
+    localStorage.setItem(`pcc-agent-${pid}-right-split`, String(rightSplitRatioRef.current));
   }, [pid]);
 
   // ── Collapsed repos ──
 
   const [collapsedRepos, setCollapsedRepos] = useState<Set<string>>(() => {
-    const arr = readJson<string[]>(`harnss-${pid}-collapsed-repos`, []);
+    const arr = readJson<string[]>(`pcc-agent-${pid}-collapsed-repos`, []);
     return new Set(arr);
   });
   const toggleRepoCollapsed = useCallback(
@@ -588,7 +588,7 @@ export function useSettings(projectId: string | null, engine: EngineId = "claude
         const next = new Set(prev);
         if (next.has(path)) next.delete(path);
         else next.add(path);
-        localStorage.setItem(`harnss-${pid}-collapsed-repos`, JSON.stringify([...next]));
+        localStorage.setItem(`pcc-agent-${pid}-collapsed-repos`, JSON.stringify([...next]));
         return next;
       });
     },
@@ -598,7 +598,7 @@ export function useSettings(projectId: string | null, engine: EngineId = "claude
   // ── Suppressed panels ──
 
   const [suppressedPanels, setSuppressedPanels] = useState<Set<ToolId>>(() => {
-    const arr = readJson<ToolId[]>(`harnss-${pid}-suppressed-panels`, []);
+    const arr = readJson<ToolId[]>(`pcc-agent-${pid}-suppressed-panels`, []);
     return new Set(arr);
   });
   const suppressPanel = useCallback(
@@ -606,7 +606,7 @@ export function useSettings(projectId: string | null, engine: EngineId = "claude
       setSuppressedPanels((prev) => {
         const next = new Set(prev);
         next.add(id);
-        localStorage.setItem(`harnss-${pid}-suppressed-panels`, JSON.stringify([...next]));
+        localStorage.setItem(`pcc-agent-${pid}-suppressed-panels`, JSON.stringify([...next]));
         return next;
       });
     },
@@ -618,7 +618,7 @@ export function useSettings(projectId: string | null, engine: EngineId = "claude
         if (!prev.has(id)) return prev;
         const next = new Set(prev);
         next.delete(id);
-        localStorage.setItem(`harnss-${pid}-suppressed-panels`, JSON.stringify([...next]));
+        localStorage.setItem(`pcc-agent-${pid}-suppressed-panels`, JSON.stringify([...next]));
         return next;
       });
     },
@@ -628,7 +628,7 @@ export function useSettings(projectId: string | null, engine: EngineId = "claude
   // ── Bottom tools placement ──
 
   const [bottomTools, setBottomToolsRaw] = useState<Set<ToolId>>(() => {
-    const arr = readJson<ToolId[]>(`harnss-${pid}-bottom-tools`, []).filter((id) => VALID_TOOL_IDS.has(id));
+    const arr = readJson<ToolId[]>(`pcc-agent-${pid}-bottom-tools`, []).filter((id) => VALID_TOOL_IDS.has(id));
     return new Set(arr);
   });
   const bottomToolsHeight = currentLayout.bottomToolsHeight;
@@ -644,7 +644,7 @@ export function useSettings(projectId: string | null, engine: EngineId = "claude
   bottomToolsHeightRef.current = bottomToolsHeight;
   const saveBottomToolsHeight = useCallback(() => {
     writeProjectLayoutState(pid, { ...readProjectLayoutState(pid), bottomToolsHeight: bottomToolsHeightRef.current });
-    localStorage.setItem(`harnss-${pid}-bottom-tools-height`, String(bottomToolsHeightRef.current));
+    localStorage.setItem(`pcc-agent-${pid}-bottom-tools-height`, String(bottomToolsHeightRef.current));
   }, [pid]);
 
   const bottomToolsSplitRatios = currentLayout.bottomToolsSplitRatios;
@@ -660,39 +660,39 @@ export function useSettings(projectId: string | null, engine: EngineId = "claude
   }, [pid]);
   const saveBottomToolsSplitRatios = useCallback(() => {
     writeProjectLayoutState(pid, { ...readProjectLayoutState(pid), bottomToolsSplitRatios: [...bottomToolsSplitRatiosRef.current] });
-    localStorage.setItem(`harnss-${pid}-bottom-tools-split-ratios`, JSON.stringify(bottomToolsSplitRatiosRef.current));
+    localStorage.setItem(`pcc-agent-${pid}-bottom-tools-split-ratios`, JSON.stringify(bottomToolsSplitRatiosRef.current));
   }, [pid]);
 
   // ── Per-project sidebar organization ──
 
   const [organizeByChatBranch, setOrganizeByChatBranchRaw] = useState(() =>
-    readBool(`harnss-${pid}-organize-by-branch`, false),
+    readBool(`pcc-agent-${pid}-organize-by-branch`, false),
   );
   const setOrganizeByChatBranch = useCallback((on: boolean) => {
     setOrganizeByChatBranchRaw(on);
-    localStorage.setItem(`harnss-${pid}-organize-by-branch`, String(on));
+    localStorage.setItem(`pcc-agent-${pid}-organize-by-branch`, String(on));
   }, [pid]);
 
   // ── Re-read per-project values when projectId changes ──
 
   useEffect(() => {
     setModelsByEngineRaw(readEngineModels(pid));
-    setGitCwdRaw(localStorage.getItem(`harnss-${pid}-git-cwd`));
+    setGitCwdRaw(localStorage.getItem(`pcc-agent-${pid}-git-cwd`));
 
-    const tools = readJson<ToolId[]>(`harnss-${pid}-active-tools`, []);
+    const tools = readJson<ToolId[]>(`pcc-agent-${pid}-active-tools`, []);
     setActiveToolsRaw(new Set(tools));
     setToolOrderRaw(readToolOrder(pid));
 
-    const repos = readJson<string[]>(`harnss-${pid}-collapsed-repos`, []);
+    const repos = readJson<string[]>(`pcc-agent-${pid}-collapsed-repos`, []);
     setCollapsedRepos(new Set(repos));
 
-    const suppressed = readJson<ToolId[]>(`harnss-${pid}-suppressed-panels`, []);
+    const suppressed = readJson<ToolId[]>(`pcc-agent-${pid}-suppressed-panels`, []);
     setSuppressedPanels(new Set(suppressed));
 
-    const bottom = readJson<ToolId[]>(`harnss-${pid}-bottom-tools`, []).filter((id) => VALID_TOOL_IDS.has(id as ToolId));
+    const bottom = readJson<ToolId[]>(`pcc-agent-${pid}-bottom-tools`, []).filter((id) => VALID_TOOL_IDS.has(id as ToolId));
     setBottomToolsRaw(new Set(bottom));
 
-    setOrganizeByChatBranchRaw(readBool(`harnss-${pid}-organize-by-branch`, false));
+    setOrganizeByChatBranchRaw(readBool(`pcc-agent-${pid}-organize-by-branch`, false));
   }, [pid]);
 
   return {

@@ -1,7 +1,7 @@
 type SidebarDragKind = "session" | "folder" | "project";
 
-const SIDEBAR_DRAG_KIND_MIME = "application/x-harnss-sidebar-drag-kind";
-const SIDEBAR_DRAG_ID_MIME = "application/x-harnss-sidebar-drag-id";
+const SIDEBAR_DRAG_KIND_MIME = "application/x-pcc-agent-sidebar-drag-kind";
+const SIDEBAR_DRAG_ID_MIME = "application/x-pcc-agent-sidebar-drag-id";
 
 interface SidebarTransferLike {
   getData: (type: string) => string;

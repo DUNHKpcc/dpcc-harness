@@ -44,7 +44,7 @@ export function FeatureTourStep(_props: WizardStepProps) {
             What&apos;s inside
           </h2>
           <p className="mt-3 text-lg text-muted-foreground">
-            A few things that make Harnss different.
+            A few things that make PccAgent different.
           </p>
         </motion.div>
 

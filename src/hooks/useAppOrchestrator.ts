@@ -29,7 +29,7 @@ export function useAppOrchestrator() {
   const spaceManager = useSpaceManager();
   // Read ACP permission behavior early — it's a global setting (same localStorage key as useSettings)
   // so we can read it before useSettings which depends on manager.activeSession for per-project scoping
-  const acpPermissionBehavior = (localStorage.getItem("harnss-acp-permission-behavior") ?? "ask") as AcpPermissionBehavior;
+  const acpPermissionBehavior = (localStorage.getItem("pcc-agent-acp-permission-behavior") ?? "ask") as AcpPermissionBehavior;
   const manager = useSessionManager(
     projectManager.projects,
     acpPermissionBehavior,

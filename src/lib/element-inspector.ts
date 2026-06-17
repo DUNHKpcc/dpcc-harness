@@ -4,30 +4,30 @@
  * `getInspectorScript()` returns a self-contained IIFE string that, when executed
  * inside a webview via `executeJavaScript()`, creates a hover overlay and click
  * handler. Captured element data is sent back via `console.log` with a
- * `__harnss_grab__` marker so the renderer can filter it from normal console output.
+ * `__pcc_agent_grab__` marker so the renderer can filter it from normal console output.
  */
 
 // Marker used to identify our messages in the console-message stream.
-export const GRAB_MARKER = "__harnss_grab__";
+export const GRAB_MARKER = "__pcc_agent_grab__";
 
 /**
  * Returns the injectable JavaScript string. The script:
  * - Shows a blue overlay that tracks the hovered element
  * - On click, captures element metadata and sends it via console.log
  * - On Escape, sends a cancellation signal
- * - Exposes `window.__harnss_inspector_cleanup__()` for teardown
+ * - Exposes `window.__pcc_agent_inspector_cleanup__()` for teardown
  */
 export function getInspectorScript(): string {
   // Everything inside the template literal runs in the webview context —
   // no closures or imports are available, it must be fully self-contained.
   return `(function() {
   /* Guard against double-injection */
-  if (window.__harnss_inspector_active__) return;
-  window.__harnss_inspector_active__ = true;
+  if (window.__pcc_agent_inspector_active__) return;
+  window.__pcc_agent_inspector_active__ = true;
 
   /* ── Overlay ── */
   var overlay = document.createElement('div');
-  overlay.id = '__harnss_inspector_overlay__';
+  overlay.id = '__pcc_agent_inspector_overlay__';
   overlay.style.cssText =
     'position:fixed;pointer-events:none;z-index:2147483647;' +
     'border:2px solid #3b82f6;background:rgba(59,130,246,0.08);' +
@@ -176,20 +176,20 @@ export function getInspectorScript(): string {
       })(),
     };
 
-    console.log(JSON.stringify({ __harnss_grab__: true, data: data }));
+    console.log(JSON.stringify({ __pcc_agent_grab__: true, data: data }));
   }
 
   function onKeyDown(e) {
     if (e.key === 'Escape') {
       e.preventDefault();
       e.stopPropagation();
-      console.log(JSON.stringify({ __harnss_grab__: true, cancelled: true }));
+      console.log(JSON.stringify({ __pcc_agent_grab__: true, cancelled: true }));
     }
   }
 
   /* ── Cursor style override ── */
   var cursorStyle = document.createElement('style');
-  cursorStyle.id = '__harnss_inspector_cursor__';
+  cursorStyle.id = '__pcc_agent_inspector_cursor__';
   cursorStyle.textContent = '* { cursor: crosshair !important; }';
   document.documentElement.appendChild(cursorStyle);
 
@@ -199,19 +199,19 @@ export function getInspectorScript(): string {
   document.addEventListener('keydown', onKeyDown, true);
 
   /* ── Cleanup function — called when inspect mode is toggled off ── */
-  window.__harnss_inspector_cleanup__ = function() {
+  window.__pcc_agent_inspector_cleanup__ = function() {
     document.removeEventListener('mousemove', onMouseMove, true);
     document.removeEventListener('click', onClick, true);
     document.removeEventListener('keydown', onKeyDown, true);
     if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
     if (cursorStyle.parentNode) cursorStyle.parentNode.removeChild(cursorStyle);
-    delete window.__harnss_inspector_active__;
-    delete window.__harnss_inspector_cleanup__;
+    delete window.__pcc_agent_inspector_active__;
+    delete window.__pcc_agent_inspector_cleanup__;
   };
 })();`;
 }
 
 /** Cleanup script — call when disabling inspect mode. */
 export function getCleanupScript(): string {
-  return `if (window.__harnss_inspector_cleanup__) window.__harnss_inspector_cleanup__();`;
+  return `if (window.__pcc_agent_inspector_cleanup__) window.__pcc_agent_inspector_cleanup__();`;
 }

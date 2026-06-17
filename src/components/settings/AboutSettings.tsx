@@ -3,26 +3,26 @@ import { ExternalLink, Github, Scale, Heart } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SettingsHeader } from "@/components/settings/shared";
 
-// ── Harnss logo mark — a stylized "H" rendered inline ──
+// ── PccAgent logo mark — circular icon with stylized "R" symbol ──
 
-function HarnssLogo({ className }: { className?: string }) {
+function PccAgentLogo({ className }: { className?: string }) {
   return (
     <svg
-      viewBox="0 0 32 32"
+      viewBox="0 0 1024 1024"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
     >
-      {/* Rounded square background */}
-      <rect width="32" height="32" rx="8" fill="currentColor" fillOpacity="0.08" />
-      {/* Stylized "H" with connected crossbar */}
+      <circle cx="512" cy="512" r="512" fill="currentColor" />
+      {/* Vertical bar */}
+      <rect x="310" y="270" width="100" height="484" rx="50" fill="var(--background, #fff)" />
+      {/* Quarter circle */}
       <path
-        d="M10 8v16M22 8v16M10 16h12"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
+        d="M410 754 Q410 474 610 474 L610 754 Z"
+        fill="var(--background, #fff)"
       />
+      {/* Dot */}
+      <circle cx="610" cy="370" r="70" fill="var(--background, #fff)" />
     </svg>
   );
 }
@@ -78,10 +78,10 @@ export const AboutSettings = memo(function AboutSettings() {
         <div className="px-6 py-5">
           {/* ── App identity ── */}
           <div className="flex items-start gap-4">
-            <HarnssLogo className="h-12 w-12 shrink-0 text-foreground" />
+            <PccAgentLogo className="h-12 w-12 shrink-0 text-foreground" />
             <div className="min-w-0">
               <h3 className="text-lg font-semibold tracking-tight text-foreground">
-                Harnss
+                PccAgent
               </h3>
               <p className="mt-0.5 text-[13px] leading-relaxed text-muted-foreground">
                 Open-source desktop client for AI coding agents.
@@ -132,7 +132,7 @@ export const AboutSettings = memo(function AboutSettings() {
                 </span>
               </div>
               <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-                Harnss is open-source under the MIT License. Contributions, bug reports,
+                PccAgent is open-source under the MIT License. Contributions, bug reports,
                 and feature requests are welcome on GitHub.
               </p>
             </div>

@@ -48,7 +48,7 @@ async function checkIsPreRelease(): Promise<PreReleaseInfo> {
       signal: controller.signal,
       headers: {
         Accept: "application/vnd.github.v3+json",
-        "User-Agent": `Harnss/${version}`,
+        "User-Agent": `PccAgent/${version}`,
       },
     });
 

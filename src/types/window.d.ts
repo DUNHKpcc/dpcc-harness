@@ -350,6 +350,15 @@ declare global {
         setModel: (sessionId: string, model: string) => Promise<{ error?: string }>;
         version: () => Promise<{ version?: string; error?: string }>;
         binaryStatus: () => Promise<{ installed: boolean; downloading: boolean }>;
+        binaryInfo: () => Promise<{
+          path?: string | null;
+          origin?: "env" | "managed" | "known" | "path" | "bundled" | "custom" | "none";
+          version?: string | null;
+          hasBundled?: boolean;
+          hasManaged?: boolean;
+          error?: string;
+        }>;
+        downloadUpdate: () => Promise<{ version?: string | null; error?: string }>;
         onEvent: (callback: (data: CodexSessionEvent) => void) => () => void;
         onApprovalRequest: (callback: (data: CodexServerRequest) => void) => () => void;
         onExit: (callback: (data: CodexExitEvent) => void) => () => void;

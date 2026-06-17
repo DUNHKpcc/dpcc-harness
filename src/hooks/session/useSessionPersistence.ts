@@ -95,7 +95,7 @@ export function useSessionPersistence({
         : false;
 
       if (wasProcessing && !isProcessing && session && !continuedQueuedSession) {
-        window.dispatchEvent(new CustomEvent("harnss:background-session-complete", {
+        window.dispatchEvent(new CustomEvent("pcc-agent:background-session-complete", {
           detail: {
             sessionId,
             sessionTitle: session.title,
@@ -129,7 +129,7 @@ export function useSessionPersistence({
         },
       });
 
-      window.dispatchEvent(new CustomEvent("harnss:background-permission-request", {
+      window.dispatchEvent(new CustomEvent("pcc-agent:background-permission-request", {
         detail: {
           sessionId,
           sessionTitle,

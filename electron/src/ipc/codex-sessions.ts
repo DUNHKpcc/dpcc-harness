@@ -12,7 +12,13 @@ import crypto from "crypto";
 import { log } from "../lib/logger";
 import { safeSend } from "../lib/safe-send";
 import { CodexRpcClient } from "../lib/codex-rpc";
-import { getCodexBinaryPath, getCodexBinaryStatus, getCodexVersion } from "../lib/codex-binary";
+import {
+  getCodexBinaryPath,
+  getCodexBinaryStatus,
+  getCodexVersion,
+  getCodexBinaryInfo,
+  downloadCodexUpdate,
+} from "../lib/codex-binary";
 import { getAppSetting } from "../lib/app-settings";
 import { reportError } from "../lib/error-utils";
 import { captureEvent } from "../lib/posthog";
@@ -59,7 +65,7 @@ export function getCodexSessionModel(internalId: string): string | undefined {
 }
 
 function getAppServerClientInfo(): { name: string; title: string; version: string } {
-  const clientName = getAppSetting("codexClientName") || "Harnss";
+  const clientName = getAppSetting("codexClientName") || "PccAgent";
   return {
     name: clientName,
     title: clientName,
@@ -776,6 +782,24 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
   // ─── codex:binary-status ───
   ipcMain.handle("codex:binary-status", async () => {
     return getCodexBinaryStatus();
+  });
+
+  // ─── codex:binary-info ─── (resolved path, origin, version — for settings UI)
+  ipcMain.handle("codex:binary-info", async () => {
+    try {
+      return await getCodexBinaryInfo();
+    } catch (err) {
+      return { error: reportError("CODEX_BINARY_INFO_ERR", err, { engine: "codex" }) };
+    }
+  });
+
+  // ─── codex:download-update ─── (manual: pull latest Codex from npm)
+  ipcMain.handle("codex:download-update", async () => {
+    try {
+      return await downloadCodexUpdate();
+    } catch (err) {
+      return { error: reportError("CODEX_DOWNLOAD_UPDATE_ERR", err, { engine: "codex" }) };
+    }
   });
 }
 

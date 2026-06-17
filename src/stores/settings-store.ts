@@ -41,7 +41,7 @@ const VALID_TOOL_IDS = new Set<ToolId>([
 
 const IS_MAC_PLATFORM = typeof navigator !== "undefined" && /mac/i.test(navigator.platform);
 
-const STORE_KEY = "harnss-settings-store";
+const STORE_KEY = "pcc-agent-settings-store";
 
 // ── Shared helpers (also used by compat hook) ──
 
@@ -199,7 +199,7 @@ function updateProject(
 // ── Legacy localStorage migration ──
 
 /**
- * One-time migration: read all existing harnss-* localStorage keys into the
+ * One-time migration: read all existing pcc-agent-* localStorage keys into the
  * Zustand store shape. This runs only when the store key doesn't exist yet.
  */
 function migrateFromLegacyLocalStorage(): { global: GlobalSettingsState; projects: Record<string, ProjectSettings> } {
@@ -209,10 +209,10 @@ function migrateFromLegacyLocalStorage(): { global: GlobalSettingsState; project
   const projectIds = new Set<string>();
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
-    if (!key?.startsWith("harnss-") || key === STORE_KEY) continue;
+    if (!key?.startsWith("pcc-agent-") || key === STORE_KEY) continue;
 
     // Global keys don't have a second segment that looks like a project ID.
-    // Per-project keys follow the pattern: harnss-{projectId}-{setting}
+    // Per-project keys follow the pattern: pcc-agent-{projectId}-{setting}
     // We detect project keys by checking for known per-project suffixes.
     const perProjectSuffixes = [
       "-model-claude", "-model-acp", "-model-codex", "-model",
@@ -225,7 +225,7 @@ function migrateFromLegacyLocalStorage(): { global: GlobalSettingsState; project
 
     for (const suffix of perProjectSuffixes) {
       if (key.endsWith(suffix)) {
-        const pid = key.slice("harnss-".length, key.length - suffix.length);
+        const pid = key.slice("pcc-agent-".length, key.length - suffix.length);
         if (pid.length > 0) projectIds.add(pid);
         break;
       }
@@ -266,25 +266,25 @@ function readLegacyJson<T>(key: string, fallback: T): T {
 }
 
 function readLegacyGlobalSettings(): GlobalSettingsState {
-  const themeRaw = localStorage.getItem("harnss-theme");
+  const themeRaw = localStorage.getItem("pcc-agent-theme");
   const theme: ThemeOption = (themeRaw === "light" || themeRaw === "dark" || themeRaw === "system") ? themeRaw : "dark";
 
   // Plan mode with legacy migration
   let planMode = DEFAULT_PLAN_MODE;
-  const storedPlanMode = localStorage.getItem("harnss-plan-mode");
+  const storedPlanMode = localStorage.getItem("pcc-agent-plan-mode");
   if (storedPlanMode !== null) {
     planMode = storedPlanMode === "true";
   } else {
-    const legacyPermission = localStorage.getItem("harnss-permission-mode");
+    const legacyPermission = localStorage.getItem("pcc-agent-permission-mode");
     if (legacyPermission === "plan") planMode = true;
   }
 
   // Permission mode with legacy migration
-  const storedPermission = localStorage.getItem("harnss-permission-mode");
+  const storedPermission = localStorage.getItem("pcc-agent-permission-mode");
   const permissionMode = (!storedPermission || storedPermission === "plan") ? DEFAULT_PERMISSION_MODE : storedPermission;
 
   // ACP permission behavior
-  const storedAcpBehavior = localStorage.getItem("harnss-acp-permission-behavior");
+  const storedAcpBehavior = localStorage.getItem("pcc-agent-acp-permission-behavior");
   const validAcpBehaviors: AcpPermissionBehavior[] = ["ask", "auto_accept", "allow_all"];
   const acpPermissionBehavior: AcpPermissionBehavior =
     storedAcpBehavior && validAcpBehaviors.includes(storedAcpBehavior as AcpPermissionBehavior)
@@ -292,7 +292,7 @@ function readLegacyGlobalSettings(): GlobalSettingsState {
       : "ask";
 
   // Claude effort
-  const storedEffort = localStorage.getItem("harnss-claude-effort");
+  const storedEffort = localStorage.getItem("pcc-agent-claude-effort");
   const claudeEffort: ClaudeEffort =
     (storedEffort === "low" || storedEffort === "medium" || storedEffort === "high" || storedEffort === "max")
       ? storedEffort
@@ -300,23 +300,23 @@ function readLegacyGlobalSettings(): GlobalSettingsState {
 
   return {
     theme,
-    islandLayout: readLegacyBool("harnss-island-layout", true),
-    islandShine: readLegacyBool("harnss-island-shine", true),
+    islandLayout: readLegacyBool("pcc-agent-island-layout", true),
+    islandShine: readLegacyBool("pcc-agent-island-shine", true),
     macNativeBackgroundEffect: "liquid-glass",
-    transparency: readLegacyBool("harnss-transparency", true),
+    transparency: readLegacyBool("pcc-agent-transparency", true),
     planMode,
     permissionMode,
     acpPermissionBehavior,
-    thinking: readLegacyBool("harnss-thinking", true),
+    thinking: readLegacyBool("pcc-agent-thinking", true),
     claudeEffort,
-    autoGroupTools: readLegacyBool("harnss-auto-group-tools", true),
-    avoidGroupingEdits: readLegacyBool("harnss-avoid-grouping-edits", false),
-    autoExpandTools: readLegacyBool("harnss-auto-expand-tools", false),
-    expandEditToolCallsByDefault: readLegacyBool("harnss-expand-edit-tool-calls-by-default", true),
-    transparentToolPicker: readLegacyBool("harnss-transparent-tool-picker", false),
-    coloredSidebarIcons: readLegacyBool("harnss-colored-sidebar-icons", true),
-    showToolIcons: readLegacyBool("harnss-show-tool-icons", true),
-    coloredToolIcons: readLegacyBool("harnss-colored-tool-icons", false),
+    autoGroupTools: readLegacyBool("pcc-agent-auto-group-tools", true),
+    avoidGroupingEdits: readLegacyBool("pcc-agent-avoid-grouping-edits", false),
+    autoExpandTools: readLegacyBool("pcc-agent-auto-expand-tools", false),
+    expandEditToolCallsByDefault: readLegacyBool("pcc-agent-expand-edit-tool-calls-by-default", true),
+    transparentToolPicker: readLegacyBool("pcc-agent-transparent-tool-picker", false),
+    coloredSidebarIcons: readLegacyBool("pcc-agent-colored-sidebar-icons", true),
+    showToolIcons: readLegacyBool("pcc-agent-show-tool-icons", true),
+    coloredToolIcons: readLegacyBool("pcc-agent-colored-tool-icons", false),
   };
 }
 
@@ -326,10 +326,10 @@ function isCodexLikeModel(model: string): boolean {
 }
 
 function readLegacyModelForEngine(pid: string, engine: EngineId): string {
-  const byEngine = localStorage.getItem(`harnss-${pid}-model-${engine}`);
+  const byEngine = localStorage.getItem(`pcc-agent-${pid}-model-${engine}`);
   if (byEngine && byEngine.trim().length > 0) return byEngine.trim();
 
-  const legacy = localStorage.getItem(`harnss-${pid}-model`);
+  const legacy = localStorage.getItem(`pcc-agent-${pid}-model`);
   if (!legacy || legacy.trim().length === 0) return DEFAULT_ENGINE_MODELS[engine];
   const legacyValue = legacy.trim();
 
@@ -343,7 +343,7 @@ function readLegacyModelForEngine(pid: string, engine: EngineId): string {
 }
 
 function readLegacyToolOrder(pid: string): ToolId[] {
-  const stored = readLegacyJson<ToolId[]>(`harnss-${pid}-tool-order`, []).filter((id) => VALID_TOOL_IDS.has(id));
+  const stored = readLegacyJson<ToolId[]>(`pcc-agent-${pid}-tool-order`, []).filter((id) => VALID_TOOL_IDS.has(id));
   if (stored.length === 0) return [...DEFAULT_TOOL_ORDER];
   const set = new Set(stored);
   const result = [...stored];
@@ -360,17 +360,17 @@ function readLegacyProjectSettings(pid: string): ProjectSettings {
       acp: readLegacyModelForEngine(pid, "acp"),
       codex: readLegacyModelForEngine(pid, "codex"),
     },
-    gitCwd: localStorage.getItem(`harnss-${pid}-git-cwd`),
-    activeTools: readLegacyJson<ToolId[]>(`harnss-${pid}-active-tools`, []).filter((id) => VALID_TOOL_IDS.has(id)),
+    gitCwd: localStorage.getItem(`pcc-agent-${pid}-git-cwd`),
+    activeTools: readLegacyJson<ToolId[]>(`pcc-agent-${pid}-active-tools`, []).filter((id) => VALID_TOOL_IDS.has(id)),
     toolOrder: readLegacyToolOrder(pid),
-    rightPanelWidth: readLegacyNumber(`harnss-${pid}-right-panel-width`, DEFAULT_RIGHT_PANEL, MIN_RIGHT_PANEL, MAX_RIGHT_PANEL),
-    rightSplitRatio: readLegacyNumber(`harnss-${pid}-right-split`, DEFAULT_SPLIT, MIN_SPLIT, MAX_SPLIT),
-    collapsedRepos: readLegacyJson<string[]>(`harnss-${pid}-collapsed-repos`, []),
-    suppressedPanels: readLegacyJson<ToolId[]>(`harnss-${pid}-suppressed-panels`, []),
-    bottomTools: readLegacyJson<ToolId[]>(`harnss-${pid}-bottom-tools`, []).filter((id) => VALID_TOOL_IDS.has(id)),
-    bottomToolsHeight: readLegacyNumber(`harnss-${pid}-bottom-tools-height`, DEFAULT_BOTTOM_HEIGHT, MIN_BOTTOM_HEIGHT, MAX_BOTTOM_HEIGHT),
-    bottomToolsSplitRatios: readLegacyJson<number[]>(`harnss-${pid}-bottom-tools-split-ratios`, []),
-    organizeByChatBranch: readLegacyBool(`harnss-${pid}-organize-by-branch`, false),
+    rightPanelWidth: readLegacyNumber(`pcc-agent-${pid}-right-panel-width`, DEFAULT_RIGHT_PANEL, MIN_RIGHT_PANEL, MAX_RIGHT_PANEL),
+    rightSplitRatio: readLegacyNumber(`pcc-agent-${pid}-right-split`, DEFAULT_SPLIT, MIN_SPLIT, MAX_SPLIT),
+    collapsedRepos: readLegacyJson<string[]>(`pcc-agent-${pid}-collapsed-repos`, []),
+    suppressedPanels: readLegacyJson<ToolId[]>(`pcc-agent-${pid}-suppressed-panels`, []),
+    bottomTools: readLegacyJson<ToolId[]>(`pcc-agent-${pid}-bottom-tools`, []).filter((id) => VALID_TOOL_IDS.has(id)),
+    bottomToolsHeight: readLegacyNumber(`pcc-agent-${pid}-bottom-tools-height`, DEFAULT_BOTTOM_HEIGHT, MIN_BOTTOM_HEIGHT, MAX_BOTTOM_HEIGHT),
+    bottomToolsSplitRatios: readLegacyJson<number[]>(`pcc-agent-${pid}-bottom-tools-split-ratios`, []),
+    organizeByChatBranch: readLegacyBool(`pcc-agent-${pid}-organize-by-branch`, false),
   };
 }
 

@@ -244,11 +244,11 @@ export function useNotifications({
       );
     };
 
-    window.addEventListener("harnss:background-session-complete", onBackgroundComplete as EventListener);
-    window.addEventListener("harnss:background-permission-request", onBackgroundPermission as EventListener);
+    window.addEventListener("pcc-agent:background-session-complete", onBackgroundComplete as EventListener);
+    window.addEventListener("pcc-agent:background-permission-request", onBackgroundPermission as EventListener);
     return () => {
-      window.removeEventListener("harnss:background-session-complete", onBackgroundComplete as EventListener);
-      window.removeEventListener("harnss:background-permission-request", onBackgroundPermission as EventListener);
+      window.removeEventListener("pcc-agent:background-session-complete", onBackgroundComplete as EventListener);
+      window.removeEventListener("pcc-agent:background-permission-request", onBackgroundPermission as EventListener);
     };
   }, [openSession, settings]);
 }

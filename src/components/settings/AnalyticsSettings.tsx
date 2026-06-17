@@ -40,7 +40,7 @@ export const AnalyticsSettings = memo(function AnalyticsSettings({
 
   return (
     <div className="flex h-full flex-col">
-      <SettingsHeader title="Analytics" description="Help improve Harnss by sharing anonymous usage data" />
+      <SettingsHeader title="Analytics" description="Help improve PccAgent by sharing anonymous usage data" />
 
       <ScrollArea className="min-h-0 flex-1">
         <div className="px-6 py-2">
@@ -48,7 +48,7 @@ export const AnalyticsSettings = memo(function AnalyticsSettings({
           <SettingsSection icon={BarChart3} label="Usage Analytics" first>
             <SettingRow
               label="Send anonymous analytics"
-              description="Share anonymous usage data to help us understand how people use Harnss and improve the app. We collect app version, platform, and basic feature usage. No code, prompts, or personal data is collected."
+              description="Share anonymous usage data to help us understand how people use PccAgent and improve the app. We collect app version, platform, and basic feature usage. No code, prompts, or personal data is collected."
             >
               <Switch
                 checked={analyticsEnabled}

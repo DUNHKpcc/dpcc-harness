@@ -69,7 +69,7 @@ export function resolveProjectForSpace({
 }
 
 export function getStoredProjectGitCwd(projectId: string): string | null {
-  const stored = localStorage.getItem(`harnss-${projectId}-git-cwd`);
+  const stored = localStorage.getItem(`pcc-agent-${projectId}-git-cwd`);
   if (!stored) return null;
 
   const trimmed = stored.trim();

@@ -194,7 +194,7 @@ export function useSessionManager(
   }, []);
 
   const getProjectCwd = useCallback((project: Project) => {
-    const selected = localStorage.getItem(`harnss-${project.id}-git-cwd`)?.trim();
+    const selected = localStorage.getItem(`pcc-agent-${project.id}-git-cwd`)?.trim();
     return selected || project.path;
   }, []);
 

@@ -47,7 +47,7 @@ export function ProjectStep({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.18 }}
       >
-        Point Harnss at any folder and start building.
+        Point PccAgent at any folder and start building.
       </motion.p>
 
       <motion.button

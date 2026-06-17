@@ -75,6 +75,42 @@ function getAppServerClientInfo(): { name: string; title: string; version: strin
 
 // pickModelId imported from @shared/lib/codex-helpers
 
+/** Fixed identifiers for the custom Codex gateway provider. */
+const CODEX_GATEWAY_PROVIDER_ID = "harnss-gateway";
+const CODEX_GATEWAY_ENV_KEY = "HARNSS_GATEWAY_API_KEY";
+
+/** Extra spawn env for the Codex gateway — injects the API key under the provider's env_key. */
+function codexGatewayEnv(): Record<string, string> {
+  const g = getAppSetting("codexGateway");
+  if (!g?.enabled || !g.apiKey.trim()) return {};
+  return { [CODEX_GATEWAY_ENV_KEY]: g.apiKey.trim() };
+}
+
+/**
+ * thread/start params for the custom Codex gateway: a `model_providers.<id>`
+ * override table (base_url / env_key / wire_api) plus provider + model selection.
+ * Returns {} when the gateway is disabled or has no base URL.
+ */
+function codexGatewayThreadParams(): Record<string, unknown> {
+  const g = getAppSetting("codexGateway");
+  if (!g?.enabled || !g.baseUrl.trim()) return {};
+  const id = CODEX_GATEWAY_PROVIDER_ID;
+  const model = g.model.trim();
+  return {
+    modelProvider: id,
+    ...(model ? { model } : {}),
+    config: {
+      [`model_providers.${id}.name`]: g.name.trim() || "Harnss Gateway",
+      [`model_providers.${id}.base_url`]: g.baseUrl.trim(),
+      [`model_providers.${id}.env_key`]: CODEX_GATEWAY_ENV_KEY,
+      [`model_providers.${id}.wire_api`]: "responses",
+      [`model_providers.${id}.requires_openai_auth`]: false,
+      model_provider: id,
+      ...(model ? { model } : {}),
+    },
+  };
+}
+
 function shortId(value: unknown, length = 8): string {
   return typeof value === "string" ? value.slice(0, length) : "n/a";
 }
@@ -251,6 +287,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
           env: {
             ...process.env,
             RUST_LOG: process.env.RUST_LOG ?? "warn",
+            ...codexGatewayEnv(),
           },
         });
 
@@ -287,7 +324,9 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         // ── Check auth status ──
         const authResult = await rpc.request<CodexAccountResponse>("account/read", { refreshToken: false });
 
-        const needsAuth = authResult.requiresOpenaiAuth && !authResult.account;
+        // Custom gateway carries its own credentials (env_key) — skip the OpenAI auth gate.
+        const gatewayEnabled = getAppSetting("codexGateway")?.enabled === true;
+        const needsAuth = !gatewayEnabled && authResult.requiresOpenaiAuth && !authResult.account;
         if (needsAuth) {
           // Notify renderer that auth is required — don't start thread yet
           safeSend(getMainWindow, "codex:event", {
@@ -331,6 +370,16 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         if (options.sandbox) threadParams.sandbox = options.sandbox;
         if (options.personality) threadParams.personality = options.personality;
         // collaborationMode is set per-turn via turn/start, not on thread/start
+
+        // Custom gateway: override provider + model (takes priority over selectedModel).
+        const gatewayParams = codexGatewayThreadParams();
+        if (Object.keys(gatewayParams).length > 0) {
+          Object.assign(threadParams, gatewayParams);
+          if (typeof gatewayParams.model === "string") {
+            session.model = gatewayParams.model;
+            selectedModel = gatewayParams.model;
+          }
+        }
 
         const threadResult = await rpc.request<CodexThreadStartResponse>("thread/start", threadParams);
         session.threadId = threadResult.thread.id;
@@ -388,6 +437,8 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
           if (session.model) threadParams.model = session.model;
           if (session.approvalPolicy) threadParams.approvalPolicy = session.approvalPolicy;
           if (session.sandbox) threadParams.sandbox = session.sandbox;
+          // Custom gateway: override provider + model (takes priority).
+          Object.assign(threadParams, codexGatewayThreadParams());
           const threadResult = await session.rpc.request<CodexThreadStartResponse>("thread/start", threadParams);
           session.threadId = threadResult.thread.id;
           log(
@@ -615,6 +666,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         env: {
           ...process.env,
           RUST_LOG: process.env.RUST_LOG ?? "warn",
+          ...codexGatewayEnv(),
         },
       });
       if (!proc.pid) {
@@ -704,6 +756,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
           env: {
             ...process.env,
             RUST_LOG: process.env.RUST_LOG ?? "warn",
+            ...codexGatewayEnv(),
           },
         });
 
@@ -738,6 +791,14 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         };
         if (data.approvalPolicy) threadParams.approvalPolicy = data.approvalPolicy;
         if (data.sandbox) threadParams.sandbox = data.sandbox;
+        // Custom gateway: override provider + model (takes priority).
+        const gatewayResumeParams = codexGatewayThreadParams();
+        if (Object.keys(gatewayResumeParams).length > 0) {
+          Object.assign(threadParams, gatewayResumeParams);
+          if (typeof gatewayResumeParams.model === "string") {
+            session.model = gatewayResumeParams.model;
+          }
+        }
 
         const threadResult = await rpc.request<CodexThreadResumeResponse>("thread/resume", threadParams);
         session.threadId = threadResult.thread.id;

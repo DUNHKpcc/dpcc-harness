@@ -13,14 +13,31 @@ import { reportError } from "../lib/error-utils";
 import { buildSdkMcpConfig } from "@shared/lib/mcp-config";
 import type { McpServerInput } from "@shared/lib/mcp-config";
 import { getClaudeBinaryMetadata, getClaudeBinaryPath, getClaudeBinaryStatus, getClaudeVersion } from "../lib/claude-binary";
+import { getAppSetting } from "../lib/app-settings";
 import { captureEvent } from "../lib/posthog";
+
+/** Environment variables for the custom Claude gateway (ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN). */
+function claudeGatewayEnv(): Record<string, string> {
+  const g = getAppSetting("claudeGateway");
+  if (!g?.enabled) return {};
+  const env: Record<string, string> = {};
+  if (g.baseUrl.trim()) env.ANTHROPIC_BASE_URL = g.baseUrl.trim();
+  if (g.authToken.trim()) env.ANTHROPIC_AUTH_TOKEN = g.authToken.trim();
+  return env;
+}
+
+/** Custom model id from the Claude gateway, used as the session default when enabled. */
+function claudeGatewayModel(): string | undefined {
+  const g = getAppSetting("claudeGateway");
+  return g?.enabled && g.model.trim() ? g.model.trim() : undefined;
+}
 
 /** SDK options for file checkpointing — enables Write/Edit/NotebookEdit revert support */
 function fileCheckpointOptions(): Record<string, unknown> {
   return {
     enableFileCheckpointing: true,
     extraArgs: { "replay-user-messages": null }, // required to receive checkpoint UUIDs
-    env: { ...process.env, ...clientAppEnv(), CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING: "1" },
+    env: { ...process.env, ...clientAppEnv(), ...claudeGatewayEnv(), CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING: "1" },
   };
 }
 
@@ -572,6 +589,9 @@ async function restartSession(
   applyPermissionModeOptions(queryOptions, opts.permissionMode);
   const restartModel = toSdkModelOverride(modelOverride ?? opts.model);
   if (restartModel) queryOptions.model = restartModel;
+  // Gateway custom model overrides the picker when enabled.
+  const gatewayRestartModel = claudeGatewayModel();
+  if (gatewayRestartModel) queryOptions.model = gatewayRestartModel;
   if (effortOverride ?? opts.effort) {
     queryOptions.effort = effortOverride ?? opts.effort;
   }
@@ -686,6 +706,11 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       const startModel = toSdkModelOverride(options.model);
       if (startModel) {
         queryOptions.model = startModel;
+      }
+      // Gateway custom model overrides the picker when enabled.
+      const gatewayStartModel = claudeGatewayModel();
+      if (gatewayStartModel) {
+        queryOptions.model = gatewayStartModel;
       }
       if (options.effort) {
         queryOptions.effort = options.effort;

@@ -2,13 +2,52 @@ import { memo, useState, useCallback, useEffect } from "react";
 import { Server, RefreshCw, Loader2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { SettingRow, SettingsSelect, SettingsHeader, SettingsSection } from "@/components/settings/shared";
-import type { AppSettings } from "@/types";
+import type { AppSettings, ClaudeGatewaySettings, CodexGatewaySettings } from "@/types";
 
 interface EngineSettingsProps {
   appSettings: AppSettings | null;
   onUpdateAppSettings: (patch: Partial<AppSettings>) => Promise<void>;
 }
+
+const GATEWAY_INPUT_CLASS =
+  "h-8 w-80 rounded-md border border-foreground/10 bg-background px-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground hover:border-foreground/20 focus:border-foreground/30 focus:ring-1 focus:ring-foreground/20";
+
+const CLAUDE_GATEWAY_DEFAULT: ClaudeGatewaySettings = { enabled: false, baseUrl: "", authToken: "", model: "" };
+const CODEX_GATEWAY_DEFAULT: CodexGatewaySettings = { enabled: false, name: "", baseUrl: "", apiKey: "", model: "" };
+
+/** Controlled text field that commits on blur or Enter (mirrors the custom-path input pattern). */
+const GatewayTextField = memo(function GatewayTextField({
+  value,
+  onSave,
+  placeholder,
+  type = "text",
+}: {
+  value: string;
+  onSave: (value: string) => void;
+  placeholder: string;
+  type?: "text" | "password";
+}) {
+  const [local, setLocal] = useState(value);
+  useEffect(() => setLocal(value), [value]);
+  return (
+    <input
+      type={type}
+      value={local}
+      onChange={(e) => setLocal(e.target.value)}
+      onBlur={(e) => onSave(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") onSave(e.currentTarget.value);
+      }}
+      spellCheck={false}
+      autoComplete="off"
+      className={GATEWAY_INPUT_CLASS}
+      placeholder={placeholder}
+    />
+  );
+});
+
 
 type CodexOrigin = "env" | "managed" | "known" | "path" | "bundled" | "custom" | "none";
 
@@ -36,6 +75,8 @@ export const EngineSettings = memo(function EngineSettings({
   const [codexOrigin, setCodexOrigin] = useState<CodexOrigin>("none");
   const [codexUpdating, setCodexUpdating] = useState(false);
   const [codexUpdateMsg, setCodexUpdateMsg] = useState<string | null>(null);
+  const [claudeGateway, setClaudeGateway] = useState<ClaudeGatewaySettings>(CLAUDE_GATEWAY_DEFAULT);
+  const [codexGateway, setCodexGateway] = useState<CodexGatewaySettings>(CODEX_GATEWAY_DEFAULT);
 
   useEffect(() => {
     if (appSettings) {
@@ -43,6 +84,8 @@ export const EngineSettings = memo(function EngineSettings({
       setClaudeCustomBinaryPath(appSettings.claudeCustomBinaryPath || "");
       setCodexBinarySource(appSettings.codexBinarySource || "auto");
       setCodexCustomBinaryPath(appSettings.codexCustomBinaryPath || "");
+      setClaudeGateway(appSettings.claudeGateway ?? CLAUDE_GATEWAY_DEFAULT);
+      setCodexGateway(appSettings.codexGateway ?? CODEX_GATEWAY_DEFAULT);
     }
   }, [appSettings]);
 
@@ -109,6 +152,28 @@ export const EngineSettings = memo(function EngineSettings({
     [onUpdateAppSettings],
   );
 
+  const handleClaudeGatewayChange = useCallback(
+    async (patch: Partial<ClaudeGatewaySettings>) => {
+      setClaudeGateway((prev) => {
+        const next = { ...prev, ...patch };
+        void onUpdateAppSettings({ claudeGateway: next });
+        return next;
+      });
+    },
+    [onUpdateAppSettings],
+  );
+
+  const handleCodexGatewayChange = useCallback(
+    async (patch: Partial<CodexGatewaySettings>) => {
+      setCodexGateway((prev) => {
+        const next = { ...prev, ...patch };
+        void onUpdateAppSettings({ codexGateway: next });
+        return next;
+      });
+    },
+    [onUpdateAppSettings],
+  );
+
   return (
     <div className="flex h-full flex-col">
       <SettingsHeader
@@ -153,6 +218,43 @@ export const EngineSettings = memo(function EngineSettings({
                   placeholder="Absolute path to claude executable"
                 />
               </SettingRow>
+            )}
+
+            <SettingRow
+              label="Custom gateway"
+              description="Route Claude sessions through a third-party Anthropic-compatible gateway (sets ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN)."
+            >
+              <Switch
+                checked={claudeGateway.enabled}
+                onCheckedChange={(checked) => handleClaudeGatewayChange({ enabled: checked })}
+              />
+            </SettingRow>
+
+            {claudeGateway.enabled && (
+              <>
+                <SettingRow label="Base URL" description="Gateway endpoint → ANTHROPIC_BASE_URL.">
+                  <GatewayTextField
+                    value={claudeGateway.baseUrl}
+                    onSave={(v) => handleClaudeGatewayChange({ baseUrl: v.trim() })}
+                    placeholder="https://gateway.example.com"
+                  />
+                </SettingRow>
+                <SettingRow label="Auth token" description="Bearer token / API key → ANTHROPIC_AUTH_TOKEN.">
+                  <GatewayTextField
+                    value={claudeGateway.authToken}
+                    onSave={(v) => handleClaudeGatewayChange({ authToken: v.trim() })}
+                    placeholder="sk-..."
+                    type="password"
+                  />
+                </SettingRow>
+                <SettingRow label="Model ID" description="Custom model id used as the session default (overrides the model picker).">
+                  <GatewayTextField
+                    value={claudeGateway.model}
+                    onSave={(v) => handleClaudeGatewayChange({ model: v.trim() })}
+                    placeholder="e.g. claude-sonnet-4-5"
+                  />
+                </SettingRow>
+              </>
             )}
           </SettingsSection>
 
@@ -216,6 +318,50 @@ export const EngineSettings = memo(function EngineSettings({
                   placeholder="Absolute path to codex executable"
                 />
               </SettingRow>
+            )}
+
+            <SettingRow
+              label="Custom gateway"
+              description="Route Codex sessions through a third-party Responses-API provider (model_providers override). The model id must be supported by the gateway."
+            >
+              <Switch
+                checked={codexGateway.enabled}
+                onCheckedChange={(checked) => handleCodexGatewayChange({ enabled: checked })}
+              />
+            </SettingRow>
+
+            {codexGateway.enabled && (
+              <>
+                <SettingRow label="Provider name" description="Human-readable display name for the provider.">
+                  <GatewayTextField
+                    value={codexGateway.name}
+                    onSave={(v) => handleCodexGatewayChange({ name: v.trim() })}
+                    placeholder="My Gateway"
+                  />
+                </SettingRow>
+                <SettingRow label="Base URL" description="Provider endpoint (Responses API).">
+                  <GatewayTextField
+                    value={codexGateway.baseUrl}
+                    onSave={(v) => handleCodexGatewayChange({ baseUrl: v.trim() })}
+                    placeholder="https://gateway.example.com/v1"
+                  />
+                </SettingRow>
+                <SettingRow label="API key" description="Injected into the Codex process at runtime; never written to config.toml.">
+                  <GatewayTextField
+                    value={codexGateway.apiKey}
+                    onSave={(v) => handleCodexGatewayChange({ apiKey: v.trim() })}
+                    placeholder="sk-..."
+                    type="password"
+                  />
+                </SettingRow>
+                <SettingRow label="Model ID" description="Custom model id used as the session default.">
+                  <GatewayTextField
+                    value={codexGateway.model}
+                    onSave={(v) => handleCodexGatewayChange({ model: v.trim() })}
+                    placeholder="e.g. gpt-5-codex"
+                  />
+                </SettingRow>
+              </>
             )}
           </SettingsSection>
         </div>

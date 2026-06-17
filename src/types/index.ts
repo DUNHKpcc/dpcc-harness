@@ -105,6 +105,8 @@ export type {
   NotificationEventSettings,
   NotificationSettings,
   AppSettings,
+  ClaudeGatewaySettings,
+  CodexGatewaySettings,
 } from "@shared/types/settings";
 
 // ── Git types (shared) ──

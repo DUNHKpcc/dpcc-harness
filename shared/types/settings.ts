@@ -29,6 +29,34 @@ export interface NotificationSettings {
   sessionComplete: NotificationEventSettings;
 }
 
+// ── Custom gateway settings ──
+
+/** Third-party gateway config for the Claude engine (ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN). */
+export interface ClaudeGatewaySettings {
+  /** When true, route Claude sessions through the custom gateway */
+  enabled: boolean;
+  /** Gateway endpoint → ANTHROPIC_BASE_URL */
+  baseUrl: string;
+  /** Bearer token / API key → ANTHROPIC_AUTH_TOKEN */
+  authToken: string;
+  /** Custom model id used as the session default when enabled (empty = keep picker) */
+  model: string;
+}
+
+/** Third-party gateway config for the Codex engine (model_providers override). */
+export interface CodexGatewaySettings {
+  /** When true, route Codex sessions through the custom provider */
+  enabled: boolean;
+  /** Human-readable provider display name */
+  name: string;
+  /** Provider endpoint → model_providers.<id>.base_url */
+  baseUrl: string;
+  /** API key injected into the app-server process under the provider's env_key */
+  apiKey: string;
+  /** Custom model id used as the session default when enabled */
+  model: string;
+}
+
 // ── Main AppSettings interface ──
 
 /** Main-process app settings (persisted to JSON file in data dir). */
@@ -65,4 +93,8 @@ export interface AppSettings {
   analyticsUserId?: string;
   /** Last date (YYYY-MM-DD) when daily_active_user was sent */
   analyticsLastDailyActiveDate?: string;
+  /** Custom third-party gateway config for the Claude engine */
+  claudeGateway: ClaudeGatewaySettings;
+  /** Custom third-party gateway config for the Codex engine */
+  codexGateway: CodexGatewaySettings;
 }

@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import {
   ShieldAlert,
   Check,
@@ -31,28 +33,29 @@ import type {
   RespondPermissionFn,
 } from "@/types";
 
-const TOOL_LABELS: Record<string, string> = {
-  Read: "Read a file",
-  Write: "Create a file",
-  Edit: "Edit a file",
-  Bash: "Run a command",
-  NotebookEdit: "Edit a notebook",
+/** Maps known tool names to their `permission.tool.*` translation keys. */
+const TOOL_LABEL_KEYS: Record<string, string> = {
+  Read: "permission.tool.read",
+  Write: "permission.tool.write",
+  Edit: "permission.tool.edit",
+  Bash: "permission.tool.bash",
+  NotebookEdit: "permission.tool.notebookEdit",
 };
 
 // ── Scoped "always allow" options ──
 
-const SCOPE_LABELS: Record<PermissionUpdateDestination, string> = {
-  session: "this session",
-  localSettings: "this project (just you)",
-  projectSettings: "this project (shared)",
-  userSettings: "all projects",
+const SCOPE_LABEL_KEYS: Record<PermissionUpdateDestination, string> = {
+  session: "permission.scope.label.session",
+  localSettings: "permission.scope.label.localSettings",
+  projectSettings: "permission.scope.label.projectSettings",
+  userSettings: "permission.scope.label.userSettings",
 };
 
-const SCOPE_DESCRIPTIONS: Record<PermissionUpdateDestination, string> = {
-  session: "Only for this session (not saved)",
-  localSettings: "Saves to .claude/settings.local.json (gitignored)",
-  projectSettings: "Saves to .claude/settings.json (shared with team)",
-  userSettings: "Saves to ~/.claude/settings.json",
+const SCOPE_DESCRIPTION_KEYS: Record<PermissionUpdateDestination, string> = {
+  session: "permission.scope.description.session",
+  localSettings: "permission.scope.description.localSettings",
+  projectSettings: "permission.scope.description.projectSettings",
+  userSettings: "permission.scope.description.userSettings",
 };
 
 /** Display order for scope destinations (matches Cursor extension). */
@@ -100,12 +103,12 @@ function hasScopeableSuggestions(suggestions?: PermissionUpdate[]): boolean {
 }
 
 /** Build all 4 scope options (labels + descriptions). */
-function buildScopeOptions(suggestions?: PermissionUpdate[]): ScopeOption[] {
+function buildScopeOptions(t: TFunction, suggestions?: PermissionUpdate[]): ScopeOption[] {
   if (!hasScopeableSuggestions(suggestions)) return [];
   return SCOPE_ORDER.map((d) => ({
     destination: d,
-    label: SCOPE_LABELS[d],
-    description: SCOPE_DESCRIPTIONS[d],
+    label: t(SCOPE_LABEL_KEYS[d]),
+    description: t(SCOPE_DESCRIPTION_KEYS[d]),
   }));
 }
 
@@ -125,18 +128,20 @@ function remapSuggestions(
 }
 
 interface ToolDetail {
-  label: string;
+  /** Translation key for the detail label (e.g. "permission.detail.file"). */
+  labelKey: string;
   value: string;
+  /** Pre-translated meta line, or null when absent. */
   meta?: string;
 }
 
-function formatToolDetail(req: PermissionRequest): ToolDetail | null {
+function formatToolDetail(t: TFunction, req: PermissionRequest): ToolDetail | null {
   const input = req.toolInput;
   if (req.toolName === "Bash" && typeof input.command === "string") {
     const description =
       typeof input.description === "string" ? input.description.trim() : "";
     return {
-      label: "Command",
+      labelKey: "permission.detail.command",
       value: input.command,
       ...(description ? { meta: description } : {}),
     };
@@ -144,25 +149,25 @@ function formatToolDetail(req: PermissionRequest): ToolDetail | null {
   if (req.toolName === "Read" && typeof input.file_path === "string") {
     const pages = typeof input.pages === "string" ? input.pages.trim() : "";
     return {
-      label: "File",
+      labelKey: "permission.detail.file",
       value: input.file_path,
-      ...(pages ? { meta: `Pages: ${pages}` } : {}),
+      ...(pages ? { meta: t("permission.detail.pages", { pages }) } : {}),
     };
   }
   if (req.toolName === "Write" && typeof input.file_path === "string") {
-    return { label: "File", value: input.file_path };
+    return { labelKey: "permission.detail.file", value: input.file_path };
   }
   if (req.toolName === "Edit" && typeof input.file_path === "string") {
-    return { label: "File", value: input.file_path };
+    return { labelKey: "permission.detail.file", value: input.file_path };
   }
   if (req.toolName === "NotebookEdit" && typeof input.file_path === "string") {
-    return { label: "Notebook", value: input.file_path };
+    return { labelKey: "permission.detail.notebook", value: input.file_path };
   }
   if (typeof input.file_path === "string") {
-    return { label: "Target", value: input.file_path };
+    return { labelKey: "permission.detail.target", value: input.file_path };
   }
   if (typeof input.command === "string") {
-    return { label: "Command", value: input.command };
+    return { labelKey: "permission.detail.command", value: input.command };
   }
   return null;
 }
@@ -194,18 +199,23 @@ interface PermissionPromptProps {
 const EXIT_PLAN_MODES = [
   {
     id: "acceptEdits",
-    label: "Accept Edits",
-    description: "Auto-approve file edits",
+    labelKey: "permission.exitPlan.acceptEdits",
+    descriptionKey: "permission.exitPlan.acceptEditsDesc",
   },
-  { id: "default", label: "Ask First", description: "Prompt before each tool" },
+  {
+    id: "default",
+    labelKey: "permission.exitPlan.askFirst",
+    descriptionKey: "permission.exitPlan.askFirstDesc",
+  },
   {
     id: "bypassPermissions",
-    label: "Allow All",
-    description: "No permission prompts",
+    labelKey: "permission.exitPlan.allowAll",
+    descriptionKey: "permission.exitPlan.allowAllDesc",
   },
 ] as const;
 
 function ExitPlanModePrompt({ request, onRespond }: PermissionPromptProps) {
+  const { t } = useTranslation("dialogs");
   const [feedback, setFeedback] = useState("");
   const hasFeedback = feedback.trim().length > 0;
 
@@ -219,7 +229,7 @@ function ExitPlanModePrompt({ request, onRespond }: PermissionPromptProps) {
       <div className="pointer-events-auto rounded-2xl border border-border/60 bg-background/55 shadow-lg backdrop-blur-lg">
         <div className="flex flex-col gap-3 px-4 py-3.5">
           <p className="text-[13px] text-foreground">
-            Ready to implement. How should permissions work?
+            {t("permission.exitPlan.prompt")}
           </p>
 
           <div className="flex flex-wrap gap-1.5">
@@ -233,10 +243,10 @@ function ExitPlanModePrompt({ request, onRespond }: PermissionPromptProps) {
                 <Play className="h-3 w-3 shrink-0" />
                 <div className="flex flex-col items-start">
                   <span className="text-xs font-medium leading-snug">
-                    {mode.label}
+                    {t(mode.labelKey)}
                   </span>
                   <span className="text-[11px] leading-snug text-muted-foreground/60">
-                    {mode.description}
+                    {t(mode.descriptionKey)}
                   </span>
                 </div>
               </button>
@@ -247,7 +257,7 @@ function ExitPlanModePrompt({ request, onRespond }: PermissionPromptProps) {
         <div className="flex flex-col gap-2 border-t border-border/40 px-3 py-2.5">
           <input
             type="text"
-            placeholder="Give feedback to refine the plan..."
+            placeholder={t("permission.exitPlan.feedbackPlaceholder")}
             value={feedback}
             onChange={(e) => setFeedback(e.target.value)}
             onKeyDown={(e) => {
@@ -264,7 +274,7 @@ function ExitPlanModePrompt({ request, onRespond }: PermissionPromptProps) {
               className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
             >
               <X className="h-3.5 w-3.5" />
-              Stay in Plan
+              {t("permission.exitPlan.stayInPlan")}
             </Button>
             {hasFeedback && (
               <Button
@@ -273,7 +283,7 @@ function ExitPlanModePrompt({ request, onRespond }: PermissionPromptProps) {
                 className="h-8 gap-1.5 text-xs"
               >
                 <Send className="h-3.5 w-3.5" />
-                Send Feedback
+                {t("permission.exitPlan.sendFeedback")}
               </Button>
             )}
           </div>
@@ -288,6 +298,7 @@ function ExitPlanModePrompt({ request, onRespond }: PermissionPromptProps) {
 // Collapsible to a minimal bar so the user can read chat content behind it.
 
 function AskUserQuestionPrompt({ request, onRespond }: PermissionPromptProps) {
+  const { t } = useTranslation("dialogs");
   const questions = (request.toolInput.questions ?? []) as Question[];
   const [currentIndex, setCurrentIndex] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
@@ -380,7 +391,7 @@ function AskUserQuestionPrompt({ request, onRespond }: PermissionPromptProps) {
           <MessageCircleQuestion className="h-4 w-4 shrink-0 text-foreground/50" />
           <span className="flex-1 text-[12px] text-foreground/70">
             {isMulti
-              ? `${answeredCount}/${questions.length} questions answered`
+              ? t("permission.question.answeredCount", { answered: answeredCount, total: questions.length })
               : q.question}
           </span>
           <button
@@ -389,7 +400,7 @@ function AskUserQuestionPrompt({ request, onRespond }: PermissionPromptProps) {
             className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
           >
             <ChevronsUpDown className="h-3 w-3" />
-            Expand
+            {t("permission.question.expand")}
           </button>
         </div>
       </div>
@@ -459,7 +470,7 @@ function AskUserQuestionPrompt({ request, onRespond }: PermissionPromptProps) {
           {/* Free-text input */}
           <input
             type={q.isSecret ? "password" : "text"}
-            placeholder={hasOptions ? "Or type your own…" : "Type your answer…"}
+            placeholder={hasOptions ? t("permission.question.orTypeYourOwn") : t("permission.question.typeYourAnswer")}
             value={freeText[questionKey] ?? ""}
             onChange={(e) => {
               const value = e.target.value;
@@ -490,7 +501,7 @@ function AskUserQuestionPrompt({ request, onRespond }: PermissionPromptProps) {
             className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
           >
             <X className="h-3.5 w-3.5" />
-            Skip
+            {t("permission.question.skip")}
           </Button>
 
           {/* Back button for multi-question sets */}
@@ -502,7 +513,7 @@ function AskUserQuestionPrompt({ request, onRespond }: PermissionPromptProps) {
               className="h-7 gap-1 text-xs text-muted-foreground hover:text-foreground"
             >
               <ChevronLeft className="h-3.5 w-3.5" />
-              Back
+              {t("action.back", { ns: "common" })}
             </Button>
           )}
 
@@ -525,7 +536,7 @@ function AskUserQuestionPrompt({ request, onRespond }: PermissionPromptProps) {
               onClick={goNext}
               className="h-7 gap-1 text-xs"
             >
-              Next
+              {t("action.next", { ns: "common" })}
               <ChevronRight className="h-3.5 w-3.5" />
             </Button>
           ) : (
@@ -536,7 +547,7 @@ function AskUserQuestionPrompt({ request, onRespond }: PermissionPromptProps) {
               className="h-7 gap-1.5 text-xs"
             >
               <Send className="h-3.5 w-3.5" />
-              Answer
+              {t("permission.question.answer")}
             </Button>
           )}
         </div>
@@ -552,6 +563,7 @@ export function PermissionPrompt({
   onRespond,
   showAcceptForSession,
 }: PermissionPromptProps) {
+  const { t } = useTranslation("dialogs");
   const [submittingAction, setSubmittingAction] = useState<
     "allow" | "deny" | "allowForSession" | null
   >(null);
@@ -570,11 +582,13 @@ export function PermissionPrompt({
     return <AskUserQuestionPrompt request={request} onRespond={onRespond} />;
   }
 
-  const label =
-    TOOL_LABELS[request.toolName] ?? `Use tool: ${request.toolName}`;
-  const detail = formatToolDetail(request);
+  const labelKey = TOOL_LABEL_KEYS[request.toolName];
+  const label = labelKey
+    ? t(labelKey)
+    : t("permission.tool.useTool", { name: request.toolName });
+  const detail = formatToolDetail(t, request);
   const isSubmitting = submittingAction !== null;
-  const scopeOptions = buildScopeOptions(request.suggestions);
+  const scopeOptions = buildScopeOptions(t, request.suggestions);
 
   const submit = async (behavior: "allow" | "deny" | "allowForSession") => {
     if (isSubmitting) return;
@@ -620,7 +634,7 @@ export function PermissionPrompt({
           {detail && (
             <div className="space-y-1">
               <p className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground/70">
-                {detail.label}
+                {t(detail.labelKey)}
               </p>
               <div className="max-h-28 overflow-auto rounded-md bg-foreground/[0.04] px-3 py-2 font-mono text-[11px] text-foreground/75 whitespace-pre-wrap wrap-break-word">
                 {detail.value}
@@ -648,7 +662,7 @@ export function PermissionPrompt({
             className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
           >
             <X className="h-3.5 w-3.5" />
-            {submittingAction === "deny" ? "Denying..." : "Deny"}
+            {submittingAction === "deny" ? t("permission.denying") : t("permission.deny")}
           </Button>
           {showAcceptForSession && (
             <Button
@@ -660,8 +674,8 @@ export function PermissionPrompt({
             >
               <Check className="h-3.5 w-3.5" />
               {submittingAction === "allowForSession"
-                ? "Allowing..."
-                : "Allow for Session"}
+                ? t("permission.allowing")
+                : t("permission.allowForSession")}
             </Button>
           )}
 
@@ -674,7 +688,7 @@ export function PermissionPrompt({
               className={`h-8 gap-1.5 text-xs ${scopeOptions.length > 0 ? "rounded-e-none" : ""}`}
             >
               <Check className="h-3.5 w-3.5" />
-              {submittingAction === "allow" ? "Allowing..." : "Allow"}
+              {submittingAction === "allow" ? t("permission.allowing") : t("permission.allow")}
             </Button>
             {scopeOptions.length > 0 && (
               <DropdownMenu>
@@ -695,7 +709,7 @@ export function PermissionPrompt({
                       className="flex flex-col items-start gap-0.5 py-2"
                     >
                       <span className="text-xs font-medium">
-                        Always allow for {opt.label}
+                        {t("permission.scope.alwaysAllowFor", { scope: opt.label })}
                       </span>
                       <span className="text-[10px] leading-snug text-muted-foreground">
                         {opt.description}

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import type { LucideIcon } from "lucide-react";
 
 interface PlaceholderSectionProps {
@@ -9,6 +10,7 @@ interface PlaceholderSectionProps {
 }
 
 export function PlaceholderSection({ title, description, icon: Icon, comingSoon }: PlaceholderSectionProps) {
+  const { t } = useTranslation("settings");
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-4">
       <div className="flex flex-col items-center gap-2">
@@ -17,7 +19,7 @@ export function PlaceholderSection({ title, description, icon: Icon, comingSoon 
         </div>
         {comingSoon && (
           <span className="mt-1 inline-flex rounded-full bg-foreground/[0.06] px-2.5 py-0.5 text-[11px] font-medium tracking-wide text-muted-foreground">
-            Coming Soon
+            {t("placeholder.comingSoon")}
           </span>
         )}
         <h2 className="text-xl font-semibold text-foreground">{title}</h2>

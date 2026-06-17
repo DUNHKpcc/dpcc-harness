@@ -1,0 +1,126 @@
+{
+  "picker": {
+    "terminal": "终端",
+    "browser": "浏览器",
+    "git": "源代码管理",
+    "files": "打开的文件",
+    "projectFiles": "项目文件",
+    "mcp": "MCP 服务器",
+    "tasks": "任务",
+    "agents": "后台代理",
+    "moveToBottom": "移到底部",
+    "moveToSide": "移到侧边",
+    "moveToTopRow": "移到顶行",
+    "bottomPanel": "底部面板",
+    "openInEditor": "在编辑器中打开",
+    "rightClickForOptions": "右键查看选项",
+    "completed": "{{completed}}/{{total}} 已完成",
+    "togglePanels": "切换面板"
+  },
+  "terminal": {
+    "title": "终端",
+    "newTerminal": "新建终端",
+    "restoring": "正在恢复终端…"
+  },
+  "files": {
+    "title": "打开的文件",
+    "indexing": "正在索引…",
+    "empty": "访问过的文件将显示在这里"
+  },
+  "projectFiles": {
+    "title": "项目文件",
+    "noProject": "未选择项目",
+    "refresh": "刷新文件",
+    "searchPlaceholder": "搜索文件…",
+    "loading": "加载中…",
+    "noMatches": "未找到与 \"{{query}}\" 匹配的内容",
+    "noFiles": "未找到文件",
+    "folderNamePlaceholder": "文件夹名称",
+    "filenamePlaceholder": "文件名",
+    "menu": {
+      "openInEditor": "在编辑器中打开",
+      "preview": "预览",
+      "newFile": "新建文件",
+      "newFolder": "新建文件夹",
+      "copyName": "复制名称",
+      "copyPath": "复制路径",
+      "copyAbsolutePath": "复制绝对路径",
+      "revealInFinder": "在访达中显示",
+      "showInExplorer": "在资源管理器中显示",
+      "rename": "重命名",
+      "moveToTrash": "移到废纸篓",
+      "moveToRecycleBin": "移到回收站"
+    }
+  },
+  "todos": {
+    "title": "任务"
+  },
+  "agents": {
+    "title": "代理",
+    "stopping": "正在停止… ",
+    "stopAgent": "停止代理",
+    "viewTranscript": "查看完整记录",
+    "more": "展开",
+    "less": "收起"
+  },
+  "mcp": {
+    "title": "MCP 服务器",
+    "noProject": "打开一个项目以管理 MCP 服务器",
+    "refreshStatus": "刷新状态",
+    "preliminaryNote": "初步状态 — 会话启动后确认实际状态",
+    "loading": "加载中…",
+    "empty": "暂无 MCP 服务器",
+    "emptyHint": "添加服务器以扩展代理能力",
+    "status": {
+      "connected": "已连接",
+      "connecting": "连接中…",
+      "needsAuth": "需要认证",
+      "failed": "连接失败",
+      "disabled": "已禁用"
+    },
+    "toolCount_other": "{{count}} 个工具",
+    "envVarCount_other": "{{count}} 个环境变量",
+    "reconnect": "重新连接",
+    "reconnecting": "正在重新连接…",
+    "auth": {
+      "authenticate": "认证",
+      "authenticating": "正在认证…",
+      "retryAuth": "重试认证",
+      "authenticated": "已认证",
+      "reconnectToApply": "重新连接以应用",
+      "orStartNewSession": "或开启新会话以使用该令牌",
+      "tokenExpired": "令牌已过期",
+      "reAuth": "重新认证",
+      "restartToApply": "重启以应用"
+    },
+    "dialog": {
+      "title": "添加 MCP 服务器",
+      "name": "名称",
+      "namePlaceholder": "my-server",
+      "transport": "传输方式",
+      "command": "命令",
+      "arguments": "参数",
+      "argumentsHint": "（以空格分隔）",
+      "envVars": "环境变量",
+      "envVarsHint": "（KEY=value，每行一个）",
+      "url": "URL",
+      "headers": "请求头",
+      "headersHint": "（Name=Value，每行一个）",
+      "addServer": "添加服务器"
+    }
+  },
+  "browser": {
+    "title": "浏览器",
+    "back": "后退",
+    "forward": "前进",
+    "stop": "停止",
+    "reload": "重新加载",
+    "cancelInspect": "取消检查",
+    "grabElement": "抓取元素",
+    "closeInspector": "关闭检查器",
+    "openInspector": "打开检查器",
+    "simulatingMode": "正在模拟 {{mode}} 模式",
+    "searchOrEnterUrl": "搜索或输入 URL",
+    "recent": "最近"
+  }
+}

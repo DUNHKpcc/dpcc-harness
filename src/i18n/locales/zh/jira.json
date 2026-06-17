@@ -1,0 +1,59 @@
+{
+  "panel": {
+    "noProject": "未选择项目",
+    "boardTitle": "{{project}} Jira 看板",
+    "boardTitleDefault": "Jira 看板",
+    "backToChat": "返回对话",
+    "selectBoard": "选择看板",
+    "selectSprint": "选择 Sprint",
+    "allIssues": "全部事项",
+    "sprintActive": "进行中",
+    "sort": "排序：{{label}}",
+    "sortLabels": {
+      "default": "排名",
+      "status": "状态",
+      "priority": "优先级",
+      "type": "类型",
+      "assignee": "负责人",
+      "key": "编号"
+    },
+    "dragHint": "在列之间拖动卡片即可在 Jira 中转换其状态。",
+    "removeConfigTitle": "移除 Jira 配置",
+    "removeConfigDescription": "这将断开 Jira 看板与该项目的连接。你可以稍后重新连接。",
+    "removeConfigConfirm": "移除"
+  },
+  "board": {
+    "noIssues": "此看板中未找到事项"
+  },
+  "card": {
+    "unassigned": "未分配",
+    "createTask": "创建任务"
+  },
+  "preview": {
+    "openInJira": "在 Jira 中打开",
+    "assignedTo": "分配给：",
+    "description": "描述",
+    "noDescription": "未提供描述",
+    "comments": "评论",
+    "loadingComments": "正在加载评论..."
+  },
+  "setup": {
+    "boardTitle": "{{project}} Jira 看板",
+    "setupTitle": "设置 Jira 看板",
+    "connectPrompt": "将此项目连接到 Jira 看板。",
+    "back": "返回",
+    "instanceUrlLabel": "Jira 实例 URL",
+    "instanceUrlHint": "你的 Atlassian 云实例 URL",
+    "projectFilterLabel": "Jira 项目筛选",
+    "allProjects": "全部项目",
+    "projectFilterHint": "可选。在选择看板前，按项目筛选可见的 Jira 看板。",
+    "boardLabel": "Jira 看板",
+    "selectBoard": "选择看板",
+    "boardHint": "此看板将绑定到当前的 PccAgent 项目。",
+    "errorEnterUrl": "请输入你的 Jira 实例 URL",
+    "errorSelectBoard": "请选择一个 Jira 看板",
+    "loading": "正在加载...",
+    "connectBoard": "连接看板",
+    "loadBoards": "加载 Jira 看板"
+  }
+}

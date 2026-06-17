@@ -1,0 +1,73 @@
+{
+  "openInEditor": {
+    "label": "在编辑器中打开",
+    "labelAtLine": "在编辑器中打开（第 {{line}} 行）"
+  },
+  "space": {
+    "settings": "设置",
+    "newSpace": "新建 Space",
+    "edit": "编辑",
+    "delete": "删除",
+    "deleteTitle": "删除 Space",
+    "deleteConfirmPrefix": "确定要删除 ",
+    "deleteConfirmSuffix": " 吗？此 Space 中的项目将被移至 General。",
+    "deleteConfirm": "删除"
+  },
+  "customizer": {
+    "namePlaceholder": "Space 名称",
+    "icon": "图标",
+    "emoji": "表情",
+    "useEmoji": "使用表情",
+    "icons": "图标",
+    "searchIcons": "搜索图标...",
+    "color": "颜色",
+    "hue": "色相",
+    "intensity": "强度",
+    "gradient": "渐变",
+    "gradientHue": "渐变色相",
+    "opacity": "不透明度",
+    "deleteSpace": "删除 Space"
+  },
+  "diff": {
+    "preparing": "正在准备差异",
+    "loadingMonaco": "正在加载 Monaco 差异视图",
+    "copyNewContent": "复制新内容"
+  },
+  "patch": {
+    "collapse": "收起",
+    "showAll": "显示全部 {{count}} 行"
+  },
+  "filePreview": {
+    "openInEditor": "在编辑器中打开",
+    "line": "行",
+    "lines": "行",
+    "readError": "读取文件失败"
+  },
+  "imageLightbox": {
+    "title": "图片预览",
+    "description": "查看所附图片的完整尺寸。"
+  },
+  "annotation": {
+    "select": "选择",
+    "freehand": "自由绘制",
+    "rectangle": "矩形",
+    "circle": "圆形",
+    "arrow": "箭头",
+    "text": "文字",
+    "highlight": "高亮",
+    "eraser": "橡皮擦",
+    "color": "颜色",
+    "custom": "自定义",
+    "strokeWidthValue": "线条宽度：{{width}}px",
+    "strokeWidth": "线条宽度",
+    "undo": "撤销",
+    "redo": "重做"
+  },
+  "split": {
+    "dropToOpen": "拖放以打开"
+  },
+  "dock": {
+    "moveToBottom": "移到底部",
+    "moveToTopRow": "移到顶部行"
+  }
+}

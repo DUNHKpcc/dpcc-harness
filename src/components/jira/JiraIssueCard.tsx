@@ -4,6 +4,7 @@
  */
 
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Plus, ExternalLink } from "lucide-react";
@@ -31,6 +32,7 @@ export const JiraIssueCard = React.memo(function JiraIssueCard({
   onCreateTask,
   onPreview,
 }: JiraIssueCardProps) {
+  const { t } = useTranslation("jira");
   const canCreateTask = issue.statusCategory !== "done";
   const priorityTone = getPriorityTone(issue.priority?.name);
 
@@ -81,7 +83,7 @@ export const JiraIssueCard = React.memo(function JiraIssueCard({
 
       {/* Meta row */}
       <div className="mb-3 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
-        <span className="truncate">{issue.assignee?.displayName ?? "Unassigned"}</span>
+        <span className="truncate">{issue.assignee?.displayName ?? t("card.unassigned")}</span>
         <span className="truncate">{issue.status}</span>
       </div>
 
@@ -90,7 +92,7 @@ export const JiraIssueCard = React.memo(function JiraIssueCard({
         {canCreateTask && (
           <Button size="sm" onClick={() => onCreateTask(projectId, issue)} className="h-7 flex-1 text-xs">
             <Plus className="w-3 h-3 me-1" />
-            Create Task
+            {t("card.createTask")}
           </Button>
         )}
         <Button

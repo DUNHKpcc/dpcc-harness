@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -65,6 +66,7 @@ export const JiraBoardSetup = React.memo(function JiraBoardSetup({
   initialInstanceUrl,
   initialProjectKey,
 }: JiraBoardSetupProps) {
+  const { t } = useTranslation("jira");
   const [instanceUrl, setInstanceUrl] = useState(initialInstanceUrl);
   const [selectedProjectKey, setSelectedProjectKey] = useState(initialProjectKey);
   const [showAuth, setShowAuth] = useState(false);
@@ -88,7 +90,7 @@ export const JiraBoardSetup = React.memo(function JiraBoardSetup({
       e.preventDefault();
 
       if (!instanceUrl) {
-        setError("Please enter your Jira instance URL");
+        setError(t("setup.errorEnterUrl"));
         return;
       }
 
@@ -108,7 +110,7 @@ export const JiraBoardSetup = React.memo(function JiraBoardSetup({
       // Complete setup
       const selectedBoard = boards.find((board) => board.id === selectedBoardId);
       if (!selectedBoard) {
-        setError("Please select a Jira board");
+        setError(t("setup.errorSelectBoard"));
         return;
       }
 
@@ -127,7 +129,7 @@ export const JiraBoardSetup = React.memo(function JiraBoardSetup({
         setError(String(err));
       }
     },
-    [instanceUrl, selectedProjectKey, setupOptionsLoaded, loadSetupOptions, boards, selectedBoardId, saveConfig, setError],
+    [instanceUrl, selectedProjectKey, setupOptionsLoaded, loadSetupOptions, boards, selectedBoardId, saveConfig, setError, t],
   );
 
   const handleAuthSuccess = useCallback(async () => {
@@ -153,17 +155,17 @@ export const JiraBoardSetup = React.memo(function JiraBoardSetup({
             <div className="min-w-0">
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <KanbanSquare className="h-4 w-4 shrink-0" />
-                <h3 className="truncate">{projectName ? `${projectName} Jira Board` : "Setup Jira Board"}</h3>
+                <h3 className="truncate">{projectName ? t("setup.boardTitle", { project: projectName }) : t("setup.setupTitle")}</h3>
               </div>
               {projectName && (
-                <p className="mt-1 text-xs text-muted-foreground">Connect this project to a Jira board.</p>
+                <p className="mt-1 text-xs text-muted-foreground">{t("setup.connectPrompt")}</p>
               )}
             </div>
           </div>
           {onClose && (
             <Button variant="ghost" size="sm" onClick={onClose} className="no-drag h-8 gap-1.5 px-2">
               <ArrowLeft className="h-4 w-4" />
-              Back
+              {t("setup.back")}
             </Button>
           )}
         </div>
@@ -175,7 +177,7 @@ export const JiraBoardSetup = React.memo(function JiraBoardSetup({
           {/* Instance URL */}
           <div className="space-y-2">
             <label htmlFor="instanceUrl" className="text-sm font-medium">
-              Jira Instance URL
+              {t("setup.instanceUrlLabel")}
             </label>
             <Input
               id="instanceUrl"
@@ -184,26 +186,26 @@ export const JiraBoardSetup = React.memo(function JiraBoardSetup({
               onChange={(e) => setInstanceUrl(e.target.value)}
               required
             />
-            <p className="text-xs text-muted-foreground">Your Atlassian cloud instance URL</p>
+            <p className="text-xs text-muted-foreground">{t("setup.instanceUrlHint")}</p>
           </div>
 
           {/* Project filter */}
           {setupOptionsLoaded && visibleProjects.length > 0 && (
             <div className="space-y-2">
-              <label className="text-sm font-medium">Jira Project Filter</label>
+              <label className="text-sm font-medium">{t("setup.projectFilterLabel")}</label>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" className="w-full justify-between">
                     <span className="truncate">
                       {selectedProjectKey
                         ? (visibleProjects.find((p) => p.key === selectedProjectKey)?.name ?? selectedProjectKey)
-                        : "All projects"}
+                        : t("setup.allProjects")}
                     </span>
                     <ChevronDown className="h-4 w-4 shrink-0" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)]">
-                  <DropdownMenuItem onClick={() => handleProjectKeyChange("")}>All projects</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleProjectKeyChange("")}>{t("setup.allProjects")}</DropdownMenuItem>
                   {visibleProjects.map((project) => (
                     <DropdownMenuItem key={project.id} onClick={() => handleProjectKeyChange(project.key)}>
                       <span className="truncate">{project.name}</span>
@@ -213,7 +215,7 @@ export const JiraBoardSetup = React.memo(function JiraBoardSetup({
                 </DropdownMenuContent>
               </DropdownMenu>
               <p className="text-xs text-muted-foreground">
-                Optional. Filter visible Jira boards by project before picking one.
+                {t("setup.projectFilterHint")}
               </p>
             </div>
           )}
@@ -221,12 +223,12 @@ export const JiraBoardSetup = React.memo(function JiraBoardSetup({
           {/* Board selector */}
           {setupOptionsLoaded && (
             <div className="space-y-2">
-              <label className="text-sm font-medium">Jira Board</label>
+              <label className="text-sm font-medium">{t("setup.boardLabel")}</label>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" className="w-full justify-between" disabled={boards.length === 0}>
                     <span className="truncate">
-                      {boards.find((board) => board.id === selectedBoardId)?.name || "Select a board"}
+                      {boards.find((board) => board.id === selectedBoardId)?.name || t("setup.selectBoard")}
                     </span>
                     <ChevronDown className="h-4 w-4 shrink-0" />
                   </Button>
@@ -240,7 +242,7 @@ export const JiraBoardSetup = React.memo(function JiraBoardSetup({
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
-              <p className="text-xs text-muted-foreground">This board will be bound to the current PccAgent project.</p>
+              <p className="text-xs text-muted-foreground">{t("setup.boardHint")}</p>
             </div>
           )}
 
@@ -254,12 +256,12 @@ export const JiraBoardSetup = React.memo(function JiraBoardSetup({
             {loadingBoards ? (
               <>
                 <Loader2 className="w-4 h-4 me-2 animate-spin" />
-                Loading...
+                {t("setup.loading")}
               </>
             ) : setupOptionsLoaded ? (
-              "Connect Board"
+              t("setup.connectBoard")
             ) : (
-              "Load Jira Boards"
+              t("setup.loadBoards")
             )}
           </Button>
         </form>

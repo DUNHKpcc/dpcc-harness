@@ -1,4 +1,5 @@
 import { memo, useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Plus, Settings, ChevronLeft, ChevronRight, Trash2, Pencil } from "lucide-react";
 import {
   Tooltip,
@@ -66,6 +67,7 @@ export const SpaceBar = memo(function SpaceBar({
   onOpenSettings,
   draftSpace,
 }: SpaceBarProps) {
+  const { t } = useTranslation("workspace");
   const isCreatingSpace = draftSpace != null;
   const sorted = [...spaces].sort((a, b) => a.order - b.order);
   const [contextSpace, setContextSpace] = useState<Space | null>(null);
@@ -175,7 +177,7 @@ export const SpaceBar = memo(function SpaceBar({
           </button>
         </TooltipTrigger>
         <TooltipContent side="top" className="text-xs">
-          Settings
+          {t("space.settings")}
         </TooltipContent>
       </Tooltip>
 
@@ -270,7 +272,7 @@ export const SpaceBar = memo(function SpaceBar({
           </button>
         </TooltipTrigger>
         <TooltipContent side="top" className="text-xs">
-          New space
+          {t("space.newSpace")}
         </TooltipContent>
       </Tooltip>
 
@@ -327,7 +329,7 @@ export const SpaceBar = memo(function SpaceBar({
         >
           <DropdownMenuItem onClick={() => { if (contextSpace) openEditPopover(contextSpace); closeContext(); }}>
             <Pencil className="me-2 h-3.5 w-3.5" />
-            Edit
+            {t("space.edit")}
           </DropdownMenuItem>
           {contextSpace?.id !== "default" && (
             <DropdownMenuItem
@@ -335,7 +337,7 @@ export const SpaceBar = memo(function SpaceBar({
               onClick={() => { if (contextSpace) setDeleteSpace(contextSpace); closeContext(); }}
             >
               <Trash2 className="me-2 h-3.5 w-3.5" />
-              Delete
+              {t("space.delete")}
             </DropdownMenuItem>
           )}
         </DropdownMenuContent>
@@ -346,15 +348,15 @@ export const SpaceBar = memo(function SpaceBar({
         open={deleteSpace !== null}
         onOpenChange={(open) => !open && setDeleteSpace(null)}
         onConfirm={() => { if (deleteSpace) onDeleteSpace(deleteSpace.id); }}
-        title="Delete Space"
+        title={t("space.deleteTitle")}
         description={
           <>
-            Are you sure you want to delete{" "}
-            <span className="font-medium text-foreground">{deleteSpace?.name}</span>?
-            Projects in this space will be moved to General.
+            {t("space.deleteConfirmPrefix")}
+            <span className="font-medium text-foreground">{deleteSpace?.name}</span>
+            {t("space.deleteConfirmSuffix")}
           </>
         }
-        confirmLabel="Delete"
+        confirmLabel={t("space.deleteConfirm")}
       />
     </div>
   );

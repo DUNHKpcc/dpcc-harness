@@ -1,4 +1,6 @@
 import { memo, useCallback, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import {
   FolderTree,
   ChevronRight,
@@ -66,9 +68,6 @@ function getFileIconColor(extension?: string): string {
   return EXTENSION_ICON_COLORS[extension] ?? "text-muted-foreground/70";
 }
 
-const REVEAL_LABEL = isMac ? "Reveal in Finder" : "Show in Explorer";
-const TRASH_LABEL = isMac ? "Move to Trash" : "Move to Recycle Bin";
-
 /** Get the parent directory of a path (e.g. "src/lib/foo.ts" → "src/lib"). */
 function dirname(p: string): string {
   const idx = p.lastIndexOf("/");
@@ -92,6 +91,7 @@ export const ProjectFilesPanel = memo(function ProjectFilesPanel({
   onPreviewFile,
   headerControls,
 }: ProjectFilesPanelProps) {
+  const { t } = useTranslation("tools");
   const { tree, loading, error, refresh } = useProjectFiles(cwd, enabled);
 
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(() => new Set());
@@ -192,12 +192,12 @@ export const ProjectFilesPanel = memo(function ProjectFilesPanel({
   if (!cwd) {
     return (
       <div className="flex h-full flex-col">
-        <PanelHeader icon={FolderTree} label="Project Files" iconClass="text-teal-600/70 dark:text-teal-200/50">
+        <PanelHeader icon={FolderTree} label={t("projectFiles.title")} iconClass="text-teal-600/70 dark:text-teal-200/50">
           {headerControls}
         </PanelHeader>
         <div className="flex flex-1 flex-col items-center justify-center gap-1">
           <FolderTree className="h-3.5 w-3.5 text-foreground/15" />
-          <p className="text-[10px] text-foreground/30">No project selected</p>
+          <p className="text-[10px] text-foreground/30">{t("projectFiles.noProject")}</p>
         </div>
       </div>
     );
@@ -205,7 +205,7 @@ export const ProjectFilesPanel = memo(function ProjectFilesPanel({
 
   return (
     <div className="flex h-full flex-col">
-      <PanelHeader icon={FolderTree} label="Project Files" iconClass="text-teal-600/70 dark:text-teal-200/50">
+      <PanelHeader icon={FolderTree} label={t("projectFiles.title")} iconClass="text-teal-600/70 dark:text-teal-200/50">
         {totalFiles > 0 && (
           <span className="text-[10px] tabular-nums text-foreground/35">{totalFiles}</span>
         )}
@@ -215,7 +215,7 @@ export const ProjectFilesPanel = memo(function ProjectFilesPanel({
           className="inline-flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-md
             text-foreground/35 transition-colors
             hover:text-foreground/60 hover:bg-foreground/[0.06]"
-          title="Refresh files"
+          title={t("projectFiles.refresh")}
         >
           <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
         </button>
@@ -229,7 +229,7 @@ export const ProjectFilesPanel = memo(function ProjectFilesPanel({
           type="text"
           value={searchQuery}
           onChange={(e) => handleSearchChange(e.target.value)}
-          placeholder="Search files…"
+          placeholder={t("projectFiles.searchPlaceholder")}
           className="h-5 w-full bg-transparent text-[11px] text-foreground/75 outline-none placeholder:text-foreground/25"
         />
       </div>
@@ -242,7 +242,7 @@ export const ProjectFilesPanel = memo(function ProjectFilesPanel({
         {loading && !tree && (
           <div className="flex flex-col items-center justify-center gap-1 py-6">
             <RefreshCw className="h-3 w-3 animate-spin text-foreground/25" />
-            <p className="text-[10px] text-foreground/30">Loading…</p>
+            <p className="text-[10px] text-foreground/30">{t("projectFiles.loading")}</p>
           </div>
         )}
 
@@ -255,7 +255,7 @@ export const ProjectFilesPanel = memo(function ProjectFilesPanel({
         {flatItems.length === 0 && !loading && !error && tree && (
           <div className="flex items-center justify-center py-6">
             <p className="text-[10px] text-foreground/30">
-              {debouncedQuery ? `No matches for "${debouncedQuery}"` : "No files found"}
+              {debouncedQuery ? t("projectFiles.noMatches", { query: debouncedQuery }) : t("projectFiles.noFiles")}
             </p>
           </div>
         )}
@@ -268,6 +268,7 @@ export const ProjectFilesPanel = memo(function ProjectFilesPanel({
               depth={item.depth}
               isExpanded={item.isExpanded}
               cwd={cwd}
+              t={t}
               onToggleDir={toggleDir}
               onFileClick={handleFileClick}
               onRefresh={refresh}
@@ -286,6 +287,7 @@ export const ProjectFilesPanel = memo(function ProjectFilesPanel({
             <InlineCreateInput
               depth={0}
               type={creating.type}
+              t={t}
               onCommit={handleCommitCreate}
               onCancel={handleCancelCreate}
             />
@@ -301,11 +303,13 @@ export const ProjectFilesPanel = memo(function ProjectFilesPanel({
 function InlineCreateInput({
   depth,
   type,
+  t,
   onCommit,
   onCancel,
 }: {
   depth: number;
   type: "file" | "folder";
+  t: TFunction<"tools">;
   onCommit: (name: string) => void;
   onCancel: () => void;
 }) {
@@ -353,7 +357,7 @@ function InlineCreateInput({
         onChange={(e) => setValue(e.target.value)}
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
-        placeholder={type === "folder" ? "folder name" : "filename"}
+        placeholder={type === "folder" ? t("projectFiles.folderNamePlaceholder") : t("projectFiles.filenamePlaceholder")}
         className="min-w-0 flex-1 rounded bg-foreground/[0.06] px-1.5 py-0.5 text-xs text-foreground outline-none ring-1 ring-foreground/10 focus:ring-foreground/20"
       />
     </div>
@@ -367,6 +371,7 @@ interface FileTreeRowProps {
   depth: number;
   isExpanded: boolean;
   cwd: string;
+  t: TFunction<"tools">;
   onToggleDir: (path: string) => void;
   onFileClick: (node: FileTreeNode, event: React.MouseEvent<HTMLDivElement>) => void;
   onRefresh: () => void;
@@ -381,6 +386,7 @@ const FileTreeRow = memo(function FileTreeRow({
   depth,
   isExpanded,
   cwd,
+  t,
   onToggleDir,
   onFileClick,
   onRefresh,
@@ -389,6 +395,8 @@ const FileTreeRow = memo(function FileTreeRow({
   onCommitCreate,
   onCancelCreate,
 }: FileTreeRowProps) {
+  const revealLabel = isMac ? t("projectFiles.menu.revealInFinder") : t("projectFiles.menu.showInExplorer");
+  const trashLabel = isMac ? t("projectFiles.menu.moveToTrash") : t("projectFiles.menu.moveToRecycleBin");
   const isDir = node.type === "directory";
   const absolutePath = `${cwd}/${node.path}`;
   const [menuOpen, setMenuOpen] = useState(false);
@@ -599,51 +607,51 @@ const FileTreeRow = memo(function FileTreeRow({
               <>
                 <DropdownMenuItem onClick={handleOpenInEditor}>
                   <ExternalLink className="me-2 h-3.5 w-3.5" />
-                  Open in Editor
+                  {t("projectFiles.menu.openInEditor")}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={handleClick}>
                   <Eye className="me-2 h-3.5 w-3.5" />
-                  Preview
+                  {t("projectFiles.menu.preview")}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
               </>
             )}
             <DropdownMenuItem onClick={handleNewFile}>
               <FilePlus className="me-2 h-3.5 w-3.5" />
-              New File
+              {t("projectFiles.menu.newFile")}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={handleNewFolder}>
               <FolderPlus className="me-2 h-3.5 w-3.5" />
-              New Folder
+              {t("projectFiles.menu.newFolder")}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleCopyName}>
               <Type className="me-2 h-3.5 w-3.5" />
-              Copy Name
+              {t("projectFiles.menu.copyName")}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={handleCopyPath}>
               <Copy className="me-2 h-3.5 w-3.5" />
-              Copy Path
+              {t("projectFiles.menu.copyPath")}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={handleCopyAbsolutePath}>
               <ClipboardCopy className="me-2 h-3.5 w-3.5" />
-              Copy Absolute Path
+              {t("projectFiles.menu.copyAbsolutePath")}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleRevealInFinder}>
               <FolderSearch className="me-2 h-3.5 w-3.5" />
-              {REVEAL_LABEL}
+              {revealLabel}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={handleStartRename}>
               <Pencil className="me-2 h-3.5 w-3.5" />
-              Rename
+              {t("projectFiles.menu.rename")}
             </DropdownMenuItem>
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"
               onClick={() => void handleTrash()}
             >
               <Trash2 className="me-2 h-3.5 w-3.5" />
-              {TRASH_LABEL}
+              {trashLabel}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -653,6 +661,7 @@ const FileTreeRow = memo(function FileTreeRow({
         <InlineCreateInput
           depth={depth + 1}
           type={creatingUnder}
+          t={t}
           onCommit={onCommitCreate}
           onCancel={onCancelCreate}
         />

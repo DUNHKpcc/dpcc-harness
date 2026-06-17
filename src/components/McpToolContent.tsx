@@ -1,4 +1,5 @@
 import { memo } from "react";
+import type { TFunction } from "i18next";
 import type { UIMessage, ToolUseResult } from "@/types";
 
 // ── MCP renderers (extracted) ──
@@ -145,7 +146,7 @@ export function hasMcpRenderer(toolName: string): boolean {
 }
 
 /** Extract a compact summary for the collapsed tool line */
-export function getMcpCompactSummary(toolName: string, toolInput: Record<string, unknown>): string {
+export function getMcpCompactSummary(toolName: string, toolInput: Record<string, unknown>, t: TFunction<"toolcall">): string {
   if (/searchJiraIssuesUsingJql/.test(toolName)) {
     return String(toolInput.jql ?? "").slice(0, 80);
   }
@@ -153,7 +154,7 @@ export function getMcpCompactSummary(toolName: string, toolInput: Record<string,
     return String(toolInput.issueIdOrKey ?? "");
   }
   if (/getVisibleJiraProjects/.test(toolName)) {
-    return toolInput.searchString ? `"${toolInput.searchString}"` : "all projects";
+    return toolInput.searchString ? `"${toolInput.searchString}"` : t("summary.allProjects");
   }
   if (/searchConfluenceUsingCql/.test(toolName)) {
     return String(toolInput.cql ?? "").slice(0, 80);

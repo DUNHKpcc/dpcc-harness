@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { useInlineRename } from "@/hooks/useInlineRename";
 import { Folder, ChevronRight, Pencil, Trash2, MoreHorizontal, Pin, PinOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,7 @@ export function FolderSection({
   agents?: InstalledAgent[];
   defaultCollapsed?: boolean;
 }) {
+  const { t } = useTranslation("sidebar");
   const {
     selectSession,
     deleteSession,
@@ -155,25 +157,25 @@ export function FolderSection({
               {folder.pinned ? (
                 <>
                   <PinOff className="me-2 h-3.5 w-3.5" />
-                  Unpin
+                  {t("folder.unpin")}
                 </>
               ) : (
                 <>
                   <Pin className="me-2 h-3.5 w-3.5" />
-                  Pin
+                  {t("folder.pin")}
                 </>
               )}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={startEditing}>
               <Pencil className="me-2 h-3.5 w-3.5" />
-              Rename
+              {t("action.rename", { ns: "common" })}
             </DropdownMenuItem>
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"
               onClick={onDeleteFolder}
             >
               <Trash2 className="me-2 h-3.5 w-3.5" />
-              Delete
+              {t("action.delete", { ns: "common" })}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -184,7 +186,7 @@ export function FolderSection({
         <div className="ms-2">
           {sessions.length === 0 ? (
             <p className="px-3 py-1.5 text-[11px] text-sidebar-foreground/30 italic">
-              No chats
+              {t("empty.noChats")}
             </p>
           ) : (
             sessions.map((session) => (

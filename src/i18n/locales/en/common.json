@@ -1,0 +1,34 @@
+{
+  "action": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "remove": "Remove",
+    "close": "Close",
+    "confirm": "Confirm",
+    "add": "Add",
+    "edit": "Edit",
+    "rename": "Rename",
+    "create": "Create",
+    "open": "Open",
+    "copy": "Copy",
+    "copied": "Copied",
+    "retry": "Retry",
+    "back": "Back",
+    "next": "Next",
+    "done": "Done",
+    "checkForUpdates": "Check for updates",
+    "download": "Download",
+    "downloading": "Downloading…",
+    "refresh": "Refresh",
+    "search": "Search"
+  },
+  "state": {
+    "loading": "Loading…",
+    "notFound": "Not found",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "on": "On",
+    "off": "Off"
+  }
+}

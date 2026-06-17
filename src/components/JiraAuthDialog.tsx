@@ -3,6 +3,7 @@
  */
 
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -27,6 +28,7 @@ export function JiraAuthDialog({
   instanceUrl,
   onSuccess,
 }: JiraAuthDialogProps) {
+  const { t } = useTranslation("dialogs");
   const [email, setEmail] = useState("");
   const [apiToken, setApiToken] = useState("");
   const [loading, setLoading] = useState(false);
@@ -36,12 +38,12 @@ export function JiraAuthDialog({
     e.preventDefault();
 
     if (!email.trim()) {
-      setError("Email is required");
+      setError(t("jiraAuth.emailRequired"));
       return;
     }
 
     if (!apiToken.trim()) {
-      setError("API token is required");
+      setError(t("jiraAuth.apiTokenRequired"));
       return;
     }
 
@@ -85,10 +87,9 @@ export function JiraAuthDialog({
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Authenticate with Jira</DialogTitle>
+          <DialogTitle>{t("jiraAuth.title")}</DialogTitle>
           <DialogDescription>
-            Enter your Jira API token to connect. You can create an API token
-            from your Atlassian account settings.
+            {t("jiraAuth.description")}
           </DialogDescription>
         </DialogHeader>
 
@@ -96,7 +97,7 @@ export function JiraAuthDialog({
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <label htmlFor="instanceUrl" className="text-sm font-medium">
-                Instance URL
+                {t("jiraAuth.instanceUrl")}
               </label>
               <Input
                 id="instanceUrl"
@@ -108,36 +109,36 @@ export function JiraAuthDialog({
 
             <div className="space-y-2">
               <label htmlFor="email" className="text-sm font-medium">
-                Email
+                {t("jiraAuth.email")}
               </label>
               <Input
                 id="email"
                 type="email"
-                placeholder="you@example.com"
+                placeholder={t("jiraAuth.emailPlaceholder")}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={loading}
                 autoFocus
               />
               <p className="text-sm text-muted-foreground">
-                The email associated with your Atlassian account
+                {t("jiraAuth.emailHelp")}
               </p>
             </div>
 
             <div className="space-y-2">
               <label htmlFor="apiToken" className="text-sm font-medium">
-                API Token
+                {t("jiraAuth.apiToken")}
               </label>
               <Input
                 id="apiToken"
                 type="password"
-                placeholder="Enter your Jira API token"
+                placeholder={t("jiraAuth.apiTokenPlaceholder")}
                 value={apiToken}
                 onChange={(e) => setApiToken(e.target.value)}
                 disabled={loading}
               />
               <p className="text-sm text-muted-foreground">
-                Create a token at{" "}
+                {t("jiraAuth.createTokenAt")}
                 <a
                   href="https://id.atlassian.com/manage-profile/security/api-tokens"
                   target="_blank"
@@ -163,10 +164,10 @@ export function JiraAuthDialog({
               onClick={handleClose}
               disabled={loading}
             >
-              Cancel
+              {t("action.cancel", { ns: "common" })}
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? "Authenticating..." : "Connect"}
+              {loading ? t("jiraAuth.authenticating") : t("jiraAuth.connect")}
             </Button>
           </DialogFooter>
         </form>

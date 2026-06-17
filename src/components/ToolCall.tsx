@@ -1,4 +1,5 @@
 import { useEffect, useRef, useMemo, memo } from "react";
+import { useTranslation } from "react-i18next";
 import { ChevronRight, AlertCircle } from "lucide-react";
 import {
   Collapsible,
@@ -100,6 +101,7 @@ const RegularTool = memo(function RegularTool({
   coloredToolIcons,
   disableCollapseAnimation,
 }: RegularToolProps) {
+  const { t } = useTranslation("toolcall");
   const isPlanTool = message.toolName === "ExitPlanMode";
   const isInteractive = isPlanTool || message.toolName === "AskUserQuestion";
   const isEditToolCall = message.toolName === "Edit" || message.toolName === "Write";
@@ -115,7 +117,7 @@ const RegularTool = memo(function RegularTool({
   const isRunning = !hasResult;
   const isError = !!message.toolError;
   const Icon = getToolIcon(message.toolName ?? "");
-  const summary = formatCompactSummary(message);
+  const summary = formatCompactSummary(message, t);
   const isEditOrWrite = message.toolName === "Edit" || message.toolName === "Write" || message.toolName === "NotebookEdit";
   const diffStats = useMemo(
     () => (isEditOrWrite && hasResult ? getToolDiffStats(message) : null),
@@ -155,13 +157,13 @@ const RegularTool = memo(function RegularTool({
       ))}
       {isRunning ? (
         <TextShimmer as="span" className="shrink-0 whitespace-nowrap font-medium" duration={1.8} spread={1.5}>
-          {getToolLabel(message.toolName ?? "", "active") ?? message.toolName ?? "Running"}
+          {getToolLabel(message.toolName ?? "", "active", t) ?? message.toolName ?? t("fallback.running")}
         </TextShimmer>
       ) : (
         <span className={`shrink-0 whitespace-nowrap font-medium ${isError ? "text-red-400/70" : "text-foreground/60"}`}>
           {isError
-            ? `Failed to ${getToolLabel(message.toolName ?? "", "failure")}`
-            : (getToolLabel(message.toolName ?? "", "past") ?? message.toolName)}
+            ? t("fallback.failedTo", { action: getToolLabel(message.toolName ?? "", "failure", t) })
+            : (getToolLabel(message.toolName ?? "", "past", t) ?? message.toolName)}
         </span>
       )}
       <span className="min-w-0 truncate text-foreground/40">{summary}</span>

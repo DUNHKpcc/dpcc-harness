@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Slider } from "@/components/ui/slider";
@@ -87,6 +88,7 @@ export function SpaceCustomizer({
   onUpdateColor,
   editMode,
 }: SpaceCustomizerProps) {
+  const { t } = useTranslation("workspace");
   const [showIcons, setShowIcons] = useState(iconType === "lucide");
   const [iconSearch, setIconSearch] = useState("");
   const resolvedTheme = useResolvedTheme();
@@ -122,7 +124,7 @@ export function SpaceCustomizer({
         <Input
           value={editMode.name}
           onChange={(e) => editMode.onUpdateName(e.target.value)}
-          placeholder="Space name"
+          placeholder={t("customizer.namePlaceholder")}
           className="h-8 text-sm"
           autoFocus
         />
@@ -132,7 +134,7 @@ export function SpaceCustomizer({
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
-            {showIcons ? "Icon" : "Emoji"}
+            {showIcons ? t("customizer.icon") : t("customizer.emoji")}
           </span>
           <button
             onClick={() => {
@@ -142,11 +144,11 @@ export function SpaceCustomizer({
             className="text-[11px] text-muted-foreground/60 hover:text-muted-foreground transition-colors"
           >
             {showIcons ? (
-              "Use emoji"
+              t("customizer.useEmoji")
             ) : (
               <span className="inline-flex items-center gap-1">
                 <Shapes className="h-3 w-3" />
-                Icons
+                {t("customizer.icons")}
               </span>
             )}
           </button>
@@ -155,7 +157,7 @@ export function SpaceCustomizer({
         {showIcons ? (
           <div className="space-y-1.5">
             <Input
-              placeholder="Search icons..."
+              placeholder={t("customizer.searchIcons")}
               value={iconSearch}
               onChange={(e) => setIconSearch(e.target.value)}
               className="h-7 text-xs"
@@ -209,7 +211,7 @@ export function SpaceCustomizer({
       {/* ── Color section ── */}
       <div className="space-y-2.5">
         <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
-          Color
+          {t("customizer.color")}
         </span>
 
         {/* Preset swatches */}
@@ -236,7 +238,7 @@ export function SpaceCustomizer({
         {hasColor && (
           <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Hue</span>
+              <span className="text-xs text-muted-foreground">{t("customizer.hue")}</span>
               <span className="text-[10px] text-muted-foreground/60 tabular-nums">
                 {color.hue}&deg;
               </span>
@@ -270,7 +272,7 @@ export function SpaceCustomizer({
         {hasColor && (
           <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Intensity</span>
+              <span className="text-xs text-muted-foreground">{t("customizer.intensity")}</span>
               <span className="text-[10px] text-muted-foreground/60 tabular-nums">
                 {Math.round(color.chroma * 100)}%
               </span>
@@ -300,7 +302,7 @@ export function SpaceCustomizer({
               }
               size="sm"
             />
-            <span className="text-xs text-muted-foreground">Gradient</span>
+            <span className="text-xs text-muted-foreground">{t("customizer.gradient")}</span>
           </div>
         )}
 
@@ -308,7 +310,7 @@ export function SpaceCustomizer({
         {hasColor && useGradient && (
           <div className="space-y-1">
             <div className="flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Gradient Hue</span>
+              <span className="text-xs text-muted-foreground">{t("customizer.gradientHue")}</span>
               <span className="text-[10px] text-muted-foreground/60 tabular-nums">
                 {color.gradientHue ?? 180}&deg;
               </span>
@@ -328,7 +330,7 @@ export function SpaceCustomizer({
         {/* Opacity slider */}
         <div className="space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">Opacity</span>
+            <span className="text-xs text-muted-foreground">{t("customizer.opacity")}</span>
             <span className="text-[10px] text-muted-foreground/60 tabular-nums">
               {Math.round((color.opacity ?? 1) * 100)}%
             </span>
@@ -352,7 +354,7 @@ export function SpaceCustomizer({
           className="flex items-center gap-1.5 text-xs text-muted-foreground/50 hover:text-destructive transition-colors pt-0.5"
         >
           <Trash2 className="h-3 w-3" />
-          Delete space
+          {t("customizer.deleteSpace")}
         </button>
       )}
     </div>

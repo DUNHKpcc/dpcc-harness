@@ -1,4 +1,5 @@
 import { memo, useState, useCallback } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import {
   Bot,
   Plus,
@@ -114,6 +115,7 @@ const AgentCard = memo(function AgentCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const { t } = useTranslation("settings");
   const isBuiltIn = agent.builtIn === true;
 
   return (
@@ -138,7 +140,7 @@ const AgentCard = memo(function AgentCard({
           {isBuiltIn && (
             <Badge variant="secondary" className="gap-1 text-[10px]">
               <Shield className="h-2.5 w-2.5" />
-              Built-in
+              {t("agents.builtIn")}
             </Badge>
           )}
         </div>
@@ -162,7 +164,7 @@ const AgentCard = memo(function AgentCard({
                 <Pencil className="h-3 w-3" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="top" className="text-xs">Edit</TooltipContent>
+            <TooltipContent side="top" className="text-xs">{t("agents.edit")}</TooltipContent>
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -175,7 +177,7 @@ const AgentCard = memo(function AgentCard({
                 <Trash2 className="h-3 w-3" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="top" className="text-xs">Delete</TooltipContent>
+            <TooltipContent side="top" className="text-xs">{t("agents.delete")}</TooltipContent>
           </Tooltip>
         </div>
       )}
@@ -198,6 +200,7 @@ function AgentForm({
   onSave: (agent: InstalledAgent) => Promise<{ ok?: boolean; error?: string }>;
   onCancel: () => void;
 }) {
+  const { t } = useTranslation("settings");
   const [form, setForm] = useState<FormState>(initial);
   const [errors, setErrors] = useState<FormErrors>({});
   const [saving, setSaving] = useState(false);
@@ -213,18 +216,18 @@ function AgentForm({
     const id = form.id.trim();
     const name = form.name.trim();
 
-    if (!id) e.id = "ID is required";
-    else if (id === "claude-code") e.id = "This ID is reserved";
-    else if (!isEditing && existingIds.has(id)) e.id = "An agent with this ID already exists";
+    if (!id) e.id = t("agents.errors.idRequired");
+    else if (id === "claude-code") e.id = t("agents.errors.idReserved");
+    else if (!isEditing && existingIds.has(id)) e.id = t("agents.errors.idExists");
 
-    if (!name) e.name = "Name is required";
+    if (!name) e.name = t("agents.errors.nameRequired");
 
     if (!form.binary.trim()) {
-      e.binary = "Binary command is required";
+      e.binary = t("agents.errors.binaryRequired");
     }
 
     return e;
-  }, [form, isEditing, existingIds]);
+  }, [form, isEditing, existingIds, t]);
 
   const handleSave = useCallback(async () => {
     const errs = validate();
@@ -256,12 +259,12 @@ function AgentForm({
       if (result.ok) {
         onCancel(); // Close form on success
       } else {
-        setErrors({ general: result.error ?? "Failed to save agent" });
+        setErrors({ general: result.error ?? t("agents.errors.saveFailed") });
       }
     } finally {
       setSaving(false);
     }
-  }, [form, validate, onSave, onCancel]);
+  }, [form, validate, onSave, onCancel, t]);
 
   const addEnvPair = useCallback(() => {
     setForm((prev) => ({
@@ -292,12 +295,12 @@ function AgentForm({
         setForm(parsed);
         setErrors({});
       } else {
-        setErrors({ general: "Clipboard doesn't contain a valid agent JSON" });
+        setErrors({ general: t("agents.errors.clipboardInvalid") });
       }
     } catch {
-      setErrors({ general: "Could not read clipboard" });
+      setErrors({ general: t("agents.errors.clipboardUnreadable") });
     }
-  }, []);
+  }, [t]);
 
   return (
     <div className="flex h-full flex-col">
@@ -307,7 +310,7 @@ function AgentForm({
           <ArrowLeft className="h-3.5 w-3.5" />
         </Button>
         <h2 className="flex-1 text-base font-semibold text-foreground">
-          {isEditing ? "Edit Agent" : "Add Agent"}
+          {isEditing ? t("agents.editAgent") : t("agents.addAgent")}
         </h2>
         {/* Paste JSON to auto-fill */}
         {!isEditing && (
@@ -315,11 +318,11 @@ function AgentForm({
             <TooltipTrigger asChild>
               <Button variant="outline" size="sm" onClick={handlePasteJson} className="gap-1.5 text-xs">
                 <ClipboardPaste className="h-3 w-3" />
-                Paste JSON
+                {t("agents.pasteJson")}
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-[220px] text-xs">
-              Paste an agent definition from agents.json to auto-fill the form
+              {t("agents.pasteJsonTooltip")}
             </TooltipContent>
           </Tooltip>
         )}
@@ -338,31 +341,31 @@ function AgentForm({
           {/* ID */}
           <div className="space-y-1.5">
             <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              ID <span className="text-destructive">*</span>
+              {t("agents.idLabel")} <span className="text-destructive">*</span>
             </label>
             <Input
               value={form.id}
               onChange={(e) => updateField("id", e.target.value)}
-              placeholder="my-agent"
+              placeholder={t("agents.idPlaceholder")}
               disabled={isEditing}
               className={isEditing ? "opacity-60" : ""}
               aria-invalid={!!errors.id}
             />
             {errors.id && <p className="text-xs text-destructive">{errors.id}</p>}
             {isEditing && (
-              <p className="text-[11px] text-muted-foreground/60">Agent ID cannot be changed after creation</p>
+              <p className="text-[11px] text-muted-foreground/60">{t("agents.idLocked")}</p>
             )}
           </div>
 
           {/* Name */}
           <div className="space-y-1.5">
             <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              Name <span className="text-destructive">*</span>
+              {t("agents.nameLabel")} <span className="text-destructive">*</span>
             </label>
             <Input
               value={form.name}
               onChange={(e) => updateField("name", e.target.value)}
-              placeholder="My Custom Agent"
+              placeholder={t("agents.namePlaceholder")}
               aria-invalid={!!errors.name}
             />
             {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
@@ -371,41 +374,41 @@ function AgentForm({
           {/* Binary */}
           <div className="space-y-1.5">
             <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              Binary <span className="text-destructive">*</span>
+              {t("agents.binaryLabel")} <span className="text-destructive">*</span>
             </label>
             <Input
               value={form.binary}
               onChange={(e) => updateField("binary", e.target.value)}
-              placeholder="npx"
+              placeholder={t("agents.binaryPlaceholder")}
               className="font-mono"
               aria-invalid={!!errors.binary}
             />
             {errors.binary && <p className="text-xs text-destructive">{errors.binary}</p>}
             <p className="text-[11px] text-muted-foreground/60">
-              Command to spawn the ACP agent process
+              {t("agents.binaryDesc")}
             </p>
           </div>
 
           {/* Arguments */}
           <div className="space-y-1.5">
             <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              Arguments
+              {t("agents.argsLabel")}
             </label>
             <Input
               value={form.args}
               onChange={(e) => updateField("args", e.target.value)}
-              placeholder="@scope/package --flag"
+              placeholder={t("agents.argsPlaceholder")}
               className="font-mono"
             />
             <p className="text-[11px] text-muted-foreground/60">
-              Space-separated command arguments
+              {t("agents.argsDesc")}
             </p>
           </div>
 
           {/* Environment variables */}
           <div className="space-y-1.5">
             <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              Environment Variables
+              {t("agents.envLabel")}
             </label>
             <div className="space-y-2">
               {form.envPairs.map((pair, i) => (
@@ -413,14 +416,14 @@ function AgentForm({
                   <Input
                     value={pair.key}
                     onChange={(e) => updateEnvPair(i, "key", e.target.value)}
-                    placeholder="KEY"
+                    placeholder={t("agents.envKeyPlaceholder")}
                     className="flex-1 font-mono"
                   />
                   <span className="text-xs text-muted-foreground/40">=</span>
                   <Input
                     value={pair.value}
                     onChange={(e) => updateEnvPair(i, "value", e.target.value)}
-                    placeholder="value"
+                    placeholder={t("agents.envValuePlaceholder")}
                     className="flex-1 font-mono"
                   />
                   <Button
@@ -440,7 +443,7 @@ function AgentForm({
                 className="text-xs"
               >
                 <Plus className="h-3 w-3" />
-                Add variable
+                {t("agents.addVariable")}
               </Button>
             </div>
           </div>
@@ -448,7 +451,7 @@ function AgentForm({
           {/* Icon */}
           <div className="space-y-1.5">
             <label className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              Icon
+              {t("agents.iconLabel")}
             </label>
             <IconPicker
               value={form.icon}
@@ -465,10 +468,10 @@ function AgentForm({
       {/* Form footer */}
       <div className="flex items-center justify-end gap-2 border-t border-foreground/[0.06] px-6 py-3">
         <Button variant="outline" size="sm" onClick={onCancel} disabled={saving}>
-          Cancel
+          {t("agents.cancel")}
         </Button>
         <Button size="sm" onClick={handleSave} disabled={saving}>
-          {saving ? "Saving..." : isEditing ? "Save Changes" : "Add Agent"}
+          {saving ? t("agents.saving") : isEditing ? t("agents.saveChanges") : t("agents.addAgent")}
         </Button>
       </div>
     </div>
@@ -482,6 +485,7 @@ export const AgentSettings = memo(function AgentSettings({
   onSave,
   onDelete,
 }: AgentSettingsProps) {
+  const { t } = useTranslation("settings");
   const [editingAgent, setEditingAgent] = useState<InstalledAgent | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -533,19 +537,19 @@ export const AgentSettings = memo(function AgentSettings({
         {/* Header: title + description + tabs in one bordered section */}
         <div className="border-b border-foreground/[0.06] px-6">
           <div className="py-4">
-            <h2 className="text-base font-semibold text-foreground">ACP Agents</h2>
+            <h2 className="text-base font-semibold text-foreground">{t("agents.title")}</h2>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Browse the agent store or manage your installed agents
+              {t("agents.description")}
             </p>
           </div>
           <TabsList variant="line">
             <TabsTrigger value="store" className="gap-1.5">
               <Store className="h-3.5 w-3.5" />
-              Agent Store
+              {t("agents.tabStore")}
             </TabsTrigger>
             <TabsTrigger value="my-agents" className="gap-1.5">
               <Bot className="h-3.5 w-3.5" />
-              My Agents
+              {t("agents.tabMyAgents")}
             </TabsTrigger>
           </TabsList>
         </div>
@@ -566,7 +570,7 @@ export const AgentSettings = memo(function AgentSettings({
             <div className="flex items-center justify-end px-6 py-3">
               <Button size="sm" onClick={() => setIsCreating(true)}>
                 <Plus className="h-3.5 w-3.5" />
-                Add Agent
+                {t("agents.addAgent")}
               </Button>
             </div>
 
@@ -584,9 +588,9 @@ export const AgentSettings = memo(function AgentSettings({
                 {agents.length === 0 && (
                   <div className="flex flex-col items-center justify-center py-12 text-center">
                     <Bot className="h-8 w-8 text-muted-foreground/30" />
-                    <p className="mt-3 text-sm text-muted-foreground">No agents configured</p>
+                    <p className="mt-3 text-sm text-muted-foreground">{t("agents.empty")}</p>
                     <p className="mt-1 text-xs text-muted-foreground/60">
-                      Add an ACP agent from the store or manually
+                      {t("agents.emptyHint")}
                     </p>
                   </div>
                 )}
@@ -600,18 +604,22 @@ export const AgentSettings = memo(function AgentSettings({
       <Dialog open={deleteConfirmId !== null} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Delete Agent</DialogTitle>
+            <DialogTitle>{t("agents.deleteTitle")}</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete <span className="font-medium text-foreground">{deleteAgent?.name}</span>?
-              This action cannot be undone.
+              <Trans
+                i18nKey="agents.deleteConfirm"
+                ns="settings"
+                values={{ name: deleteAgent?.name ?? "" }}
+                components={[<span key="name" className="font-medium text-foreground" />]}
+              />
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => setDeleteConfirmId(null)}>
-              Cancel
+              {t("agents.cancel")}
             </Button>
             <Button variant="destructive" size="sm" onClick={handleConfirmDelete}>
-              Delete
+              {t("agents.delete")}
             </Button>
           </DialogFooter>
         </DialogContent>

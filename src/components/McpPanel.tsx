@@ -1,4 +1,5 @@
 import { memo, useState, useCallback, useMemo, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Plug, Plus, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +34,7 @@ export const McpPanel = memo(function McpPanel({
   onRestartWithServers,
   headerControls,
 }: McpPanelProps) {
+  const { t } = useTranslation("tools");
   const { servers, loading, addServer, removeServer } = useMcpServers(projectId);
   const [reconnectingName, setReconnectingName] = useState<string | null>(null);
   const [authenticatingName, setAuthenticatingName] = useState<string | null>(null);
@@ -127,14 +129,14 @@ export const McpPanel = memo(function McpPanel({
   if (!projectId) {
     return (
       <div className="flex h-full flex-col">
-        <PanelHeader icon={Plug} label="MCP Servers" iconClass="text-violet-600/70 dark:text-violet-200/50">
+        <PanelHeader icon={Plug} label={t("mcp.title")} iconClass="text-violet-600/70 dark:text-violet-200/50">
           {headerControls}
         </PanelHeader>
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-foreground/[0.03]">
             <Plug className="h-5 w-5 text-foreground/15" />
           </div>
-          <p className="text-[11px] text-muted-foreground/45">Open a project to manage MCP servers</p>
+          <p className="text-[11px] text-muted-foreground/45">{t("mcp.noProject")}</p>
         </div>
       </div>
     );
@@ -151,7 +153,7 @@ export const McpPanel = memo(function McpPanel({
             <Plug className="h-3 w-3 text-violet-600/70 dark:text-violet-200/50" />
           </div>
           <span className="text-[11px] font-semibold tracking-wide text-muted-foreground/80 uppercase">
-            MCP Servers
+            {t("mcp.title")}
           </span>
           {servers.length > 0 && (
             <Badge variant="secondary" className="h-5 rounded-full px-2 text-[10px] font-semibold tabular-nums">
@@ -173,7 +175,7 @@ export const McpPanel = memo(function McpPanel({
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="left">
-                <p className="text-xs">Refresh status</p>
+                <p className="text-xs">{t("mcp.refreshStatus")}</p>
               </TooltipContent>
             </Tooltip>
           )}
@@ -197,23 +199,23 @@ export const McpPanel = memo(function McpPanel({
       {/* Preliminary status note */}
       {isPreliminary && runtimeStatuses && runtimeStatuses.length > 0 && (
         <div className="mx-3 mb-1 px-2 py-1 rounded bg-muted/50 text-[10px] text-muted-foreground leading-snug">
-          Preliminary — actual status confirmed once session starts
+          {t("mcp.preliminaryNote")}
         </div>
       )}
 
       {/* Server list */}
       <ScrollArea className="flex-1 px-2">
         {loading ? (
-          <p className="px-2 py-4 text-xs text-muted-foreground text-center">Loading...</p>
+          <p className="px-2 py-4 text-xs text-muted-foreground text-center">{t("mcp.loading")}</p>
         ) : servers.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-center px-4 gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-foreground/[0.03]">
               <Plug className="h-5 w-5 text-foreground/15" />
             </div>
             <div>
-              <p className="text-xs font-medium text-muted-foreground/60">No MCP servers</p>
+              <p className="text-xs font-medium text-muted-foreground/60">{t("mcp.empty")}</p>
               <p className="mt-0.5 text-[10px] text-muted-foreground/40">
-                Add servers to extend agent capabilities
+                {t("mcp.emptyHint")}
               </p>
             </div>
           </div>

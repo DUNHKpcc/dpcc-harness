@@ -1,0 +1,75 @@
+{
+  "empty": {
+    "title": "Send a message to start",
+    "subtitle": "Your conversation will appear here"
+  },
+  "processing": {
+    "planning": "Planning next moves"
+  },
+  "header": {
+    "closePane": "Close pane",
+    "devFill": "Dev Fill",
+    "fillCurrentChat": "Fill current chat",
+    "fillCurrentSpace": "Fill current space (3 projects, 10 chats)",
+    "model": "Model",
+    "permissions": "Permissions",
+    "plan": "Plan",
+    "cost": "Cost",
+    "session": "Session",
+    "permissionMode": {
+      "plan": "Plan",
+      "default": "Ask Before Edits",
+      "acceptEdits": "Accept Edits",
+      "bypassPermissions": "Allow All"
+    },
+    "acpBehavior": {
+      "ask": "Ask",
+      "auto_accept": "Auto Accept",
+      "allow_all": "Allow All"
+    }
+  },
+  "message": {
+    "attachedImage": "attached image",
+    "queued": "Queued",
+    "sendNext": "Send next",
+    "unqueue": "Unqueue",
+    "revertToHere": "Revert to here",
+    "revertFilesOnly": "Revert files only",
+    "revertFilesAndChat": "Revert files + chat"
+  },
+  "thinking": {
+    "thinking": "Thinking...",
+    "thought": "Thought"
+  },
+  "summary": {
+    "manualCompact": "Manual compact",
+    "autoCompact": "Auto-compact",
+    "contextCompacted": "Context compacted",
+    "contextResumed": "Context resumed from previous conversation",
+    "tokens": "{{amount}}k tokens"
+  },
+  "search": {
+    "placeholder": "Find in chat...",
+    "noResults": "0 results",
+    "position": "{{current}} of {{total}}",
+    "previousMatch": "Previous match",
+    "nextMatch": "Next match",
+    "closeSearch": "Close search"
+  },
+  "turnChanges": {
+    "emptyFile": "Empty file",
+    "new": "new",
+    "modified": "modified",
+    "moreFiles": "{{names}} +{{n}} more",
+    "filesChanged_one": "{{count}} file changed",
+    "filesChanged_other": "{{count}} files changed",
+    "statsModified": "{{n}} modified",
+    "statsNew": "{{n}} new"
+  },
+  "transcript": {
+    "title": "Agent Transcript — {{description}}",
+    "loading": "Loading transcript…",
+    "empty": "No transcript data available.",
+    "thinkingPrefix": "Thinking: {{preview}}"
+  }
+}

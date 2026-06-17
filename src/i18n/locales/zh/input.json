@@ -1,0 +1,84 @@
+{
+  "placeholder": {
+    "compacting": "正在压缩上下文…",
+    "loadingAgentOptions": "正在加载 agent 选项…",
+    "responding": "{{name}} 正在回复…（消息将进入队列）",
+    "askWithCommands": "随便问，@ 引用文件，/ 输入命令",
+    "ask": "随便问，@ 引用文件"
+  },
+  "model": {
+    "loadingCodex": "正在加载 Codex 模型…",
+    "loading": "正在加载模型…"
+  },
+  "voice": {
+    "attachImage": "添加图片",
+    "loadingSpeechModel": "正在加载语音模型… {{percent}}%",
+    "transcribing": "正在转写…",
+    "stopDictation": "停止听写",
+    "dictation": "语音听写"
+  },
+  "deepFolder": {
+    "title": "大量上下文警告",
+    "sendAnyway": "仍然发送",
+    "introBefore": "此深层文件夹包含 ",
+    "filesCount": "{{count}} 个文件",
+    "introTotaling": "，共 ",
+    "sizeKb": "{{size}}KB",
+    "introTokens": "（约 ",
+    "tokensCount": "{{tokens}} token",
+    "introAfter": "）。",
+    "impact": "发送如此多的内容会占用大量上下文窗口，并可能影响回复质量。",
+    "skipNote": "注意：部分文件将被跳过：",
+    "andMore": "……以及另外 {{count}} 个"
+  },
+  "engine": {
+    "effort": "推理强度",
+    "current": "当前",
+    "customReasoningEffort": "自定义推理强度",
+    "loadingOptions": "正在加载选项…",
+    "noOptions": "无法加载此 agent 的选项",
+    "opensNewChat": "将打开新会话",
+    "engines": "引擎",
+    "acpAgents": "ACP Agents",
+    "manageACPs": "管理 ACP",
+    "effortDesc": {
+      "low": "最少思考，响应最快",
+      "medium": "适度思考",
+      "high": "深度推理",
+      "max": "最大强度"
+    }
+  },
+  "control": {
+    "plan": "Plan",
+    "planModeOn": "Plan 模式已开启",
+    "planModeOff": "Plan 模式已关闭",
+    "permissionMode": {
+      "default": "编辑前询问",
+      "acceptEdits": "接受编辑",
+      "bypassPermissions": "全部允许"
+    },
+    "codexPermissionDesc": {
+      "default": "执行命令和文件编辑前询问",
+      "acceptEdits": "自动批准受信任的编辑；不受信任的操作仍会询问",
+      "bypassPermissions": "不弹出审批提示"
+    },
+    "acpBehavior": {
+      "ask": "询问",
+      "askDesc": "显示权限提示",
+      "auto_accept": "自动接受",
+      "auto_acceptDesc": "自动批准每次工具调用",
+      "allow_all": "全部允许",
+      "allow_allDesc": "自动批准并始终允许"
+    }
+  },
+  "context": {
+    "compacting": "正在压缩…",
+    "percent": "上下文：{{percent}}%",
+    "inputTokens": "输入 token",
+    "cacheRead": "缓存读取",
+    "cacheCreation": "缓存创建",
+    "outputTokens": "输出 token",
+    "totalWindow": "总计 / 窗口",
+    "clickToCompact": "点击压缩上下文"
+  }
+}

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback, memo } from "react";
+import { useTranslation } from "react-i18next";
 import { Search, ChevronUp, ChevronDown, X } from "lucide-react";
 import type { UIMessage } from "@/types";
 
@@ -13,6 +14,7 @@ export const ChatSearchBar = memo(function ChatSearchBar({
   onNavigate,
   onClose,
 }: ChatSearchBarProps) {
+  const { t } = useTranslation("chat");
   const [query, setQuery] = useState("");
   const [currentIndex, setCurrentIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -118,7 +120,7 @@ export const ChatSearchBar = memo(function ChatSearchBar({
           value={query}
           onChange={(e) => handleQueryChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Find in chat..."
+          placeholder={t("search.placeholder")}
           className="w-44 bg-transparent px-1.5 py-0.5 text-sm text-foreground placeholder:text-muted-foreground/40 outline-none"
         />
 
@@ -126,8 +128,8 @@ export const ChatSearchBar = memo(function ChatSearchBar({
         {hasQuery && (
           <span className="shrink-0 text-xs tabular-nums text-muted-foreground/60">
             {matchIds.length === 0
-              ? "0 results"
-              : `${currentIndex + 1} of ${matchIds.length}`}
+              ? t("search.noResults")
+              : t("search.position", { current: currentIndex + 1, total: matchIds.length })}
           </span>
         )}
 
@@ -136,7 +138,7 @@ export const ChatSearchBar = memo(function ChatSearchBar({
           onClick={goPrev}
           disabled={matchIds.length === 0}
           className="rounded p-0.5 text-muted-foreground/60 transition-colors hover:text-foreground disabled:opacity-30"
-          aria-label="Previous match"
+          aria-label={t("search.previousMatch")}
         >
           <ChevronUp className="h-3.5 w-3.5" />
         </button>
@@ -144,7 +146,7 @@ export const ChatSearchBar = memo(function ChatSearchBar({
           onClick={goNext}
           disabled={matchIds.length === 0}
           className="rounded p-0.5 text-muted-foreground/60 transition-colors hover:text-foreground disabled:opacity-30"
-          aria-label="Next match"
+          aria-label={t("search.nextMatch")}
         >
           <ChevronDown className="h-3.5 w-3.5" />
         </button>
@@ -153,7 +155,7 @@ export const ChatSearchBar = memo(function ChatSearchBar({
         <button
           onClick={onClose}
           className="rounded p-0.5 text-muted-foreground/60 transition-colors hover:text-foreground"
-          aria-label="Close search"
+          aria-label={t("search.closeSearch")}
         >
           <X className="h-3.5 w-3.5" />
         </button>

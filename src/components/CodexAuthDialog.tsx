@@ -6,6 +6,7 @@
  */
 
 import { memo, useState, useCallback, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { Key, ExternalLink, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AuthDialogShell } from "@/components/AuthDialogShell";
@@ -38,7 +39,15 @@ const AUTH_TIMEOUT_MS = 30_000;
  * matching the given session. Resolves on success, rejects on failure or timeout.
  * Always cleans up the event listener.
  */
-function waitForLoginCompletion(sessionId: string): { promise: Promise<void>; cancel: () => void } {
+interface LoginWaitMessages {
+  timedOut: string;
+  failed: string;
+}
+
+function waitForLoginCompletion(
+  sessionId: string,
+  messages: LoginWaitMessages,
+): { promise: Promise<void>; cancel: () => void } {
   let cleanup: (() => void) | undefined;
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   let cancelled = false;
@@ -46,7 +55,7 @@ function waitForLoginCompletion(sessionId: string): { promise: Promise<void>; ca
   const promise = new Promise<void>((resolve, reject) => {
     timeoutId = setTimeout(() => {
       cleanup?.();
-      if (!cancelled) reject(new Error("Login timed out — please try again"));
+      if (!cancelled) reject(new Error(messages.timedOut));
     }, AUTH_TIMEOUT_MS);
 
     cleanup = window.claude.codex.onEvent((event: CodexSessionEvent) => {
@@ -60,7 +69,7 @@ function waitForLoginCompletion(sessionId: string): { promise: Promise<void>; ca
       if (params.success) {
         resolve();
       } else {
-        reject(new Error(params.error ?? "Login failed"));
+        reject(new Error(params.error ?? messages.failed));
       }
     });
   });
@@ -85,6 +94,7 @@ export const CodexAuthDialog = memo(function CodexAuthDialog({
   onComplete,
   onCancel,
 }: CodexAuthDialogProps) {
+  const { t } = useTranslation("dialogs");
   const [mode, setMode] = useState<"choose" | "apiKey" | "chatgpt">("choose");
   const [apiKey, setApiKey] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -112,14 +122,17 @@ export const CodexAuthDialog = memo(function CodexAuthDialog({
       }
 
       // Wait for the account/login/completed notification from the Codex process
-      const waiter = waitForLoginCompletion(sessionId);
+      const waiter = waitForLoginCompletion(sessionId, {
+        timedOut: t("codexAuth.loginTimedOut"),
+        failed: t("codexAuth.loginFailed"),
+      });
       loginWaiterRef.current = waiter;
       await waiter.promise;
       loginWaiterRef.current = null;
       onComplete();
     } catch (err) {
       loginWaiterRef.current = null;
-      const message = err instanceof Error ? err.message : "Login failed";
+      const message = err instanceof Error ? err.message : t("codexAuth.loginFailed");
       reportError("[CodexAuthDialog] API key login", err);
       setError(message);
       setIsLoading(false);
@@ -143,14 +156,17 @@ export const CodexAuthDialog = memo(function CodexAuthDialog({
       }
 
       // Wait for the account/login/completed notification from the Codex process
-      const waiter = waitForLoginCompletion(sessionId);
+      const waiter = waitForLoginCompletion(sessionId, {
+        timedOut: t("codexAuth.loginTimedOut"),
+        failed: t("codexAuth.loginFailed"),
+      });
       loginWaiterRef.current = waiter;
       await waiter.promise;
       loginWaiterRef.current = null;
       onComplete();
     } catch (err) {
       loginWaiterRef.current = null;
-      const message = err instanceof Error ? err.message : "Login failed";
+      const message = err instanceof Error ? err.message : t("codexAuth.loginFailed");
       reportError("[CodexAuthDialog] ChatGPT login", err);
       setError(message);
       setIsLoading(false);
@@ -165,11 +181,11 @@ export const CodexAuthDialog = memo(function CodexAuthDialog({
     <AuthDialogShell
       open
       onClose={onCancel}
-      title="Codex Authentication"
-      description="Codex requires authentication to access OpenAI models."
+      title={t("codexAuth.title")}
+      description={t("codexAuth.description")}
       error={error}
       loading={isChatGptWaiting}
-      loadingText="Waiting for browser login..."
+      loadingText={t("codexAuth.waitingForBrowser")}
       showCancelButton={isChatGptWaiting}
     >
       {mode === "choose" && (
@@ -181,8 +197,8 @@ export const CodexAuthDialog = memo(function CodexAuthDialog({
           >
             <Key className="h-4 w-4 shrink-0" />
             <div className="text-start">
-              <div className="text-sm font-medium">API Key</div>
-              <div className="text-xs text-muted-foreground">Use an OpenAI API key</div>
+              <div className="text-sm font-medium">{t("codexAuth.apiKey")}</div>
+              <div className="text-xs text-muted-foreground">{t("codexAuth.apiKeyDesc")}</div>
             </div>
           </Button>
           <Button
@@ -195,12 +211,12 @@ export const CodexAuthDialog = memo(function CodexAuthDialog({
           >
             <ExternalLink className="h-4 w-4 shrink-0" />
             <div className="text-start">
-              <div className="text-sm font-medium">ChatGPT Login</div>
-              <div className="text-xs text-muted-foreground">Login with your ChatGPT account</div>
+              <div className="text-sm font-medium">{t("codexAuth.chatgptLogin")}</div>
+              <div className="text-xs text-muted-foreground">{t("codexAuth.chatgptLoginDesc")}</div>
             </div>
           </Button>
           <Button variant="ghost" size="sm" onClick={onCancel} className="mt-2">
-            Cancel
+            {t("action.cancel", { ns: "common" })}
           </Button>
         </div>
       )}
@@ -218,7 +234,7 @@ export const CodexAuthDialog = memo(function CodexAuthDialog({
           />
           <div className="flex gap-2">
             <Button variant="ghost" size="sm" onClick={() => setMode("choose")} disabled={isLoading}>
-              Back
+              {t("action.back", { ns: "common" })}
             </Button>
             <Button
               size="sm"
@@ -227,7 +243,7 @@ export const CodexAuthDialog = memo(function CodexAuthDialog({
               className="ms-auto"
             >
               {isLoading && <Loader2 className="me-1.5 h-3.5 w-3.5 animate-spin" />}
-              Connect
+              {t("codexAuth.connect")}
             </Button>
           </div>
         </div>

@@ -6,6 +6,7 @@
  */
 
 import { forwardRef, useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Globe, Loader2 } from "lucide-react";
 import type { GrabbedElement } from "@/types";
 import { capture } from "@/lib/analytics/analytics";
@@ -45,6 +46,7 @@ const BrowserHeaderIcon = forwardRef<SVGSVGElement, React.ComponentPropsWithoutR
 // ── Component ───────────────────────────────────────────────────────────
 
 export function BrowserPanel({ persistKey, onElementGrab, headerControls }: BrowserPanelProps) {
+  const { t } = useTranslation("tools");
   const [tabs, setTabs] = useState<BrowserTab[]>(() => readBrowserSession(persistKey).tabs);
   const [activeTabId, setActiveTabId] = useState<string | null>(() => readBrowserSession(persistKey).activeTabId);
   const [inspectMode, setInspectMode] = useState(false);
@@ -156,7 +158,7 @@ export function BrowserPanel({ persistKey, onElementGrab, headerControls }: Brow
         onCloseTab={closeTab}
         onNewTab={() => createTab()}
         headerIcon={BrowserHeaderIcon}
-        headerLabel="Browser"
+        headerLabel={t("browser.title")}
         renderTabIcon={(tab) =>
           tab.isLoading ? (
             <Loader2 className="h-2.5 w-2.5 animate-spin opacity-50" />

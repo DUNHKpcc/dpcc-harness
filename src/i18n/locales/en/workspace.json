@@ -1,0 +1,73 @@
+{
+  "openInEditor": {
+    "label": "Open in editor",
+    "labelAtLine": "Open in editor at line {{line}}"
+  },
+  "space": {
+    "settings": "Settings",
+    "newSpace": "New space",
+    "edit": "Edit",
+    "delete": "Delete",
+    "deleteTitle": "Delete Space",
+    "deleteConfirmPrefix": "Are you sure you want to delete ",
+    "deleteConfirmSuffix": "? Projects in this space will be moved to General.",
+    "deleteConfirm": "Delete"
+  },
+  "customizer": {
+    "namePlaceholder": "Space name",
+    "icon": "Icon",
+    "emoji": "Emoji",
+    "useEmoji": "Use emoji",
+    "icons": "Icons",
+    "searchIcons": "Search icons...",
+    "color": "Color",
+    "hue": "Hue",
+    "intensity": "Intensity",
+    "gradient": "Gradient",
+    "gradientHue": "Gradient Hue",
+    "opacity": "Opacity",
+    "deleteSpace": "Delete space"
+  },
+  "diff": {
+    "preparing": "Preparing diff",
+    "loadingMonaco": "Loading Monaco diff",
+    "copyNewContent": "Copy new content"
+  },
+  "patch": {
+    "collapse": "Collapse",
+    "showAll": "Show all {{count}} lines"
+  },
+  "filePreview": {
+    "openInEditor": "Open in editor",
+    "line": "line",
+    "lines": "lines",
+    "readError": "Failed to read file"
+  },
+  "imageLightbox": {
+    "title": "Image preview",
+    "description": "Full-size view of the attached image."
+  },
+  "annotation": {
+    "select": "Select",
+    "freehand": "Freehand",
+    "rectangle": "Rectangle",
+    "circle": "Circle",
+    "arrow": "Arrow",
+    "text": "Text",
+    "highlight": "Highlight",
+    "eraser": "Eraser",
+    "color": "Color",
+    "custom": "Custom",
+    "strokeWidthValue": "Stroke width: {{width}}px",
+    "strokeWidth": "Stroke width",
+    "undo": "Undo",
+    "redo": "Redo"
+  },
+  "split": {
+    "dropToOpen": "Drop to open"
+  },
+  "dock": {
+    "moveToBottom": "Move to bottom",
+    "moveToTopRow": "Move to top row"
+  }
+}

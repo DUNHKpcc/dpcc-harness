@@ -1,4 +1,6 @@
 import { memo, useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { Terminal, Globe, GitBranch, FileText, FolderTree, ListTodo, Bot, Plug, SquareArrowOutUpRight, ArrowDown, ArrowRight } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -56,18 +58,6 @@ function ToolProgressRing({ progress, isComplete, size }: { progress: number; is
   );
 }
 
-/** Very subtle per-tool color tints. Uses *-500 for light mode (visible on white) and *-200 for dark mode (soft pastels on dark). */
-const TOOL_TINTS: Record<string, { idle: string; hover: string; active: string }> = {
-  terminal:        { idle: "text-emerald-600/70 dark:text-emerald-200/50",  hover: "hover:text-emerald-600/90 dark:hover:text-emerald-200/70",  active: "text-emerald-600 dark:text-emerald-200/90" },
-  browser:         { idle: "text-sky-600/70 dark:text-sky-200/50",          hover: "hover:text-sky-600/90 dark:hover:text-sky-200/70",          active: "text-sky-600 dark:text-sky-200/90" },
-  git:             { idle: "text-orange-600/70 dark:text-orange-200/50",    hover: "hover:text-orange-600/90 dark:hover:text-orange-200/70",    active: "text-orange-600 dark:text-orange-200/90" },
-  files:           { idle: "text-amber-600/70 dark:text-amber-200/50",      hover: "hover:text-amber-600/90 dark:hover:text-amber-200/70",     active: "text-amber-600 dark:text-amber-200/90" },
-  "project-files": { idle: "text-teal-600/70 dark:text-teal-200/50",       hover: "hover:text-teal-600/90 dark:hover:text-teal-200/70",       active: "text-teal-600 dark:text-teal-200/90" },
-  mcp:             { idle: "text-violet-600/70 dark:text-violet-200/50",    hover: "hover:text-violet-600/90 dark:hover:text-violet-200/70",   active: "text-violet-600 dark:text-violet-200/90" },
-  tasks:           { idle: "text-blue-600/70 dark:text-blue-200/50",        hover: "hover:text-blue-600/90 dark:hover:text-blue-200/70",       active: "text-blue-600 dark:text-blue-200/90" },
-  agents:          { idle: "text-indigo-600/70 dark:text-indigo-200/50",    hover: "hover:text-indigo-600/90 dark:hover:text-indigo-200/70",   active: "text-indigo-600 dark:text-indigo-200/90" },
-};
-
 export const PANEL_TOOLS_MAP: Record<string, ToolDef> = {
   terminal: { id: "terminal", label: "Terminal", icon: Terminal },
   browser: { id: "browser", label: "Browser", icon: Globe },
@@ -81,6 +71,24 @@ const CONTEXTUAL_TOOLS: ToolDef[] = [
   { id: "tasks", label: "Tasks", icon: ListTodo },
   { id: "agents", label: "Background Agents", icon: Bot },
 ];
+
+/** Maps a tool id to its translation key under the `tools:picker` namespace. */
+const TOOL_LABEL_KEYS: Record<string, string> = {
+  terminal: "picker.terminal",
+  browser: "picker.browser",
+  git: "picker.git",
+  files: "picker.files",
+  "project-files": "picker.projectFiles",
+  mcp: "picker.mcp",
+  tasks: "picker.tasks",
+  agents: "picker.agents",
+};
+
+/** Returns a copy of the tool with a localized label. */
+function localizeTool(tool: ToolDef, t: TFunction<"tools">): ToolDef {
+  const key = TOOL_LABEL_KEYS[tool.id];
+  return key ? { ...tool, label: t(key) } : tool;
+}
 
 interface ToolPickerProps {
   activeTools: Set<ToolId>;
@@ -111,27 +119,26 @@ interface ToolPickerProps {
 function ToolButton({
   tool,
   isActive,
-  coloredIcons = true,
   isDragTarget,
   isBottom,
   badge,
   tooltipExtra,
+  bottomPanelLabel,
   onClick,
 }: {
   tool: ToolDef;
   isActive: boolean;
-  coloredIcons?: boolean;
   isDragTarget?: boolean;
   isBottom?: boolean;
   badge?: React.ReactNode;
   tooltipExtra?: React.ReactNode;
+  bottomPanelLabel: string;
   onClick: () => void;
 }) {
   const Icon = tool.icon;
   const buttonSize = "h-8 w-8";
   const iconSize = "h-4 w-4";
   const radius = "rounded-lg";
-  const tint = coloredIcons ? TOOL_TINTS[tool.id] : undefined;
 
   return (
     <Tooltip>
@@ -141,8 +148,8 @@ function ToolButton({
           onClick={onClick}
           className={`tool-picker-btn group/btn relative mx-auto flex ${buttonSize} items-center justify-center ${radius} overflow-visible p-0 transition-all duration-200 cursor-pointer ${
             isActive
-              ? `tool-picker-btn-active bg-foreground/[0.08] ${tint?.active ?? "text-foreground"} shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05),0_1px_2px_0_rgba(0,0,0,0.05)]`
-              : `${tint?.idle ?? "text-foreground/35"} ${tint?.hover ?? "hover:text-foreground/70"} hover:bg-foreground/[0.05] active:scale-[0.92]`
+              ? "tool-picker-btn-active bg-foreground/[0.08] text-foreground shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05),0_1px_2px_0_rgba(0,0,0,0.05)]"
+              : "text-foreground/35 hover:text-foreground/70 hover:bg-foreground/[0.05] active:scale-[0.92]"
           } ${isDragTarget ? "ring-2 ring-foreground/20 ring-offset-1 ring-offset-background" : ""}`}
         >
           <Icon
@@ -159,7 +166,7 @@ function ToolButton({
       <TooltipContent side="left" sideOffset={10}>
         <p className="text-xs font-medium">{tool.label}</p>
         {tooltipExtra}
-        {isBottom && <p className="text-[10px] text-background/50">Bottom panel</p>}
+        {isBottom && <p className="text-[10px] text-background/50">{bottomPanelLabel}</p>}
       </TooltipContent>
     </Tooltip>
   );
@@ -169,7 +176,6 @@ function ToolButton({
 function PanelToolWithMenu({
   tool,
   isActive,
-  coloredIcons,
   isDragTarget,
   isBottom,
   badge,
@@ -182,12 +188,12 @@ function PanelToolWithMenu({
   onDragLeave,
   onDrop,
   onDragEnd,
-  moveToBottomLabel = "Move to Bottom",
-  moveToSideLabel = "Move to Side",
+  moveToBottomLabel,
+  moveToSideLabel,
+  bottomPanelLabel,
 }: {
   tool: ToolDef;
   isActive: boolean;
-  coloredIcons: boolean;
   isDragTarget: boolean;
   isBottom: boolean;
   badge?: React.ReactNode;
@@ -200,8 +206,9 @@ function PanelToolWithMenu({
   onDragLeave?: () => void;
   onDrop?: (e: React.DragEvent) => void;
   onDragEnd: () => void;
-  moveToBottomLabel?: string;
-  moveToSideLabel?: string;
+  moveToBottomLabel: string;
+  moveToSideLabel: string;
+  bottomPanelLabel: string;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -230,11 +237,11 @@ function PanelToolWithMenu({
       <ToolButton
         tool={tool}
         isActive={isActive}
-        coloredIcons={coloredIcons}
         isDragTarget={isDragTarget}
         isBottom={isBottom}
         badge={badge}
         tooltipExtra={tooltipExtra}
+        bottomPanelLabel={bottomPanelLabel}
         onClick={onToggle}
       />
       <DropdownMenu open={menuOpen} onOpenChange={(open) => { if (!open) setMenuOpen(false); }}>
@@ -279,19 +286,24 @@ export const ToolPicker = memo(function ToolPicker({
   onMoveToSide,
   taskProgress,
 }: ToolPickerProps) {
+  const { t } = useTranslation("tools");
   // ── Layout & appearance settings from Zustand store ──
   const islandLayout = useSettingsStore((s) => s.islandLayout);
   const transparentBackground = useSettingsStore((s) => s.transparentToolPicker);
-  const coloredIcons = useSettingsStore((s) => s.coloredSidebarIcons);
+  const moveToBottomLabel = t("picker.moveToBottom");
+  const moveToTopRowLabel = t("picker.moveToTopRow");
+  const bottomPanelLabel = t("picker.bottomPanel");
   const visibleContextual = useMemo(
-    () => CONTEXTUAL_TOOLS.filter((t) => availableContextual?.has(t.id)),
-    [availableContextual],
+    () => CONTEXTUAL_TOOLS.filter((tool) => availableContextual?.has(tool.id)).map((tool) => localizeTool(tool, t)),
+    [availableContextual, t],
   );
 
   // Panel tools ordered by toolOrder, falling back to map for unknown ids
   const orderedPanelTools = useMemo(
-    () => (displayToolOrder ?? toolOrder).filter((id) => id in PANEL_TOOLS_MAP).map((id) => PANEL_TOOLS_MAP[id]),
-    [displayToolOrder, toolOrder],
+    () => (displayToolOrder ?? toolOrder)
+      .filter((id) => id in PANEL_TOOLS_MAP)
+      .map((id) => localizeTool(PANEL_TOOLS_MAP[id], t)),
+    [displayToolOrder, toolOrder, t],
   );
   const effectiveBottomTools = displayBottomTools ?? bottomTools;
   const sidePanelTools = useMemo(
@@ -396,11 +408,11 @@ export const ToolPicker = memo(function ToolPicker({
                 <ToolButton
                   tool={tool}
                   isActive={activeTools.has(tool.id)}
-                  coloredIcons={coloredIcons}
                   onClick={() => onToggle(tool.id)}
+                  bottomPanelLabel={bottomPanelLabel}
                   tooltipExtra={hasTaskProgress ? (
                     <p className="text-[10px] text-background/50 tabular-nums">
-                      {taskProgress.completed}/{taskProgress.total} completed
+                      {t("picker.completed", { completed: taskProgress.completed, total: taskProgress.total })}
                     </p>
                   ) : undefined}
                 />
@@ -420,7 +432,6 @@ export const ToolPicker = memo(function ToolPicker({
           key={tool.id}
           tool={tool}
           isActive={activeTools.has(tool.id)}
-          coloredIcons={coloredIcons}
           isDragTarget={dragOverId === tool.id && draggingId !== tool.id}
           isBottom={false}
           onToggle={() => onToggle(tool.id)}
@@ -431,7 +442,9 @@ export const ToolPicker = memo(function ToolPicker({
           onDragLeave={workspaceMode ? undefined : handleDragLeave}
           onDrop={workspaceMode ? undefined : (e) => handleDrop(e, tool.id)}
           onDragEnd={handleDragEnd}
-          moveToSideLabel="Move to Top Row"
+          moveToBottomLabel={moveToBottomLabel}
+          moveToSideLabel={moveToTopRowLabel}
+          bottomPanelLabel={bottomPanelLabel}
         />
       ))}
 
@@ -447,7 +460,6 @@ export const ToolPicker = memo(function ToolPicker({
                   key={tool.id}
                   tool={tool}
                   isActive={activeTools.has(tool.id)}
-                  coloredIcons={coloredIcons}
                   isDragTarget={dragOverId === tool.id && draggingId !== tool.id}
                   isBottom={true}
                   onToggle={() => onToggle(tool.id)}
@@ -458,7 +470,9 @@ export const ToolPicker = memo(function ToolPicker({
                   onDragLeave={workspaceMode ? undefined : handleDragLeave}
                   onDrop={workspaceMode ? undefined : (e) => handleDrop(e, tool.id)}
                   onDragEnd={handleDragEnd}
-                  moveToSideLabel="Move to Top Row"
+                  moveToBottomLabel={moveToBottomLabel}
+                  moveToSideLabel={moveToTopRowLabel}
+                  bottomPanelLabel={bottomPanelLabel}
                 />
               ))}
             </div>
@@ -491,8 +505,8 @@ export const ToolPicker = memo(function ToolPicker({
                   </DropdownMenuTrigger>
                 </TooltipTrigger>
                 <TooltipContent side="left" sideOffset={10}>
-                  <p className="text-xs font-medium">Open in Editor</p>
-                  <p className="text-[10px] text-background/50">Right-click for options</p>
+                  <p className="text-xs font-medium">{t("picker.openInEditor")}</p>
+                  <p className="text-[10px] text-background/50">{t("picker.rightClickForOptions")}</p>
                 </TooltipContent>
               </Tooltip>
               <DropdownMenuContent side="left" align="end" sideOffset={10}>

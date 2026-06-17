@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { ChevronsUpDown } from "lucide-react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -13,14 +14,15 @@ import { renderAnsi } from "@/lib/ansi";
 const MAX_OUTPUT_LINES = 200;
 
 export function BashContent({ message }: { message: UIMessage }) {
+  const { t } = useTranslation("toolcall");
   const command = message.toolInput?.command;
   const result = message.toolResult;
   const resolvedTheme = useResolvedTheme();
   const syntaxStyle = resolvedTheme === "dark" ? oneDark : oneLight;
   const [expanded, setExpanded] = useChatPersistedState(`bash:${message.id}`, false);
 
-  const formattedResult = useMemo(() => (result ? formatBashResult(result) : ""), [result]);
-  const hasOutput = !!formattedResult && formattedResult !== "(no output)";
+  const formattedResult = useMemo(() => (result ? formatBashResult(result, t) : ""), [result, t]);
+  const hasOutput = !!formattedResult && formattedResult !== t("result.noOutput");
 
   const { displayText, totalLines, isTruncated } = useMemo(() => {
     if (!formattedResult) return { displayText: "", totalLines: 0, isTruncated: false };
@@ -73,7 +75,7 @@ export function BashContent({ message }: { message: UIMessage }) {
           className="mt-1 flex items-center gap-1 text-[10px] font-medium text-foreground/35 hover:text-foreground/60 transition-colors"
         >
           <ChevronsUpDown className="h-3 w-3" />
-          Show full output ({totalLines} lines)
+          {t("bash.showFullOutput", { count: totalLines })}
         </button>
       )}
       {expanded && totalLines > MAX_OUTPUT_LINES && (
@@ -82,7 +84,7 @@ export function BashContent({ message }: { message: UIMessage }) {
           className="mt-1 flex items-center gap-1 text-[10px] font-medium text-foreground/35 hover:text-foreground/60 transition-colors"
         >
           <ChevronsUpDown className="h-3 w-3" />
-          Collapse
+          {t("bash.collapse")}
         </button>
       )}
     </div>

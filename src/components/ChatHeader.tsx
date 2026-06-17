@@ -1,23 +1,13 @@
 import { memo } from "react";
+import { useTranslation } from "react-i18next";
 import { ChevronDown, Info, Loader2, PanelLeft, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { ToolPickerMenu } from "./ToolPickerMenu";
 import { isMac } from "@/lib/utils";
 import type { AcpPermissionBehavior } from "@/types";
-
-const PERMISSION_MODE_LABELS: Record<string, string> = {
-  plan: "Plan",
-  default: "Ask Before Edits",
-  acceptEdits: "Accept Edits",
-  bypassPermissions: "Allow All",
-};
-
-const ACP_PERMISSION_BEHAVIOR_LABELS: Record<AcpPermissionBehavior, string> = {
-  ask: "Ask",
-  auto_accept: "Auto Accept",
-  allow_all: "Allow All",
-};
+import type { ToolId } from "@/types/tools";
 
 interface ChatHeaderProps {
   islandLayout: boolean;
@@ -38,6 +28,12 @@ interface ChatHeaderProps {
   onSeedDevExampleSpaceData?: () => void;
   /** Close this split pane (renders an X button on the right). */
   onClosePane?: () => void;
+  /** Tool picker menu props */
+  activeTools?: Set<ToolId>;
+  onToggleTool?: (toolId: ToolId) => void;
+  availableContextual?: Set<ToolId>;
+  toolOrder?: ToolId[];
+  projectPath?: string;
 }
 
 export const ChatHeader = memo(function ChatHeader({
@@ -58,10 +54,18 @@ export const ChatHeader = memo(function ChatHeader({
   onSeedDevExampleConversation,
   onSeedDevExampleSpaceData,
   onClosePane,
+  activeTools,
+  onToggleTool,
+  availableContextual,
+  toolOrder,
+  projectPath,
 }: ChatHeaderProps) {
-  const modeLabel = permissionMode ? PERMISSION_MODE_LABELS[permissionMode] : null;
+  const { t } = useTranslation("chat");
+  const modeLabel = permissionMode
+    ? t(`header.permissionMode.${permissionMode}`, { defaultValue: permissionMode })
+    : null;
   const acpBehaviorLabel = acpPermissionBehavior
-    ? ACP_PERMISSION_BEHAVIOR_LABELS[acpPermissionBehavior]
+    ? t(`header.acpBehavior.${acpPermissionBehavior}`)
     : null;
   const permissionDisplay = acpBehaviorLabel ?? modeLabel;
   const macIslandTitlebarOffsetClass = islandLayout && isMac ? "translate-y-0.5" : "";
@@ -70,11 +74,14 @@ export const ChatHeader = memo(function ChatHeader({
 
   // Collect all session detail rows for the unified tooltip
   const detailRows: { label: string; value: string }[] = [];
-  if (model) detailRows.push({ label: "Model", value: model });
-  detailRows.push({ label: "Plan", value: planMode ? "On" : "Off" });
-  if (permissionDisplay) detailRows.push({ label: "Permissions", value: permissionDisplay });
-  if (totalCost > 0) detailRows.push({ label: "Cost", value: `$${totalCost.toFixed(4)}` });
-  if (sessionId) detailRows.push({ label: "Session", value: sessionId });
+  if (model) detailRows.push({ label: t("header.model"), value: model });
+  detailRows.push({
+    label: t("header.plan"),
+    value: planMode ? t("state.on", { ns: "common" }) : t("state.off", { ns: "common" }),
+  });
+  if (permissionDisplay) detailRows.push({ label: t("header.permissions"), value: permissionDisplay });
+  if (totalCost > 0) detailRows.push({ label: t("header.cost"), value: `$${totalCost.toFixed(4)}` });
+  if (sessionId) detailRows.push({ label: t("header.session"), value: sessionId });
 
   const hasDetails = detailRows.length > 0;
   const showDevSeedButton = import.meta.env.DEV && !!showDevFill && !!onSeedDevExampleConversation;
@@ -113,13 +120,13 @@ export const ChatHeader = memo(function ChatHeader({
               <div className="space-y-0.5 text-xs">
                 {model && (
                   <div className="flex justify-between gap-4">
-                    <span className="opacity-70">Model</span>
+                    <span className="opacity-70">{t("header.model")}</span>
                     <span className="font-mono">{model}</span>
                   </div>
                 )}
                 {permissionDisplay && (
                   <div className="flex justify-between gap-4">
-                    <span className="opacity-70">Permissions</span>
+                    <span className="opacity-70">{t("header.permissions")}</span>
                     <span className="font-mono">{permissionDisplay}</span>
                   </div>
                 )}
@@ -145,9 +152,18 @@ export const ChatHeader = memo(function ChatHeader({
         </span>
       ) : null}
 
-      {/* Session info, split view toggle, and pane close */}
-      {(showDevSeedButton || hasDetails || onClosePane) && (
+      {/* Session info, tool picker, and pane close */}
+      {(showDevSeedButton || hasDetails || onClosePane || (activeTools && onToggleTool)) && (
         <div className="ms-auto flex items-center gap-1.5">
+          {activeTools && onToggleTool && toolOrder && (
+            <ToolPickerMenu
+              activeTools={activeTools}
+              onToggleTool={onToggleTool}
+              availableContextual={availableContextual}
+              toolOrder={toolOrder}
+              projectPath={projectPath}
+            />
+          )}
           {onClosePane && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -161,7 +177,7 @@ export const ChatHeader = memo(function ChatHeader({
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="text-xs">
-                Close pane
+                {t("header.closePane")}
               </TooltipContent>
             </Tooltip>
           )}
@@ -173,16 +189,16 @@ export const ChatHeader = memo(function ChatHeader({
                   size="sm"
                   className="no-drag h-6 gap-1 px-2 text-[10px]"
                 >
-                  Dev Fill
+                  {t("header.devFill")}
                   <ChevronDown className="h-3 w-3" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={onSeedDevExampleConversation}>
-                  Fill current chat
+                  {t("header.fillCurrentChat")}
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={onSeedDevExampleSpaceData}>
-                  Fill current space (3 projects, 10 chats)
+                  {t("header.fillCurrentSpace")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -210,4 +226,36 @@ export const ChatHeader = memo(function ChatHeader({
       )}
     </div>
   );
+}, (prev, next) => {
+  if (prev.islandLayout !== next.islandLayout) return false;
+  if (prev.sidebarOpen !== next.sidebarOpen) return false;
+  if (prev.showSidebarToggle !== next.showSidebarToggle) return false;
+  if (prev.isProcessing !== next.isProcessing) return false;
+  if (prev.model !== next.model) return false;
+  if (prev.sessionId !== next.sessionId) return false;
+  if (prev.totalCost !== next.totalCost) return false;
+  if (prev.title !== next.title) return false;
+  if (prev.titleGenerating !== next.titleGenerating) return false;
+  if (prev.planMode !== next.planMode) return false;
+  if (prev.permissionMode !== next.permissionMode) return false;
+  if (prev.acpPermissionBehavior !== next.acpPermissionBehavior) return false;
+  if (prev.onToggleSidebar !== next.onToggleSidebar) return false;
+  if (prev.onClosePane !== next.onClosePane) return false;
+  if (prev.onToggleTool !== next.onToggleTool) return false;
+  if (prev.projectPath !== next.projectPath) return false;
+  if (prev.toolOrder !== next.toolOrder) return false;
+  // Compare Sets by content
+  const prevActive = prev.activeTools;
+  const nextActive = next.activeTools;
+  if (prevActive !== nextActive) {
+    if (!prevActive || !nextActive || prevActive.size !== nextActive.size) return false;
+    for (const id of prevActive) { if (!nextActive.has(id)) return false; }
+  }
+  const prevCtx = prev.availableContextual;
+  const nextCtx = next.availableContextual;
+  if (prevCtx !== nextCtx) {
+    if (!prevCtx || !nextCtx || prevCtx.size !== nextCtx.size) return false;
+    for (const id of prevCtx) { if (!nextCtx.has(id)) return false; }
+  }
+  return true;
 });

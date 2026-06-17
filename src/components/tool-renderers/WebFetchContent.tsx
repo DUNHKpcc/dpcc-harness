@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Globe, ExternalLink } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -7,6 +8,7 @@ import { extractResultText } from "@/components/lib/tool-formatting";
 const REMARK_PLUGINS = [remarkGfm];
 
 export function WebFetchContent({ message }: { message: UIMessage }) {
+  const { t } = useTranslation("toolcall");
   const content = extractResultText(message.toolResult);
   const url = String(message.toolInput?.url ?? "");
   let domain = "";
@@ -36,7 +38,7 @@ export function WebFetchContent({ message }: { message: UIMessage }) {
         </div>
       )}
       {truncated && (
-        <p className="text-[10px] text-foreground/30 italic">Content truncated</p>
+        <p className="text-[10px] text-foreground/30 italic">{t("webFetch.truncated")}</p>
       )}
     </div>
   );

@@ -81,9 +81,13 @@ function normalizeMacBackgroundEffect(value: unknown): MacBackgroundEffect {
 }
 
 function getMacBackgroundEffectSupport(): { liquidGlass: boolean; vibrancy: boolean } {
+  // Transparency effects (Liquid Glass *and* its vibrancy fallback) require the
+  // native glass infrastructure, which only loads on macOS Tahoe+. Without it the
+  // app renders opaque, so report both as unsupported — a plain opaque window
+  // looks far better than the hazy gray vibrancy produces on pre-Tahoe macOS.
   return {
     liquidGlass: glassEnabled,
-    vibrancy: process.platform === "darwin",
+    vibrancy: glassEnabled,
   };
 }
 
@@ -98,11 +102,23 @@ function resolveMacBackgroundEffect(effect: MacBackgroundEffect): MacBackgroundE
 function applyMacBackgroundEffect(effect: MacBackgroundEffect): void {
   if (process.platform !== "darwin" || !mainWindow || mainWindow.isDestroyed()) return;
 
+  // No Liquid Glass support → stay fully opaque. Never apply vibrancy here: on
+  // pre-Tahoe macOS it renders as a muddy gray haze that looks worse than a plain
+  // opaque window. The window was also created without `transparent`, so there is
+  // nothing for a vibrancy material to show through anyway.
+  if (!glassEnabled) {
+    mainWindow.setVibrancy(null);
+    return;
+  }
+
   const resolved = resolveMacBackgroundEffect(effect);
   pendingMacBackgroundEffect = resolved;
 
   if (resolved === "vibrancy") {
-    mainWindow.setVibrancy("under-window", { animationDuration: 120 });
+    // "sidebar" = Apple's NSVisualEffectMaterial tuned for Finder/Mail sidebars.
+    // Looks clean over any wallpaper, unlike "under-window" which blurs the
+    // desktop straight through and turns muddy gray on dark wallpapers.
+    mainWindow.setVibrancy("sidebar", { animationDuration: 120 });
     return;
   }
 
@@ -153,9 +169,26 @@ function createWindow(): void {
 
   if (process.platform === "darwin") {
     windowOptions.titleBarStyle = "hidden";
-    windowOptions.transparent = true;
-    windowOptions.backgroundColor = "#00000000";
     windowOptions.trafficLightPosition = { x: 19, y: 19 };
+    if (glassEnabled) {
+      // Liquid Glass (macOS Tahoe+): a transparent window so the native glass /
+      // vibrancy material can show through the web content.
+      windowOptions.transparent = true;
+      windowOptions.backgroundColor = "#00000000";
+      // Keep the material vivid even when the window loses focus — the default
+      // "followWindow" greys it out into a flat hazy gray on blur.
+      windowOptions.visualEffectState = "active";
+      // Seed the vibrancy material at construction so the first paint already has
+      // the native blur (avoids a flash before applyMacBackgroundEffect runs).
+      if (initialMacBackgroundEffect === "vibrancy") {
+        windowOptions.vibrancy = "sidebar";
+      }
+    } else {
+      // No Liquid Glass (pre-Tahoe, or the native addon failed to load) → render
+      // a normal opaque window. A transparent window + vibrancy on these systems
+      // only produces a muddy gray haze and lets the wallpaper bleed through.
+      windowOptions.backgroundColor = nativeTheme.shouldUseDarkColors ? "#141414" : "#ffffff";
+    }
   } else if (process.platform === "win32") {
     // Windows: native Electron backgroundMaterial handles DWM mica/acrylic.
     // WebContents is automatically transparent (no transparent: true needed),
@@ -215,7 +248,11 @@ function createWindow(): void {
 
 // Renderer uses this to decide whether the transparency toggle is available.
 ipcMain.handle("app:getGlassSupported", () => {
-  return process.platform === "darwin" || process.platform === "win32";
+  // On macOS, transparency effects require the Liquid Glass infrastructure (Tahoe+).
+  // Pre-Tahoe Macs render opaque, so report unsupported there — this is the master
+  // switch that keeps the renderer from applying any glass/vibrancy styling.
+  if (process.platform === "darwin") return glassEnabled;
+  return process.platform === "win32";
 });
 
 ipcMain.handle("app:get-mac-background-effect-support", () => {

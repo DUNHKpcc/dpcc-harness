@@ -1,0 +1,104 @@
+{
+  "nav": {
+    "skip": "Skip"
+  },
+  "welcomeStep": {
+    "intro": "Welcome to",
+    "tagline": "The workspace where you and AI",
+    "taglineLine2": "build software together.",
+    "getStarted": "Get Started"
+  },
+  "appearanceStep": {
+    "title": "Make it yours",
+    "subtitle": "Pick your vibe. Everything updates live.",
+    "themeSection": "Theme",
+    "theme": {
+      "dark": "Dark",
+      "light": "Light",
+      "system": "System"
+    },
+    "layoutSection": "Layout",
+    "layout": {
+      "islands": "Islands",
+      "islandsDesc": "Rounded, separated",
+      "flat": "Flat",
+      "flatDesc": "Edge-to-edge"
+    },
+    "toolBehaviorSection": "Tool behavior",
+    "autoGroup": "Auto-group tools",
+    "autoGroupDesc": "Collapse consecutive tool calls into a single group.",
+    "autoExpand": "Auto-expand tool results",
+    "autoExpandDesc": "Briefly open completed tool calls, then collapse them again.",
+    "expandEditWrite": "Expand Edit and Write tools by default",
+    "expandEditWriteDesc": "Start file edit tool calls open instead of collapsed.",
+    "transparency": "Window transparency",
+    "transparencySupported": "See your desktop through the window",
+    "transparencyUnsupported": "Not available on this platform"
+  },
+  "permissionsStep": {
+    "title": "Your rules",
+    "subtitle": "Set how much freedom Claude gets. Change this anytime.",
+    "modes": {
+      "default": {
+        "label": "Ask Before Edits",
+        "description": "Claude asks for approval before making file changes or running commands."
+      },
+      "acceptEdits": {
+        "label": "Accept Edits",
+        "description": "File edits are auto-approved, commands still require confirmation."
+      },
+      "bypassPermissions": {
+        "label": "Allow All",
+        "description": "Everything runs automatically with no prompts."
+      }
+    }
+  },
+  "projectStep": {
+    "title": "Your first project",
+    "subtitle": "Point PccAgent at any folder and start building.",
+    "chooseFolder": "Choose folder",
+    "skipForNow": "Skip for now"
+  },
+  "agentsStep": {
+    "title": "Connect agents",
+    "subtitle": "Browse the store and add ACP agents with one click.",
+    "builtIn": "Claude Code and Codex are already built in."
+  },
+  "tourStep": {
+    "title": "What's inside",
+    "subtitle": "A few things that make PccAgent different.",
+    "spaces": "Spaces",
+    "spacesDesc": "Organize projects into color-coded workspaces. Each space tints the entire UI with its own hue.",
+    "toolPanels": "Tool Panels",
+    "toolPanelsDesc": "Terminal, source control, browser, and more — integrated into the sidebar. Toggle them on and off as you work.",
+    "spaceNames": {
+      "frontend": "Frontend",
+      "api": "API",
+      "mobile": "Mobile",
+      "devops": "DevOps"
+    },
+    "tools": {
+      "terminal": "Terminal",
+      "git": "Source Control",
+      "browser": "Browser",
+      "files": "Open Files",
+      "projectFiles": "Project"
+    }
+  },
+  "readyStep": {
+    "title": "Ready to go",
+    "themeBadge": "{{theme}} theme",
+    "startBuilding": "Start building",
+    "theme": {
+      "dark": "Dark",
+      "light": "Light",
+      "system": "System"
+    }
+  },
+  "screen": {
+    "sidebarHint": "your threads are in the sidebar",
+    "openProject": "Open a project",
+    "openProjectSubtitle": "Choose a folder to anchor your sessions, tools, and file context.",
+    "chooseFolder": "Choose folder"
+  }
+}

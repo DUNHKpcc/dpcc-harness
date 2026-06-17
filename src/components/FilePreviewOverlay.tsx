@@ -1,4 +1,5 @@
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "motion/react";
 import { X, File, Loader2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -65,6 +66,7 @@ const OverlayContent = memo(function OverlayContent({
   sourceRect,
   onClose,
 }: OverlayContentProps) {
+  const { t } = useTranslation("workspace");
   const [content, setContent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -90,7 +92,7 @@ const OverlayContent = memo(function OverlayContent({
       .catch((err) => {
         if (cancelled) return;
         captureException(err instanceof Error ? err : new Error(String(err)), { label: "FILE_READ_ERR" });
-        setError(err instanceof Error ? err.message : "Failed to read file");
+        setError(err instanceof Error ? err.message : t("filePreview.readError"));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -99,7 +101,7 @@ const OverlayContent = memo(function OverlayContent({
     return () => {
       cancelled = true;
     };
-  }, [filePath]);
+  }, [filePath, t]);
 
   // Close on Escape
   useEffect(() => {
@@ -206,7 +208,7 @@ const OverlayContent = memo(function OverlayContent({
                   </span>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" sideOffset={4}>
-                  <p className="text-xs">Open in editor</p>
+                  <p className="text-xs">{t("filePreview.openInEditor")}</p>
                 </TooltipContent>
               </Tooltip>
               <button
@@ -282,7 +284,7 @@ const OverlayContent = memo(function OverlayContent({
           {content !== null && !loading && (
             <div className="flex items-center gap-3 border-t border-foreground/[0.08] px-4 py-1.5">
               <span className="text-[11px] text-muted-foreground/50">
-                {lineCount} {lineCount === 1 ? "line" : "lines"}
+                {lineCount} {lineCount === 1 ? t("filePreview.line") : t("filePreview.lines")}
               </span>
               <span className="text-[11px] text-muted-foreground/30">•</span>
               <span className="text-[11px] text-muted-foreground/50">{language}</span>

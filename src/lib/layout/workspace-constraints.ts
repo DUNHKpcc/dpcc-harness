@@ -3,7 +3,7 @@ import { MIN_TOOLS_PANEL_WIDTH, SPLIT_HANDLE_WIDTH } from "@/lib/layout/constant
 export type ChatPaneLayoutMode = "single" | "split";
 export type TopRowLayoutItemKind = "chat" | "tool-column";
 
-export const MIN_SINGLE_CHAT_PANE_WIDTH = 704;
+export const MIN_SINGLE_CHAT_PANE_WIDTH = 500;
 export const MIN_SPLIT_CHAT_PANE_WIDTH = 458;
 export const MIN_STACKED_TOOL_PANEL_HEIGHT = 120;
 

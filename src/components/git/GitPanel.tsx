@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { useTranslation } from "react-i18next";
 import {
   GitBranch as GitBranchIcon,
   RefreshCw,
@@ -28,17 +29,18 @@ export const GitPanel = memo(function GitPanel({
   activeSessionId,
   headerControls,
 }: GitPanelProps) {
+  const { t } = useTranslation("git");
   const git = useGitStatus({ projectPath: cwd });
 
   if (!cwd) {
     return (
       <div className="flex h-full flex-col">
-        <PanelHeader icon={GitBranchIcon} label="Source Control" iconClass="text-orange-600/70 dark:text-orange-200/50">
+        <PanelHeader icon={GitBranchIcon} label={t("panel.title")} iconClass="text-orange-600/70 dark:text-orange-200/50">
           {headerControls}
         </PanelHeader>
         <div className="flex flex-1 flex-col items-center justify-center gap-1">
           <FolderGit2 className="h-3.5 w-3.5 text-foreground/20" />
-          <p className="text-[10px] text-foreground/35">No project open</p>
+          <p className="text-[10px] text-foreground/35">{t("panel.noProjectOpen")}</p>
         </div>
       </div>
     );
@@ -47,14 +49,14 @@ export const GitPanel = memo(function GitPanel({
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <PanelHeader icon={GitBranchIcon} label="Source Control" iconClass="text-orange-600/70 dark:text-orange-200/50">
+      <PanelHeader icon={GitBranchIcon} label={t("panel.title")} iconClass="text-orange-600/70 dark:text-orange-200/50">
         {git.isLoading && <Loader2 className="h-3 w-3 animate-spin text-foreground/35" />}
         <Button
           variant="ghost"
           size="icon"
           className="h-5 w-5 shrink-0 text-foreground/40 hover:text-foreground/65"
           onClick={() => git.refreshAll()}
-          title="Refresh All"
+          title={t("panel.refreshAll")}
         >
           <RefreshCw className="h-3 w-3" />
         </Button>
@@ -66,14 +68,14 @@ export const GitPanel = memo(function GitPanel({
         {git.repoStates.length === 0 && git.isLoading && (
           <div className="flex flex-col items-center justify-center gap-1 py-6">
             <Loader2 className="h-3 w-3 animate-spin text-foreground/30" />
-            <p className="text-[10px] text-foreground/35">Scanning…</p>
+            <p className="text-[10px] text-foreground/35">{t("panel.scanning")}</p>
           </div>
         )}
 
         {git.repoStates.length === 0 && !git.isLoading && (
           <div className="flex flex-col items-center justify-center gap-1 py-6">
             <FolderGit2 className="h-3 w-3 text-foreground/20" />
-            <p className="text-[10px] text-foreground/35">No repos found</p>
+            <p className="text-[10px] text-foreground/35">{t("panel.noReposFound")}</p>
           </div>
         )}
 

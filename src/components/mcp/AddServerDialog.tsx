@@ -1,4 +1,5 @@
 import { memo, useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -25,6 +26,7 @@ export const AddServerDialog = memo(function AddServerDialog({
   onOpenChange,
   onAdd,
 }: AddServerDialogProps) {
+  const { t } = useTranslation("tools");
   const [name, setName] = useState("");
   const [transport, setTransport] = useState<McpTransport>("stdio");
   const [command, setCommand] = useState("");
@@ -74,23 +76,23 @@ export const AddServerDialog = memo(function AddServerDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
         <DialogHeader>
-          <DialogTitle className="text-sm">Add MCP Server</DialogTitle>
+          <DialogTitle className="text-sm">{t("mcp.dialog.title")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           {/* Name */}
           <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Name</label>
+            <label className="text-xs font-medium text-muted-foreground">{t("mcp.dialog.name")}</label>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="my-server"
+              placeholder={t("mcp.dialog.namePlaceholder")}
               className="h-8 text-xs"
             />
           </div>
 
           {/* Transport */}
           <div className="space-y-1">
-            <label className="text-xs font-medium text-muted-foreground">Transport</label>
+            <label className="text-xs font-medium text-muted-foreground">{t("mcp.dialog.transport")}</label>
             <div className="flex gap-1">
               {TRANSPORTS.map((t) => (
                 <Button
@@ -110,7 +112,7 @@ export const AddServerDialog = memo(function AddServerDialog({
           {transport === "stdio" ? (
             <>
               <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Command</label>
+                <label className="text-xs font-medium text-muted-foreground">{t("mcp.dialog.command")}</label>
                 <Input
                   value={command}
                   onChange={(e) => setCommand(e.target.value)}
@@ -120,7 +122,7 @@ export const AddServerDialog = memo(function AddServerDialog({
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">
-                  Arguments <span className="text-muted-foreground/60">(space-separated)</span>
+                  {t("mcp.dialog.arguments")} <span className="text-muted-foreground/60">{t("mcp.dialog.argumentsHint")}</span>
                 </label>
                 <Input
                   value={args}
@@ -131,7 +133,7 @@ export const AddServerDialog = memo(function AddServerDialog({
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">
-                  Environment Variables <span className="text-muted-foreground/60">(KEY=value, one per line)</span>
+                  {t("mcp.dialog.envVars")} <span className="text-muted-foreground/60">{t("mcp.dialog.envVarsHint")}</span>
                 </label>
                 <textarea
                   value={envText}
@@ -145,7 +147,7 @@ export const AddServerDialog = memo(function AddServerDialog({
           ) : (
             <>
               <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">URL</label>
+                <label className="text-xs font-medium text-muted-foreground">{t("mcp.dialog.url")}</label>
                 <Input
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
@@ -155,7 +157,7 @@ export const AddServerDialog = memo(function AddServerDialog({
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">
-                  Headers <span className="text-muted-foreground/60">(Name=Value, one per line)</span>
+                  {t("mcp.dialog.headers")} <span className="text-muted-foreground/60">{t("mcp.dialog.headersHint")}</span>
                 </label>
                 <textarea
                   value={headersText}
@@ -178,7 +180,7 @@ export const AddServerDialog = memo(function AddServerDialog({
               onOpenChange(false);
             }}
           >
-            Cancel
+            {t("action.cancel", { ns: "common" })}
           </Button>
           <Button
             size="sm"
@@ -186,7 +188,7 @@ export const AddServerDialog = memo(function AddServerDialog({
             onClick={handleAdd}
             disabled={!canSubmit}
           >
-            Add Server
+            {t("mcp.dialog.addServer")}
           </Button>
         </DialogFooter>
       </DialogContent>

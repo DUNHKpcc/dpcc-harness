@@ -1,0 +1,223 @@
+{
+  "label": {
+    "Bash": { "past": "Ran", "active": "Running", "failure": "run" },
+    "Read": { "past": "Read", "active": "Reading", "failure": "read" },
+    "Write": { "past": "Wrote", "active": "Writing", "failure": "write" },
+    "Edit": { "past": "Edited", "active": "Editing", "failure": "edit" },
+    "Grep": { "past": "Searched", "active": "Searching", "failure": "search" },
+    "Glob": { "past": "Found", "active": "Finding", "failure": "find" },
+    "WebSearch": { "past": "Searched web", "active": "Searching web", "failure": "search web" },
+    "WebFetch": { "past": "Fetched", "active": "Fetching", "failure": "fetch" },
+    "TodoWrite": { "past": "Updated tasks", "active": "Updating tasks", "failure": "update tasks" },
+    "Think": { "past": "Thought", "active": "Thinking", "failure": "think" },
+    "EnterPlanMode": { "past": "Entered plan mode", "active": "Entering plan mode", "failure": "enter plan mode" },
+    "ExitPlanMode": { "past": "Presented plan", "active": "Preparing plan", "failure": "prepare plan" },
+    "AskUserQuestion": { "past": "Asked", "active": "Asking", "failure": "ask" },
+    "ToolSearch": { "past": "Loaded tools", "active": "Loading tools", "failure": "load tools" },
+    "Skill": { "past": "Loaded skill", "active": "Loading skill", "failure": "load skill" }
+  },
+  "mcpLabel": {
+    "searchJira": { "past": "Searched Jira", "active": "Searching Jira", "failure": "search Jira" },
+    "fetchIssue": { "past": "Fetched issue", "active": "Fetching issue", "failure": "fetch issue" },
+    "listProjects": { "past": "Listed projects", "active": "Listing projects", "failure": "list projects" },
+    "createIssue": { "past": "Created issue", "active": "Creating issue", "failure": "create issue" },
+    "updateIssue": { "past": "Updated issue", "active": "Updating issue", "failure": "update issue" },
+    "transitionIssue": { "past": "Transitioned issue", "active": "Transitioning issue", "failure": "transition issue" },
+    "addComment": { "past": "Added comment", "active": "Adding comment", "failure": "add comment" },
+    "getTransitions": { "past": "Got transitions", "active": "Getting transitions", "failure": "get transitions" },
+    "lookupUser": { "past": "Looked up user", "active": "Looking up user", "failure": "look up user" },
+    "fetchPage": { "past": "Fetched page", "active": "Fetching page", "failure": "fetch page" },
+    "searchConfluence": { "past": "Searched Confluence", "active": "Searching Confluence", "failure": "search Confluence" },
+    "listSpaces": { "past": "Listed spaces", "active": "Listing spaces", "failure": "list spaces" },
+    "listDescendants": { "past": "Listed descendants", "active": "Listing descendants", "failure": "list descendants" },
+    "listPages": { "past": "Listed pages", "active": "Listing pages", "failure": "list pages" },
+    "createPage": { "past": "Created page", "active": "Creating page", "failure": "create page" },
+    "updatePage": { "past": "Updated page", "active": "Updating page", "failure": "update page" },
+    "getResources": { "past": "Got resources", "active": "Getting resources", "failure": "get resources" },
+    "getUserInfo": { "past": "Got user info", "active": "Getting user info", "failure": "get user info" },
+    "searchAtlassian": { "past": "Searched Atlassian", "active": "Searching Atlassian", "failure": "search Atlassian" },
+    "fetchResource": { "past": "Fetched resource", "active": "Fetching resource", "failure": "fetch resource" },
+    "resolveLibrary": { "past": "Resolved library", "active": "Resolving library", "failure": "resolve library" },
+    "queryDocs": { "past": "Queried docs", "active": "Querying docs", "failure": "query docs" }
+  },
+  "mcpGeneric": {
+    "past": "Called {{server}}",
+    "active": "Calling {{server}}",
+    "failure": "call {{server}}"
+  },
+  "fallback": {
+    "running": "Running",
+    "tool": "Tool",
+    "runTool": "run tool",
+    "runNamed": "run {{name}}",
+    "failedTo": "Failed to {{action}}"
+  },
+  "group": {
+    "edited_one": "edited {{count}} file",
+    "edited_other": "edited {{count}} files",
+    "read_one": "read {{count}} file",
+    "read_other": "read {{count}} files",
+    "ran_one": "ran {{count}} command",
+    "ran_other": "ran {{count}} commands",
+    "searched_one": "ran {{count}} search",
+    "searched_other": "ran {{count}} searches",
+    "used_one": "used {{count}} tool",
+    "used_other": "used {{count}} tools",
+    "joinTwo": "{{a}} and {{b}}",
+    "joinLast": "{{init}}, and {{last}}"
+  },
+  "summary": {
+    "implementationPlan": "implementation plan",
+    "completed": "{{completed}}/{{total}} completed",
+    "filesCount": "{{count}} files",
+    "noMatches": "no matches",
+    "inScope": "in {{scope}}",
+    "resultFiles_one": " → {{count}} file",
+    "resultFiles_other": " → {{count}} files",
+    "resultLines_one": " → {{count}} line",
+    "resultLines_other": " → {{count}} lines",
+    "resultNoMatches": " → no matches",
+    "allProjects": "all projects"
+  },
+  "task": {
+    "task": "Task",
+    "taskWith": "Task: {{desc}}",
+    "agentWith": "{{agent}}: {{desc}}",
+    "runningAgent": "Running agent...",
+    "runningNamedAgent": "Running {{agent}} agent...",
+    "runningWith": "Running: {{desc}}",
+    "summaryFallback": "task",
+    "summaryAgentTo": "{{agent}} to {{desc}}",
+    "usedAgent": "Used agent",
+    "stepCount_one": "{{count}} step",
+    "stepCount_other": "{{count}} steps",
+    "prompt": "Prompt",
+    "steps": "Steps",
+    "result": "Result",
+    "showFullResult": "Show full result",
+    "collapse": "Collapse"
+  },
+  "result": {
+    "fileLines": "{{filePath}} ({{numLines}}/{{totalLines}} lines)",
+    "edited": "Edited {{filePath}}",
+    "launchedAgent": "Launched agent {{agentId}} ({{status}})",
+    "noOutput": "(no output)"
+  },
+  "bash": {
+    "showFullOutput": "Show full output ({{count}} lines)",
+    "collapse": "Collapse"
+  },
+  "read": {
+    "lines_one": "{{count}} line",
+    "lines_other": "{{count}} lines",
+    "rangeOf": "L{{start}}–{{end}} of {{total}}"
+  },
+  "write": {
+    "loadingEditor": "Loading editor"
+  },
+  "search": {
+    "in": "in {{scope}}",
+    "files_one": "{{count}} file",
+    "files_other": "{{count}} files",
+    "lines_one": "{{count}} line",
+    "lines_other": "{{count}} lines",
+    "linesInFiles_one": "{{lines}} lines in {{count}} file",
+    "linesInFiles_other": "{{lines}} lines in {{count}} files",
+    "noMatches": "No matches"
+  },
+  "toolSearch": {
+    "direct": "direct",
+    "search": "search",
+    "noMatchingTools": "No matching tools",
+    "poolBadge": "{{loaded}} loaded · {{total}} available"
+  },
+  "skill": {
+    "loaded": "Skill loaded",
+    "failedToLoad": "Failed to load skill"
+  },
+  "plan": {
+    "enterPlaceholder": "Exploring codebase and designing implementation approach."
+  },
+  "webSearch": {
+    "action": {
+      "search": "search",
+      "openPage": "open page",
+      "findInPage": "find in page",
+      "web": "web"
+    },
+    "webSearch": "Web search",
+    "searchQuery": "Search query:",
+    "pattern": "Pattern:",
+    "moreResults_one": "+{{count}} more result",
+    "moreResults_other": "+{{count}} more results"
+  },
+  "webFetch": {
+    "truncated": "Content truncated"
+  },
+  "askQuestion": {
+    "waiting": "Waiting for answer…",
+    "answer": "Answer: "
+  },
+  "mcpList": {
+    "empty": {
+      "issues": "No issues found",
+      "projects": "No projects found",
+      "transitions": "No transitions available",
+      "results": "No results found",
+      "spaces": "No spaces found",
+      "descendants": "No descendants found",
+      "pages": "No pages found",
+      "resources": "No accessible resources",
+      "libraries": "No libraries found",
+      "documentation": "No documentation found"
+    },
+    "noun": {
+      "issue_one": "{{count}} issue",
+      "issue_other": "{{count}} issues",
+      "result_one": "{{count}} result",
+      "result_other": "{{count}} results",
+      "project_one": "{{count}} project",
+      "project_other": "{{count}} projects",
+      "transition_one": "{{count}} transition",
+      "transition_other": "{{count}} transitions",
+      "space_one": "{{count}} space",
+      "space_other": "{{count}} spaces",
+      "descendant_one": "{{count}} descendant",
+      "descendant_other": "{{count}} descendants",
+      "page_one": "{{count}} page",
+      "page_other": "{{count}} pages",
+      "site_one": "{{count}} site",
+      "site_other": "{{count}} sites",
+      "library_one": "{{count}} library",
+      "library_other": "{{count}} libraries"
+    }
+  },
+  "field": {
+    "status": "Status",
+    "priority": "Priority",
+    "assignee": "Assignee",
+    "created": "Created",
+    "updated": "Updated",
+    "description": "Description",
+    "pageId": "Page ID",
+    "spaceId": "Space ID",
+    "parent": "Parent",
+    "version": "Version"
+  },
+  "jira": {
+    "untitled": "Untitled",
+    "typeCount_one": "{{count}} type",
+    "typeCount_other": "{{count}} types"
+  },
+  "confluence": {
+    "pageCreated": "Page created",
+    "pageUpdated": "Page updated",
+    "contentPreview": "Content preview",
+    "untitled": "Untitled"
+  },
+  "context7": {
+    "snippets_one": "{{count}} snippet",
+    "snippets_other": "{{count}} snippets",
+    "codeSnippets": "{{value}} snippets"
+  }
+}

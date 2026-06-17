@@ -1,3 +1,4 @@
+import type { TFunction } from "i18next";
 import type { UIMessage, SubagentToolStep } from "@/types";
 import { getMcpCompactSummary } from "@/components/McpToolContent";
 import { getTodoItems } from "@/lib/chat/todo-utils";
@@ -5,7 +6,7 @@ import { getDistinctPatchPaths, getStructuredPatches } from "@/lib/diff/patch-ut
 
 // ── Compact summary for collapsed tool line ──
 
-export function formatCompactSummary(message: UIMessage): string {
+export function formatCompactSummary(message: UIMessage, t: TFunction<"toolcall">): string {
   const input = message.toolInput;
   const toolName = message.toolName ?? "";
   const result = message.toolResult;
@@ -18,7 +19,7 @@ export function formatCompactSummary(message: UIMessage): string {
   if (toolName === "ExitPlanMode") {
     const plan = String(input.plan ?? "");
     const titleMatch = plan.match(/^#\s+(.+)$/m);
-    return titleMatch?.[1] ?? "implementation plan";
+    return titleMatch?.[1] ?? t("summary.implementationPlan");
   }
   if (toolName === "EnterPlanMode") return "";
 
@@ -33,7 +34,7 @@ export function formatCompactSummary(message: UIMessage): string {
 
   // MCP tools (mcp__Server__tool) or ACP tools (Tool: Server/tool) — delegate to specialized summaries
   if (toolName.startsWith("mcp__") || toolName.startsWith("Tool: ")) {
-    const mcpSummary = getMcpCompactSummary(toolName, input);
+    const mcpSummary = getMcpCompactSummary(toolName, input, t);
     if (mcpSummary) return mcpSummary;
     // Fallback: show the MCP tool's short name
     if (toolName.startsWith("mcp__")) {
@@ -46,8 +47,8 @@ export function formatCompactSummary(message: UIMessage): string {
 
   if (toolName === "TodoWrite" && input.todos != null) {
     const todos = getTodoItems(input.todos);
-    const completed = todos.filter((t) => t.status === "completed").length;
-    return `${completed}/${todos.length} completed`;
+    const completed = todos.filter((todo) => todo.status === "completed").length;
+    return t("summary.completed", { completed, total: todos.length });
   }
   // Skill — show skill name
   if (toolName === "Skill") {
@@ -67,14 +68,14 @@ export function formatCompactSummary(message: UIMessage): string {
   const patches = getStructuredPatches(result);
   const patchPaths = getDistinctPatchPaths(patches);
   if (input.file_path && patchPaths.length > 1) {
-    return `${patchPaths.length} files`;
+    return t("summary.filesCount", { count: patchPaths.length });
   }
   if (input.file_path) return String(input.file_path).split("/").pop() ?? "";
   if (filePathFromResult) return filePathFromResult.split("/").pop() ?? filePathFromResult;
   if (input.pattern) {
     const pat = String(input.pattern);
-    const glob = input.glob ? ` in ${String(input.glob)}` : "";
-    const suffix = getSearchResultSuffix(result);
+    const glob = input.glob ? ` ${t("summary.inScope", { scope: String(input.glob) })}` : "";
+    const suffix = getSearchResultSuffix(result, t);
     return pat + glob + suffix;
   }
   if (input.query) return String(input.query).slice(0, 60);
@@ -89,14 +90,14 @@ export function formatCompactSummary(message: UIMessage): string {
 }
 
 /** Derive a short suffix like " → 3 files" from structured Grep/Glob results. */
-function getSearchResultSuffix(result: UIMessage["toolResult"]): string {
+function getSearchResultSuffix(result: UIMessage["toolResult"], t: TFunction<"toolcall">): string {
   if (!result || !("mode" in result)) return "";
   const numFiles = "numFiles" in result ? Number(result.numFiles) : 0;
   const numLines = "numLines" in result ? Number(result.numLines) : 0;
   const mode = String(result.mode);
-  if (mode === "files_with_matches" && numFiles > 0) return ` → ${numFiles} file${numFiles !== 1 ? "s" : ""}`;
-  if (mode === "content" && numLines > 0) return ` → ${numLines} line${numLines !== 1 ? "s" : ""}`;
-  if (numFiles === 0 && numLines === 0) return " → no matches";
+  if (mode === "files_with_matches" && numFiles > 0) return t("summary.resultFiles", { count: numFiles });
+  if (mode === "content" && numLines > 0) return t("summary.resultLines", { count: numLines });
+  if (numFiles === 0 && numLines === 0) return t("summary.resultNoMatches");
   return "";
 }
 
@@ -117,35 +118,35 @@ function extractResultFilePath(result: UIMessage["toolResult"]): string | null {
 
 // ── Task formatting ──
 
-export function formatTaskTitle(message: UIMessage): string {
+export function formatTaskTitle(message: UIMessage, t: TFunction<"toolcall">): string {
   const input = message.toolInput;
-  if (!input) return "Task";
+  if (!input) return t("task.task");
   const desc = String(input.description ?? "");
   const agentType = String(input.subagent_type ?? input.subagentType ?? "");
-  if (agentType && desc) return `${agentType}: ${desc}`;
-  if (desc) return `Task: ${desc}`;
-  return "Task";
+  if (agentType && desc) return t("task.agentWith", { agent: agentType, desc });
+  if (desc) return t("task.taskWith", { desc });
+  return t("task.task");
 }
 
-export function formatTaskRunningTitle(message: UIMessage): string {
+export function formatTaskRunningTitle(message: UIMessage, t: TFunction<"toolcall">): string {
   const input = message.toolInput;
-  if (!input) return "Running agent...";
+  if (!input) return t("task.runningAgent");
   const agentType = String(input.subagent_type ?? input.subagentType ?? "");
   const desc = String(input.description ?? "");
-  if (agentType) return `Running ${agentType} agent...`;
-  if (desc) return `Running: ${desc}`;
-  return "Running agent...";
+  if (agentType) return t("task.runningNamedAgent", { agent: agentType });
+  if (desc) return t("task.runningWith", { desc });
+  return t("task.runningAgent");
 }
 
-export function formatTaskSummary(message: UIMessage): string {
+export function formatTaskSummary(message: UIMessage, t: TFunction<"toolcall">): string {
   const input = message.toolInput;
-  if (!input) return "task";
+  if (!input) return t("task.summaryFallback");
   const agentType = String(input.subagent_type ?? input.subagentType ?? "");
   const desc = String(input.description ?? "");
-  if (agentType && desc) return `${agentType} to ${desc}`;
+  if (agentType && desc) return t("task.summaryAgentTo", { agent: agentType, desc });
   if (agentType) return agentType;
   if (desc) return desc;
-  return "task";
+  return t("task.summaryFallback");
 }
 
 export function formatLatestStep(steps: SubagentToolStep[]): string {
@@ -206,7 +207,7 @@ export function stripAnsi(text: string): string {
   return text.replace(/\x1b\[[0-9;]*[A-Za-z]|\x1b\][^\x07]*(?:\x07|\x1b\\)|\x1b[()][A-Z0-9]|\x1b[A-Z@-_]/g, "");
 }
 
-export function formatBashResult(result: UIMessage["toolResult"]): string {
+export function formatBashResult(result: UIMessage["toolResult"], t: TFunction<"toolcall">): string {
   if (!result) return "";
   const parts: string[] = [];
   if (result.stdout) parts.push(result.stdout);
@@ -217,7 +218,7 @@ export function formatBashResult(result: UIMessage["toolResult"]): string {
     parts.push(result.content.filter((c) => c.type === "text").map((c) => c.text).join("\n"));
   }
   if (result.stderr) parts.push(result.stderr);
-  return parts.join("\n") || "(no output)";
+  return parts.join("\n") || t("result.noOutput");
 }
 
 /** Check if a tool result is the synthetic `{ status: "completed" }` marker
@@ -228,7 +229,7 @@ export function isCompletionSentinel(result: UIMessage["toolResult"]): boolean {
   return keys.length === 1 && result.status === "completed";
 }
 
-export function formatResult(result: UIMessage["toolResult"]): string {
+export function formatResult(result: UIMessage["toolResult"], t: TFunction<"toolcall">): string {
   if (!result) return "";
 
   // Synthetic completion marker from closePendingTools — no real output
@@ -236,22 +237,22 @@ export function formatResult(result: UIMessage["toolResult"]): string {
 
   if (result.file) {
     const { filePath, numLines, totalLines } = result.file;
-    return `${filePath} (${numLines}/${totalLines} lines)`;
+    return t("result.fileLines", { filePath, numLines, totalLines });
   }
 
   if (result.stdout !== undefined) {
     const parts: string[] = [];
     if (result.stdout) parts.push(result.stdout);
     if (result.stderr) parts.push(`stderr: ${result.stderr}`);
-    return parts.join("\n") || "(no output)";
+    return parts.join("\n") || t("result.noOutput");
   }
 
   if (result.filePath && result.newString !== undefined) {
-    return `Edited ${result.filePath}`;
+    return t("result.edited", { filePath: result.filePath });
   }
 
   if (result.isAsync) {
-    return `Launched agent ${result.agentId ?? ""} (${result.status})`;
+    return t("result.launchedAgent", { agentId: result.agentId ?? "", status: result.status });
   }
 
   return JSON.stringify(result, null, 2);

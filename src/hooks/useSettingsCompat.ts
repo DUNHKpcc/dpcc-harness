@@ -56,7 +56,6 @@ export function useSettingsCompat(projectId: string | null, engine: EngineId = "
       autoExpandTools: s.autoExpandTools,
       expandEditToolCallsByDefault: s.expandEditToolCallsByDefault,
       transparentToolPicker: s.transparentToolPicker,
-      coloredSidebarIcons: s.coloredSidebarIcons,
       showToolIcons: s.showToolIcons,
       coloredToolIcons: s.coloredToolIcons,
     })),
@@ -79,7 +78,6 @@ export function useSettingsCompat(projectId: string | null, engine: EngineId = "
   const setAutoExpandTools = useSettingsStore((s) => s.setAutoExpandTools);
   const setExpandEditToolCallsByDefault = useSettingsStore((s) => s.setExpandEditToolCallsByDefault);
   const setTransparentToolPicker = useSettingsStore((s) => s.setTransparentToolPicker);
-  const setColoredSidebarIcons = useSettingsStore((s) => s.setColoredSidebarIcons);
   const setShowToolIcons = useSettingsStore((s) => s.setShowToolIcons);
   const setColoredToolIcons = useSettingsStore((s) => s.setColoredToolIcons);
 
@@ -276,8 +274,6 @@ export function useSettingsCompat(projectId: string | null, engine: EngineId = "
     setExpandEditToolCallsByDefault,
     transparentToolPicker: globalState.transparentToolPicker,
     setTransparentToolPicker,
-    coloredSidebarIcons: globalState.coloredSidebarIcons,
-    setColoredSidebarIcons,
     showToolIcons: globalState.showToolIcons,
     setShowToolIcons,
     coloredToolIcons: globalState.coloredToolIcons,

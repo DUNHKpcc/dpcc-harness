@@ -1,0 +1,63 @@
+{
+  "panel": {
+    "title": "源代码管理",
+    "refreshAll": "全部刷新",
+    "noProjectOpen": "未打开项目",
+    "scanning": "扫描中…",
+    "noReposFound": "未找到仓库"
+  },
+  "repo": {
+    "subTag": "子",
+    "worktreeTag": "wt",
+    "fetch": "Fetch",
+    "pull": "Pull",
+    "push": "Push",
+    "workingTreeClean": "工作区干净",
+    "commits": "提交记录"
+  },
+  "section": {
+    "staged": "已暂存",
+    "changes": "更改",
+    "untracked": "未跟踪",
+    "stageAll": "全部暂存",
+    "unstageAll": "全部取消暂存"
+  },
+  "file": {
+    "discard": "丢弃",
+    "stage": "暂存",
+    "unstage": "取消暂存"
+  },
+  "diff": {
+    "noDiffAvailable": "无可用 diff"
+  },
+  "branch": {
+    "filterPlaceholder": "筛选分支…",
+    "newBranchPlaceholder": "新分支名称…",
+    "createNew": "创建新分支",
+    "local": "本地",
+    "remote": "远程",
+    "noMatching": "无匹配的分支"
+  },
+  "commit": {
+    "placeholder": "提交信息…",
+    "aiMessage": "AI 生成提交信息",
+    "stagedCount": "已暂存 {{n}} 项",
+    "commit": "提交",
+    "commitChanges": "提交更改",
+    "noResultReceived": "未收到结果"
+  },
+  "selector": {
+    "select": "选择…"
+  },
+  "worktree": {
+    "removeWorktree": "移除 worktree",
+    "label": "Worktree",
+    "branchNamePlaceholder": "新 worktree 的分支名称",
+    "setupDescription": "配置 worktree 初始化脚本，以自动安装依赖并复制环境文件。",
+    "settings": "设置",
+    "generateWithAI": "用 AI 生成",
+    "createdWithErrors": "已创建 worktree，但初始化时出现错误：\n{{errors}}",
+    "failedToCreate": "创建 worktree 失败",
+    "failedToRemove": "移除 worktree 失败"
+  }
+}

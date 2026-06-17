@@ -1,4 +1,5 @@
 import { memo, useState, useMemo, createContext, useContext, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { AlertCircle, Clock, Crosshair, File, Folder, Info, RotateCcw, Send, Undo2, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -187,6 +188,7 @@ export const MessageBubble = memo(function MessageBubble({
   onSendQueuedNow,
   onUnqueueQueued,
 }: MessageBubbleProps) {
+  const { t } = useTranslation("chat");
   // All hooks must be called before any early returns (Rules of Hooks)
   const isUser = message.role === "user";
   const [viewingImage, setViewingImage] = useState<ImageAttachment | null>(null);
@@ -235,7 +237,7 @@ export const MessageBubble = memo(function MessageBubble({
                       <img
                         key={img.id}
                         src={`data:${img.mediaType};base64,${img.data}`}
-                        alt={img.fileName ?? "attached image"}
+                        alt={img.fileName ?? t("message.attachedImage")}
                         className="max-h-48 cursor-pointer rounded-lg transition-opacity hover:opacity-90"
                         onClick={() => setViewingImage(img)}
                       />
@@ -251,7 +253,7 @@ export const MessageBubble = memo(function MessageBubble({
                 {message.isQueued && (
                   <div className="mt-2 flex items-center gap-2 border-t border-foreground/[0.06] pt-2 text-[11px] text-muted-foreground">
                     <Clock className="h-3 w-3 shrink-0" />
-                    <span>Queued</span>
+                    <span>{t("message.queued")}</span>
                     {(onSendQueuedNow || onUnqueueQueued) && (
                       <div className="ms-auto flex items-center gap-1">
                         {onSendQueuedNow && (
@@ -266,7 +268,7 @@ export const MessageBubble = memo(function MessageBubble({
                             onClick={() => onSendQueuedNow(message.id)}
                           >
                             <Send className="h-2.5 w-2.5" />
-                            Send next
+                            {t("message.sendNext")}
                           </button>
                         )}
                         {onUnqueueQueued && (
@@ -276,7 +278,7 @@ export const MessageBubble = memo(function MessageBubble({
                             onClick={() => onUnqueueQueued(message.id)}
                           >
                             <X className="h-2.5 w-2.5" />
-                            Unqueue
+                            {t("message.unqueue")}
                           </button>
                         )}
                       </div>
@@ -296,20 +298,20 @@ export const MessageBubble = memo(function MessageBubble({
                 <DropdownMenuTrigger asChild>
                   <button className="pointer-events-auto flex items-center gap-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] text-foreground/30 transition-colors hover:text-foreground/60">
                     <Undo2 className="h-3 w-3" />
-                    Revert to here
+                    {t("message.revertToHere")}
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
                   {onRevert && (
                     <DropdownMenuItem onClick={() => onRevert(checkpointId)}>
                       <Undo2 className="h-3.5 w-3.5 me-2" />
-                      Revert files only
+                      {t("message.revertFilesOnly")}
                     </DropdownMenuItem>
                   )}
                   {onFullRevert && (
                     <DropdownMenuItem onClick={() => onFullRevert(checkpointId)}>
                       <RotateCcw className="h-3.5 w-3.5 me-2" />
-                      Revert files + chat
+                      {t("message.revertFilesAndChat")}
                     </DropdownMenuItem>
                   )}
                 </DropdownMenuContent>

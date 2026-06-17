@@ -1,4 +1,5 @@
 import { useMemo, memo } from "react";
+import { useTranslation } from "react-i18next";
 import { BookOpen, ChevronRight, Minimize2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -27,15 +28,16 @@ interface SummaryBlockProps {
 }
 
 export const SummaryBlock = memo(function SummaryBlock({ message }: SummaryBlockProps) {
+  const { t } = useTranslation("chat");
   const [isOpen, setIsOpen] = useChatPersistedState(`summary:${message.id}`, false);
 
   const isCompact = message.compactTrigger === "manual" || message.compactTrigger === "auto";
   const hasContent = !!message.content.trim();
 
   const typeLabel = message.compactTrigger === "manual"
-    ? "Manual compact"
+    ? t("summary.manualCompact")
     : message.compactTrigger === "auto"
-      ? "Auto-compact"
+      ? t("summary.autoCompact")
       : null;
 
   const preview = useMemo(() => {
@@ -46,7 +48,7 @@ export const SummaryBlock = memo(function SummaryBlock({ message }: SummaryBlock
 
   const Icon = isCompact ? Minimize2 : BookOpen;
 
-  const fallbackLabel = isCompact ? "Context compacted" : "Context resumed from previous conversation";
+  const fallbackLabel = isCompact ? t("summary.contextCompacted") : t("summary.contextResumed");
 
   return (
     <div className={`flow-root ${CHAT_CARD_ROW_MARGIN_CLASS}`}>
@@ -68,7 +70,7 @@ export const SummaryBlock = memo(function SummaryBlock({ message }: SummaryBlock
         </span>
         {message.compactPreTokens != null && (
           <span className="shrink-0 text-xs text-muted-foreground/50">
-            {(message.compactPreTokens / 1000).toFixed(0)}k tokens
+            {t("summary.tokens", { amount: (message.compactPreTokens / 1000).toFixed(0) })}
           </span>
         )}
         {hasContent && (

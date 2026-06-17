@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Bot,
   Loader2,
@@ -62,13 +63,14 @@ export function BackgroundAgentsPanel({
   onDismiss,
   onStopAgent,
 }: BackgroundAgentsPanelProps) {
+  const { t } = useTranslation("tools");
   const runningCount = agents.filter((a) => a.status === "running" || a.status === "stopping").length;
 
   return (
     <div className="flex h-full flex-col">
       <PanelHeader
         icon={Bot}
-        label="Agents"
+        label={t("agents.title")}
         iconClass="text-foreground/50"
       >
         {runningCount > 0 && (
@@ -109,6 +111,7 @@ function AgentCard({
   onDismiss: (agentId: string) => void;
   onStopAgent: (agentId: string, taskId: string) => void;
 }) {
+  const { t } = useTranslation("tools");
   const isRunning = agent.status === "running";
   const isStopping = agent.status === "stopping";
   const isActive = isRunning || isStopping;
@@ -140,7 +143,7 @@ function AgentCard({
                 />
                 <StatusDot status={agent.status} />
                 <span className="truncate text-foreground/75 font-medium">
-                  {isStopping && <span className="text-amber-500/60">Stopping… </span>}
+                  {isStopping && <span className="text-amber-500/60">{t("agents.stopping")}</span>}
                   {agent.description}
                 </span>
               </div>
@@ -153,7 +156,7 @@ function AgentCard({
                   size="icon"
                   className="h-4.5 w-4.5 text-foreground/30 hover:text-red-400/80"
                   onClick={handleStop}
-                  title="Stop agent"
+                  title={t("agents.stopAgent")}
                 >
                   <Square className="h-2 w-2" />
                 </Button>
@@ -164,7 +167,7 @@ function AgentCard({
                   size="icon"
                   className="h-4.5 w-4.5 text-foreground/30 hover:text-foreground/60"
                   onClick={(e) => { e.stopPropagation(); setShowTranscript(true); }}
-                  title="View full transcript"
+                  title={t("agents.viewTranscript")}
                 >
                   <FileSearch className="h-2.5 w-2.5" />
                 </Button>
@@ -373,6 +376,7 @@ function UsageBar({ usage }: { usage: BackgroundAgentUsage }) {
 // ── Agent result ──
 
 function AgentResult({ result, isError }: { result: string; isError?: boolean }) {
+  const { t } = useTranslation("tools");
   const [resultExpanded, setResultExpanded] = useState(false);
   const isLong = result.length > 200;
 
@@ -399,7 +403,7 @@ function AgentResult({ result, isError }: { result: string; isError?: boolean })
           className="mt-0.5 text-[9px] text-foreground/40 hover:text-foreground/60 transition-colors cursor-pointer"
           onClick={(e) => { e.stopPropagation(); setResultExpanded((v) => !v); }}
         >
-          {resultExpanded ? "less" : "more"}
+          {resultExpanded ? t("agents.less") : t("agents.more")}
         </button>
       )}
     </div>

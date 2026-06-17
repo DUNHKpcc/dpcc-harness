@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { useClickOutside } from "@/hooks/useClickOutside";
 import {
   GitBranch as GitBranchIcon,
@@ -51,6 +52,7 @@ export function BranchPicker({
   onCreateBranch,
   className,
 }: BranchPickerProps) {
+  const { t } = useTranslation("git");
   const [showBranchPicker, setShowBranchPicker] = useState(false);
   const [branchFilter, setBranchFilter] = useState("");
   const [newBranchName, setNewBranchName] = useState("");
@@ -118,7 +120,7 @@ export function BranchPicker({
                 type="text"
                 value={branchFilter}
                 onChange={(e) => setBranchFilter(e.target.value)}
-                placeholder="Filter branches…"
+                placeholder={t("branch.filterPlaceholder")}
                 className="w-full bg-transparent py-1.5 text-[11px] text-foreground/75 outline-none placeholder:text-foreground/30"
                 autoFocus
               />
@@ -136,7 +138,7 @@ export function BranchPicker({
                   if (e.key === "Enter") handleCreateBranch();
                   if (e.key === "Escape") { setShowNewBranch(false); setNewBranchName(""); }
                 }}
-                placeholder="New branch name…"
+                placeholder={t("branch.newBranchPlaceholder")}
                 className="min-w-0 flex-1 rounded-md bg-foreground/[0.05] px-2 py-1.5 text-[11px] text-foreground/75 outline-none placeholder:text-foreground/30"
                 autoFocus
               />
@@ -157,14 +159,14 @@ export function BranchPicker({
               className="flex w-full items-center gap-1.5 border-b border-foreground/[0.08] px-3 py-1.5 text-[11px] text-foreground/45 transition-colors hover:bg-foreground/[0.04] hover:text-foreground/65 cursor-pointer"
             >
               <Plus className="h-3 w-3" />
-              Create new branch
+              {t("branch.createNew")}
             </button>
           )}
 
           {/* Branch lists */}
           {localBranches.length > 0 && (
             <div className="py-0.5">
-              <div className="px-3 pt-1.5 pb-0.5 text-[9px] font-semibold uppercase tracking-widest text-foreground/30">Local</div>
+              <div className="px-3 pt-1.5 pb-0.5 text-[9px] font-semibold uppercase tracking-widest text-foreground/30">{t("branch.local")}</div>
               {localBranches.map((b) => (
                 <BranchItem key={b.name} branch={b} onSelect={handleCheckout} />
               ))}
@@ -172,7 +174,7 @@ export function BranchPicker({
           )}
           {remoteBranches.length > 0 && (
             <div className="border-t border-foreground/[0.06] py-0.5">
-              <div className="px-3 pt-1.5 pb-0.5 text-[9px] font-semibold uppercase tracking-widest text-foreground/30">Remote</div>
+              <div className="px-3 pt-1.5 pb-0.5 text-[9px] font-semibold uppercase tracking-widest text-foreground/30">{t("branch.remote")}</div>
               {remoteBranches.map((b) => (
                 <BranchItem key={b.name} branch={b} onSelect={handleCheckout} />
               ))}
@@ -180,7 +182,7 @@ export function BranchPicker({
           )}
 
           {filteredBranches.length === 0 && (
-            <div className="px-3 py-3 text-center text-[10px] text-foreground/35">No matching branches</div>
+            <div className="px-3 py-3 text-center text-[10px] text-foreground/35">{t("branch.noMatching")}</div>
           )}
         </div>
       )}

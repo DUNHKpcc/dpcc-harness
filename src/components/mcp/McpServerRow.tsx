@@ -1,10 +1,20 @@
 import { memo } from "react";
+import { useTranslation } from "react-i18next";
 import { Trash2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import type { McpServerConfig, McpServerStatus } from "@/types";
+import type { McpServerConfig, McpServerStatus, McpServerStatusState } from "@/types";
 import { TRANSPORT_ICON, TRANSPORT_COLOR, STATUS_CONFIG } from "./mcp-utils";
+
+/** Maps a runtime status state to its translation key under `tools:mcp.status`. */
+const STATUS_LABEL_KEYS: Record<McpServerStatusState, string> = {
+  connected: "mcp.status.connected",
+  pending: "mcp.status.connecting",
+  "needs-auth": "mcp.status.needsAuth",
+  failed: "mcp.status.failed",
+  disabled: "mcp.status.disabled",
+};
 import type { AuthStatusInfo } from "./mcp-utils";
 import { McpAuthStatus } from "./McpAuthStatus";
 
@@ -38,10 +48,12 @@ export const McpServerRow = memo(function McpServerRow({
   onReconnect,
   onRestartWithServers,
 }: McpServerRowProps) {
+  const { t } = useTranslation("tools");
   const Icon = TRANSPORT_ICON[server.transport];
   const color = TRANSPORT_COLOR[server.transport];
   const statusCfg = runtimeStatus ? STATUS_CONFIG[runtimeStatus.status] : null;
   const StatusIcon = statusCfg?.icon;
+  const statusLabel = runtimeStatus ? t(STATUS_LABEL_KEYS[runtimeStatus.status]) : null;
 
   return (
     <div className="group flex items-start gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50 transition-colors">
@@ -59,13 +71,13 @@ export const McpServerRow = memo(function McpServerRow({
                 <StatusIcon className={`h-3 w-3 shrink-0 ${statusCfg.color}`} />
               </TooltipTrigger>
               <TooltipContent side="top">
-                <p className="text-xs">{statusCfg.label}</p>
+                <p className="text-xs">{statusLabel ?? statusCfg.label}</p>
                 {runtimeStatus?.error && (
                   <p className="text-xs text-background/60 mt-0.5">{runtimeStatus.error}</p>
                 )}
                 {runtimeStatus?.tools && runtimeStatus.tools.length > 0 && (
                   <p className="text-xs text-background/60 mt-0.5">
-                    {runtimeStatus.tools.length} tool{runtimeStatus.tools.length !== 1 ? "s" : ""}
+                    {t("mcp.toolCount", { count: runtimeStatus.tools.length })}
                   </p>
                 )}
               </TooltipContent>
@@ -81,7 +93,7 @@ export const McpServerRow = memo(function McpServerRow({
         {/* Environment variable count */}
         {server.env && Object.keys(server.env).length > 0 && (
           <p className="text-[10px] text-muted-foreground/60 mt-0.5">
-            {Object.keys(server.env).length} env var{Object.keys(server.env).length !== 1 ? "s" : ""}
+            {t("mcp.envVarCount", { count: Object.keys(server.env).length })}
           </p>
         )}
 
@@ -109,7 +121,7 @@ export const McpServerRow = memo(function McpServerRow({
             disabled={reconnectingName === server.name}
           >
             <RefreshCw className={`h-2.5 w-2.5 ${reconnectingName === server.name ? "animate-spin" : ""}`} />
-            {reconnectingName === server.name ? "Reconnecting..." : "Reconnect"}
+            {reconnectingName === server.name ? t("mcp.reconnecting") : t("mcp.reconnect")}
           </Button>
         )}
       </div>

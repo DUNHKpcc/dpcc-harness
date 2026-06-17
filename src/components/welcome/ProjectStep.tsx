@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { motion } from "motion/react";
 import { FolderOpen } from "lucide-react";
 import type { ProjectStepProps } from "./shared";
@@ -8,6 +9,7 @@ export function ProjectStep({
   onCreateProject,
   hasProjects,
 }: ProjectStepProps) {
+  const { t } = useTranslation("welcome");
   // Auto-advance when a project is successfully created
   const prevHasProjects = useRef(hasProjects);
   useEffect(() => {
@@ -38,7 +40,7 @@ export function ProjectStep({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.1 }}
       >
-        Your first project
+        {t("projectStep.title")}
       </motion.h2>
 
       <motion.p
@@ -47,7 +49,7 @@ export function ProjectStep({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.18 }}
       >
-        Point PccAgent at any folder and start building.
+        {t("projectStep.subtitle")}
       </motion.p>
 
       <motion.button
@@ -57,7 +59,7 @@ export function ProjectStep({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.28 }}
       >
-        Choose folder
+        {t("projectStep.chooseFolder")}
       </motion.button>
 
       <motion.button
@@ -67,7 +69,7 @@ export function ProjectStep({
         animate={{ opacity: 1 }}
         transition={{ duration: 0.4, delay: 0.38 }}
       >
-        Skip for now
+        {t("projectStep.skipForNow")}
       </motion.button>
     </div>
   );

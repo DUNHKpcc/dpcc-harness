@@ -1,0 +1,57 @@
+{
+  "header": {
+    "addProject": "Add project"
+  },
+  "draftSpace": {
+    "title": "Create a Space",
+    "subtitle": "Separate your projects for work, life, and more.",
+    "namePlaceholder": "Space name...",
+    "chooseTheme": "Choose a Theme",
+    "createSpace": "Create Space"
+  },
+  "empty": {
+    "addProjectToStart": "Add a project to get started",
+    "noProjectsInSpace": "No projects in this space",
+    "noConversations": "No conversations yet",
+    "noChats": "No chats"
+  },
+  "beta": {
+    "label": "PccAgent is in early beta",
+    "reportBug": "Report a bug"
+  },
+  "search": {
+    "placeholder": "Search chats...",
+    "searching": "Searching...",
+    "noResults": "No results found",
+    "chats": "Chats",
+    "messages": "Messages"
+  },
+  "project": {
+    "openJiraBoard": "Open Jira board",
+    "newFolder": "New folder",
+    "organizeByBranch": "Organize by branch",
+    "setIcon": "Set icon",
+    "removeIcon": "Remove icon",
+    "resumeCCChat": "Resume CC Chat",
+    "moveToSpace": "Move to space",
+    "showMore": "Show more",
+    "showMoreCount": "({{shown}} of {{total}})"
+  },
+  "session": {
+    "generatingTitle": "Generating title...",
+    "moveToFolder": "Move to folder",
+    "removeFromFolder": "Remove from folder",
+    "openInSplitView": "Open in Split View"
+  },
+  "folder": {
+    "unpin": "Unpin",
+    "pin": "Pin"
+  },
+  "cc": {
+    "noSessions": "No Claude Code sessions found",
+    "justNow": "just now",
+    "minutesAgo": "{{count}}m ago",
+    "hoursAgo": "{{count}}h ago",
+    "daysAgo": "{{count}}d ago"
+  }
+}

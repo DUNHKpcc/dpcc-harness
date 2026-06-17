@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { BookOpen, CheckCircle2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { isRecord } from "@/lib/utils";
@@ -21,14 +22,15 @@ interface RovoSearchData {
 }
 
 function RovoSearchResultsView({ data }: { data: RovoSearchData }) {
+  const { t } = useTranslation("toolcall");
   const results = data.results;
   if (!results || !Array.isArray(results) || results.length === 0) {
-    return <McpEmptyState message="No results found" />;
+    return <McpEmptyState message={t("mcpList.empty.results")} />;
   }
 
   return (
     <div className="space-y-0.5">
-      <McpListHeader count={results.length} noun="result" />
+      <McpListHeader count={results.length} nounKey="result" />
       {results.map((r, i) => (
         <div
           key={r.id ?? i}
@@ -40,7 +42,7 @@ function RovoSearchResultsView({ data }: { data: RovoSearchData }) {
             ) : (
               <BookOpen className="h-3 w-3 shrink-0 text-foreground/30" />
             )}
-            <span className="text-[11px] text-foreground/80 truncate">{r.title ?? "Untitled"}</span>
+            <span className="text-[11px] text-foreground/80 truncate">{r.title ?? t("confluence.untitled")}</span>
             {r.container?.title && (
               <span className="text-[10px] text-foreground/30 shrink-0 truncate max-w-[100px]">
                 {r.container.title}
@@ -125,8 +127,9 @@ interface AtlassianResource {
 }
 
 function AtlassianResourcesListView({ data }: { data: AtlassianResource[] }) {
+  const { t } = useTranslation("toolcall");
   if (data.length === 0) {
-    return <McpEmptyState message="No accessible resources" />;
+    return <McpEmptyState message={t("mcpList.empty.resources")} />;
   }
 
   // Deduplicate by id (same site can appear twice with different scopes)
@@ -143,7 +146,7 @@ function AtlassianResourcesListView({ data }: { data: AtlassianResource[] }) {
 
   return (
     <div className="space-y-0.5">
-      <McpListHeader count={byId.size} noun="site" />
+      <McpListHeader count={byId.size} nounKey="site" />
       {[...byId.values()].map(({ resource, allScopes }) => (
         <div
           key={resource.id ?? resource.name}

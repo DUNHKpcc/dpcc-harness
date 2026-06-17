@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { useTranslation } from "react-i18next";
 import { Lock, Loader2, RefreshCw, ShieldCheck, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { McpServerConfig, McpServerStatus } from "@/types";
@@ -26,6 +27,7 @@ function AuthenticateButton({
   className = "h-5 mt-1 text-[10px] px-2 gap-1",
   label,
 }: AuthenticateButtonProps) {
+  const { t } = useTranslation("tools");
   const isAuthenticating = authenticatingName === serverName;
   return (
     <Button
@@ -40,7 +42,7 @@ function AuthenticateButton({
       ) : (
         <Lock className="h-2.5 w-2.5" />
       )}
-      {label ?? (isAuthenticating ? "Authenticating..." : "Authenticate")}
+      {label ?? (isAuthenticating ? t("mcp.auth.authenticating") : t("mcp.auth.authenticate"))}
     </Button>
   );
 }
@@ -49,8 +51,8 @@ interface ReconnectButtonProps {
   serverName: string;
   reconnectingName: string | null;
   onReconnect: (serverName: string) => void;
-  label?: string;
-  loadingLabel?: string;
+  label: string;
+  loadingLabel: string;
 }
 
 /** Reusable reconnect / retry button. */
@@ -58,8 +60,8 @@ function ReconnectButton({
   serverName,
   reconnectingName,
   onReconnect,
-  label = "Reconnect",
-  loadingLabel = "Reconnecting...",
+  label,
+  loadingLabel,
 }: ReconnectButtonProps) {
   const isReconnecting = reconnectingName === serverName;
   return (
@@ -96,6 +98,7 @@ const RuntimeNeedsAuth = memo(function RuntimeNeedsAuth({
   onAuthenticate,
   onReconnect,
 }: RuntimeNeedsAuthProps) {
+  const { t } = useTranslation("tools");
   // stdio servers can only retry — no OAuth flow
   if (server.transport === "stdio") {
     if (!onReconnect) return null;
@@ -104,8 +107,8 @@ const RuntimeNeedsAuth = memo(function RuntimeNeedsAuth({
         serverName={server.name}
         reconnectingName={reconnectingName}
         onReconnect={onReconnect}
-        label="Retry auth"
-        loadingLabel="Authenticating..."
+        label={t("mcp.auth.retryAuth")}
+        loadingLabel={t("mcp.auth.authenticating")}
       />
     );
   }
@@ -120,19 +123,19 @@ const RuntimeNeedsAuth = memo(function RuntimeNeedsAuth({
       <div className="flex flex-col gap-1 mt-1">
         <div className="flex items-center gap-1">
           <ShieldCheck className="h-2.5 w-2.5 text-emerald-500" />
-          <span className="text-[10px] text-emerald-500/70">Authenticated</span>
+          <span className="text-[10px] text-emerald-500/70">{t("mcp.auth.authenticated")}</span>
         </div>
         {onReconnect && (
           <ReconnectButton
             serverName={server.name}
             reconnectingName={reconnectingName}
             onReconnect={onReconnect}
-            label="Reconnect to apply"
-            loadingLabel="Reconnecting..."
+            label={t("mcp.auth.reconnectToApply")}
+            loadingLabel={t("mcp.reconnecting")}
           />
         )}
         <p className="text-[10px] text-muted-foreground/60">
-          Or start a new session to use the token
+          {t("mcp.auth.orStartNewSession")}
         </p>
       </div>
     );
@@ -171,6 +174,7 @@ const PreSessionAuth = memo(function PreSessionAuth({
   onAuthenticate,
   onRestartWithServers,
 }: PreSessionAuthProps) {
+  const { t } = useTranslation("tools");
   // Only applies to non-stdio servers with a URL
   if (server.transport === "stdio" || !server.url) return null;
 
@@ -192,7 +196,7 @@ const PreSessionAuth = memo(function PreSessionAuth({
     return (
       <div className="flex items-center gap-1 mt-1">
         <ShieldAlert className="h-2.5 w-2.5 text-amber-500" />
-        <span className="text-[10px] text-amber-500/80">Token expired</span>
+        <span className="text-[10px] text-amber-500/80">{t("mcp.auth.tokenExpired")}</span>
         <Button
           variant="ghost"
           size="sm"
@@ -203,7 +207,7 @@ const PreSessionAuth = memo(function PreSessionAuth({
           {authenticatingName === server.name ? (
             <Loader2 className="h-2 w-2 animate-spin" />
           ) : (
-            "Re-auth"
+            t("mcp.auth.reAuth")
           )}
         </Button>
       </div>
@@ -214,7 +218,7 @@ const PreSessionAuth = memo(function PreSessionAuth({
   return (
     <div className="flex items-center gap-1 mt-0.5">
       <ShieldCheck className="h-2.5 w-2.5 text-emerald-500" />
-      <span className="text-[10px] text-emerald-500/70">Authenticated</span>
+      <span className="text-[10px] text-emerald-500/70">{t("mcp.auth.authenticated")}</span>
       {hasLiveSession && onRestartWithServers && (
         <Button
           variant="ghost"
@@ -223,7 +227,7 @@ const PreSessionAuth = memo(function PreSessionAuth({
           onClick={() => onRestartWithServers(servers)}
         >
           <RefreshCw className="h-2 w-2" />
-          Restart to apply
+          {t("mcp.auth.restartToApply")}
         </Button>
       )}
     </div>

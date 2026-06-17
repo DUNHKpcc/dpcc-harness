@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { ToolId } from "@/types/tools";
-import type { AcpPermissionBehavior, ClaudeEffort, EngineId, MacBackgroundEffect, ThemeOption } from "@/types";
+import type { AcpPermissionBehavior, ClaudeEffort, EngineId, LanguageOption, MacBackgroundEffect, ThemeOption } from "@/types";
 
 // ── Constants ──
 
@@ -90,6 +90,7 @@ export interface ProjectSettings {
 /** Global settings state (not per-project) */
 interface GlobalSettingsState {
   theme: ThemeOption;
+  language: LanguageOption;
   islandLayout: boolean;
   islandShine: boolean;
   /** The native macOS background material (liquid-glass or vibrancy) — never "off" */
@@ -106,7 +107,6 @@ interface GlobalSettingsState {
   autoExpandTools: boolean;
   expandEditToolCallsByDefault: boolean;
   transparentToolPicker: boolean;
-  coloredSidebarIcons: boolean;
   showToolIcons: boolean;
   coloredToolIcons: boolean;
 }
@@ -115,6 +115,7 @@ interface GlobalSettingsState {
 interface SettingsActions {
   // Global setters
   setTheme: (t: ThemeOption) => void;
+  setLanguage: (l: LanguageOption) => void;
   setIslandLayout: (enabled: boolean) => void;
   setIslandShine: (enabled: boolean) => void;
   setMacBackgroundEffect: (effect: MacBackgroundEffect) => void;
@@ -129,7 +130,6 @@ interface SettingsActions {
   setAutoExpandTools: (on: boolean) => void;
   setExpandEditToolCallsByDefault: (on: boolean) => void;
   setTransparentToolPicker: (on: boolean) => void;
-  setColoredSidebarIcons: (on: boolean) => void;
   setShowToolIcons: (on: boolean) => void;
   setColoredToolIcons: (on: boolean) => void;
 
@@ -269,6 +269,9 @@ function readLegacyGlobalSettings(): GlobalSettingsState {
   const themeRaw = localStorage.getItem("pcc-agent-theme");
   const theme: ThemeOption = (themeRaw === "light" || themeRaw === "dark" || themeRaw === "system") ? themeRaw : "dark";
 
+  const languageRaw = localStorage.getItem("pcc-agent-language");
+  const language: LanguageOption = (languageRaw === "en" || languageRaw === "zh" || languageRaw === "system") ? languageRaw : "system";
+
   // Plan mode with legacy migration
   let planMode = DEFAULT_PLAN_MODE;
   const storedPlanMode = localStorage.getItem("pcc-agent-plan-mode");
@@ -300,6 +303,7 @@ function readLegacyGlobalSettings(): GlobalSettingsState {
 
   return {
     theme,
+    language,
     islandLayout: readLegacyBool("pcc-agent-island-layout", true),
     islandShine: readLegacyBool("pcc-agent-island-shine", true),
     macNativeBackgroundEffect: "liquid-glass",
@@ -314,7 +318,6 @@ function readLegacyGlobalSettings(): GlobalSettingsState {
     autoExpandTools: readLegacyBool("pcc-agent-auto-expand-tools", false),
     expandEditToolCallsByDefault: readLegacyBool("pcc-agent-expand-edit-tool-calls-by-default", true),
     transparentToolPicker: readLegacyBool("pcc-agent-transparent-tool-picker", false),
-    coloredSidebarIcons: readLegacyBool("pcc-agent-colored-sidebar-icons", true),
     showToolIcons: readLegacyBool("pcc-agent-show-tool-icons", true),
     coloredToolIcons: readLegacyBool("pcc-agent-colored-tool-icons", false),
   };
@@ -414,6 +417,7 @@ export const useSettingsStore = create<SettingsStore>()(
     (set, get) => ({
       // ── Global state defaults ──
       theme: "dark",
+      language: "system",
       islandLayout: true,
       islandShine: true,
       macNativeBackgroundEffect: "liquid-glass",
@@ -428,7 +432,6 @@ export const useSettingsStore = create<SettingsStore>()(
       autoExpandTools: false,
       expandEditToolCallsByDefault: true,
       transparentToolPicker: false,
-      coloredSidebarIcons: true,
       showToolIcons: true,
       coloredToolIcons: false,
 
@@ -437,6 +440,8 @@ export const useSettingsStore = create<SettingsStore>()(
       // ── Global setters ──
 
       setTheme: (t) => set({ theme: t }),
+
+      setLanguage: (l) => set({ language: l }),
 
       setIslandLayout: (enabled) => set({ islandLayout: enabled }),
 
@@ -485,7 +490,6 @@ export const useSettingsStore = create<SettingsStore>()(
 
       setTransparentToolPicker: (on) => set({ transparentToolPicker: on }),
 
-      setColoredSidebarIcons: (on) => set({ coloredSidebarIcons: on }),
 
       setShowToolIcons: (on) => set({ showToolIcons: on }),
 
@@ -603,6 +607,7 @@ export const useSettingsStore = create<SettingsStore>()(
       partialize: (state) => ({
         // Global state
         theme: state.theme,
+        language: state.language,
         islandLayout: state.islandLayout,
         islandShine: state.islandShine,
         macNativeBackgroundEffect: state.macNativeBackgroundEffect,
@@ -617,7 +622,6 @@ export const useSettingsStore = create<SettingsStore>()(
         autoExpandTools: state.autoExpandTools,
         expandEditToolCallsByDefault: state.expandEditToolCallsByDefault,
         transparentToolPicker: state.transparentToolPicker,
-        coloredSidebarIcons: state.coloredSidebarIcons,
         showToolIcons: state.showToolIcons,
         coloredToolIcons: state.coloredToolIcons,
         // Per-project

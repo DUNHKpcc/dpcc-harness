@@ -6,6 +6,7 @@ import {
   memo,
   type KeyboardEvent,
 } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ArrowUp,
   Loader2,
@@ -151,6 +152,7 @@ export const InputBar = memo(function InputBar({
   onRemoveGrabbedElement,
   onManageACPs,
 }: InputBarProps) {
+  const { t } = useTranslation("input");
   // ── Core state ──
   const [hasContent, setHasContent] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -198,8 +200,8 @@ export const InputBar = memo(function InputBar({
     : [];
   const modelsLoading = modelList.length === 0;
   const modelsLoadingText = isCodexAgent
-    ? (codexModelsLoadingMessage?.trim() || "Loading Codex models...")
-    : "Loading models...";
+    ? (codexModelsLoadingMessage?.trim() || t("model.loadingCodex"))
+    : t("model.loading");
   const resolvedModelId = resolveModelValue(model, supportedModels ?? []);
   const preferredModelId = resolvedModelId ?? model;
   const selectedModel = modelList.find((m) => m.id === preferredModelId) ?? (
@@ -692,14 +694,14 @@ export const InputBar = memo(function InputBar({
   // ── Placeholder text ──
 
   const placeholderText = isCompacting
-    ? "Compacting context..."
+    ? t("placeholder.compacting")
     : isAwaitingAcpOptions
-      ? "Loading agent options..."
+      ? t("placeholder.loadingAgentOptions")
       : isProcessing
-        ? `${selectedAgent?.name ?? "Claude"} is responding... (messages will be queued)`
+        ? t("placeholder.responding", { name: selectedAgent?.name ?? "Claude" })
         : availableSlashCommands.length > 0
-          ? "Ask anything, @ to tag files, / for commands"
-          : "Ask anything, @ to tag files";
+          ? t("placeholder.askWithCommands")
+          : t("placeholder.ask");
 
   // ── Send button disabled state ──
 
@@ -832,7 +834,7 @@ export const InputBar = memo(function InputBar({
               size="xs"
               className={TOOLBAR_BTN}
               onClick={() => fileInputRef.current?.click()}
-              title="Attach image"
+              title={t("voice.attachImage")}
             >
               <Paperclip className="size-3.5" />
             </Button>
@@ -869,12 +871,12 @@ export const InputBar = memo(function InputBar({
                   {speech.error
                     ? speech.error
                     : speech.isModelLoading
-                      ? `Loading speech model... ${speech.loadProgress.toFixed(0)}%`
+                      ? t("voice.loadingSpeechModel", { percent: speech.loadProgress.toFixed(0) })
                       : speech.isTranscribing
-                        ? "Transcribing..."
+                        ? t("voice.transcribing")
                         : speech.isListening
-                          ? "Stop dictation"
-                          : "Voice dictation"}
+                          ? t("voice.stopDictation")
+                          : t("voice.dictation")}
                 </TooltipContent>
               </Tooltip>
             ) : speech.nativeHint ? (
@@ -988,33 +990,33 @@ export const InputBar = memo(function InputBar({
         open={showDeepFolderConfirm}
         onOpenChange={setShowDeepFolderConfirm}
         onConfirm={handleDeepFolderConfirm}
-        title="Large Context Warning"
-        confirmLabel="Send Anyway"
-        cancelLabel="Cancel"
+        title={t("deepFolder.title")}
+        confirmLabel={t("deepFolder.sendAnyway")}
+        cancelLabel={t("action.cancel", { ns: "common" })}
         confirmVariant="default"
         description={
           deepFolderInfo && (
             <div className="space-y-2 text-sm">
               <p>
-                This deep folder includes{" "}
-                <strong>{deepFolderInfo.fileCount} files</strong> totaling{" "}
+                {t("deepFolder.introBefore")}
+                <strong>{t("deepFolder.filesCount", { count: deepFolderInfo.fileCount })}</strong>
+                {t("deepFolder.introTotaling")}
                 <strong>
-                  {Math.round(deepFolderInfo.totalSize / 1024)}KB
-                </strong>{" "}
-                (~
-                <strong>
-                  {deepFolderInfo.estimatedTokens.toLocaleString()} tokens
+                  {t("deepFolder.sizeKb", { size: Math.round(deepFolderInfo.totalSize / 1024) })}
                 </strong>
-                ).
+                {t("deepFolder.introTokens")}
+                <strong>
+                  {t("deepFolder.tokensCount", { tokens: deepFolderInfo.estimatedTokens.toLocaleString() })}
+                </strong>
+                {t("deepFolder.introAfter")}
               </p>
               <p className="text-muted-foreground">
-                Sending this much content will consume a significant portion
-                of the context window and may impact response quality.
+                {t("deepFolder.impact")}
               </p>
               {deepFolderInfo.warnings.length > 0 && (
                 <div className="mt-2 text-xs text-muted-foreground">
                   <p className="font-medium">
-                    Note: Some files will be skipped:
+                    {t("deepFolder.skipNote")}
                   </p>
                   <ul className="ms-4 list-disc">
                     {deepFolderInfo.warnings.slice(0, 3).map((warning, i) => (
@@ -1022,7 +1024,7 @@ export const InputBar = memo(function InputBar({
                     ))}
                     {deepFolderInfo.warnings.length > 3 && (
                       <li>
-                        ... and {deepFolderInfo.warnings.length - 3} more
+                        {t("deepFolder.andMore", { count: deepFolderInfo.warnings.length - 3 })}
                       </li>
                     )}
                   </ul>

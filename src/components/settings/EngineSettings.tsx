@@ -1,4 +1,5 @@
 import { memo, useState, useCallback, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Server, RefreshCw, Loader2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -51,22 +52,13 @@ const GatewayTextField = memo(function GatewayTextField({
 
 type CodexOrigin = "env" | "managed" | "known" | "path" | "bundled" | "custom" | "none";
 
-const CODEX_ORIGIN_LABEL: Record<CodexOrigin, string> = {
-  bundled: "Bundled (offline)",
-  managed: "Downloaded",
-  known: "System install",
-  path: "System PATH",
-  env: "Env override",
-  custom: "Custom path",
-  none: "Not found",
-};
-
 // ── Component ──
 
 export const EngineSettings = memo(function EngineSettings({
   appSettings,
   onUpdateAppSettings,
 }: EngineSettingsProps) {
+  const { t } = useTranslation("settings");
   const [claudeBinarySource, setClaudeBinarySource] = useState<"auto" | "managed" | "custom">("auto");
   const [claudeCustomBinaryPath, setClaudeCustomBinaryPath] = useState("");
   const [codexBinarySource, setCodexBinarySource] = useState<"auto" | "managed" | "custom">("auto");
@@ -106,17 +98,17 @@ export const EngineSettings = memo(function EngineSettings({
     try {
       const result = await window.claude.codex.downloadUpdate();
       if (result.error) {
-        setCodexUpdateMsg(`Update failed: ${result.error}`);
+        setCodexUpdateMsg(t("engines.codex.updateFailed", { error: result.error }));
       } else {
-        setCodexUpdateMsg(result.version ? `Updated to ${result.version}` : "Updated");
+        setCodexUpdateMsg(t("engines.codex.updated", { version: result.version ?? "" }));
         await refreshCodexInfo();
       }
     } catch (err) {
-      setCodexUpdateMsg(`Update failed: ${err instanceof Error ? err.message : String(err)}`);
+      setCodexUpdateMsg(t("engines.codex.updateFailed", { error: err instanceof Error ? err.message : String(err) }));
     } finally {
       setCodexUpdating(false);
     }
-  }, [refreshCodexInfo]);
+  }, [refreshCodexInfo, t]);
 
   const handleClaudeBinarySourceChange = useCallback(
     async (source: "auto" | "managed" | "custom") => {
@@ -177,24 +169,24 @@ export const EngineSettings = memo(function EngineSettings({
   return (
     <div className="flex h-full flex-col">
       <SettingsHeader
-        title="Engines"
-        description="Configure engine-level runtime behavior and binary selection"
+        title={t("engines.title")}
+        description={t("engines.description")}
       />
 
       <ScrollArea className="min-h-0 flex-1">
         <div className="px-6 py-2">
-          <SettingsSection icon={Server} label="Claude Code" first>
+          <SettingsSection icon={Server} label={t("engines.claude.section")} first>
             <SettingRow
-              label="Claude binary source"
-              description="Choose how PccAgent resolves the Claude executable."
+              label={t("engines.claude.sourceLabel")}
+              description={t("engines.claude.sourceDesc")}
             >
               <SettingsSelect
                 value={claudeBinarySource}
                 onValueChange={handleClaudeBinarySourceChange}
                 options={[
-                  { value: "auto", label: "Auto detect" },
-                  { value: "managed", label: "Managed install" },
-                  { value: "custom", label: "Custom path" },
+                  { value: "auto", label: t("engines.source.auto") },
+                  { value: "managed", label: t("engines.source.managedInstall") },
+                  { value: "custom", label: t("engines.source.custom") },
                 ]}
                 className="w-44"
               />
@@ -202,8 +194,8 @@ export const EngineSettings = memo(function EngineSettings({
 
             {claudeBinarySource === "custom" && (
               <SettingRow
-                label="Custom Claude path"
-                description="Absolute path to claude executable (claude or claude.exe)."
+                label={t("engines.claude.customLabel")}
+                description={t("engines.claude.customDesc")}
               >
                 <input
                   type="text"
@@ -215,14 +207,14 @@ export const EngineSettings = memo(function EngineSettings({
                   }}
                   spellCheck={false}
                   className="h-8 w-80 rounded-md border border-foreground/10 bg-background px-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground hover:border-foreground/20 focus:border-foreground/30 focus:ring-1 focus:ring-foreground/20"
-                  placeholder="Absolute path to claude executable"
+                  placeholder={t("engines.claude.customPlaceholder")}
                 />
               </SettingRow>
             )}
 
             <SettingRow
-              label="Custom gateway"
-              description="Route Claude sessions through a third-party Anthropic-compatible gateway (sets ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN)."
+              label={t("engines.claude.gateway.toggleLabel")}
+              description={t("engines.claude.gateway.toggleDesc")}
             >
               <Switch
                 checked={claudeGateway.enabled}
@@ -232,44 +224,44 @@ export const EngineSettings = memo(function EngineSettings({
 
             {claudeGateway.enabled && (
               <>
-                <SettingRow label="Base URL" description="Gateway endpoint → ANTHROPIC_BASE_URL.">
+                <SettingRow label={t("engines.claude.gateway.baseUrlLabel")} description={t("engines.claude.gateway.baseUrlDesc")}>
                   <GatewayTextField
                     value={claudeGateway.baseUrl}
                     onSave={(v) => handleClaudeGatewayChange({ baseUrl: v.trim() })}
-                    placeholder="https://gateway.example.com"
+                    placeholder={t("engines.claude.gateway.baseUrlPlaceholder")}
                   />
                 </SettingRow>
-                <SettingRow label="Auth token" description="Bearer token / API key → ANTHROPIC_AUTH_TOKEN.">
+                <SettingRow label={t("engines.claude.gateway.tokenLabel")} description={t("engines.claude.gateway.tokenDesc")}>
                   <GatewayTextField
                     value={claudeGateway.authToken}
                     onSave={(v) => handleClaudeGatewayChange({ authToken: v.trim() })}
-                    placeholder="sk-..."
+                    placeholder={t("engines.claude.gateway.tokenPlaceholder")}
                     type="password"
                   />
                 </SettingRow>
-                <SettingRow label="Model ID" description="Custom model id used as the session default (overrides the model picker).">
+                <SettingRow label={t("engines.claude.gateway.modelLabel")} description={t("engines.claude.gateway.modelDesc")}>
                   <GatewayTextField
                     value={claudeGateway.model}
                     onSave={(v) => handleClaudeGatewayChange({ model: v.trim() })}
-                    placeholder="e.g. claude-sonnet-4-5"
+                    placeholder={t("engines.claude.gateway.modelPlaceholder")}
                   />
                 </SettingRow>
               </>
             )}
           </SettingsSection>
 
-          <SettingsSection icon={Server} label="Codex">
+          <SettingsSection icon={Server} label={t("engines.codex.section")}>
             <SettingRow
-              label="Codex binary source"
-              description="Choose how PccAgent resolves the Codex executable."
+              label={t("engines.codex.sourceLabel")}
+              description={t("engines.codex.sourceDesc")}
             >
               <SettingsSelect
                 value={codexBinarySource}
                 onValueChange={handleCodexBinarySourceChange}
                 options={[
-                  { value: "auto", label: "Auto detect" },
-                  { value: "managed", label: "Managed download" },
-                  { value: "custom", label: "Custom path" },
+                  { value: "auto", label: t("engines.source.auto") },
+                  { value: "managed", label: t("engines.source.managedDownload") },
+                  { value: "custom", label: t("engines.source.custom") },
                 ]}
                 className="w-44"
               />
@@ -277,10 +269,13 @@ export const EngineSettings = memo(function EngineSettings({
 
             {codexBinarySource !== "custom" && (
               <SettingRow
-                label="Codex version"
+                label={t("engines.codex.versionLabel")}
                 description={
                   codexUpdateMsg ??
-                  `${codexVersion ?? "Not found"} · ${CODEX_ORIGIN_LABEL[codexOrigin]}. Codex ships bundled and works offline — check for updates to pull the latest from npm.`
+                  t("engines.codex.versionDesc", {
+                    version: codexVersion ?? t("engines.codex.origin.none"),
+                    origin: t(`engines.codex.origin.${codexOrigin}`),
+                  })
                 }
               >
                 <Button
@@ -295,15 +290,15 @@ export const EngineSettings = memo(function EngineSettings({
                   ) : (
                     <RefreshCw className="h-3.5 w-3.5" />
                   )}
-                  {codexUpdating ? "Downloading…" : "Check for updates"}
+                  {codexUpdating ? t("action.downloading", { ns: "common" }) : t("action.checkForUpdates", { ns: "common" })}
                 </Button>
               </SettingRow>
             )}
 
             {codexBinarySource === "custom" && (
               <SettingRow
-                label="Custom Codex path"
-                description="Absolute path to codex executable (codex or codex.exe)."
+                label={t("engines.codex.customLabel")}
+                description={t("engines.codex.customDesc")}
               >
                 <input
                   type="text"
@@ -315,14 +310,14 @@ export const EngineSettings = memo(function EngineSettings({
                   }}
                   spellCheck={false}
                   className="h-8 w-80 rounded-md border border-foreground/10 bg-background px-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground hover:border-foreground/20 focus:border-foreground/30 focus:ring-1 focus:ring-foreground/20"
-                  placeholder="Absolute path to codex executable"
+                  placeholder={t("engines.codex.customPlaceholder")}
                 />
               </SettingRow>
             )}
 
             <SettingRow
-              label="Custom gateway"
-              description="Route Codex sessions through a third-party Responses-API provider (model_providers override). The model id must be supported by the gateway."
+              label={t("engines.codex.gateway.toggleLabel")}
+              description={t("engines.codex.gateway.toggleDesc")}
             >
               <Switch
                 checked={codexGateway.enabled}
@@ -332,33 +327,33 @@ export const EngineSettings = memo(function EngineSettings({
 
             {codexGateway.enabled && (
               <>
-                <SettingRow label="Provider name" description="Human-readable display name for the provider.">
+                <SettingRow label={t("engines.codex.gateway.nameLabel")} description={t("engines.codex.gateway.nameDesc")}>
                   <GatewayTextField
                     value={codexGateway.name}
                     onSave={(v) => handleCodexGatewayChange({ name: v.trim() })}
-                    placeholder="My Gateway"
+                    placeholder={t("engines.codex.gateway.namePlaceholder")}
                   />
                 </SettingRow>
-                <SettingRow label="Base URL" description="Provider endpoint (Responses API).">
+                <SettingRow label={t("engines.codex.gateway.baseUrlLabel")} description={t("engines.codex.gateway.baseUrlDesc")}>
                   <GatewayTextField
                     value={codexGateway.baseUrl}
                     onSave={(v) => handleCodexGatewayChange({ baseUrl: v.trim() })}
-                    placeholder="https://gateway.example.com/v1"
+                    placeholder={t("engines.codex.gateway.baseUrlPlaceholder")}
                   />
                 </SettingRow>
-                <SettingRow label="API key" description="Injected into the Codex process at runtime; never written to config.toml.">
+                <SettingRow label={t("engines.codex.gateway.apiKeyLabel")} description={t("engines.codex.gateway.apiKeyDesc")}>
                   <GatewayTextField
                     value={codexGateway.apiKey}
                     onSave={(v) => handleCodexGatewayChange({ apiKey: v.trim() })}
-                    placeholder="sk-..."
+                    placeholder={t("engines.codex.gateway.apiKeyPlaceholder")}
                     type="password"
                   />
                 </SettingRow>
-                <SettingRow label="Model ID" description="Custom model id used as the session default.">
+                <SettingRow label={t("engines.codex.gateway.modelLabel")} description={t("engines.codex.gateway.modelDesc")}>
                   <GatewayTextField
                     value={codexGateway.model}
                     onSave={(v) => handleCodexGatewayChange({ model: v.trim() })}
-                    placeholder="e.g. gpt-5-codex"
+                    placeholder={t("engines.codex.gateway.modelPlaceholder")}
                   />
                 </SettingRow>
               </>

@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Bot,
   ChevronRight,
@@ -48,6 +49,7 @@ function isWideToolName(toolName: string | null | undefined): boolean {
 }
 
 export function TaskTool({ message }: { message: UIMessage }) {
+  const { t } = useTranslation("toolcall");
   const [expanded, setExpanded] = useChatPersistedState(`task:${message.id}`, false);
   const isRunning = message.subagentStatus === "running";
   const isCompleted = message.subagentStatus === "completed";
@@ -86,23 +88,23 @@ export function TaskTool({ message }: { message: UIMessage }) {
             {/* Title */}
             {isCompleted && !expanded ? (
               <>
-                <span className="shrink-0 font-medium text-foreground/75">Used agent</span>
-                <span className="truncate text-foreground/40">{formatTaskSummary(message)}</span>
+                <span className="shrink-0 font-medium text-foreground/75">{t("task.usedAgent")}</span>
+                <span className="truncate text-foreground/40">{formatTaskSummary(message, t)}</span>
               </>
             ) : isRunning ? (
               <TextShimmer as="span" className="font-medium truncate" duration={1.8} spread={1.5}>
-                {formatTaskRunningTitle(message)}
+                {formatTaskRunningTitle(message, t)}
               </TextShimmer>
             ) : (
               <span className="font-medium truncate text-foreground/75">
-                {formatTaskTitle(message)}
+                {formatTaskTitle(message, t)}
               </span>
             )}
 
             {/* Step count badge */}
             {stepCount > 0 && (
               <span className="shrink-0 inline-flex items-center rounded-full bg-foreground/[0.06] px-1.5 py-px text-[10px] font-medium text-foreground/40 tabular-nums">
-                {stepCount} step{stepCount !== 1 ? "s" : ""}
+                {t("task.stepCount", { count: stepCount })}
               </span>
             )}
           </div>
@@ -137,13 +139,14 @@ export function TaskTool({ message }: { message: UIMessage }) {
 }
 
 function TaskExpandedContent({ message }: { message: UIMessage }) {
+  const { t } = useTranslation("toolcall");
   return (
     <>
       {/* Prompt */}
       {message.toolInput && (
         <div className="border-t border-foreground/[0.08] px-3.5 py-2.5">
           <p className="mb-1.5 text-[10px] font-semibold text-foreground/35 uppercase tracking-widest">
-            Prompt
+            {t("task.prompt")}
           </p>
           <div className="border-s-2 border-foreground/[0.08] ps-3">
             <p className="max-h-20 overflow-auto text-xs text-foreground/55 whitespace-pre-wrap wrap-break-word leading-relaxed">
@@ -157,7 +160,7 @@ function TaskExpandedContent({ message }: { message: UIMessage }) {
       {message.subagentSteps && message.subagentSteps.length > 0 && (
         <div className="border-t border-foreground/[0.08] px-3.5 py-2.5">
           <p className="mb-2 text-[10px] font-semibold text-foreground/35 uppercase tracking-widest">
-            Steps
+            {t("task.steps")}
           </p>
           <div className="space-y-0.5">
             {message.subagentSteps.map((step) => (
@@ -189,6 +192,7 @@ function TaskResultBlock({
   content: string | Array<{ type: string; text: string }>;
   storageKey: string;
 }) {
+  const { t } = useTranslation("toolcall");
   const [expanded, setExpanded] = useChatPersistedState(storageKey, false);
   const formatted = formatTaskResult(content);
   const isLong = formatted.length > 2000;
@@ -196,7 +200,7 @@ function TaskResultBlock({
   return (
     <div className="border-t border-foreground/[0.08] px-3.5 py-2.5">
       <p className="mb-1.5 text-[10px] font-semibold text-foreground/35 uppercase tracking-widest">
-        Result
+        {t("task.result")}
       </p>
       <div
         className="relative"
@@ -221,7 +225,7 @@ function TaskResultBlock({
           className="mt-1.5 flex items-center gap-1 text-[10px] font-medium text-foreground/40 hover:text-foreground/70 transition-colors"
         >
           <ChevronsUpDown className="h-3 w-3" />
-          {expanded ? "Collapse" : "Show full result"}
+          {expanded ? t("task.collapse") : t("task.showFullResult")}
         </button>
       )}
     </div>
@@ -231,6 +235,7 @@ function TaskResultBlock({
 // ── Step row — uses standard tool renderers when expanded ──
 
 function SubagentStepRow({ step }: { step: SubagentToolStep }) {
+  const { t } = useTranslation("toolcall");
   const [open, setOpen] = useChatPersistedState(`task-step:${step.toolUseId}`, false);
   const hasResult = !!step.toolResult;
   const isError = !!step.toolError;
@@ -250,13 +255,13 @@ function SubagentStepRow({ step }: { step: SubagentToolStep }) {
         )}
         {!hasResult && !isError ? (
           <TextShimmer as="span" duration={1.8} spread={1.5}>
-            {getToolLabel(step.toolName, "active") ?? step.toolName}
+            {getToolLabel(step.toolName, "active", t) ?? step.toolName}
           </TextShimmer>
         ) : (
           <span className={isError ? "text-red-400/70" : "text-foreground/75"}>
             {isError
-              ? `Failed to ${getToolLabel(step.toolName, "failure")}`
-              : (getToolLabel(step.toolName, "past") ?? step.toolName)}
+              ? t("fallback.failedTo", { action: getToolLabel(step.toolName, "failure", t) })
+              : (getToolLabel(step.toolName, "past", t) ?? step.toolName)}
           </span>
         )}
         <span className="truncate text-foreground/40 ms-0.5">

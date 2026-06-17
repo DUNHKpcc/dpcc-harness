@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Sparkles, Check, X } from "lucide-react";
 import type { UIMessage } from "@/types";
 
@@ -14,6 +15,7 @@ function hasSkillResult(
 }
 
 export function SkillContent({ message }: { message: UIMessage }) {
+  const { t } = useTranslation("toolcall");
   const skill = String(message.toolInput?.skill ?? "");
   const args = message.toolInput?.args ? String(message.toolInput.args) : null;
   const result = message.toolResult;
@@ -51,7 +53,7 @@ export function SkillContent({ message }: { message: UIMessage }) {
       </div>
 
       <span className="text-[10px] text-foreground/25">
-        {result.success ? "Skill loaded" : "Failed to load skill"}
+        {result.success ? t("skill.loaded") : t("skill.failedToLoad")}
       </span>
     </div>
   );

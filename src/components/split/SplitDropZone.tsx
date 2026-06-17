@@ -7,6 +7,7 @@
  */
 
 import { memo } from "react";
+import { useTranslation } from "react-i18next";
 import { motion } from "motion/react";
 import { Plus } from "lucide-react";
 import type { ChatSession } from "@/types";
@@ -33,6 +34,7 @@ export const SplitDropZone = memo(function SplitDropZone({
   onDragOver,
   onDrop,
 }: SplitDropZoneProps) {
+  const { t } = useTranslation("workspace");
   if (!active) return null;
 
   return (
@@ -49,7 +51,7 @@ export const SplitDropZone = memo(function SplitDropZone({
           <Plus className="h-4 w-4" />
         </div>
         <span className="max-w-[160px] truncate text-xs font-medium">
-          {label ?? session?.title ?? "Drop to open"}
+          {label ?? session?.title ?? t("split.dropToOpen")}
         </span>
       </div>
     </motion.div>

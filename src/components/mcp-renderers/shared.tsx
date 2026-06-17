@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import remarkGfm from "remark-gfm";
 
 // ── Constants ──
@@ -27,21 +28,22 @@ export const Field = React.memo(function Field({
   );
 });
 
-/** Count header above MCP result lists (e.g., "3 issues", "12 results") */
+/**
+ * Count header above MCP result lists (e.g., "3 issues", "12 results").
+ * `nounKey` selects a localized, count-aware label under `mcpList.noun.<nounKey>`.
+ */
 export const McpListHeader = React.memo(function McpListHeader({
   count,
-  noun,
-  plural,
+  nounKey,
 }: {
   count: number;
-  noun: string;
-  /** Override for irregular plurals (e.g., "libraries"). Defaults to `noun + "s"`. */
-  plural?: string;
+  /** Localized noun key under `mcpList.noun` (e.g. "issue", "result", "library"). */
+  nounKey: string;
 }) {
-  const label = count === 1 ? noun : (plural ?? `${noun}s`);
+  const { t } = useTranslation("toolcall");
   return (
     <span className="text-[10px] text-foreground/40 uppercase tracking-wider font-medium block mb-1.5">
-      {count} {label}
+      {t(`mcpList.noun.${nounKey}`, { count })}
     </span>
   );
 });

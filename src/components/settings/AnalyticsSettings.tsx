@@ -1,4 +1,5 @@
 import { memo, useState, useCallback, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { BarChart3 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -17,6 +18,7 @@ export const AnalyticsSettings = memo(function AnalyticsSettings({
   appSettings,
   onUpdateAppSettings,
 }: AnalyticsSettingsProps) {
+  const { t } = useTranslation("settings");
   // Local optimistic state — synced from props once loaded
   const [analyticsEnabled, setAnalyticsEnabled] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
@@ -40,15 +42,15 @@ export const AnalyticsSettings = memo(function AnalyticsSettings({
 
   return (
     <div className="flex h-full flex-col">
-      <SettingsHeader title="Analytics" description="Help improve PccAgent by sharing anonymous usage data" />
+      <SettingsHeader title={t("analytics.title")} description={t("analytics.description")} />
 
       <ScrollArea className="min-h-0 flex-1">
         <div className="px-6 py-2">
           {/* ── Analytics section ── */}
-          <SettingsSection icon={BarChart3} label="Usage Analytics" first>
+          <SettingsSection icon={BarChart3} label={t("analytics.section")} first>
             <SettingRow
-              label="Send anonymous analytics"
-              description="Share anonymous usage data to help us understand how people use PccAgent and improve the app. We collect app version, platform, and basic feature usage. No code, prompts, or personal data is collected."
+              label={t("analytics.sendLabel")}
+              description={t("analytics.sendDesc")}
             >
               <Switch
                 checked={analyticsEnabled}
@@ -60,13 +62,13 @@ export const AnalyticsSettings = memo(function AnalyticsSettings({
             {analyticsEnabled && userId && (
               <div className="mt-4 rounded-md bg-foreground/[0.03] p-3">
                 <p className="text-xs font-medium text-foreground">
-                  Anonymous User ID
+                  {t("analytics.userIdLabel")}
                 </p>
                 <p className="mt-1 font-mono text-xs text-muted-foreground break-all">
                   {userId}
                 </p>
                 <p className="mt-2 text-[11px] text-muted-foreground">
-                  This randomly generated ID is used to count unique users without identifying you.
+                  {t("analytics.userIdDesc")}
                 </p>
               </div>
             )}
@@ -75,42 +77,42 @@ export const AnalyticsSettings = memo(function AnalyticsSettings({
           {/* ── What we collect section ── */}
           <div className="border-t border-foreground/[0.04] py-3">
             <h3 className="mb-2 text-sm font-medium text-foreground">
-              What we collect
+              {t("analytics.collectTitle")}
             </h3>
             <ul className="space-y-1.5 text-xs text-muted-foreground">
               <li className="flex items-start gap-2">
                 <span className="mt-0.5 h-1 w-1 shrink-0 rounded-full bg-foreground/40" />
-                <span>App version and platform (macOS, Windows, Linux)</span>
+                <span>{t("analytics.collect.platform")}</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-0.5 h-1 w-1 shrink-0 rounded-full bg-foreground/40" />
-                <span>Daily active users (to measure engagement)</span>
+                <span>{t("analytics.collect.dau")}</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-0.5 h-1 w-1 shrink-0 rounded-full bg-foreground/40" />
-                <span>Basic feature usage (e.g., which engines are used)</span>
+                <span>{t("analytics.collect.features")}</span>
               </li>
             </ul>
 
             <h3 className="mb-2 mt-4 text-sm font-medium text-foreground">
-              What we don't collect
+              {t("analytics.noCollectTitle")}
             </h3>
             <ul className="space-y-1.5 text-xs text-muted-foreground">
               <li className="flex items-start gap-2">
                 <span className="mt-0.5 h-1 w-1 shrink-0 rounded-full bg-foreground/40" />
-                <span>Your code, prompts, or conversations with AI</span>
+                <span>{t("analytics.noCollect.code")}</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-0.5 h-1 w-1 shrink-0 rounded-full bg-foreground/40" />
-                <span>File paths, project names, or repository URLs</span>
+                <span>{t("analytics.noCollect.paths")}</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-0.5 h-1 w-1 shrink-0 rounded-full bg-foreground/40" />
-                <span>Any personal or identifying information</span>
+                <span>{t("analytics.noCollect.personal")}</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-0.5 h-1 w-1 shrink-0 rounded-full bg-foreground/40" />
-                <span>API keys or credentials</span>
+                <span>{t("analytics.noCollect.keys")}</span>
               </li>
             </ul>
           </div>

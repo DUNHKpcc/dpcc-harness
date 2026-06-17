@@ -1,4 +1,5 @@
 import { useState, useCallback, type KeyboardEvent } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Check,
   Loader2,
@@ -26,6 +27,7 @@ export function CommitInput({
   onSyncError,
   onCommit,
 }: CommitInputProps) {
+  const { t } = useTranslation("git");
   const [commitMessage, setCommitMessage] = useState("");
   const [generatingMessage, setGeneratingMessage] = useState(false);
 
@@ -58,12 +60,12 @@ export function CommitInput({
       } else if (result.error) {
         onSyncError(result.error);
       } else {
-        onSyncError("No result received");
+        onSyncError(t("commit.noResultReceived"));
       }
     } finally {
       setGeneratingMessage(false);
     }
-  }, [cwd, activeEngine, activeSessionId, onSyncError]);
+  }, [cwd, activeEngine, activeSessionId, onSyncError, t]);
 
   const canCommit = commitMessage.trim().length > 0 && stagedCount > 0;
 
@@ -74,7 +76,7 @@ export function CommitInput({
           value={commitMessage}
           onChange={(e) => setCommitMessage(e.target.value)}
           onKeyDown={handleCommitKeyDown}
-          placeholder="Commit message…"
+          placeholder={t("commit.placeholder")}
           rows={2}
           className="w-full resize-none bg-transparent px-2.5 pt-1.5 pb-1 text-[11px] leading-relaxed text-foreground/80 outline-none placeholder:text-foreground/30"
         />
@@ -96,13 +98,13 @@ export function CommitInput({
               </button>
             </TooltipTrigger>
             <TooltipContent side="bottom" sideOffset={4}>
-              <p className="text-xs">AI commit message</p>
+              <p className="text-xs">{t("commit.aiMessage")}</p>
             </TooltipContent>
           </Tooltip>
           <div className="min-w-0 flex-1" />
           {stagedCount > 0 && (
             <span className="text-[10px] tabular-nums text-foreground/35">
-              {stagedCount} staged
+              {t("commit.stagedCount", { n: stagedCount })}
             </span>
           )}
           <Tooltip>
@@ -118,12 +120,12 @@ export function CommitInput({
                 }`}
               >
                 <Check className="h-3 w-3" />
-                <span>Commit</span>
+                <span>{t("commit.commit")}</span>
               </button>
             </TooltipTrigger>
             <TooltipContent side="bottom" sideOffset={4}>
               <p className="text-xs">
-                Commit changes
+                {t("commit.commitChanges")}
                 <span className="ms-1.5 text-background/50">⌘↵</span>
               </p>
             </TooltipContent>

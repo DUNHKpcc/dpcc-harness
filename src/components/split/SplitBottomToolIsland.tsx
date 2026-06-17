@@ -6,6 +6,7 @@
  */
 
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { ArrowUp } from "lucide-react";
 import { motion } from "motion/react";
 import { getHorizontalInsertSide } from "@/lib/workspace/drag";
@@ -65,6 +66,7 @@ function renderIslandContent(
   paneState: SessionPaneState,
   isActiveSessionPane: boolean,
   props: SplitBottomToolIslandProps,
+  moveLabel: string,
 ) {
   const {
     projects, activeProjectPath, splitView,
@@ -84,7 +86,7 @@ function renderIslandContent(
   const controls = (
     <PanelDockControls
       isBottom={true}
-      moveLabel="Move to top row"
+      moveLabel={moveLabel}
       moveIcon={ArrowUp}
       onMovePlacement={() => splitView.moveToolIsland(island.id, "top")}
       onDragStart={(event) => {
@@ -155,9 +157,11 @@ function SplitBottomToolIslandInner(props: SplitBottomToolIslandProps) {
     activeSessionId, activeSession, primaryPane,
     loadSplitPaneBootstrap, acpPermissionBehavior,
   } = props;
+  const { t } = useTranslation("workspace");
+  const moveLabel = t("dock.moveToTopRow");
 
   if (island.sourceSessionId === activeSessionId) {
-    return renderIslandContent(island, fraction, insertBeforeIndex, activeSession, primaryPane, true, props);
+    return renderIslandContent(island, fraction, insertBeforeIndex, activeSession, primaryPane, true, props, moveLabel);
   }
 
   return (
@@ -168,7 +172,7 @@ function SplitBottomToolIslandInner(props: SplitBottomToolIslandProps) {
       loadBootstrap={loadSplitPaneBootstrap}
     >
       {({ session, paneState }) =>
-        renderIslandContent(island, fraction, insertBeforeIndex, session, paneState, false, props)
+        renderIslandContent(island, fraction, insertBeforeIndex, session, paneState, false, props, moveLabel)
       }
     </SplitPaneHost>
   );

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { motion } from "motion/react";
 import { Sun, Moon, Monitor, Blend, Layers, ChevronsUpDown } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
@@ -6,15 +7,16 @@ import type { AppearanceStepProps } from "./shared";
 import type { ThemeOption } from "@/types";
 
 // ── Theme option data ──
+// Labels resolved at render via `t("appearanceStep.theme.<labelKey>")`.
 
 const THEME_OPTIONS: {
   id: ThemeOption;
-  label: string;
+  labelKey: string;
   icon: typeof Sun;
 }[] = [
-  { id: "dark", label: "Dark", icon: Moon },
-  { id: "light", label: "Light", icon: Sun },
-  { id: "system", label: "System", icon: Monitor },
+  { id: "dark", labelKey: "dark", icon: Moon },
+  { id: "light", labelKey: "light", icon: Sun },
+  { id: "system", labelKey: "system", icon: Monitor },
 ];
 
 // ── Mini UI mockup for theme cards ──
@@ -139,6 +141,7 @@ function FlatMockup() {
 export function AppearanceStep({
   glassSupported,
 }: AppearanceStepProps) {
+  const { t } = useTranslation("welcome");
   const theme = useSettingsStore((s) => s.theme);
   const onThemeChange = useSettingsStore((s) => s.setTheme);
   const islandLayout = useSettingsStore((s) => s.islandLayout);
@@ -168,10 +171,10 @@ export function AppearanceStep({
               color: "oklch(0.60 0.20 250)",
             }}
           >
-            Make it yours
+            {t("appearanceStep.title")}
           </h2>
           <p className="mt-3 text-lg text-muted-foreground">
-            Pick your vibe. Everything updates live.
+            {t("appearanceStep.subtitle")}
           </p>
         </motion.div>
 
@@ -183,7 +186,7 @@ export function AppearanceStep({
           transition={{ duration: 0.4, delay: 0.08 }}
         >
           <div className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">
-            Theme
+            {t("appearanceStep.themeSection")}
           </div>
           <div className="grid grid-cols-3 gap-3">
             {THEME_OPTIONS.map((opt) => {
@@ -202,7 +205,7 @@ export function AppearanceStep({
                   <ThemeMockup theme={opt.id} />
                   <div className="flex items-center gap-1.5">
                     <Icon className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="text-sm font-medium text-foreground">{opt.label}</span>
+                    <span className="text-sm font-medium text-foreground">{t(`appearanceStep.theme.${opt.labelKey}`)}</span>
                   </div>
                 </button>
               );
@@ -218,7 +221,7 @@ export function AppearanceStep({
           transition={{ duration: 0.4, delay: 0.16 }}
         >
           <div className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">
-            Layout
+            {t("appearanceStep.layoutSection")}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <button
@@ -231,8 +234,8 @@ export function AppearanceStep({
             >
               <IslandsMockup />
               <div className="text-center">
-                <div className="text-sm font-medium text-foreground">Islands</div>
-                <div className="text-xs text-muted-foreground">Rounded, separated</div>
+                <div className="text-sm font-medium text-foreground">{t("appearanceStep.layout.islands")}</div>
+                <div className="text-xs text-muted-foreground">{t("appearanceStep.layout.islandsDesc")}</div>
               </div>
             </button>
             <button
@@ -245,8 +248,8 @@ export function AppearanceStep({
             >
               <FlatMockup />
               <div className="text-center">
-                <div className="text-sm font-medium text-foreground">Flat</div>
-                <div className="text-xs text-muted-foreground">Edge-to-edge</div>
+                <div className="text-sm font-medium text-foreground">{t("appearanceStep.layout.flat")}</div>
+                <div className="text-xs text-muted-foreground">{t("appearanceStep.layout.flatDesc")}</div>
               </div>
             </button>
           </div>
@@ -260,17 +263,17 @@ export function AppearanceStep({
           transition={{ duration: 0.4, delay: 0.24 }}
         >
           <div className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground/60">
-            Tool behavior
+            {t("appearanceStep.toolBehaviorSection")}
           </div>
           <div className="flex items-center justify-between rounded-xl bg-foreground/[0.03] px-5 py-4">
             <div className="flex items-center gap-3">
               <Layers className="h-4.5 w-4.5 text-muted-foreground" />
               <div>
                 <div className="text-sm font-medium text-foreground">
-                  Auto-group tools
+                  {t("appearanceStep.autoGroup")}
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  Collapse consecutive tool calls into a single group.
+                  {t("appearanceStep.autoGroupDesc")}
                 </div>
               </div>
             </div>
@@ -284,10 +287,10 @@ export function AppearanceStep({
               <ChevronsUpDown className="h-4.5 w-4.5 text-muted-foreground" />
               <div>
                 <div className="text-sm font-medium text-foreground">
-                  Auto-expand tool results
+                  {t("appearanceStep.autoExpand")}
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  Briefly open completed tool calls, then collapse them again.
+                  {t("appearanceStep.autoExpandDesc")}
                 </div>
               </div>
             </div>
@@ -301,10 +304,10 @@ export function AppearanceStep({
               <ChevronsUpDown className="h-4.5 w-4.5 text-muted-foreground" />
               <div>
                 <div className="text-sm font-medium text-foreground">
-                  Expand Edit and Write tools by default
+                  {t("appearanceStep.expandEditWrite")}
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  Start file edit tool calls open instead of collapsed.
+                  {t("appearanceStep.expandEditWriteDesc")}
                 </div>
               </div>
             </div>
@@ -326,12 +329,12 @@ export function AppearanceStep({
               <Blend className="h-4.5 w-4.5 text-muted-foreground" />
               <div>
                 <div className="text-sm font-medium text-foreground">
-                  Window transparency
+                  {t("appearanceStep.transparency")}
                 </div>
                 <div className="text-xs text-muted-foreground">
                   {glassSupported
-                    ? "See your desktop through the window"
-                    : "Not available on this platform"}
+                    ? t("appearanceStep.transparencySupported")
+                    : t("appearanceStep.transparencyUnsupported")}
                 </div>
               </div>
             </div>

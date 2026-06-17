@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { useTranslation } from "react-i18next";
 import { ChevronDown, Loader2, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,12 +27,7 @@ import { TOOLBAR_BTN } from "./constants";
 
 // ── Effort level descriptions ──
 
-const CLAUDE_EFFORT_DESCRIPTIONS: Record<string, string> = {
-  low: "Minimal thinking, fastest responses",
-  medium: "Moderate thinking",
-  high: "Deep reasoning",
-  max: "Maximum effort",
-};
+const KNOWN_CLAUDE_EFFORTS = new Set(["low", "medium", "high", "max"]);
 
 // ── Derived model/effort state ──
 
@@ -103,6 +99,7 @@ export const EnginePickerDropdown = memo(function EnginePickerDropdown({
   lockedAgentId,
   onManageACPs,
 }: EnginePickerDropdownProps) {
+  const { t } = useTranslation("input");
   // Engine-specific config items (model/effort/ACP config) -- shared between
   // multi-agent submenu and single-agent direct rendering
   const configItems = (
@@ -133,7 +130,7 @@ export const EnginePickerDropdown = memo(function EnginePickerDropdown({
         <>
           <DropdownMenuSeparator />
           <div className="px-2 py-1 text-[10px] font-medium text-muted-foreground">
-            Effort
+            {t("engine.effort")}
           </div>
           {claudeEffortOptions.map((effort) => (
             <DropdownMenuItem
@@ -151,13 +148,14 @@ export const EnginePickerDropdown = memo(function EnginePickerDropdown({
                   <span className="capitalize">{effort}</span>
                   {effort === claudeActiveEffort && (
                     <span className="text-[10px] text-muted-foreground">
-                      Current
+                      {t("engine.current")}
                     </span>
                   )}
                 </div>
                 <div className="text-[10px] text-muted-foreground">
-                  {CLAUDE_EFFORT_DESCRIPTIONS[effort] ??
-                    "Custom reasoning effort"}
+                  {KNOWN_CLAUDE_EFFORTS.has(effort)
+                    ? t(`engine.effortDesc.${effort}`)
+                    : t("engine.customReasoningEffort")}
                 </div>
               </div>
             </DropdownMenuItem>
@@ -180,7 +178,7 @@ export const EnginePickerDropdown = memo(function EnginePickerDropdown({
           <>
             <DropdownMenuSeparator />
             <div className="px-2 py-1 text-[10px] font-medium text-muted-foreground">
-              Effort
+              {t("engine.effort")}
             </div>
             {codexEffortOptions.map((opt) => (
               <DropdownMenuItem
@@ -250,14 +248,14 @@ export const EnginePickerDropdown = memo(function EnginePickerDropdown({
       {isACPAgent && acpConfigOptionsLoading && !showACPConfigOptions && (
         <DropdownMenuItem disabled className="text-xs text-muted-foreground">
           <Loader2 className="h-3 w-3 animate-spin" />
-          Loading options...
+          {t("engine.loadingOptions")}
         </DropdownMenuItem>
       )}
 
       {/* ACP no config options available */}
       {isACPAgent && !acpConfigOptionsLoading && !showACPConfigOptions && (
         <DropdownMenuItem disabled className="text-xs text-muted-foreground">
-          Could not load options for this agent
+          {t("engine.noOptions")}
         </DropdownMenuItem>
       )}
     </>
@@ -330,7 +328,7 @@ export const EnginePickerDropdown = memo(function EnginePickerDropdown({
           </div>
           {isCrossEngine && (
             <div className="text-[10px] text-muted-foreground/70">
-              Opens new chat
+              {t("engine.opensNewChat")}
             </div>
           )}
         </div>
@@ -388,7 +386,7 @@ export const EnginePickerDropdown = memo(function EnginePickerDropdown({
             {firstPartyAgents.length > 0 && (
               <DropdownMenuGroup>
                 <DropdownMenuLabel className="text-[10px] font-medium text-muted-foreground">
-                  Engines
+                  {t("engine.engines")}
                 </DropdownMenuLabel>
                 {firstPartyAgents.map((a) => renderAgent(a, willOpenNewChat(a)))}
               </DropdownMenuGroup>
@@ -398,7 +396,7 @@ export const EnginePickerDropdown = memo(function EnginePickerDropdown({
                 {firstPartyAgents.length > 0 && <DropdownMenuSeparator />}
                 <DropdownMenuGroup>
                   <DropdownMenuLabel className="text-[10px] font-medium text-muted-foreground">
-                    ACP Agents
+                    {t("engine.acpAgents")}
                   </DropdownMenuLabel>
                   {acpAgents.map((a) => renderAgent(a, willOpenNewChat(a)))}
                 </DropdownMenuGroup>
@@ -413,7 +411,7 @@ export const EnginePickerDropdown = memo(function EnginePickerDropdown({
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={onManageACPs}>
               <Settings className="h-3.5 w-3.5 text-muted-foreground" />
-              Manage ACPs
+              {t("engine.manageACPs")}
             </DropdownMenuItem>
           </>
         )}

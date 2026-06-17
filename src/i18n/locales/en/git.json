@@ -1,0 +1,63 @@
+{
+  "panel": {
+    "title": "Source Control",
+    "refreshAll": "Refresh All",
+    "noProjectOpen": "No project open",
+    "scanning": "Scanning…",
+    "noReposFound": "No repos found"
+  },
+  "repo": {
+    "subTag": "sub",
+    "worktreeTag": "wt",
+    "fetch": "Fetch",
+    "pull": "Pull",
+    "push": "Push",
+    "workingTreeClean": "Working tree clean",
+    "commits": "Commits"
+  },
+  "section": {
+    "staged": "Staged",
+    "changes": "Changes",
+    "untracked": "Untracked",
+    "stageAll": "Stage All",
+    "unstageAll": "Unstage All"
+  },
+  "file": {
+    "discard": "Discard",
+    "stage": "Stage",
+    "unstage": "Unstage"
+  },
+  "diff": {
+    "noDiffAvailable": "No diff available"
+  },
+  "branch": {
+    "filterPlaceholder": "Filter branches…",
+    "newBranchPlaceholder": "New branch name…",
+    "createNew": "Create new branch",
+    "local": "Local",
+    "remote": "Remote",
+    "noMatching": "No matching branches"
+  },
+  "commit": {
+    "placeholder": "Commit message…",
+    "aiMessage": "AI commit message",
+    "stagedCount": "{{n}} staged",
+    "commit": "Commit",
+    "commitChanges": "Commit changes",
+    "noResultReceived": "No result received"
+  },
+  "selector": {
+    "select": "Select…"
+  },
+  "worktree": {
+    "removeWorktree": "Remove worktree",
+    "label": "Worktree",
+    "branchNamePlaceholder": "Branch name for new worktree",
+    "setupDescription": "Set up a worktree initialization script to auto-install dependencies and copy environment files.",
+    "settings": "Settings",
+    "generateWithAI": "Generate with AI",
+    "createdWithErrors": "Worktree created, but setup had errors:\n{{errors}}",
+    "failedToCreate": "Failed to create worktree",
+    "failedToRemove": "Failed to remove worktree"
+  }
+}

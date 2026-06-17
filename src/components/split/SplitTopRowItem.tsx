@@ -7,6 +7,7 @@
  */
 
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { motion } from "motion/react";
 import { normalizeRatios } from "@/hooks/useSettings";
 import { equalWidthFractions, MIN_TOOLS_PANEL_WIDTH } from "@/lib/layout/constants";
@@ -187,6 +188,7 @@ function renderToolIsland(
   isActiveSessionPane: boolean,
   props: SplitTopRowItemProps,
   columnId: string,
+  moveLabel: string,
 ) {
   const {
     projects, activeProjectPath, splitView,
@@ -205,7 +207,7 @@ function renderToolIsland(
   const controls = buildToolIslandControls(
     island,
     false,
-    "Move to bottom",
+    moveLabel,
     () => splitView.moveToolIsland(island.id, "bottom"),
     setSplitToolDrag,
     resetSplitToolDrag,
@@ -278,6 +280,7 @@ function renderToolColumn(
   paneState: SessionPaneState,
   isActiveSessionPane: boolean,
   props: SplitTopRowItemProps,
+  moveLabel: string,
 ) {
   const {
     isIsland, shouldAnimateTopRowLayout,
@@ -387,7 +390,7 @@ function renderToolColumn(
               renderToolIsland(
                 entry.island, fraction, stackInsertBeforeIndex, insertBeforeIndex,
                 session, paneState, isActiveSessionPane,
-                props, item.column.id,
+                props, item.column.id, moveLabel,
               )
             )}
           </React.Fragment>
@@ -425,6 +428,8 @@ function SplitTopRowItemInner(props: SplitTopRowItemProps) {
     getPreviewPaneMetrics: getMetrics,
     spaceActiveSpaceId,
   } = props;
+  const { t } = useTranslation("workspace");
+  const moveToBottomLabel = t("dock.moveToBottom");
 
   const { widthPercent, handleSharePx } = getMetrics(previewIndex);
 
@@ -434,7 +439,7 @@ function SplitTopRowItemInner(props: SplitTopRowItemProps) {
     if (!primaryIsland) return null;
 
     if (primaryIsland.sourceSessionId === activeSessionId) {
-      return renderToolColumn(item, activeSession, primaryPane, true, { ...props, previewIndex, insertBeforeIndex });
+      return renderToolColumn(item, activeSession, primaryPane, true, { ...props, previewIndex, insertBeforeIndex }, moveToBottomLabel);
     }
 
     return (
@@ -444,7 +449,7 @@ function SplitTopRowItemInner(props: SplitTopRowItemProps) {
         acpPermissionBehavior={acpPermissionBehavior}
         loadBootstrap={loadSplitPaneBootstrap}
       >
-        {({ session, paneState }) => renderToolColumn(item, session, paneState, false, { ...props, previewIndex, insertBeforeIndex })}
+        {({ session, paneState }) => renderToolColumn(item, session, paneState, false, { ...props, previewIndex, insertBeforeIndex }, moveToBottomLabel)}
       </SplitPaneHost>
     );
   }

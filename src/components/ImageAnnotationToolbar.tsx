@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import {
   MousePointer2,
   Pencil,
@@ -31,15 +32,15 @@ interface ImageAnnotationToolbarProps {
   onRedo: () => void;
 }
 
-const TOOLS: Array<{ tool: AnnotationTool; icon: React.ElementType; label: string }> = [
-  { tool: "select", icon: MousePointer2, label: "Select" },
-  { tool: "freehand", icon: Pencil, label: "Freehand" },
-  { tool: "rectangle", icon: Square, label: "Rectangle" },
-  { tool: "circle", icon: Circle, label: "Circle" },
-  { tool: "arrow", icon: MoveUpRight, label: "Arrow" },
-  { tool: "text", icon: Type, label: "Text" },
-  { tool: "highlight", icon: Highlighter, label: "Highlight" },
-  { tool: "eraser", icon: Eraser, label: "Eraser" },
+const TOOLS: Array<{ tool: AnnotationTool; icon: React.ElementType; labelKey: string }> = [
+  { tool: "select", icon: MousePointer2, labelKey: "annotation.select" },
+  { tool: "freehand", icon: Pencil, labelKey: "annotation.freehand" },
+  { tool: "rectangle", icon: Square, labelKey: "annotation.rectangle" },
+  { tool: "circle", icon: Circle, labelKey: "annotation.circle" },
+  { tool: "arrow", icon: MoveUpRight, labelKey: "annotation.arrow" },
+  { tool: "text", icon: Type, labelKey: "annotation.text" },
+  { tool: "highlight", icon: Highlighter, labelKey: "annotation.highlight" },
+  { tool: "eraser", icon: Eraser, labelKey: "annotation.eraser" },
 ];
 
 export const ImageAnnotationToolbar = React.memo(function ImageAnnotationToolbar({
@@ -54,6 +55,7 @@ export const ImageAnnotationToolbar = React.memo(function ImageAnnotationToolbar
   onUndo,
   onRedo,
 }: ImageAnnotationToolbarProps) {
+  const { t } = useTranslation("workspace");
   // Color/stroke controls are irrelevant for non-drawing tools
   const showColorPicker = activeTool !== "eraser" && activeTool !== "select";
   const showStrokeWidth = showColorPicker && activeTool !== "text";
@@ -61,7 +63,7 @@ export const ImageAnnotationToolbar = React.memo(function ImageAnnotationToolbar
   return (
     <div className="flex items-center gap-1 rounded-lg bg-muted/30 px-1.5 py-1">
       <div className="flex items-center gap-0.5">
-        {TOOLS.map(({ tool, icon: Icon, label }) => (
+        {TOOLS.map(({ tool, icon: Icon, labelKey }) => (
           <Tooltip key={tool}>
             <TooltipTrigger asChild>
               <Button
@@ -74,7 +76,7 @@ export const ImageAnnotationToolbar = React.memo(function ImageAnnotationToolbar
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom">
-              <p className="text-xs">{label}</p>
+              <p className="text-xs">{t(labelKey)}</p>
             </TooltipContent>
           </Tooltip>
         ))}
@@ -96,7 +98,7 @@ export const ImageAnnotationToolbar = React.memo(function ImageAnnotationToolbar
               </PopoverTrigger>
             </TooltipTrigger>
             <TooltipContent side="bottom">
-              <p className="text-xs">Color</p>
+              <p className="text-xs">{t("annotation.color")}</p>
             </TooltipContent>
           </Tooltip>
           <PopoverContent className="w-auto p-2" side="bottom" align="start">
@@ -119,7 +121,7 @@ export const ImageAnnotationToolbar = React.memo(function ImageAnnotationToolbar
                 onChange={(e) => onStrokeColorChange(e.target.value)}
                 className="h-6 w-6 cursor-pointer rounded border-none bg-transparent p-0"
               />
-              <span className="text-xs text-muted-foreground">Custom</span>
+              <span className="text-xs text-muted-foreground">{t("annotation.custom")}</span>
             </div>
           </PopoverContent>
         </Popover>
@@ -144,12 +146,12 @@ export const ImageAnnotationToolbar = React.memo(function ImageAnnotationToolbar
               </PopoverTrigger>
             </TooltipTrigger>
             <TooltipContent side="bottom">
-              <p className="text-xs">Stroke width: {strokeWidth}px</p>
+              <p className="text-xs">{t("annotation.strokeWidthValue", { width: strokeWidth })}</p>
             </TooltipContent>
           </Tooltip>
           <PopoverContent className="w-44 p-3" side="bottom" align="start">
             <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">Stroke width</p>
+              <p className="text-xs text-muted-foreground">{t("annotation.strokeWidth")}</p>
               <Slider
                 min={1}
                 max={12}
@@ -173,7 +175,7 @@ export const ImageAnnotationToolbar = React.memo(function ImageAnnotationToolbar
             </Button>
           </TooltipTrigger>
           <TooltipContent side="bottom">
-            <p className="text-xs">Undo</p>
+            <p className="text-xs">{t("annotation.undo")}</p>
           </TooltipContent>
         </Tooltip>
         <Tooltip>
@@ -183,7 +185,7 @@ export const ImageAnnotationToolbar = React.memo(function ImageAnnotationToolbar
             </Button>
           </TooltipTrigger>
           <TooltipContent side="bottom">
-            <p className="text-xs">Redo</p>
+            <p className="text-xs">{t("annotation.redo")}</p>
           </TooltipContent>
         </Tooltip>
       </div>

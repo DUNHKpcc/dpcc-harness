@@ -1,0 +1,74 @@
+{
+  "empty": {
+    "title": "发送消息开始对话",
+    "subtitle": "你的对话将显示在这里"
+  },
+  "processing": {
+    "planning": "正在规划下一步"
+  },
+  "header": {
+    "closePane": "关闭窗格",
+    "devFill": "开发填充",
+    "fillCurrentChat": "填充当前对话",
+    "fillCurrentSpace": "填充当前空间（3 个项目，10 个对话）",
+    "model": "模型",
+    "permissions": "权限",
+    "plan": "Plan",
+    "cost": "费用",
+    "session": "会话",
+    "permissionMode": {
+      "plan": "Plan",
+      "default": "编辑前询问",
+      "acceptEdits": "接受编辑",
+      "bypassPermissions": "全部允许"
+    },
+    "acpBehavior": {
+      "ask": "询问",
+      "auto_accept": "自动接受",
+      "allow_all": "全部允许"
+    }
+  },
+  "message": {
+    "attachedImage": "附加图片",
+    "queued": "排队中",
+    "sendNext": "下一个发送",
+    "unqueue": "移出队列",
+    "revertToHere": "回退到此处",
+    "revertFilesOnly": "仅回退文件",
+    "revertFilesAndChat": "回退文件 + 对话"
+  },
+  "thinking": {
+    "thinking": "思考中...",
+    "thought": "已思考"
+  },
+  "summary": {
+    "manualCompact": "手动压缩",
+    "autoCompact": "自动压缩",
+    "contextCompacted": "上下文已压缩",
+    "contextResumed": "已从上一次对话恢复上下文",
+    "tokens": "{{amount}}k token"
+  },
+  "search": {
+    "placeholder": "在对话中查找...",
+    "noResults": "无结果",
+    "position": "第 {{current}} 个，共 {{total}} 个",
+    "previousMatch": "上一个匹配",
+    "nextMatch": "下一个匹配",
+    "closeSearch": "关闭搜索"
+  },
+  "turnChanges": {
+    "emptyFile": "空文件",
+    "new": "新建",
+    "modified": "已修改",
+    "moreFiles": "{{names}} 等 {{n}} 个",
+    "filesChanged_other": "{{count}} 个文件已更改",
+    "statsModified": "{{n}} 个已修改",
+    "statsNew": "{{n}} 个新建"
+  },
+  "transcript": {
+    "title": "Agent 记录 — {{description}}",
+    "loading": "正在加载记录…",
+    "empty": "暂无记录数据。",
+    "thinkingPrefix": "思考：{{preview}}"
+  }
+}

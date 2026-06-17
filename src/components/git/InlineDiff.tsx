@@ -1,8 +1,12 @@
+import { useTranslation } from "react-i18next";
+import { NO_DIFF_SENTINEL } from "./git-panel-utils";
+
 export function InlineDiff({ diff }: { diff: string }) {
-  if (!diff || diff === "(no diff available)") {
+  const { t } = useTranslation("git");
+  if (!diff || diff === NO_DIFF_SENTINEL) {
     return (
       <div className="mb-1 border border-foreground/[0.06] bg-foreground/[0.02] px-3 py-1.5 text-[10px] text-foreground/35 italic">
-        No diff available
+        {t("diff.noDiffAvailable")}
       </div>
     );
   }

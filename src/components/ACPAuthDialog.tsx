@@ -1,4 +1,5 @@
 import { memo, useCallback, useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { ExternalLink, Loader2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AuthDialogShell } from "@/components/AuthDialogShell";
@@ -21,6 +22,7 @@ export const ACPAuthDialog = memo(function ACPAuthDialog({
   onComplete,
   onCancel,
 }: ACPAuthDialogProps) {
+  const { t } = useTranslation("dialogs");
   const [isLoading, setIsLoading] = useState(false);
   const [selectedMethodId, setSelectedMethodId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +39,7 @@ export const ACPAuthDialog = memo(function ACPAuthDialog({
         return;
       }
       if (result.authRequired) {
-        setError(result.error ?? "Authentication is still required.");
+        setError(result.error ?? t("acpAuth.stillRequired"));
         return;
       }
       await onComplete(result);
@@ -55,22 +57,22 @@ export const ACPAuthDialog = memo(function ACPAuthDialog({
     <AuthDialogShell
       open
       onClose={() => void onCancel()}
-      title={`${agentName} Authentication`}
-      description="This ACP agent needs authentication before a session can start."
+      title={t("acpAuth.title", { agent: agentName })}
+      description={t("acpAuth.description")}
       error={error}
       loading={isLoading}
       icon={<ShieldCheck className="h-4 w-4" />}
     >
       {cursorHint && (
         <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/8 p-3 text-sm text-amber-700 dark:text-amber-300">
-          Cursor may require running <code>cursor-agent login</code> in a terminal first.
+          <Trans i18nKey="acpAuth.cursorHint" t={t} components={{ code: <code /> }} />
         </div>
       )}
 
       <div className="flex flex-col gap-3">
         {authMethods.length === 0 && (
           <div className="rounded-lg border border-border/60 bg-muted/30 p-3 text-sm text-muted-foreground">
-            No supported authentication methods were advertised by this agent.
+            {t("acpAuth.noMethods")}
           </div>
         )}
         {authMethods.map((method) => {
@@ -97,12 +99,12 @@ export const ACPAuthDialog = memo(function ACPAuthDialog({
                 )}
                 {method.type === "terminal" && (
                   <div className="mt-1 text-xs text-muted-foreground">
-                    Terminal auth is not supported in PccAgent yet.
+                    {t("acpAuth.terminalUnsupported")}
                   </div>
                 )}
                 {method.type === "env_var" && method.vars.length > 0 && (
                   <div className="mt-1 text-xs text-muted-foreground">
-                    Env-var auth is not supported in PccAgent yet. Required vars: {method.vars.map((entry) => entry.name).join(", ")}
+                    {t("acpAuth.envVarUnsupported", { vars: method.vars.map((entry) => entry.name).join(", ") })}
                   </div>
                 )}
               </div>

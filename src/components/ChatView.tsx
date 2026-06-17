@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useMemo, useCallback, useState, startTransition, memo, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { motion } from "motion/react";
 import { Loader2, Minus } from "lucide-react";
 import type { UIMessage } from "@/types";
@@ -157,6 +158,7 @@ const ChatMessageRow = memo(function ChatMessageRow({
   onSendQueuedNow,
   onUnqueueQueuedMessage,
 }: ChatMessageRowProps) {
+  const { t } = useTranslation("chat");
   // ── Display preferences from Zustand store ──
   const autoExpandTools = useSettingsStore((s) => s.autoExpandTools);
   const expandEditToolCallsByDefault = useSettingsStore((s) => s.expandEditToolCallsByDefault);
@@ -168,7 +170,7 @@ const ChatMessageRow = memo(function ChatMessageRow({
         <div className="flex items-center gap-1.5 text-xs">
           <Minus className="h-3 w-3 text-foreground/40" />
           <TextShimmer as="span" className="italic opacity-60" duration={1.8} spread={1.5}>
-            Planning next moves
+            {t("processing.planning")}
           </TextShimmer>
         </div>
       </div>
@@ -278,6 +280,7 @@ interface ChatViewProps {
 
 export const ChatView = memo(function ChatView(props: ChatViewProps) {
   const { messages } = props;
+  const { t } = useTranslation("chat");
   const { agents, selectedAgent, handleAgentChange } = useAgentContext();
 
   if (messages.length === 0) {
@@ -296,13 +299,13 @@ export const ChatView = memo(function ChatView(props: ChatViewProps) {
               className="text-3xl italic text-foreground/20"
               style={{ fontFamily: "'Instrument Serif', Georgia, serif" }}
             >
-              Send a message to start
+              {t("empty.title")}
             </h2>
             <p
               className="text-sm italic text-muted-foreground/30"
               style={{ fontFamily: "'Instrument Serif', Georgia, serif" }}
             >
-              Your conversation will appear here
+              {t("empty.subtitle")}
             </p>
           </div>
 

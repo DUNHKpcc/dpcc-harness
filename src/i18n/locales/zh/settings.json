@@ -65,8 +65,6 @@
       "windowLayoutDesc": "选择面板在窗口中的排列方式。",
       "islands": "悬浮岛",
       "flat": "平铺",
-      "coloredSidebarIcons": "彩色侧边栏图标",
-      "coloredSidebarIconsDesc": "为工具选择器和面板标题图标按工具着色。关闭后为中性单色图标。",
       "islandShine": "悬浮岛边框光泽",
       "islandShineDesc": "在悬浮岛面板边框上显示淡淡的对角反光。仅在悬浮岛布局模式下可见。"
     },
@@ -75,7 +73,7 @@
       "macLabel": "窗口背景效果",
       "winLabel": "窗口透明度",
       "macDescGlass": "选择 macOS 原生背景材质。Blur Off 保持窗口不透明；从 Liquid Glass 切换到 Vibrancy 需要重启。",
-      "macDescNoGlass": "选择 macOS 原生背景材质。本机不支持 Liquid Glass，可使用 Vibrancy 和 Off。",
+      "macDescNoGlass": "本机不支持 Liquid Glass，透明效果不可用，应用将以标准不透明界面显示。",
       "winDescSupported": "让桌面透过窗口背景显示。启用后在 Windows 上使用 Mica。",
       "winDescUnsupported": "当前平台不支持窗口透明效果。",
       "liquidGlass": "Liquid Glass",

@@ -16,7 +16,6 @@ import {
   ISLAND_PANEL_GAP,
   ISLAND_RADIUS,
   RESIZE_HANDLE_WIDTH_ISLAND,
-  TOOL_PICKER_WIDTH_ISLAND,
   equalWidthFractions,
 } from "@/lib/layout/constants";
 import type { InstalledAgent } from "@/types";
@@ -25,7 +24,6 @@ import { ChatHeader } from "./ChatHeader";
 import { ChatSearchBar } from "./ChatSearchBar";
 import { ChatView } from "./ChatView";
 import { BottomComposer } from "./BottomComposer";
-import { ToolPicker } from "./ToolPicker";
 import { PANEL_TOOLS_MAP } from "./ToolPicker";
 import type { ToolId } from "@/types/tools";
 import { WelcomeScreen } from "./WelcomeScreen";
@@ -60,8 +58,6 @@ import { useAppLayoutUIState } from "@/hooks/app-layout/useAppLayoutUIState";
 import {
   useMainToolWorkspace,
   togglePanelTool,
-  moveToolToSide,
-  moveToolToBottom,
   moveBottomToolToTop,
 } from "@/hooks/useMainToolWorkspace";
 import type { PanelToolId } from "@/types";
@@ -92,7 +88,7 @@ export function AppLayout() {
   } = agentState;
   const {
     activeProjectId, activeProjectPath, activeSpaceProject, activeSpaceTerminalCwd, showThinking,
-    hasProjects, isSpaceSwitching, showToolPicker, hasRightPanel,
+    hasProjects, isSpaceSwitching, hasRightPanel,
     activeTodos, bgAgents, hasTodos, hasAgents, availableContextual,
     glassSupported, macLiquidGlassSupported, liveMacBackgroundEffect, devFillEnabled, jiraBoardEnabled,
     draftSpaceId,
@@ -101,7 +97,7 @@ export function AppLayout() {
     showSettings, setShowSettings, scrollToMessageId, setScrollToMessageId, chatSearchOpen, setChatSearchOpen,
   } = ui;
   const {
-    handleToggleTool, handleToolReorder, handleNewChat, handleSend,
+    handleToggleTool, handleNewChat, handleSend,
     handleModelChange, handlePermissionModeChange, handlePlanModeChange,
     handleClaudeModelEffortChange, handleAgentWorktreeChange, handleStop, handleSelectSession,
     handleSendQueuedNow, handleUnqueueMessage, handleCreateProject, handleImportCCSession,
@@ -229,7 +225,6 @@ export function AppLayout() {
         "--island-panel-gap": `${ISLAND_PANEL_GAP}px`,
         "--island-radius": `${islandRadius}px`,
         "--island-control-radius": `${islandControlRadius}px`,
-        "--tool-picker-strip-width": `${TOOL_PICKER_WIDTH_ISLAND - ISLAND_PANEL_GAP}px`,
       } as React.CSSProperties
     : undefined;
 
@@ -243,7 +238,7 @@ export function AppLayout() {
   const {
     isResizing, contentRef, rightPanelRef, toolsColumnRef,
     handleResizeStart, handleRightSplitStart,
-    pickerW, handleW,
+    handleW,
   } = resize;
 
   // ── Split view resize ──
@@ -751,9 +746,7 @@ export function AppLayout() {
     availableSplitWidth,
     hasActiveSession: !!manager.activeSessionId,
     isIsland,
-    showToolPicker,
     hasRightPanel,
-    pickerW,
     handleW,
     rightPanelWidth: settings.rightPanelWidth,
   });
@@ -782,9 +775,6 @@ export function AppLayout() {
       hasActiveSession: !!manager.activeSessionId,
       hasRightPanel,
       hasToolsColumn: mainTopToolColumnCount > 0,
-      toolsColumnWidth: mainTopToolColumnCount > 0
-        ? Math.max(mainToolAreaWidth, mainToolWorkspace.preferredTopAreaWidthPx ?? 0)
-        : undefined,
       isSplitViewEnabled: splitView.enabled && splitView.paneCount > 1,
       splitPaneCount: splitView.paneCount,
       splitTopRowItemKinds: splitView.topRowItems.map((item) => item.kind),
@@ -793,8 +783,6 @@ export function AppLayout() {
     window.claude.setMinWidth(Math.max(minWidth, 600));
   }, [
     hasRightPanel,
-    mainToolAreaWidth,
-    mainToolWorkspace.preferredTopAreaWidthPx,
     mainTopToolColumnCount,
     manager.activeSessionId,
     settings.islandLayout,
@@ -931,6 +919,17 @@ export function AppLayout() {
     ]),
     [activeTools, mainOpenPanelToolIds],
   );
+  const mainToolWorkspaceRef = useRef(mainToolWorkspace);
+  mainToolWorkspaceRef.current = mainToolWorkspace;
+  const canFitToolAsNewColumnRef = useRef(canFitToolAsNewColumn);
+  canFitToolAsNewColumnRef.current = canFitToolAsNewColumn;
+  const handleToolPickerToggle = useCallback((toolId: ToolId) => {
+    if (toolId === "tasks" || toolId === "agents") {
+      handleToggleTool(toolId);
+      return;
+    }
+    togglePanelTool(mainToolWorkspaceRef.current, toolId as PanelToolId, canFitToolAsNewColumnRef.current);
+  }, [handleToggleTool]);
   useEffect(() => {
     if (isSplitActive) return;
     if (mainTopToolColumnCount <= maxMainTopToolColumns) return;
@@ -1102,7 +1101,7 @@ export function AppLayout() {
               splitContainerRef.current = element;
             }
           }}
-          className="relative flex min-h-0 flex-1"
+          className="relative flex min-h-0 min-w-0 flex-1"
           onDragEnter={!isSplitActive ? splitDragDrop.handleDragEnter : undefined}
           onDragOver={!isSplitActive
             ? (mainToolDrag
@@ -1482,6 +1481,11 @@ export function AppLayout() {
                   showDevFill={devFillEnabled}
                   onSeedDevExampleConversation={manager.seedDevExampleConversation}
                   onSeedDevExampleSpaceData={handleSeedDevExampleSpaceData}
+                  activeTools={mainPickerActiveTools}
+                  onToggleTool={handleToolPickerToggle}
+                  availableContextual={availableContextual}
+                  toolOrder={settings.toolOrder}
+                  projectPath={activeProjectPath}
                 />
               </div>
               {chatSearchOpen && (
@@ -1672,58 +1676,7 @@ export function AppLayout() {
             />
           )}
 
-          {/* Tool picker — always visible */}
-          {showToolPicker && (
-            <motion.div
-              layout={shouldAnimateTopRowLayout}
-              transition={shouldAnimateTopRowLayout
-                ? { type: "spring", stiffness: 380, damping: 34, mass: 0.65 }
-                : { duration: 0 }}
-              className={`${isIsland ? "ms-[var(--island-panel-gap)]" : "tool-picker-shell flat-divider-soft"} shrink-0 overflow-hidden ${
-                showSinglePaneSplitPreview || isSpaceSwitching && !manager.activeSessionId
-                  ? "pointer-events-none"
-                  : ""
-              }`}
-              style={showSinglePaneSplitPreview ? { width: 0, minWidth: 0, marginInlineStart: 0 } : undefined}
-            >
-              <ToolPicker
-                activeTools={mainPickerActiveTools}
-                onToggle={(toolId) => {
-                  if (toolId === "tasks" || toolId === "agents") {
-                    handleToggleTool(toolId);
-                    return;
-                  }
-                  togglePanelTool(mainToolWorkspace, toolId as PanelToolId, canFitToolAsNewColumn);
-                }}
-                availableContextual={availableContextual}
-                toolOrder={settings.toolOrder}
-                displayBottomTools={new Set<ToolId>(mainToolWorkspace.bottomToolIslands.map((island) => island.toolId))}
-                onReorder={handleToolReorder}
-                panelInteractionMode="workspace"
-                onPanelToolDragStart={(event, toolId) => {
-                  event.dataTransfer.setData("text/plain", toolId);
-                  event.dataTransfer.effectAllowed = "move";
-                  setMainToolDrag({
-                    toolId,
-                    sourceSessionId: null,
-                    islandId: null,
-                    targetArea: null,
-                    targetIndex: null,
-                    targetColumnId: null,
-                  });
-                }}
-                onPanelToolDragEnd={resetMainToolDrag}
-                projectPath={activeProjectPath}
-                bottomTools={new Set<ToolId>(mainToolWorkspace.bottomToolIslands.map((island) => island.toolId))}
-                onMoveToBottom={(toolId) => moveToolToBottom(mainToolWorkspace, toolId as PanelToolId)}
-                onMoveToSide={(toolId) => moveToolToSide(mainToolWorkspace, toolId as PanelToolId, canFitToolAsNewColumn)}
-                taskProgress={activeTodos.length > 0 ? {
-                  completed: activeTodos.filter((t) => t.status === "completed").length,
-                  total: activeTodos.length,
-                } : undefined}
-              />
-            </motion.div>
-          )}
+          {/* Tool picker strip removed — now in ChatHeader dropdown */}
           </>
           )}
         </div>{/* end top row */}

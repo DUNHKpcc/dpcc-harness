@@ -14,7 +14,8 @@
     "bottomPanel": "底部面板",
     "openInEditor": "在编辑器中打开",
     "rightClickForOptions": "右键查看选项",
-    "completed": "{{completed}}/{{total}} 已完成"
+    "completed": "{{completed}}/{{total}} 已完成",
+    "togglePanels": "切换面板"
   },
   "terminal": {
     "title": "终端",

@@ -14,7 +14,8 @@
     "bottomPanel": "Bottom panel",
     "openInEditor": "Open in Editor",
     "rightClickForOptions": "Right-click for options",
-    "completed": "{{completed}}/{{total}} completed"
+    "completed": "{{completed}}/{{total}} completed",
+    "togglePanels": "Toggle Panels"
   },
   "terminal": {
     "title": "Terminal",

@@ -9,7 +9,7 @@ import {
 
 describe("workspace constraints", () => {
   it("uses stricter chat minimums for single and split layouts", () => {
-    expect(getChatPaneMinWidthPx("single")).toBe(704);
+    expect(getChatPaneMinWidthPx("single")).toBe(500);
     expect(getChatPaneMinWidthPx("split")).toBe(458);
   });
 

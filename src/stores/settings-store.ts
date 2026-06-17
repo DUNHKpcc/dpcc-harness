@@ -107,7 +107,6 @@ interface GlobalSettingsState {
   autoExpandTools: boolean;
   expandEditToolCallsByDefault: boolean;
   transparentToolPicker: boolean;
-  coloredSidebarIcons: boolean;
   showToolIcons: boolean;
   coloredToolIcons: boolean;
 }
@@ -131,7 +130,6 @@ interface SettingsActions {
   setAutoExpandTools: (on: boolean) => void;
   setExpandEditToolCallsByDefault: (on: boolean) => void;
   setTransparentToolPicker: (on: boolean) => void;
-  setColoredSidebarIcons: (on: boolean) => void;
   setShowToolIcons: (on: boolean) => void;
   setColoredToolIcons: (on: boolean) => void;
 
@@ -320,7 +318,6 @@ function readLegacyGlobalSettings(): GlobalSettingsState {
     autoExpandTools: readLegacyBool("pcc-agent-auto-expand-tools", false),
     expandEditToolCallsByDefault: readLegacyBool("pcc-agent-expand-edit-tool-calls-by-default", true),
     transparentToolPicker: readLegacyBool("pcc-agent-transparent-tool-picker", false),
-    coloredSidebarIcons: readLegacyBool("pcc-agent-colored-sidebar-icons", true),
     showToolIcons: readLegacyBool("pcc-agent-show-tool-icons", true),
     coloredToolIcons: readLegacyBool("pcc-agent-colored-tool-icons", false),
   };
@@ -435,7 +432,6 @@ export const useSettingsStore = create<SettingsStore>()(
       autoExpandTools: false,
       expandEditToolCallsByDefault: true,
       transparentToolPicker: false,
-      coloredSidebarIcons: true,
       showToolIcons: true,
       coloredToolIcons: false,
 
@@ -494,7 +490,6 @@ export const useSettingsStore = create<SettingsStore>()(
 
       setTransparentToolPicker: (on) => set({ transparentToolPicker: on }),
 
-      setColoredSidebarIcons: (on) => set({ coloredSidebarIcons: on }),
 
       setShowToolIcons: (on) => set({ showToolIcons: on }),
 
@@ -627,7 +622,6 @@ export const useSettingsStore = create<SettingsStore>()(
         autoExpandTools: state.autoExpandTools,
         expandEditToolCallsByDefault: state.expandEditToolCallsByDefault,
         transparentToolPicker: state.transparentToolPicker,
-        coloredSidebarIcons: state.coloredSidebarIcons,
         showToolIcons: state.showToolIcons,
         coloredToolIcons: state.coloredToolIcons,
         // Per-project

@@ -32,9 +32,7 @@ export interface MainToolAreaLayoutInput {
   availableSplitWidth: number;
   hasActiveSession: boolean;
   isIsland: boolean;
-  showToolPicker: boolean;
   hasRightPanel: boolean;
-  pickerW: number;
   handleW: number;
   rightPanelWidth: number;
 }
@@ -63,9 +61,7 @@ export function useMainToolAreaLayout(input: MainToolAreaLayoutInput): MainToolA
     mainDraggedIsland,
     availableSplitWidth,
     hasActiveSession,
-    showToolPicker,
     hasRightPanel,
-    pickerW,
     handleW,
     rightPanelWidth,
   } = input;
@@ -108,7 +104,6 @@ export function useMainToolAreaLayout(input: MainToolAreaLayoutInput): MainToolA
     !!mainToolDrag;
 
   const mainWorkspaceReservedWidth =
-    (showToolPicker ? pickerW : 0) +
     (hasRightPanel ? rightPanelWidth + handleW : 0) +
     (mainHasToolWorkspace ? handleW : 0);
 

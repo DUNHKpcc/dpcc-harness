@@ -47,8 +47,6 @@ export const AppearanceSettings = memo(function AppearanceSettings({
   const setColoredToolIcons = useSettingsStore((s) => s.setColoredToolIcons);
   const transparentToolPicker = useSettingsStore((s) => s.transparentToolPicker);
   const setTransparentToolPicker = useSettingsStore((s) => s.setTransparentToolPicker);
-  const coloredSidebarIcons = useSettingsStore((s) => s.coloredSidebarIcons);
-  const setColoredSidebarIcons = useSettingsStore((s) => s.setColoredSidebarIcons);
   const transparency = useSettingsStore((s) => s.transparency);
   const setTransparency = useSettingsStore((s) => s.setTransparency);
 
@@ -63,7 +61,6 @@ export const AppearanceSettings = memo(function AppearanceSettings({
   const onShowToolIconsChange = setShowToolIcons;
   const onColoredToolIconsChange = setColoredToolIcons;
   const onTransparentToolPickerChange = setTransparentToolPicker;
-  const onColoredSidebarIconsChange = setColoredSidebarIcons;
   const onTransparencyChange = setTransparency;
 
   const effectiveMacBackgroundEffect = !macLiquidGlassSupported && macBackgroundEffect === "liquid-glass"
@@ -273,16 +270,6 @@ export const AppearanceSettings = memo(function AppearanceSettings({
             </div>
 
             <SettingRow
-              label={t("appearance.layout.coloredSidebarIcons")}
-              description={t("appearance.layout.coloredSidebarIconsDesc")}
-            >
-              <Switch
-                checked={coloredSidebarIcons}
-                onCheckedChange={onColoredSidebarIconsChange}
-              />
-            </SettingRow>
-
-            <SettingRow
               label={t("appearance.layout.islandShine")}
               description={t("appearance.layout.islandShineDesc")}
             >
@@ -313,18 +300,22 @@ export const AppearanceSettings = memo(function AppearanceSettings({
               }
             >
               {isMac ? (
-                <SettingsSelect
-                  value={effectiveMacBackgroundEffect}
-                  onValueChange={onMacBackgroundEffectChange}
-                  options={[
-                    ...(macLiquidGlassSupported
-                      ? [{ value: "liquid-glass" as const, label: t("appearance.transparency.liquidGlass") }]
-                      : []),
-                    { value: "vibrancy", label: t("appearance.transparency.vibrancy") },
-                    { value: "off", label: t("appearance.transparency.blurOff") },
-                  ]}
-                  className="min-w-[9.5rem]"
-                />
+                macLiquidGlassSupported ? (
+                  <SettingsSelect
+                    value={effectiveMacBackgroundEffect}
+                    onValueChange={onMacBackgroundEffectChange}
+                    options={[
+                      { value: "liquid-glass" as const, label: t("appearance.transparency.liquidGlass") },
+                      { value: "vibrancy", label: t("appearance.transparency.vibrancy") },
+                      { value: "off", label: t("appearance.transparency.blurOff") },
+                    ]}
+                    className="min-w-[9.5rem]"
+                  />
+                ) : (
+                  // No Liquid Glass on this Mac → transparency effects are unavailable
+                  // and the app renders opaque. Show a disabled, off toggle to say so.
+                  <Switch checked={false} disabled onCheckedChange={() => undefined} />
+                )
               ) : (
                 <Switch
                   checked={transparency}

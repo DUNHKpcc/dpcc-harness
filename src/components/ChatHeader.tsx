@@ -4,8 +4,10 @@ import { ChevronDown, Info, Loader2, PanelLeft, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { ToolPickerMenu } from "./ToolPickerMenu";
 import { isMac } from "@/lib/utils";
 import type { AcpPermissionBehavior } from "@/types";
+import type { ToolId } from "@/types/tools";
 
 interface ChatHeaderProps {
   islandLayout: boolean;
@@ -26,6 +28,12 @@ interface ChatHeaderProps {
   onSeedDevExampleSpaceData?: () => void;
   /** Close this split pane (renders an X button on the right). */
   onClosePane?: () => void;
+  /** Tool picker menu props */
+  activeTools?: Set<ToolId>;
+  onToggleTool?: (toolId: ToolId) => void;
+  availableContextual?: Set<ToolId>;
+  toolOrder?: ToolId[];
+  projectPath?: string;
 }
 
 export const ChatHeader = memo(function ChatHeader({
@@ -46,6 +54,11 @@ export const ChatHeader = memo(function ChatHeader({
   onSeedDevExampleConversation,
   onSeedDevExampleSpaceData,
   onClosePane,
+  activeTools,
+  onToggleTool,
+  availableContextual,
+  toolOrder,
+  projectPath,
 }: ChatHeaderProps) {
   const { t } = useTranslation("chat");
   const modeLabel = permissionMode
@@ -139,9 +152,18 @@ export const ChatHeader = memo(function ChatHeader({
         </span>
       ) : null}
 
-      {/* Session info, split view toggle, and pane close */}
-      {(showDevSeedButton || hasDetails || onClosePane) && (
+      {/* Session info, tool picker, and pane close */}
+      {(showDevSeedButton || hasDetails || onClosePane || (activeTools && onToggleTool)) && (
         <div className="ms-auto flex items-center gap-1.5">
+          {activeTools && onToggleTool && toolOrder && (
+            <ToolPickerMenu
+              activeTools={activeTools}
+              onToggleTool={onToggleTool}
+              availableContextual={availableContextual}
+              toolOrder={toolOrder}
+              projectPath={projectPath}
+            />
+          )}
           {onClosePane && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -204,4 +226,36 @@ export const ChatHeader = memo(function ChatHeader({
       )}
     </div>
   );
+}, (prev, next) => {
+  if (prev.islandLayout !== next.islandLayout) return false;
+  if (prev.sidebarOpen !== next.sidebarOpen) return false;
+  if (prev.showSidebarToggle !== next.showSidebarToggle) return false;
+  if (prev.isProcessing !== next.isProcessing) return false;
+  if (prev.model !== next.model) return false;
+  if (prev.sessionId !== next.sessionId) return false;
+  if (prev.totalCost !== next.totalCost) return false;
+  if (prev.title !== next.title) return false;
+  if (prev.titleGenerating !== next.titleGenerating) return false;
+  if (prev.planMode !== next.planMode) return false;
+  if (prev.permissionMode !== next.permissionMode) return false;
+  if (prev.acpPermissionBehavior !== next.acpPermissionBehavior) return false;
+  if (prev.onToggleSidebar !== next.onToggleSidebar) return false;
+  if (prev.onClosePane !== next.onClosePane) return false;
+  if (prev.onToggleTool !== next.onToggleTool) return false;
+  if (prev.projectPath !== next.projectPath) return false;
+  if (prev.toolOrder !== next.toolOrder) return false;
+  // Compare Sets by content
+  const prevActive = prev.activeTools;
+  const nextActive = next.activeTools;
+  if (prevActive !== nextActive) {
+    if (!prevActive || !nextActive || prevActive.size !== nextActive.size) return false;
+    for (const id of prevActive) { if (!nextActive.has(id)) return false; }
+  }
+  const prevCtx = prev.availableContextual;
+  const nextCtx = next.availableContextual;
+  if (prevCtx !== nextCtx) {
+    if (!prevCtx || !nextCtx || prevCtx.size !== nextCtx.size) return false;
+    for (const id of prevCtx) { if (!nextCtx.has(id)) return false; }
+  }
+  return true;
 });

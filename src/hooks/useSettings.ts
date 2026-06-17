@@ -124,8 +124,6 @@ export interface Settings {
   setExpandEditToolCallsByDefault: (on: boolean) => void;
   transparentToolPicker: boolean;
   setTransparentToolPicker: (on: boolean) => void;
-  coloredSidebarIcons: boolean;
-  setColoredSidebarIcons: (on: boolean) => void;
   showToolIcons: boolean;
   setShowToolIcons: (on: boolean) => void;
   coloredToolIcons: boolean;
@@ -436,13 +434,6 @@ export function useSettings(projectId: string | null, engine: EngineId = "claude
     localStorage.setItem("pcc-agent-transparent-tool-picker", String(on));
   }, []);
 
-  const [coloredSidebarIcons, setColoredSidebarIconsRaw] = useState(() =>
-    readBool("pcc-agent-colored-sidebar-icons", true),
-  );
-  const setColoredSidebarIcons = useCallback((on: boolean) => {
-    setColoredSidebarIconsRaw(on);
-    localStorage.setItem("pcc-agent-colored-sidebar-icons", String(on));
-  }, []);
 
   const [showToolIcons, setShowToolIconsRaw] = useState(() =>
     readBool("pcc-agent-show-tool-icons", true),
@@ -726,8 +717,6 @@ export function useSettings(projectId: string | null, engine: EngineId = "claude
     setExpandEditToolCallsByDefault,
     transparentToolPicker,
     setTransparentToolPicker,
-    coloredSidebarIcons,
-    setColoredSidebarIcons,
     showToolIcons,
     setShowToolIcons,
     coloredToolIcons,

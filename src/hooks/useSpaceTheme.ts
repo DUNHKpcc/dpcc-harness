@@ -143,7 +143,12 @@ export function useSpaceTheme(
     // Native macOS glass supports tintColor via addView()
     const isNativeGlass = isGlass && isMac && macBackgroundEffect === "liquid-glass";
     const isWindowsMica = isGlass && isWindows;
-    const shouldDarkenTint = !isNativeGlass && !isWindowsMica;
+    // Darken the shell ONLY when glass is rendered via the non-native CSS/vibrancy
+    // fallback (to compensate for its lighter material). When there is no glass at
+    // all (opaque window, e.g. pre-Tahoe macOS), darkening must NOT apply — it would
+    // turn the near-white sidebar into a muddy gray. The missing `isGlass` guard here
+    // was the cause of the "灰蒙蒙" opaque sidebar.
+    const shouldDarkenTint = isGlass && !isNativeGlass && !isWindowsMica;
     const neutralTintStrength = 0;
     const neutralSidebarChroma = 0;
     const neutralSurfaceChroma = 0;

@@ -58,18 +58,6 @@ function ToolProgressRing({ progress, isComplete, size }: { progress: number; is
   );
 }
 
-/** Very subtle per-tool color tints. Uses *-500 for light mode (visible on white) and *-200 for dark mode (soft pastels on dark). */
-const TOOL_TINTS: Record<string, { idle: string; hover: string; active: string }> = {
-  terminal:        { idle: "text-emerald-600/70 dark:text-emerald-200/50",  hover: "hover:text-emerald-600/90 dark:hover:text-emerald-200/70",  active: "text-emerald-600 dark:text-emerald-200/90" },
-  browser:         { idle: "text-sky-600/70 dark:text-sky-200/50",          hover: "hover:text-sky-600/90 dark:hover:text-sky-200/70",          active: "text-sky-600 dark:text-sky-200/90" },
-  git:             { idle: "text-orange-600/70 dark:text-orange-200/50",    hover: "hover:text-orange-600/90 dark:hover:text-orange-200/70",    active: "text-orange-600 dark:text-orange-200/90" },
-  files:           { idle: "text-amber-600/70 dark:text-amber-200/50",      hover: "hover:text-amber-600/90 dark:hover:text-amber-200/70",     active: "text-amber-600 dark:text-amber-200/90" },
-  "project-files": { idle: "text-teal-600/70 dark:text-teal-200/50",       hover: "hover:text-teal-600/90 dark:hover:text-teal-200/70",       active: "text-teal-600 dark:text-teal-200/90" },
-  mcp:             { idle: "text-violet-600/70 dark:text-violet-200/50",    hover: "hover:text-violet-600/90 dark:hover:text-violet-200/70",   active: "text-violet-600 dark:text-violet-200/90" },
-  tasks:           { idle: "text-blue-600/70 dark:text-blue-200/50",        hover: "hover:text-blue-600/90 dark:hover:text-blue-200/70",       active: "text-blue-600 dark:text-blue-200/90" },
-  agents:          { idle: "text-indigo-600/70 dark:text-indigo-200/50",    hover: "hover:text-indigo-600/90 dark:hover:text-indigo-200/70",   active: "text-indigo-600 dark:text-indigo-200/90" },
-};
-
 export const PANEL_TOOLS_MAP: Record<string, ToolDef> = {
   terminal: { id: "terminal", label: "Terminal", icon: Terminal },
   browser: { id: "browser", label: "Browser", icon: Globe },
@@ -131,7 +119,6 @@ interface ToolPickerProps {
 function ToolButton({
   tool,
   isActive,
-  coloredIcons = true,
   isDragTarget,
   isBottom,
   badge,
@@ -141,7 +128,6 @@ function ToolButton({
 }: {
   tool: ToolDef;
   isActive: boolean;
-  coloredIcons?: boolean;
   isDragTarget?: boolean;
   isBottom?: boolean;
   badge?: React.ReactNode;
@@ -153,7 +139,6 @@ function ToolButton({
   const buttonSize = "h-8 w-8";
   const iconSize = "h-4 w-4";
   const radius = "rounded-lg";
-  const tint = coloredIcons ? TOOL_TINTS[tool.id] : undefined;
 
   return (
     <Tooltip>
@@ -163,8 +148,8 @@ function ToolButton({
           onClick={onClick}
           className={`tool-picker-btn group/btn relative mx-auto flex ${buttonSize} items-center justify-center ${radius} overflow-visible p-0 transition-all duration-200 cursor-pointer ${
             isActive
-              ? `tool-picker-btn-active bg-foreground/[0.08] ${tint?.active ?? "text-foreground"} shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05),0_1px_2px_0_rgba(0,0,0,0.05)]`
-              : `${tint?.idle ?? "text-foreground/35"} ${tint?.hover ?? "hover:text-foreground/70"} hover:bg-foreground/[0.05] active:scale-[0.92]`
+              ? "tool-picker-btn-active bg-foreground/[0.08] text-foreground shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05),0_1px_2px_0_rgba(0,0,0,0.05)]"
+              : "text-foreground/35 hover:text-foreground/70 hover:bg-foreground/[0.05] active:scale-[0.92]"
           } ${isDragTarget ? "ring-2 ring-foreground/20 ring-offset-1 ring-offset-background" : ""}`}
         >
           <Icon
@@ -191,7 +176,6 @@ function ToolButton({
 function PanelToolWithMenu({
   tool,
   isActive,
-  coloredIcons,
   isDragTarget,
   isBottom,
   badge,
@@ -210,7 +194,6 @@ function PanelToolWithMenu({
 }: {
   tool: ToolDef;
   isActive: boolean;
-  coloredIcons: boolean;
   isDragTarget: boolean;
   isBottom: boolean;
   badge?: React.ReactNode;
@@ -254,7 +237,6 @@ function PanelToolWithMenu({
       <ToolButton
         tool={tool}
         isActive={isActive}
-        coloredIcons={coloredIcons}
         isDragTarget={isDragTarget}
         isBottom={isBottom}
         badge={badge}
@@ -308,7 +290,6 @@ export const ToolPicker = memo(function ToolPicker({
   // ── Layout & appearance settings from Zustand store ──
   const islandLayout = useSettingsStore((s) => s.islandLayout);
   const transparentBackground = useSettingsStore((s) => s.transparentToolPicker);
-  const coloredIcons = useSettingsStore((s) => s.coloredSidebarIcons);
   const moveToBottomLabel = t("picker.moveToBottom");
   const moveToTopRowLabel = t("picker.moveToTopRow");
   const bottomPanelLabel = t("picker.bottomPanel");
@@ -427,7 +408,6 @@ export const ToolPicker = memo(function ToolPicker({
                 <ToolButton
                   tool={tool}
                   isActive={activeTools.has(tool.id)}
-                  coloredIcons={coloredIcons}
                   onClick={() => onToggle(tool.id)}
                   bottomPanelLabel={bottomPanelLabel}
                   tooltipExtra={hasTaskProgress ? (
@@ -452,7 +432,6 @@ export const ToolPicker = memo(function ToolPicker({
           key={tool.id}
           tool={tool}
           isActive={activeTools.has(tool.id)}
-          coloredIcons={coloredIcons}
           isDragTarget={dragOverId === tool.id && draggingId !== tool.id}
           isBottom={false}
           onToggle={() => onToggle(tool.id)}
@@ -481,7 +460,6 @@ export const ToolPicker = memo(function ToolPicker({
                   key={tool.id}
                   tool={tool}
                   isActive={activeTools.has(tool.id)}
-                  coloredIcons={coloredIcons}
                   isDragTarget={dragOverId === tool.id && draggingId !== tool.id}
                   isBottom={true}
                   onToggle={() => onToggle(tool.id)}

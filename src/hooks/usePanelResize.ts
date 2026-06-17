@@ -4,7 +4,6 @@ import {
   MIN_RIGHT_PANEL_WIDTH,
   getMinChatWidth,
   getResizeHandleWidth,
-  getToolPickerWidth,
 } from "@/lib/layout/constants";
 import { getChatPaneMinWidthPx } from "@/lib/layout/workspace-constraints";
 
@@ -30,8 +29,6 @@ export function usePanelResize({
   const [isResizing, setIsResizing] = useState(false);
   const minChatWidth = activeSessionId ? getChatPaneMinWidthPx("single") : getMinChatWidth(isIsland);
 
-  // ToolPicker strip width (flat divider is an overlay, excluded from width math)
-  const pickerW = getToolPickerWidth(isIsland);
   const handleW = getResizeHandleWidth(isIsland);
 
   const contentRef = useRef<HTMLDivElement>(null);
@@ -55,7 +52,7 @@ export function usePanelResize({
       const onMouseMove = (ev: MouseEvent) => {
         // Dynamically cap so the chat always keeps MIN_CHAT_WIDTH
         const containerWidth = contentRef.current?.clientWidth ?? window.innerWidth;
-        let reserved = minChatWidth + pickerW + handleW;
+        let reserved = minChatWidth + handleW;
         if (toolsVisible) {
           reserved += (toolsColumnRef.current?.getBoundingClientRect().width ?? 0) + handleW;
         }
@@ -76,7 +73,7 @@ export function usePanelResize({
       document.addEventListener("mousemove", onMouseMove);
       document.addEventListener("mouseup", onMouseUp);
     },
-    [settings, minChatWidth, pickerW, handleW],
+    [settings, minChatWidth, handleW],
   );
 
   // ── Reactive right panel clamping on window resize / project switch ──
@@ -91,8 +88,7 @@ export function usePanelResize({
       const hasRight = !!rightPanelRef.current;
       if (!hasRight) return;
 
-      let reserved = minChatWidth + (activeSessionId ? pickerW : 0);
-      reserved += handleW;
+      let reserved = minChatWidth + handleW;
       // Account for tools column width if visible
       const toolsW = toolsColumnRef.current?.getBoundingClientRect().width ?? 0;
       if (toolsW > 0) reserved += toolsW + handleW;
@@ -111,7 +107,7 @@ export function usePanelResize({
     // Also clamp immediately on mount / project switch
     clamp();
     return () => observer.disconnect();
-  }, [hasRightPanel, activeSessionId, activeProjectId, minChatWidth, pickerW, handleW]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [hasRightPanel, activeSessionId, activeProjectId, minChatWidth, handleW]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Right panel vertical split (Tasks / Agents) ──
 
@@ -154,9 +150,7 @@ export function usePanelResize({
     // Expose constants for JSX layout
     MIN_CHAT_WIDTH: minChatWidth,
     MIN_PANEL_WIDTH,
-    TOOL_PICKER_WIDTH: pickerW,
     RESIZE_HANDLE_WIDTH: handleW,
-    pickerW,
     handleW,
   } as const;
 }

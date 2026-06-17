@@ -149,13 +149,25 @@
   }
 }
 
-/* Liquid Glass: transparent sidebar when native glass is active */
+/* Glass: transparent sidebar when native glass/vibrancy is active */
 html.glass-enabled,
 html.glass-enabled body,
 html.glass-enabled #root {
   background: transparent !important;
 }
 
+/* No glass (opaque window — e.g. pre-Tahoe macOS, or transparency off): paint a
+   solid theme background. The app keeps html/body transparent by default so the
+   native glass material can show through; without glass that leaves island gaps
+   and uncovered areas showing the raw window backgroundColor, which can mismatch
+   the app theme. Painting --background here keeps the shell consistently themed. */
+html:not(.glass-enabled),
+html:not(.glass-enabled) body,
+html:not(.glass-enabled) #root {
+  background: var(--background);
+}
+
+/* ── Liquid Glass sidebar colors (default glass-enabled) ── */
 .dark.glass-enabled {
   --sidebar: oklch(0.139 0 0 / 0.34);
   --sidebar-border: oklch(0.468 0 0 / 0.32);
@@ -163,44 +175,56 @@ html.glass-enabled #root {
 }
 
 .glass-enabled:not(.dark) {
-  /* Keep the glass bright, but still let the native material read through. */
   --sidebar: oklch(1 0 0 / 0.4);
   --sidebar-border: oklch(0 0 0 / 0.08);
   --sidebar-accent: oklch(0.976 0.001 286.029 / 0.42);
-  /* Light mode glass: keep dark text (same as Windows) — the always-key-appearance
-     fix keeps the glass bright enough for standard dark-on-light text. */
   --sidebar-ring: oklch(0.64 0 0);
 }
 
-/* macOS light glass needs light sidebar text because the native material reads
-   visually darker. Windows Mica stays light enough that default dark text is
-   more legible, so leave the base light tokens alone there. */
-html.platform-darwin.glass-enabled:not(.dark) {
+/* ── Vibrancy sidebar colors ──
+   The native "sidebar" NSVisualEffectMaterial already supplies the frosted
+   look, so the overlay stays light — a heavy film here is what turns the
+   sidebar into a muddy "灰蒙蒙" gray. Just a thin tint for text contrast. */
+.dark.glass-vibrancy.glass-enabled {
+  --sidebar: oklch(0.16 0 0 / 0.28);
+  --sidebar-border: oklch(0.468 0 0 / 0.3);
+  --sidebar-accent: oklch(0.334 0 0 / 0.4);
+}
+
+.glass-vibrancy.glass-enabled:not(.dark) {
+  --sidebar: oklch(1 0 0 / 0.32);
+  --sidebar-border: oklch(0 0 0 / 0.08);
+  --sidebar-accent: oklch(0.95 0.001 286.029 / 0.5);
+  --sidebar-ring: oklch(0.64 0 0);
+}
+
+/* macOS Liquid Glass light mode: white sidebar text — the native material reads
+   visually darker. NOT applied in vibrancy mode (lighter material, keep dark text).
+   Windows Mica also stays light enough for standard dark-on-light text. */
+html.platform-darwin.glass-enabled:not(.dark):not(.glass-vibrancy) {
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  /* Keep --sidebar-accent-foreground at light-mode default for other accent
-     surfaces; selected chats are overridden below. */
 }
 
 /* Elements on light backgrounds (search box) — reset to dark text/icons */
-html.platform-darwin.glass-enabled:not(.dark) .glass-outline,
-html.platform-darwin.glass-enabled:not(.dark) .bg-sidebar-accent {
+html.platform-darwin.glass-enabled:not(.dark):not(.glass-vibrancy) .glass-outline,
+html.platform-darwin.glass-enabled:not(.dark):not(.glass-vibrancy) .bg-sidebar-accent {
   --sidebar-foreground: oklch(0.145 0 0);
 }
 
-/* Sidebar search stays on the white-text treatment in light glass mode. */
-html.platform-darwin.glass-enabled:not(.dark) .sidebar-search-glass {
+/* Sidebar search stays on the white-text treatment in liquid glass mode. */
+html.platform-darwin.glass-enabled:not(.dark):not(.glass-vibrancy) .sidebar-search-glass {
   --sidebar-foreground: oklch(0.985 0 0);
 }
 
-/* In light mode with glass enabled, selected chats should stay white. */
-html.platform-darwin.glass-enabled:not(.dark) .session-item-active {
+/* In liquid glass light mode, selected chats stay white. */
+html.platform-darwin.glass-enabled:not(.dark):not(.glass-vibrancy) .session-item-active {
   color: oklch(0.985 0 0);
 }
 
-/* In light glass mode, sidebar engine icons match white text via inversion */
-html.platform-darwin.glass-enabled:not(.dark) .session-item-button img {
+/* In liquid glass light mode, sidebar engine icons match white text via inversion */
+html.platform-darwin.glass-enabled:not(.dark):not(.glass-vibrancy) .session-item-button img {
   filter: invert(1) brightness(2);
 }
 

@@ -7,7 +7,6 @@ import {
   WINDOWS_FRAME_BUFFER_WIDTH,
   getMinChatWidth,
   getResizeHandleWidth,
-  getToolPickerWidth,
 } from "@/lib/layout/constants";
 import {
   getChatPaneMinWidthPx,
@@ -34,7 +33,6 @@ export interface AppMinimumWidthInput {
   hasActiveSession: boolean;
   hasRightPanel: boolean;
   hasToolsColumn: boolean;
-  toolsColumnWidth?: number;
   isSplitViewEnabled: boolean;
   splitPaneCount: number;
   splitTopRowItemKinds?: TopRowLayoutItemKind[];
@@ -91,7 +89,6 @@ export function getAppMinimumWidth({
   hasActiveSession,
   hasRightPanel,
   hasToolsColumn,
-  toolsColumnWidth,
   isSplitViewEnabled,
   splitPaneCount,
   splitTopRowItemKinds,
@@ -119,12 +116,11 @@ export function getAppMinimumWidth({
     return minimumWidth;
   }
 
-  minimumWidth += getToolPickerWidth(isIslandLayout);
   if (hasRightPanel) {
     minimumWidth += MIN_RIGHT_PANEL_WIDTH + getResizeHandleWidth(isIslandLayout);
   }
   if (hasToolsColumn) {
-    minimumWidth += Math.max(MIN_TOOLS_PANEL_WIDTH, toolsColumnWidth ?? 0) + getResizeHandleWidth(isIslandLayout);
+    minimumWidth += MIN_TOOLS_PANEL_WIDTH + getResizeHandleWidth(isIslandLayout);
   }
   return minimumWidth;
 }

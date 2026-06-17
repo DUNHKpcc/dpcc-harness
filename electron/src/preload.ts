@@ -38,7 +38,18 @@ try {
   root?.classList.add(`platform-${process.platform}`);
   ipcRenderer.send("app:set-theme-source", themeSource);
   const transparencyEnabled = (globals.localStorage?.getItem("pcc-agent-transparency") ?? null) !== "false";
-  const canUseTransparentWindow = process.platform === "darwin" || process.platform === "win32";
+  // Transparency effects require Liquid Glass, which only exists on macOS Tahoe+
+  // (product version ≥ 26). Pre-Tahoe Macs render opaque — adding the glass class
+  // there flashes a translucent gray sidebar before React removes it again.
+  let darwinSupportsGlass = false;
+  if (process.platform === "darwin") {
+    try {
+      const ver = process.getSystemVersion?.() ?? "";
+      const major = parseInt(ver.split(".")[0], 10);
+      darwinSupportsGlass = major >= 26;
+    } catch { /* assume unsupported — the orchestrator corrects this after IPC */ }
+  }
+  const canUseTransparentWindow = darwinSupportsGlass || process.platform === "win32";
   if (canUseTransparentWindow && transparencyEnabled) {
     root?.classList.add("glass-enabled");
   }

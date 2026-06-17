@@ -30,7 +30,7 @@ interface GlassOrchestratorState {
  * - Applies or upgrades the native background effect at runtime
  * - Shows a restart toast when downgrading from liquid-glass to vibrancy
  * - Auto-falls back to vibrancy when liquid glass is unsupported
- * - Toggles the `glass-enabled` CSS class on the document root
+ * - Toggles the `glass-enabled` / `glass-vibrancy` CSS classes on the document root
  * - Keeps Electron's nativeTheme in sync for Windows Mica
  */
 export function useGlassOrchestrator({
@@ -44,23 +44,30 @@ export function useGlassOrchestrator({
 
   // The effect the main process is *actually* rendering right now.
   // Can upgrade vibrancy -> liquid-glass at runtime, but NOT the reverse (requires restart).
-  // Seeded from AppSettings on mount.
+  // Seeded from support check + AppSettings on mount.
   const [liveMacBackgroundEffect, setLiveMacBackgroundEffect] = useState<MacNativeBackgroundEffect>("liquid-glass");
 
-  // Detect glass and liquid-glass support on mount; seed live effect from AppSettings.
+  // Detect support and seed live effect together to avoid state mismatches.
+  // On pre-Tahoe macOS the main process always resolves to vibrancy — the renderer
+  // must reflect that from the start to prevent a false "restart required" toast.
   useEffect(() => {
     window.claude.getGlassSupported().then((supported) => setGlassSupported(supported));
-    window.claude.getMacBackgroundEffectSupport().then((support) => {
-      setMacLiquidGlassSupported(!!support.liquidGlass);
-    });
     if (!isMac) return;
+
     let cancelled = false;
-    window.claude.settings.get().then((appSettings) => {
+    Promise.all([
+      window.claude.getMacBackgroundEffectSupport(),
+      window.claude.settings.get(),
+    ]).then(([support, appSettings]) => {
       if (cancelled) return;
-      setLiveMacBackgroundEffect(
-        appSettings?.macBackgroundEffect === "vibrancy" ? "vibrancy" : "liquid-glass",
-      );
-    }).catch(() => { /* keep default */ });
+      const liquidGlass = !!support.liquidGlass;
+      setMacLiquidGlassSupported(liquidGlass);
+
+      const stored = appSettings?.macBackgroundEffect === "vibrancy" ? "vibrancy" : "liquid-glass";
+      // Main process resolves liquid-glass → vibrancy when unsupported
+      setLiveMacBackgroundEffect(liquidGlass ? stored : "vibrancy");
+    }).catch(() => { /* keep defaults */ });
+
     return () => { cancelled = true; };
   }, []);
 
@@ -77,18 +84,23 @@ export function useGlassOrchestrator({
       ? null
       : macBackgroundEffect;
     if (!desiredNativeEffect || desiredNativeEffect === liveMacBackgroundEffect) return;
-    // Cannot downgrade from liquid-glass to vibrancy without restart.
-    if (liveMacBackgroundEffect === "liquid-glass" && desiredNativeEffect === "vibrancy") return;
+    // Cannot downgrade from liquid-glass to vibrancy without restart — only when
+    // liquid glass is actually running (supported on this OS).
+    if (liveMacBackgroundEffect === "liquid-glass" && desiredNativeEffect === "vibrancy"
+      && macLiquidGlassSupported) return;
 
     setLiveMacBackgroundEffect(desiredNativeEffect);
     window.claude.setMacBackgroundEffect(desiredNativeEffect);
-  }, [liveMacBackgroundEffect, macBackgroundEffect]);
+  }, [liveMacBackgroundEffect, macBackgroundEffect, macLiquidGlassSupported]);
 
-  // Show restart toast when user wants vibrancy but live is liquid-glass.
+  // Show restart toast only when liquid glass is actually running and user wants vibrancy.
+  // Never show on systems that don't support liquid glass — the main process already
+  // resolved to vibrancy, so no restart is needed.
   useEffect(() => {
     if (!isMac) return;
     const requiresRestart = macBackgroundEffect === "vibrancy"
-      && liveMacBackgroundEffect === "liquid-glass";
+      && liveMacBackgroundEffect === "liquid-glass"
+      && macLiquidGlassSupported === true;
 
     if (!requiresRestart) {
       toast.dismiss(MAC_BACKGROUND_EFFECT_RESTART_TOAST_ID);
@@ -106,26 +118,41 @@ export function useGlassOrchestrator({
         },
       },
     });
-  }, [liveMacBackgroundEffect, macBackgroundEffect]);
+  }, [liveMacBackgroundEffect, macBackgroundEffect, macLiquidGlassSupported]);
 
-  // Auto-fallback: if this OS doesn't support liquid glass, downgrade to vibrancy.
+  // Auto-fallback: if this OS can't do transparency effects (no Liquid Glass),
+  // force the effect to "off" so the app renders as a clean opaque window and the
+  // settings reflect reality instead of offering a broken vibrancy option.
   useEffect(() => {
     if (!isMac || macLiquidGlassSupported !== false) return;
-    if (macBackgroundEffect !== "liquid-glass") return;
-    setMacBackgroundEffect("vibrancy");
+    if (macBackgroundEffect === "off") return;
+    setMacBackgroundEffect("off");
   }, [macLiquidGlassSupported, macBackgroundEffect, setMacBackgroundEffect]);
 
-  // Toggle the glass-enabled CSS class when the transparency setting changes.
-  // Preload applies the initial class from localStorage so first paint stays in sync.
+  // Toggle the glass-enabled CSS class. Preload applies the initial class from
+  // localStorage, but only on glass-capable systems — on unsupported ones (e.g.
+  // pre-Tahoe macOS) we must actively REMOVE it so the app renders fully opaque.
   useEffect(() => {
-    if (!glassSupported) return;
     const root = document.documentElement;
-    if (transparency) {
+    if (glassSupported && transparency) {
       root.classList.add("glass-enabled");
     } else {
       root.classList.remove("glass-enabled");
     }
   }, [transparency, glassSupported]);
+
+  // Toggle the glass-vibrancy class so CSS can distinguish vibrancy from liquid-glass.
+  // Only relevant on glass-capable Macs (Tahoe+) with transparency on AND the vibrancy
+  // effect chosen; otherwise the app is opaque and needs no glass classes at all.
+  useEffect(() => {
+    if (!isMac) return;
+    const root = document.documentElement;
+    if (glassSupported && transparency && liveMacBackgroundEffect === "vibrancy") {
+      root.classList.add("glass-vibrancy");
+    } else {
+      root.classList.remove("glass-vibrancy");
+    }
+  }, [transparency, liveMacBackgroundEffect, glassSupported]);
 
   return {
     glassSupported,

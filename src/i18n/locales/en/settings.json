@@ -65,8 +65,6 @@
       "windowLayoutDesc": "Choose how panels are arranged in the window.",
       "islands": "Islands",
       "flat": "Flat",
-      "coloredSidebarIcons": "Colored sidebar icons",
-      "coloredSidebarIconsDesc": "Tint tool picker and panel header icons with per-tool colors. Disable for neutral monochrome icons.",
       "islandShine": "Island border shine",
       "islandShineDesc": "Show a subtle diagonal reflection on island panel borders. Only visible in island layout mode."
     },
@@ -75,7 +73,7 @@
       "macLabel": "Window background effect",
       "winLabel": "Window transparency",
       "macDescGlass": "Choose the native macOS background material. Blur Off keeps the window opaque, while switching from Liquid Glass to Vibrancy needs a restart.",
-      "macDescNoGlass": "Choose the native macOS background material. Liquid Glass is unavailable on this Mac, so Vibrancy and Off are available.",
+      "macDescNoGlass": "This Mac doesn't support Liquid Glass, so transparency effects are unavailable and the app uses a standard opaque window.",
       "winDescSupported": "Allow the desktop to show through the window background. Uses Mica on Windows when enabled.",
       "winDescUnsupported": "Window transparency is not available on this platform.",
       "liquidGlass": "Liquid Glass",

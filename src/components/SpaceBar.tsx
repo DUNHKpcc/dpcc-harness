@@ -1,6 +1,6 @@
 import { memo, useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Plus, Settings, ChevronLeft, ChevronRight, Trash2, Pencil } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Trash2, Pencil } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/popover";
 import { resolveLucideIcon } from "@/lib/icon-utils";
 import { SpaceCustomizer } from "./SpaceCustomizer";
+import { AccountPopover } from "./AccountPopover";
 import type { Space } from "@/types";
 
 interface SpaceBarProps {
@@ -166,20 +167,8 @@ export const SpaceBar = memo(function SpaceBar({
 
   return (
     <div className="no-drag grid grid-cols-[2rem_1fr_2rem] items-end px-2 pt-1.5">
-      {/* Settings gear */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            onClick={onOpenSettings}
-            className="mb-1.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sidebar-foreground/40 transition-all hover:bg-black/5 hover:text-sidebar-foreground dark:hover:bg-white/10"
-          >
-            <Settings className="h-4.5 w-4.5" />
-          </button>
-        </TooltipTrigger>
-        <TooltipContent side="top" className="text-xs">
-          {t("space.settings")}
-        </TooltipContent>
-      </Tooltip>
+      {/* Account — opens balance / models / settings capsule */}
+      <AccountPopover onOpenSettings={onOpenSettings} />
 
       {/* Center — scrollable space icons */}
       <div className="group/spaces flex min-w-0 items-end">

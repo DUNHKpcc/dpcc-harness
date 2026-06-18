@@ -8,6 +8,7 @@ import { WIZARD_STEPS, WELCOME_COMPLETED_KEY, springTransition } from "./shared"
 import { StepIndicator } from "./StepIndicator";
 import { WelcomeStep } from "./WelcomeStep";
 import { AppearanceStep } from "./AppearanceStep";
+import { AccountStep } from "./AccountStep";
 import { PermissionsStep } from "./PermissionsStep";
 import { ProjectStep } from "./ProjectStep";
 import { AgentsStep } from "./AgentsStep";
@@ -161,6 +162,7 @@ export function WelcomeWizard({
                   glassSupported={glassSupported}
                 />
               )}
+              {stepId === "account" && <AccountStep {...stepProps} />}
               {stepId === "permissions" && (
                 <PermissionsStep
                   {...stepProps}

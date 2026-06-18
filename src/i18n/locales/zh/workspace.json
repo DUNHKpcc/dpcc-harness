@@ -5,6 +5,7 @@
   },
   "space": {
     "settings": "设置",
+    "account": "账户",
     "newSpace": "新建 Space",
     "edit": "编辑",
     "delete": "删除",
@@ -12,6 +13,38 @@
     "deleteConfirmPrefix": "确定要删除 ",
     "deleteConfirmSuffix": " 吗？此 Space 中的项目将被移至 General。",
     "deleteConfirm": "删除"
+  },
+  "account": {
+    "loading": "加载中…",
+    "connected": "已连接",
+    "connectedLocal": "通过本地配置连接",
+    "refresh": "刷新",
+    "balance": "余额",
+    "used": "已用",
+    "unlimited": "无限额度",
+    "balanceUnavailable": "暂无余额信息",
+    "balanceError": "无法获取余额",
+    "availableModels": "可用模型",
+    "noModels": "未找到",
+    "addAccessToken": "显示账户真实余额 →",
+    "accessTokenHint": "在 DPCC API 的「用户设置」里复制你的用户ID，并生成系统访问令牌，两者都需要才能读取账户真实余额。",
+    "userIdPlaceholder": "用户ID（例如 1）",
+    "setup": {
+      "title": "连接你的 DPCC API 账户",
+      "intro": "PccAgent 通过你的 DPCC API 网关调用 Claude。填入网关地址和令牌即可开始。",
+      "step1": "打开 DPCC API 后台，复制站点地址。",
+      "step2": "新建一个令牌（API Key）并复制。",
+      "step3": "把两者粘贴到下方——仅保存在本机。",
+      "baseUrlPlaceholder": "https://api.dpccgaming.xyz",
+      "tokenPlaceholder": "令牌（sk-…）",
+      "balanceSection": "余额查询（可选）",
+      "accessTokenPlaceholder": "系统访问令牌",
+      "save": "连接",
+      "claudeKeyLabel": "Claude 密钥（sk-）",
+      "codexKeyLabel": "Codex 密钥（sk-，可选）"
+    },
+    "claudeModels": "Claude 模型",
+    "codexModels": "Codex 模型"
   },
   "customizer": {
     "namePlaceholder": "Space 名称",

@@ -68,7 +68,7 @@ export const AboutSettings = memo(function AboutSettings() {
         <div className="px-6 py-5">
           {/* ── App identity ── */}
           <div className="flex items-start gap-4">
-            <PccAgentLogo className="h-12 w-12 shrink-0 rounded-xl" />
+            <PccAgentLogo className="h-12 w-12 shrink-0 text-foreground" />
             <div className="min-w-0">
               <h3 className="text-lg font-semibold tracking-tight text-foreground">
                 PccAgent

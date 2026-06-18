@@ -159,7 +159,10 @@ module.exports = {
   mac: {
     target: ["dmg", "zip"],
     category: "public.app-category.developer-tools",
-    icon: "build/icon.icon",
+    // Use the regenerated .icns (824/1024 content grid, ~10% margin) instead of
+    // the full-bleed .icon, which rendered oversized in the Dock. Revert to
+    // "build/icon.icon" once it's rebuilt in Icon Composer with proper insets.
+    icon: "build/icon.icns",
     darkModeSupport: true,
     hardenedRuntime: true,
     gatekeeperAssess: false,

@@ -6,8 +6,9 @@ import type { ModelInfo, McpServerConfig, McpServerStatus } from "./mcp";
 import type { PermissionUpdate } from "./permissions";
 import type { GitRepoInfo, GitStatus, GitBranch, GitLogEntry } from "@shared/types/git";
 import type { InstalledAgent } from "@shared/types/registry";
-import type { LocalClaudeConfig, LocalCliConfig } from "@shared/types/cc-config";
+import type { EffectiveCliConfig } from "@shared/types/cc-config";
 import type { AppSettings, MacBackgroundEffect, ThemeOption } from "@shared/types/settings";
+import type { AccountConfig, AccountBalanceResult, AccountModelsResult, AccountStatus, UsageStatsResult } from "@shared/types/account";
 import type {
   ACPSessionEvent,
   ACPPermissionEvent,
@@ -61,6 +62,8 @@ declare global {
 
   interface Window {
     claude: {
+      /** OS UI language injected by the main process (e.g. "zh-CN", "en-US"); "" if unavailable. Used by the "system" i18n option. */
+      systemLocale: string;
       getGlassSupported: () => Promise<boolean>;
       getMacBackgroundEffectSupport: () => Promise<{ liquidGlass: boolean; vibrancy: boolean }>;
       setThemeSource: (themeSource: ThemeOption) => void;
@@ -205,10 +208,8 @@ declare global {
         }>;
       };
       ccConfig: {
-        /** Read user's local ~/.claude/ config (settings.json, agents, commands, MCP, CLAUDE.md). */
-        read: (options?: { cwd?: string }) => Promise<LocalClaudeConfig>;
-        /** Read both Claude and Codex local CLI configs in one call. */
-        readAll: (options?: { cwd?: string }) => Promise<LocalCliConfig>;
+        /** Resolve the effective gateway/provider config PccAgent applies to sessions. */
+        effective: () => Promise<EffectiveCliConfig>;
       };
       files: {
         list: (cwd: string) => Promise<{ files: string[]; dirs: string[] }>;
@@ -395,6 +396,13 @@ declare global {
         set: (patch: Partial<AppSettings>) => Promise<IpcResult>;
         /** Subscribe to settings changes pushed from the main process. */
         onChanged: (callback: (settings: AppSettings) => void) => () => void;
+      };
+      account: {
+        getConfig: () => Promise<AccountConfig>;
+        getStatus: () => Promise<AccountStatus>;
+        getBalance: () => Promise<AccountBalanceResult>;
+        getModels: () => Promise<AccountModelsResult>;
+        getUsageStats: (force?: boolean) => Promise<UsageStatsResult>;
       };
       jira: {
         getConfig: (projectId: string) => Promise<JiraProjectConfig | null>;

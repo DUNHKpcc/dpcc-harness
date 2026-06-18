@@ -5,6 +5,7 @@ import type { InstalledAgent } from "@/types";
 export const WIZARD_STEPS = [
   "welcome",
   "appearance",
+  "account",
   "permissions",
   "project",
   "agents",

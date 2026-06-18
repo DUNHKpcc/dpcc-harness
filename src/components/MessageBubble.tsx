@@ -1,4 +1,4 @@
-import { memo, useState, useMemo, createContext, useContext, type ReactNode } from "react";
+import { memo, useState, useMemo, createContext, useContext, lazy, Suspense, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { AlertCircle, Clock, Crosshair, File, Folder, Info, RotateCcw, Send, Undo2, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
@@ -19,7 +19,11 @@ import type { UIMessage, ImageAttachment } from "@/types";
 import { ThinkingBlock } from "./ThinkingBlock";
 import { CopyButton } from "./CopyButton";
 import { ImageLightbox } from "./ImageLightbox";
-import { MermaidDiagram } from "./MermaidDiagram";
+// Lazy-loaded: mermaid is a very large dependency (~70MB unpacked) and most
+// chats never render a diagram, so keep it out of the main startup chunk.
+const MermaidDiagram = lazy(() =>
+  import("./MermaidDiagram").then((m) => ({ default: m.MermaidDiagram })),
+);
 import {
   CHAT_CONTENT_STACK_CLASS,
   CHAT_PROSE_EDGE_CLASS,
@@ -426,7 +430,11 @@ function CodeBlock(props: React.HTMLAttributes<HTMLElement> & { node?: unknown }
 
     // Render mermaid diagrams with MermaidDiagram component
     if (language === "mermaid") {
-      return <MermaidDiagram code={code} isStreaming={isStreaming} />;
+      return (
+        <Suspense fallback={null}>
+          <MermaidDiagram code={code} isStreaming={isStreaming} />
+        </Suspense>
+      );
     }
 
     return (

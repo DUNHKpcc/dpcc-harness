@@ -46,6 +46,7 @@ import * as acpSessionsIpc from "./ipc/acp-sessions";
 import * as codexSessionsIpc from "./ipc/codex-sessions";
 import * as mcpIpc from "./ipc/mcp";
 import * as settingsIpc from "./ipc/settings";
+import * as accountIpc from "./ipc/account";
 import * as jiraIpc from "./ipc/jira";
 import { onSettingsChanged } from "./ipc/settings";
 
@@ -164,6 +165,14 @@ function createWindow(): void {
       webviewTag: true,
       devTools: !glassEnabled,
       v8CacheOptions: "bypassHeatCheckAndEagerCompile", // cache compiled JS on first run — eliminates cold-start jank
+      // Pass the real OS UI language to the renderer so the "system" i18n option
+      // strictly follows the OS, not Chromium's navigator.language. Preferred
+      // system languages reflect the user's chosen UI language list; fall back to
+      // the OS locale, then Chromium's locale. Read once at window creation —
+      // changing the OS language requires an app restart to take effect.
+      additionalArguments: [
+        `--system-locale=${(app.getPreferredSystemLanguages?.() ?? [])[0] || app.getSystemLocale() || app.getLocale() || "en"}`,
+      ],
     },
   };
 
@@ -380,6 +389,7 @@ acpSessionsIpc.register(getMainWindow);
 codexSessionsIpc.register(getMainWindow);
 mcpIpc.register();
 settingsIpc.register(getMainWindow);
+accountIpc.register();
 jiraIpc.register();
 
 // Listen for analytics settings changes and reinitialize PostHog

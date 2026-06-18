@@ -2,6 +2,10 @@
 
 Open-source desktop client for the Agent Client Protocol. Uses the `@anthropic-ai/claude-agent-sdk` to programmatically manage Claude sessions via `query()`. Supports multiple concurrent sessions with persistent chat history, project workspaces, background agents, tool permissions, and context compaction.
 
+## Communication
+
+Always reply to the user in Chinese (Simplified). Keep code, identifiers, API names, file paths, and established English technical terms (e.g. Electron, IPC, gateway) in their original form — do not translate them. Code comments follow the surrounding file's existing style.
+
 ## Tech Stack
 
 - **Runtime**: Electron 40 (main process) + React 19 (renderer)

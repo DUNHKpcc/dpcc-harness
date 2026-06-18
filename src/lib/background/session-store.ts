@@ -128,6 +128,15 @@ export class BackgroundSessionStore {
     return this.sessions.has(sessionId);
   }
 
+  /**
+   * Read just the processing flag without cloning the (potentially large)
+   * messages array. Use this on hot paths like queue-drain checks where only
+   * the boolean is needed — `get()` deep-clones every message.
+   */
+  isProcessing(sessionId: string): boolean {
+    return this.sessions.get(sessionId)?.isProcessing ?? false;
+  }
+
   get(sessionId: string): BackgroundSessionState | undefined {
     const state = this.sessions.get(sessionId);
     if (!state) return undefined;

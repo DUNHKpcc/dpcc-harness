@@ -40,6 +40,8 @@ const DEFAULTS: AppSettings = {
   analyticsEnabled: true,
   claudeGateway: { enabled: false, baseUrl: "", authToken: "", model: "" },
   codexGateway: { enabled: false, name: "", baseUrl: "", apiKey: "", model: "" },
+  accountAccessToken: "",
+  accountUserId: "",
 };
 
 // ── Internal state ──

@@ -99,4 +99,15 @@ export interface AppSettings {
   claudeGateway: ClaudeGatewaySettings;
   /** Custom third-party gateway config for the Codex engine */
   codexGateway: CodexGatewaySettings;
+  /**
+   * new-api system access token (访问令牌) used to query real account balance
+   * via /api/user/self. Distinct from the sk- relay token in claudeGateway.
+   * Empty = balance falls back to the OpenAI-compatible billing endpoints.
+   */
+  accountAccessToken: string;
+  /**
+   * new-api user id, sent as the required `New-API-User` header alongside the
+   * access token when querying /api/user/self.
+   */
+  accountUserId: string;
 }

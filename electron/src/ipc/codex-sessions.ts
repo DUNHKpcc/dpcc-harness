@@ -77,13 +77,13 @@ function getAppServerClientInfo(): { name: string; title: string; version: strin
 // pickModelId imported from @shared/lib/codex-helpers
 
 /** Fixed identifiers for the custom Codex gateway provider. */
-const CODEX_GATEWAY_PROVIDER_ID = "harnss-gateway";
-const CODEX_GATEWAY_ENV_KEY = "HARNSS_GATEWAY_API_KEY";
+const CODEX_GATEWAY_PROVIDER_ID = "pcc-agent-gateway";
+const CODEX_GATEWAY_ENV_KEY = "PCCAGENT_GATEWAY_API_KEY";
 
 /**
  * Extra spawn env for the Codex gateway — injects the API key under the provider's env_key.
  * If the user's local ~/.codex/config.toml already configures a custom provider,
- * Harnss defers entirely so it doesn't fight the user's CLI setup.
+ * PccAgent defers entirely so it doesn't fight the user's CLI setup.
  */
 function codexGatewayEnv(): Record<string, string> {
   if (localCodexGatewayTakesPriority()) return {};
@@ -100,7 +100,7 @@ function codexGatewayEnv(): Record<string, string> {
  */
 function codexGatewayThreadParams(): Record<string, unknown> {
   if (localCodexGatewayTakesPriority()) {
-    log("CODEX_GATEWAY_DEFER", "local ~/.codex/config.toml overrides Harnss gateway");
+    log("CODEX_GATEWAY_DEFER", "local ~/.codex/config.toml overrides PccAgent gateway");
     return {};
   }
   const g = getAppSetting("codexGateway");
@@ -111,7 +111,7 @@ function codexGatewayThreadParams(): Record<string, unknown> {
     modelProvider: id,
     ...(model ? { model } : {}),
     config: {
-      [`model_providers.${id}.name`]: g.name.trim() || "Harnss Gateway",
+      [`model_providers.${id}.name`]: g.name.trim() || "PccAgent Gateway",
       [`model_providers.${id}.base_url`]: g.baseUrl.trim(),
       [`model_providers.${id}.env_key`]: CODEX_GATEWAY_ENV_KEY,
       [`model_providers.${id}.wire_api`]: "responses",
@@ -336,7 +336,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         const authResult = await rpc.request<CodexAccountResponse>("account/read", { refreshToken: false });
 
         // Custom gateway carries its own credentials (env_key) — skip the OpenAI auth gate.
-        // Either Harnss gateway (when enabled) or the user's local config.toml provider counts.
+        // Either PccAgent gateway (when enabled) or the user's local config.toml provider counts.
         const gatewayEnabled =
           getAppSetting("codexGateway")?.enabled === true || localCodexGatewayTakesPriority();
         const needsAuth = !gatewayEnabled && authResult.requiresOpenaiAuth && !authResult.account;

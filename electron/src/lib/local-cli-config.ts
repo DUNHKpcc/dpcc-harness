@@ -2,10 +2,10 @@
  * Lightweight probes for the user's local Claude Code / Codex CLI configuration.
  *
  * Goal: when the user has already configured a custom gateway in their CLI's
- * own config file, Harnss's own gateway settings should not override it.
+ * own config file, PccAgent's own gateway settings should not override it.
  *
  * These probes do not parse the full config — they only detect whether the
- * fields that would conflict with Harnss's gateway injection are present.
+ * fields that would conflict with PccAgent's gateway injection are present.
  */
 
 import fs from "fs";
@@ -133,13 +133,64 @@ function unquoteToml(s: string): string {
   return s;
 }
 
-/** Does the user's local Claude config set anything that conflicts with Harnss's gateway? */
+export interface LocalCodexProvider {
+  /** Root `model_provider = "..."` selecting the active provider, if any. */
+  provider: string | null;
+  /** Root `model = "..."`, if any. */
+  model: string | null;
+  /** base_url of the active `[model_providers.<provider>]` table, if resolvable. */
+  baseUrl: string | null;
+}
+
+/**
+ * Read the active provider details from ~/.codex/config.toml: the root
+ * `model_provider`/`model`, and the matching provider table's `base_url`.
+ * Used to surface the config PccAgent inherits when the local Codex config wins.
+ */
+export function loadLocalCodexProvider(): LocalCodexProvider {
+  const raw = readFileSilent(path.join(os.homedir(), ".codex", "config.toml"));
+  if (!raw) return { provider: null, model: null, baseUrl: null };
+
+  let currentSection = "";
+  let provider: string | null = null;
+  let model: string | null = null;
+  const providerBaseUrls = new Map<string, string>();
+
+  for (const rawLine of raw.split(/\r?\n/)) {
+    const line = rawLine.replace(/#.*$/, "").trim();
+    if (!line) continue;
+
+    const sectionMatch = line.match(/^\[([^\]]+)\]$/);
+    if (sectionMatch) {
+      currentSection = sectionMatch[1].trim();
+      continue;
+    }
+
+    const kvMatch = line.match(/^([A-Za-z0-9_.-]+)\s*=\s*(.+)$/);
+    if (!kvMatch) continue;
+    const key = kvMatch[1];
+    const value = unquoteToml(kvMatch[2].trim().replace(/[,;]\s*$/, ""));
+    if (!value) continue;
+
+    if (currentSection === "") {
+      if (key === "model_provider") provider = value;
+      else if (key === "model") model = value;
+    } else if (currentSection.startsWith("model_providers.") && key === "base_url") {
+      providerBaseUrls.set(currentSection.slice("model_providers.".length), value);
+    }
+  }
+
+  const baseUrl = provider ? (providerBaseUrls.get(provider) ?? null) : null;
+  return { provider, model, baseUrl };
+}
+
+/** Does the user's local Claude config set anything that conflicts with PccAgent's gateway? */
 export function localClaudeGatewayTakesPriority(): boolean {
   const probe = probeLocalClaudeGateway();
   return probe.hasBaseUrl || probe.hasAuthToken || probe.hasApiKey;
 }
 
-/** Does the user's local Codex config set anything that conflicts with Harnss's gateway? */
+/** Does the user's local Codex config set anything that conflicts with PccAgent's gateway? */
 export function localCodexGatewayTakesPriority(): boolean {
   const probe = probeLocalCodexGateway();
   // Treat any of these as "user has a deliberate provider setup we shouldn't override":
@@ -151,7 +202,7 @@ export function localCodexGatewayTakesPriority(): boolean {
 /**
  * Read the full env block from ~/.claude/settings.json as a plain string map.
  *
- * Used to seed spawn env for processes Harnss launches (e.g. the toolbar terminal's
+ * Used to seed spawn env for processes PccAgent launches (e.g. the toolbar terminal's
  * shell, which would otherwise inherit only what the GUI launcher gives + whatever
  * .zshrc manages to export before any syntax errors). Returns {} when missing.
  */

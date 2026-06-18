@@ -48,9 +48,13 @@ const namespaces = Array.from(
 /** Resolve a stored LanguageOption to a concrete, supported i18n language. */
 export function resolveLanguage(option: LanguageOption): SupportedLanguage {
   if (option === "en" || option === "zh") return option;
-  // "system" — follow the OS/browser locale.
-  const locale = (typeof navigator !== "undefined" ? navigator.language : "") || "";
-  return locale.toLowerCase().startsWith("zh") ? "zh" : "en";
+  // "system" — strictly follow the OS UI language injected by the main process
+  // (app.getPreferredSystemLanguages / getSystemLocale). Fall back to Chromium's
+  // navigator.language only if the injected value is missing.
+  const osLocale = typeof window !== "undefined" ? window.claude?.systemLocale : "";
+  const navLocale = typeof navigator !== "undefined" ? navigator.language : "";
+  const locale = (osLocale || navLocale || "").toLowerCase();
+  return locale.startsWith("zh") ? "zh" : "en";
 }
 
 void i18n.use(initReactI18next).init({

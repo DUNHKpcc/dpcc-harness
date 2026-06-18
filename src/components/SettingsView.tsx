@@ -13,13 +13,16 @@ import {
   Users,
   BarChart3,
   PanelLeft,
-  FileCode,
+  Server,
+  X,
+  Wallet,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AgentSettings } from "@/components/settings/AgentSettings";
 import { AppearanceSettings } from "@/components/settings/AppearanceSettings";
 import { GeneralSettings } from "@/components/settings/GeneralSettings";
+import { AccountSettings } from "@/components/settings/AccountSettings";
 import { NotificationsSettings } from "@/components/settings/NotificationsSettings";
 import { McpSettings } from "@/components/settings/McpSettings";
 import { AdvancedSettings } from "@/components/settings/AdvancedSettings";
@@ -27,7 +30,7 @@ import { EngineSettings } from "@/components/settings/EngineSettings";
 import { PlaceholderSection } from "@/components/settings/PlaceholderSection";
 import { AboutSettings } from "@/components/settings/AboutSettings";
 import { AnalyticsSettings } from "@/components/settings/AnalyticsSettings";
-import { LocalClaudeSettings } from "@/components/settings/LocalClaudeSettings";
+import { CurrentConfigSettings } from "@/components/settings/CurrentConfigSettings";
 import { useSettingsStore } from "@/stores/settings-store";
 import { isMac } from "@/lib/utils";
 import type { AppSettings } from "@/types";
@@ -35,7 +38,7 @@ import { useAgentContext } from "./AgentContext";
 
 // ── Section definitions ──
 
-export type SettingsSection = "general" | "appearance" | "notifications" | "analytics" | "agents" | "mcp" | "engines" | "local-claude" | "skills" | "custom-agents" | "advanced" | "about";
+export type SettingsSection = "general" | "account" | "appearance" | "notifications" | "analytics" | "agents" | "mcp" | "engines" | "current-config" | "skills" | "custom-agents" | "advanced" | "about";
 
 interface NavItem {
   id: SettingsSection;
@@ -47,6 +50,7 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
+  { id: "account", labelKey: "nav.account", icon: Wallet },
   { id: "general", labelKey: "nav.general", icon: SlidersHorizontal },
   { id: "appearance", labelKey: "nav.appearance", icon: Palette },
   { id: "notifications", labelKey: "nav.notifications", icon: Bell },
@@ -54,7 +58,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "agents", labelKey: "nav.agents", icon: Bot },
   { id: "mcp", labelKey: "nav.mcp", icon: Plug },
   { id: "engines", labelKey: "nav.engines", icon: Cpu },
-  { id: "local-claude", labelKey: "nav.localClaude", icon: FileCode },
+  { id: "current-config", labelKey: "nav.currentConfig", icon: Server },
   { id: "skills", labelKey: "nav.skills", icon: Sparkles, comingSoon: true },
   { id: "custom-agents", labelKey: "nav.customAgents", icon: Users, comingSoon: true },
   { id: "advanced", labelKey: "nav.advanced", icon: Wrench },
@@ -89,7 +93,7 @@ export const SettingsView = memo(function SettingsView({
   const { t } = useTranslation("settings");
   const { agents, saveAgent, deleteAgent } = useAgentContext();
   const islandLayout = useSettingsStore((s) => s.islandLayout);
-  const [activeSection, setActiveSection] = useState<SettingsSection>(initialSection ?? "general");
+  const [activeSection, setActiveSection] = useState<SettingsSection>(initialSection ?? "account");
   const macIslandTitlebarOffsetClass = "";
 
   // ── Main-process app settings (loaded once, updated optimistically) ──
@@ -121,6 +125,13 @@ export const SettingsView = memo(function SettingsView({
       case "general":
         return (
           <GeneralSettings
+            appSettings={appSettings}
+            onUpdateAppSettings={updateAppSettings}
+          />
+        );
+      case "account":
+        return (
+          <AccountSettings
             appSettings={appSettings}
             onUpdateAppSettings={updateAppSettings}
           />
@@ -163,8 +174,8 @@ export const SettingsView = memo(function SettingsView({
             onUpdateAppSettings={updateAppSettings}
           />
         );
-      case "local-claude":
-        return <LocalClaudeSettings />;
+      case "current-config":
+        return <CurrentConfigSettings />;
       case "advanced":
         return (
           <AdvancedSettings
@@ -218,6 +229,17 @@ export const SettingsView = memo(function SettingsView({
           </Button>
         )}
         <span className={`leading-none text-sm font-semibold text-foreground ${macIslandTitlebarOffsetClass}`}>{t("titlebar")}</span>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={t("close", { defaultValue: "Close" })}
+          title={t("close", { defaultValue: "Close" })}
+          className="no-drag ms-auto h-7 w-7 text-muted-foreground/60 hover:text-foreground"
+          onClick={onClose}
+        >
+          <X className="h-4 w-4" />
+        </Button>
       </div>
 
       <div className="flex min-h-0 flex-1 overflow-hidden">

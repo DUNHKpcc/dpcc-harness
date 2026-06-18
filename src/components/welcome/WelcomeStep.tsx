@@ -44,6 +44,15 @@ export function WelcomeStep({ onNext }: WizardStepProps) {
         {t("welcomeStep.taglineLine2")}
       </motion.p>
 
+      <motion.p
+        className="mt-5 rounded-full bg-foreground/[0.05] px-4 py-1.5 text-sm text-muted-foreground/80"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.28 }}
+      >
+        {t("welcomeStep.dpccHint")}
+      </motion.p>
+
       <motion.button
         onClick={onNext}
         className="mt-14 flex items-center gap-2.5 rounded-full bg-foreground px-9 py-4 text-base font-semibold text-background transition-opacity hover:opacity-85"

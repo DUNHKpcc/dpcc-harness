@@ -6,7 +6,8 @@
     "intro": "欢迎使用",
     "tagline": "在这里，你与 AI",
     "taglineLine2": "携手构建软件。",
-    "getStarted": "开始使用"
+    "getStarted": "开始使用",
+    "dpccHint": "由 DPCC API 提供支持 —— 稍后连接账户即可随时查看余额。"
   },
   "appearanceStep": {
     "title": "打造专属体验",
@@ -52,6 +53,22 @@
         "description": "所有操作自动执行，不再提示。"
       }
     }
+  },
+  "accountStep": {
+    "title": "DPCC API",
+    "subtitle": "连接你的 DPCC API 账户，让 Claude 跑起来，并随时查看余额。",
+    "gatewayLabel": "网关密钥",
+    "gatewayUrlPlaceholder": "https://api.dpccgaming.xyz",
+    "tokenPlaceholder": "令牌（sk-…）",
+    "balanceLabel": "余额显示（可选）",
+    "balanceHint": "可选 —— 仅当你的平台无法通过网关密钥返回余额时才需要填写。",
+    "userIdPlaceholder": "用户ID（例如 1）",
+    "accessTokenPlaceholder": "系统访问令牌",
+    "connect": "连接",
+    "skipForNow": "暂时跳过",
+    "gatewayHint": "仅需网关密钥即可 —— Claude 即刻可用，余额也会自动显示。",
+    "claudeKeyLabel": "Claude 密钥（sk-）",
+    "codexKeyLabel": "Codex 密钥（sk-，可选）"
   },
   "projectStep": {
     "title": "你的第一个项目",

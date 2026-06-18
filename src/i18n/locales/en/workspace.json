@@ -5,6 +5,7 @@
   },
   "space": {
     "settings": "Settings",
+    "account": "Account",
     "newSpace": "New space",
     "edit": "Edit",
     "delete": "Delete",
@@ -12,6 +13,38 @@
     "deleteConfirmPrefix": "Are you sure you want to delete ",
     "deleteConfirmSuffix": "? Projects in this space will be moved to General.",
     "deleteConfirm": "Delete"
+  },
+  "account": {
+    "loading": "Loading…",
+    "connected": "Connected",
+    "connectedLocal": "Connected via local config",
+    "refresh": "Refresh",
+    "balance": "Balance",
+    "used": "Used",
+    "unlimited": "Unlimited",
+    "balanceUnavailable": "Balance unavailable",
+    "balanceError": "Couldn't load balance",
+    "availableModels": "Available models",
+    "noModels": "None found",
+    "addAccessToken": "Show real account balance →",
+    "accessTokenHint": "In your DPCC API user settings, copy your user ID and generate a system access token. Both are needed to read your real account balance.",
+    "userIdPlaceholder": "User ID (e.g. 1)",
+    "setup": {
+      "title": "Connect your DPCC API account",
+      "intro": "PccAgent routes Claude through your DPCC API gateway. Add your gateway address and token to get started.",
+      "step1": "Open your DPCC API dashboard and copy the site URL.",
+      "step2": "Create a token (API key) and copy it.",
+      "step3": "Paste both below — they're stored locally on this device.",
+      "baseUrlPlaceholder": "https://api.dpccgaming.xyz",
+      "tokenPlaceholder": "Token (sk-…)",
+      "balanceSection": "Balance lookup (optional)",
+      "accessTokenPlaceholder": "System access token",
+      "save": "Connect",
+      "claudeKeyLabel": "Claude key (sk-)",
+      "codexKeyLabel": "Codex key (sk-, optional)"
+    },
+    "claudeModels": "Claude models",
+    "codexModels": "Codex models"
   },
   "customizer": {
     "namePlaceholder": "Space name",

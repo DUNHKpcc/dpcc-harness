@@ -2,13 +2,14 @@
   "titlebar": "设置",
   "nav": {
     "general": "通用",
+    "account": "DPCC API",
     "appearance": "外观",
     "notifications": "通知",
     "analytics": "数据分析",
     "agents": "ACP Agents",
     "mcp": "MCP 服务器",
     "engines": "引擎",
-    "localClaude": "本地 Claude Code",
+    "currentConfig": "当前配置",
     "skills": "Skills",
     "customAgents": "Agents",
     "advanced": "高级",
@@ -89,7 +90,7 @@
     "description": "配置引擎级别的运行行为与二进制选择",
     "claude": {
       "section": "Claude Code",
-      "sourceLabel": "Claude 二进制来源",
+      "sourceLabel": "Claude SDK来源",
       "sourceDesc": "选择 PccAgent 如何解析 Claude 可执行文件。",
       "customLabel": "自定义 Claude 路径",
       "customDesc": "claude 可执行文件的绝对路径（claude 或 claude.exe）。",
@@ -99,7 +100,7 @@
         "toggleDesc": "通过第三方 Anthropic 兼容网关运行 Claude 会话（设置 ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN）。",
         "baseUrlLabel": "Base URL",
         "baseUrlDesc": "网关地址 → ANTHROPIC_BASE_URL。",
-        "baseUrlPlaceholder": "https://gateway.example.com",
+        "baseUrlPlaceholder": "https://api.dpccgaming.xyz",
         "tokenLabel": "鉴权令牌",
         "tokenDesc": "Bearer 令牌 / API Key → ANTHROPIC_AUTH_TOKEN。",
         "tokenPlaceholder": "sk-...",
@@ -110,7 +111,7 @@
     },
     "codex": {
       "section": "Codex",
-      "sourceLabel": "Codex 二进制来源",
+      "sourceLabel": "Codex SDK来源",
       "sourceDesc": "选择 PccAgent 如何解析 Codex 可执行文件。",
       "versionLabel": "Codex 版本",
       "versionDesc": "{{version}} · {{origin}}。Codex 已内置并可离线使用——检查更新可从 npm 拉取最新版本。",
@@ -127,7 +128,7 @@
         "namePlaceholder": "我的网关",
         "baseUrlLabel": "Base URL",
         "baseUrlDesc": "提供方地址（Responses API）。",
-        "baseUrlPlaceholder": "https://gateway.example.com/v1",
+        "baseUrlPlaceholder": "https://api.dpccgaming.xyz/v1",
         "apiKeyLabel": "API Key",
         "apiKeyDesc": "运行时注入 Codex 进程，不会写入 config.toml。",
         "apiKeyPlaceholder": "sk-...",
@@ -179,6 +180,89 @@
       "whisper": "Whisper（本地 AI）"
     }
   },
+  "account": {
+    "title": "DPCC API 账户",
+    "description": "PccAgent 与 DPCC API 平台的当前绑定情况。",
+    "section": {
+      "binding": "绑定",
+      "balance": "余额",
+      "models": "模型",
+      "credentials": "凭证"
+    },
+    "platform": "平台",
+    "connection": "连接状态",
+    "baseUrl": "网关地址",
+    "credentialSource": "凭证来源",
+    "gatewayToken": "网关令牌",
+    "accessToken": "访问令牌",
+    "accessTokenDesc": "用于读取账户真实余额。",
+    "configured": "已配置",
+    "notConfigured": "未设置",
+    "source": {
+      "gateway": "应用内网关",
+      "local": "本地 ~/.claude 配置",
+      "none": "默认（DPCC API）"
+    },
+    "status": {
+      "connected": "已连接",
+      "connectedLocal": "通过本地配置连接",
+      "notConnected": "未连接"
+    },
+    "balanceLabel": "剩余",
+    "usedOfTotal": "已用 ${{used}} / 共 ${{total}}",
+    "unlimited": "无限额度",
+    "balanceUnavailable": "暂无余额信息",
+    "balanceError": "无法获取余额",
+    "refresh": "刷新",
+    "availableModels": "可用模型",
+    "field": {
+      "baseUrl": "网关地址",
+      "baseUrlDesc": "留空则使用默认的 DPCC API 平台。",
+      "token": "网关令牌",
+      "tokenDesc": "用于会话、模型和余额的 sk- 令牌。",
+      "userId": "用户 ID",
+      "userIdDesc": "与访问令牌一起用于 /api/user/self 查询余额。",
+      "accessToken": "访问令牌",
+      "accessTokenDesc": "可选——用于精确账户余额的系统访问令牌。",
+      "accessTokenPlaceholder": "系统访问令牌",
+      "claudeToken": "Claude 密钥",
+      "claudeTokenDesc": "Claude Code 使用的 sk- 令牌。",
+      "codexToken": "Codex 密钥",
+      "codexTokenDesc": "Codex 使用的 sk- 令牌。",
+      "claudeModel": "Claude 默认模型",
+      "claudeModelDesc": "Claude Code 的默认模型。",
+      "codexModel": "Codex 默认模型",
+      "codexModelDesc": "Codex 的默认模型。",
+      "modelAuto": "自动（用选择器）",
+      "modelPlaceholder": "模型 id"
+    },
+    "save": "保存",
+    "claudeKey": "Claude 密钥",
+    "claudeKeyDesc": "用于 Claude Code 的 sk- 令牌（对应分组）。",
+    "codexKey": "Codex 密钥",
+    "codexKeyDesc": "用于 Codex 的 sk- 令牌（对应分组）。",
+    "claudeModels": "Claude 模型",
+    "codexModels": "Codex 模型",
+    "editCredentials": "编辑凭证",
+    "balanceCredsLabel": "余额查询",
+    "usage": {
+      "title": "Token 活动",
+      "totalTokens": "累计 Token 数",
+      "peakDayTokens": "峰值 Token 数",
+      "longestTask": "最长任务时长",
+      "currentStreak": "当前连续天数",
+      "longestStreak": "最长连续天数",
+      "days": "天",
+      "heatmapTitle": "Token 活动",
+      "daily": "每日",
+      "weekly": "每周",
+      "cumulative": "累计",
+      "noData": "暂无用量数据。",
+      "notConfigured": "在「编辑凭证」中填写访问令牌和用户 ID 后即可查看用量。",
+      "error": "无法加载用量统计。",
+      "truncated": "仅统计最近的日志。"
+    }
+  },
   "notifications": {
     "title": "通知",
     "description": "配置不同事件触发系统通知和提示音的时机。",
@@ -208,43 +292,28 @@
       "never": "从不"
     }
   },
-  "localClaude": {
-    "title": "本地 Claude Code",
-    "description": "只读查看你本机 ~/.claude 下的配置 —— agents、slash 命令、MCP 服务器、CLAUDE.md 以及网关环境变量。Claude Code CLI 在会话时已经会加载这些内容。",
-    "rootLabel": "配置目录",
+  "currentConfig": {
+    "title": "当前配置",
+    "description": "PccAgent 实际用于运行会话的网关与模型配置。此处为只读 —— 如需修改，请前往「设置 → 引擎」或编辑本机 CLI 配置。",
     "refresh": "刷新",
-    "notFound": "未找到 ~/.claude 目录。请安装 Claude Code CLI 或先创建相应的配置文件。",
-    "settingsError": "无法解析 settings.json",
-    "gateway": {
-      "section": "网关环境变量 (settings.json)",
-      "description": "来自 ~/.claude/settings.json 中 env 字段的 Anthropic 网关环境变量。Token / Key 类字段会被脱敏显示。",
-      "allKeys": "全部 env 键",
-      "priority": "已覆盖网关"
+    "claude": "Claude",
+    "codex": "Codex",
+    "defaultHint": "当前没有启用自定义网关 —— PccAgent 使用该引擎自身的登录账号和默认接入点。",
+    "source": {
+      "gateway": "应用内网关",
+      "local": "本机 CLI 配置",
+      "default": "引擎默认"
     },
-    "codex": {
-      "section": "Codex (~/.codex/config.toml)",
-      "empty": "未找到 ~/.codex/config.toml。Codex CLI 将使用 Harnss 内置设置或其默认值。",
-      "priority": "已覆盖网关"
+    "sourceDesc": {
+      "gateway": "通过「设置 → 引擎」中配置的自定义网关转发。",
+      "local": "你的本机 CLI 配置优先级更高，正按原样使用。",
+      "default": "未配置自定义接入点。"
     },
-    "agents": {
-      "section": "Agents",
-      "empty": "在 ~/.claude/agents/ 下没有找到 agent 定义文件。"
-    },
-    "commands": {
-      "section": "Slash 命令",
-      "empty": "在 ~/.claude/commands/ 下没有找到 slash 命令。"
-    },
-    "mcp": {
-      "section": "MCP 服务器",
-      "empty": "~/.claude/settings.json 里没有配置 mcpServers。"
-    },
-    "claudeMd": {
-      "section": "CLAUDE.md",
-      "empty": "未在 ~/.claude 或当前项目根目录找到 CLAUDE.md。",
-      "scope": {
-        "user": "用户级 CLAUDE.md",
-        "project": "项目级 CLAUDE.md"
-      }
+    "fields": {
+      "provider": "提供方",
+      "baseUrl": "Base URL",
+      "token": "Token",
+      "model": "模型"
     }
   },
   "advanced": {

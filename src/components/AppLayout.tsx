@@ -1060,7 +1060,7 @@ export function AppLayout() {
           onStartCreateSpace: handleStartCreateSpace,
           onUpdateSpace: handleUpdateSpace,
           onDeleteSpace: handleDeleteSpace,
-          onOpenSettings: () => setShowSettings("general"),
+          onOpenSettings: () => setShowSettings("account"),
           onConfirmCreateSpace: handleConfirmCreateSpace,
           onCancelCreateSpace: handleCancelCreateSpace,
         }}

@@ -19,6 +19,17 @@ interface PreloadGlobals {
 
 import type { ThemeOption as ThemeSource, MacBackgroundEffect } from "@shared/types/settings";
 
+/**
+ * The OS UI language, injected by the main process via webPreferences
+ * additionalArguments (e.g. "--system-locale=zh-CN"). Lets the renderer's
+ * "system" i18n option strictly follow the OS instead of navigator.language.
+ */
+function readSystemLocale(): string {
+  const arg = process.argv.find((a) => a.startsWith("--system-locale="));
+  return arg ? arg.slice("--system-locale=".length) : "";
+}
+const systemLocale = readSystemLocale();
+
 function readStoredThemeSource(storage: PreloadStorage | undefined): ThemeSource {
   const stored = storage?.getItem("pcc-agent-theme");
   return stored === "light" || stored === "dark" || stored === "system"
@@ -68,6 +79,7 @@ try {
 }
 
 contextBridge.exposeInMainWorld("claude", {
+  systemLocale,
   getGlassSupported: () => ipcRenderer.invoke("app:getGlassSupported"),
   getMacBackgroundEffectSupport: () => ipcRenderer.invoke("app:get-mac-background-effect-support"),
   setThemeSource: (themeSource: ThemeSource) => ipcRenderer.send("app:set-theme-source", themeSource),
@@ -179,8 +191,7 @@ contextBridge.exposeInMainWorld("claude", {
     import: (projectPath: string, ccSessionId: string) => ipcRenderer.invoke("cc-sessions:import", projectPath, ccSessionId),
   },
   ccConfig: {
-    read: (options?: { cwd?: string }) => ipcRenderer.invoke("cc-config:read", options),
-    readAll: (options?: { cwd?: string }) => ipcRenderer.invoke("cc-config:read-all", options),
+    effective: () => ipcRenderer.invoke("cc-config:effective"),
   },
   files: {
     list: (cwd: string) => ipcRenderer.invoke("files:list", cwd),
@@ -352,6 +363,13 @@ contextBridge.exposeInMainWorld("claude", {
       ipcRenderer.on("settings:changed", listener);
       return () => ipcRenderer.removeListener("settings:changed", listener);
     },
+  },
+  account: {
+    getConfig: () => ipcRenderer.invoke("account:config"),
+    getStatus: () => ipcRenderer.invoke("account:status"),
+    getBalance: () => ipcRenderer.invoke("account:balance"),
+    getModels: () => ipcRenderer.invoke("account:models"),
+    getUsageStats: (force?: boolean) => ipcRenderer.invoke("account:usageStats", force),
   },
   jira: {
     getConfig: (projectId: string) => ipcRenderer.invoke("jira:get-config", projectId),

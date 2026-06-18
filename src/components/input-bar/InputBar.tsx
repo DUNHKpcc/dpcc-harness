@@ -4,6 +4,8 @@ import {
   useCallback,
   useMemo,
   memo,
+  lazy,
+  Suspense,
   type KeyboardEvent,
 } from "react";
 import { useTranslation } from "react-i18next";
@@ -37,7 +39,14 @@ import type {
 import { BOTTOM_CHAT_MAX_WIDTH_CLASS } from "@/lib/layout/constants";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { resolveModelValue, formatClaudeModelLabel } from "@/lib/model-utils";
-import { ImageAnnotationEditor } from "@/components/ImageAnnotationEditor";
+// Lazy-loaded: the annotation editor pulls in konva/react-konva (~10MB) and is
+// only needed when the user edits an attached screenshot. Keep it out of the
+// startup path since InputBar is permanently mounted at the bottom of the chat.
+const ImageAnnotationEditor = lazy(() =>
+  import("@/components/ImageAnnotationEditor").then((m) => ({
+    default: m.ImageAnnotationEditor,
+  })),
+);
 import { TOOLBAR_BTN } from "./constants";
 import {
   readFileAsBase64,
@@ -815,19 +824,21 @@ export const InputBar = memo(function InputBar({
         />
 
         {editingAttachment && (
-          <ImageAnnotationEditor
-            image={editingAttachment}
-            open={!!editingAttachment}
-            onOpenChange={(isOpen) => {
-              if (!isOpen) setEditingAttachment(null);
-            }}
-            onSave={(updated) => {
-              setAttachments((prev) =>
-                prev.map((a) => (a.id === updated.id ? updated : a)),
-              );
-              setEditingAttachment(null);
-            }}
-          />
+          <Suspense fallback={null}>
+            <ImageAnnotationEditor
+              image={editingAttachment}
+              open={!!editingAttachment}
+              onOpenChange={(isOpen) => {
+                if (!isOpen) setEditingAttachment(null);
+              }}
+              onSave={(updated) => {
+                setAttachments((prev) =>
+                  prev.map((a) => (a.id === updated.id ? updated : a)),
+                );
+                setEditingAttachment(null);
+              }}
+            />
+          </Suspense>
         )}
 
         {/* Bottom toolbar */}

@@ -218,7 +218,7 @@ export function useMessageQueue({ refs, setters, engines, activeSessionId }: Use
     const isActiveSession = sessionId === activeSessionIdRef.current;
     const sessionProcessing = isActiveSession
       ? engine.isProcessing
-      : (backgroundStoreRef.current.get(sessionId)?.isProcessing ?? false);
+      : backgroundStoreRef.current.isProcessing(sessionId);
     if (sessionProcessing) return false;
 
     const queue = messageQueueRef.current.get(sessionId);
@@ -319,7 +319,7 @@ export function useMessageQueue({ refs, setters, engines, activeSessionId }: Use
     if (sessionId === activeSessionIdRef.current) return false;
     if (drainingSessionIdsRef.current.has(sessionId)) return false;
     if (!liveSessionIdsRef.current.has(sessionId)) return false;
-    if (backgroundStoreRef.current.get(sessionId)?.isProcessing) return false;
+    if (backgroundStoreRef.current.isProcessing(sessionId)) return false;
     const queue = messageQueueRef.current.get(sessionId);
     if (!queue || queue.length === 0) return false;
     void drainQueuedMessageForSession(sessionId);

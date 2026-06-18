@@ -6,7 +6,8 @@
     "intro": "Welcome to",
     "tagline": "The workspace where you and AI",
     "taglineLine2": "build software together.",
-    "getStarted": "Get Started"
+    "getStarted": "Get Started",
+    "dpccHint": "Powered by DPCC API — connect your account in a moment to track your balance."
   },
   "appearanceStep": {
     "title": "Make it yours",
@@ -52,6 +53,22 @@
         "description": "Everything runs automatically with no prompts."
       }
     }
+  },
+  "accountStep": {
+    "title": "DPCC API",
+    "subtitle": "Connect your DPCC API account so Claude can run — and see your balance at a glance.",
+    "gatewayLabel": "Gateway key",
+    "gatewayUrlPlaceholder": "https://api.dpccgaming.xyz",
+    "tokenPlaceholder": "Token (sk-…)",
+    "balanceLabel": "Balance display (optional)",
+    "balanceHint": "Optional — only needed if your platform doesn't return balance through the gateway key.",
+    "userIdPlaceholder": "User ID (e.g. 1)",
+    "accessTokenPlaceholder": "System access token",
+    "connect": "Connect",
+    "skipForNow": "Skip for now",
+    "gatewayHint": "Just your gateway key is enough — Claude runs and your balance shows automatically.",
+    "claudeKeyLabel": "Claude key (sk-)",
+    "codexKeyLabel": "Codex key (sk-, optional)"
   },
   "projectStep": {
     "title": "Your first project",

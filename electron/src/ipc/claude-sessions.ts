@@ -20,11 +20,11 @@ import { loadLocalClaudeEnv, localClaudeGatewayTakesPriority, probeLocalClaudeGa
 /**
  * Environment variables for the custom Claude gateway (ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN).
  * If the user has already configured these in ~/.claude/settings.json, the local config wins
- * and Harnss injects nothing — letting `settingSources: ["user", ...]` apply the local values.
+ * and PccAgent injects nothing — letting `settingSources: ["user", ...]` apply the local values.
  */
 function claudeGatewayEnv(): Record<string, string> {
   if (localClaudeGatewayTakesPriority()) {
-    log("CLAUDE_GATEWAY_DEFER", "local ~/.claude/settings.json env overrides Harnss gateway");
+    log("CLAUDE_GATEWAY_DEFER", "local ~/.claude/settings.json env overrides PccAgent gateway");
     return {};
   }
   const g = getAppSetting("claudeGateway");
@@ -47,8 +47,8 @@ function claudeGatewayModel(): string | undefined {
 
 /** SDK options for file checkpointing — enables Write/Edit/NotebookEdit revert support.
  *  Env precedence: process.env → user's ~/.claude/settings.json env (overrides stale
- *  ANTHROPIC_* in process.env) → Harnss client env → Harnss gateway env → checkpointing flag.
- *  Harnss gateway env is empty when local takes priority (see claudeGatewayEnv). */
+ *  ANTHROPIC_* in process.env) → PccAgent client env → PccAgent gateway env → checkpointing flag.
+ *  PccAgent gateway env is empty when local takes priority (see claudeGatewayEnv). */
 function fileCheckpointOptions(): Record<string, unknown> {
   return {
     enableFileCheckpointing: true,

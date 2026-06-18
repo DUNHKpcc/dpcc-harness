@@ -2,13 +2,14 @@
   "titlebar": "Settings",
   "nav": {
     "general": "General",
+    "account": "DPCC API",
     "appearance": "Appearance",
     "notifications": "Notifications",
     "analytics": "Analytics",
     "agents": "ACP Agents",
     "mcp": "MCP Servers",
     "engines": "Engines",
-    "localClaude": "Local Claude Code",
+    "currentConfig": "Current Config",
     "skills": "Skills",
     "customAgents": "Agents",
     "advanced": "Advanced",
@@ -99,7 +100,7 @@
         "toggleDesc": "Route Claude sessions through a third-party Anthropic-compatible gateway (sets ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN).",
         "baseUrlLabel": "Base URL",
         "baseUrlDesc": "Gateway endpoint → ANTHROPIC_BASE_URL.",
-        "baseUrlPlaceholder": "https://gateway.example.com",
+        "baseUrlPlaceholder": "https://api.dpccgaming.xyz",
         "tokenLabel": "Auth token",
         "tokenDesc": "Bearer token / API key → ANTHROPIC_AUTH_TOKEN.",
         "tokenPlaceholder": "sk-...",
@@ -127,7 +128,7 @@
         "namePlaceholder": "My Gateway",
         "baseUrlLabel": "Base URL",
         "baseUrlDesc": "Provider endpoint (Responses API).",
-        "baseUrlPlaceholder": "https://gateway.example.com/v1",
+        "baseUrlPlaceholder": "https://api.dpccgaming.xyz/v1",
         "apiKeyLabel": "API key",
         "apiKeyDesc": "Injected into the Codex process at runtime; never written to config.toml.",
         "apiKeyPlaceholder": "sk-...",
@@ -179,6 +180,89 @@
       "whisper": "Whisper (Local AI)"
     }
   },
+  "account": {
+    "title": "DPCC API account",
+    "description": "How PccAgent is bound to your DPCC API platform.",
+    "section": {
+      "binding": "Binding",
+      "balance": "Balance",
+      "models": "Models",
+      "credentials": "Credentials"
+    },
+    "platform": "Platform",
+    "connection": "Connection",
+    "baseUrl": "Gateway address",
+    "credentialSource": "Credential source",
+    "gatewayToken": "Gateway token",
+    "accessToken": "Access token",
+    "accessTokenDesc": "Used to read your real account balance.",
+    "configured": "Configured",
+    "notConfigured": "Not set",
+    "source": {
+      "gateway": "In-app gateway",
+      "local": "Local ~/.claude config",
+      "none": "Default (DPCC API)"
+    },
+    "status": {
+      "connected": "Connected",
+      "connectedLocal": "Connected via local config",
+      "notConnected": "Not connected"
+    },
+    "balanceLabel": "Remaining",
+    "usedOfTotal": "${{used}} used of ${{total}}",
+    "unlimited": "Unlimited quota",
+    "balanceUnavailable": "Balance unavailable",
+    "balanceError": "Couldn't load balance",
+    "refresh": "Refresh",
+    "availableModels": "Available models",
+    "field": {
+      "baseUrl": "Gateway address",
+      "baseUrlDesc": "Leave blank to use the default DPCC API platform.",
+      "token": "Gateway token",
+      "tokenDesc": "sk- token used for sessions, models, and balance.",
+      "userId": "User ID",
+      "userIdDesc": "Required with the access token for /api/user/self balance.",
+      "accessToken": "Access token",
+      "accessTokenDesc": "Optional — system access token for precise account balance.",
+      "accessTokenPlaceholder": "System access token",
+      "claudeToken": "Claude key",
+      "claudeTokenDesc": "sk- token used by Claude Code.",
+      "codexToken": "Codex key",
+      "codexTokenDesc": "sk- token used by Codex.",
+      "claudeModel": "Claude default model",
+      "claudeModelDesc": "Default model for Claude Code.",
+      "codexModel": "Codex default model",
+      "codexModelDesc": "Default model for Codex.",
+      "modelAuto": "Auto (use picker)",
+      "modelPlaceholder": "model id"
+    },
+    "save": "Save",
+    "claudeKey": "Claude key",
+    "claudeKeyDesc": "sk- token for Claude Code (its model group).",
+    "codexKey": "Codex key",
+    "codexKeyDesc": "sk- token for Codex (its model group).",
+    "claudeModels": "Claude models",
+    "codexModels": "Codex models",
+    "editCredentials": "Edit credentials",
+    "balanceCredsLabel": "Balance lookup",
+    "usage": {
+      "title": "Token activity",
+      "totalTokens": "Total tokens",
+      "peakDayTokens": "Peak day tokens",
+      "longestTask": "Longest task",
+      "currentStreak": "Current streak",
+      "longestStreak": "Longest streak",
+      "days": "days",
+      "heatmapTitle": "Token activity",
+      "daily": "Daily",
+      "weekly": "Weekly",
+      "cumulative": "Cumulative",
+      "noData": "No usage data yet.",
+      "notConfigured": "Add an access token + user ID in Edit credentials to see your usage.",
+      "error": "Couldn't load usage stats.",
+      "truncated": "Only the most recent logs are included."
+    }
+  },
   "notifications": {
     "title": "Notifications",
     "description": "Configure when OS notifications and sounds play for different events.",
@@ -208,43 +292,28 @@
       "never": "Never"
     }
   },
-  "localClaude": {
-    "title": "Local Claude Code",
-    "description": "Read-only view of your ~/.claude configuration — agents, slash commands, MCP servers, CLAUDE.md, and gateway env. The Claude Code CLI already loads these during sessions.",
-    "rootLabel": "Config root",
+  "currentConfig": {
+    "title": "Current Config",
+    "description": "The gateway and model configuration PccAgent is actually using to run sessions. Read-only — change these in Settings → Engines, or in your local CLI config.",
     "refresh": "Refresh",
-    "notFound": "No ~/.claude directory found. Install the Claude Code CLI or create configuration files to see them here.",
-    "settingsError": "Could not parse settings.json",
-    "gateway": {
-      "section": "Gateway env (settings.json)",
-      "description": "Anthropic gateway environment variables pulled from ~/.claude/settings.json → env. Token / key values are masked.",
-      "allKeys": "All env keys",
-      "priority": "Overrides Harnss gateway"
+    "claude": "Claude",
+    "codex": "Codex",
+    "defaultHint": "No custom gateway in effect — PccAgent uses this engine's own login and default endpoint.",
+    "source": {
+      "gateway": "In-app gateway",
+      "local": "Local CLI config",
+      "default": "Engine default"
     },
-    "codex": {
-      "section": "Codex (~/.codex/config.toml)",
-      "empty": "No ~/.codex/config.toml found. Codex CLI will use Harnss settings or its defaults.",
-      "priority": "Overrides Harnss Codex gateway"
+    "sourceDesc": {
+      "gateway": "Routed through the custom gateway set in Settings → Engines.",
+      "local": "Your local CLI config takes priority and is being used as-is.",
+      "default": "No custom endpoint configured."
     },
-    "agents": {
-      "section": "Agents",
-      "empty": "No agent definitions found in ~/.claude/agents/."
-    },
-    "commands": {
-      "section": "Slash commands",
-      "empty": "No slash commands found in ~/.claude/commands/."
-    },
-    "mcp": {
-      "section": "MCP servers",
-      "empty": "No mcpServers configured in ~/.claude/settings.json."
-    },
-    "claudeMd": {
-      "section": "CLAUDE.md",
-      "empty": "No CLAUDE.md found in ~/.claude or in the current project root.",
-      "scope": {
-        "user": "User CLAUDE.md",
-        "project": "Project CLAUDE.md"
-      }
+    "fields": {
+      "provider": "Provider",
+      "baseUrl": "Base URL",
+      "token": "Token",
+      "model": "Model"
     }
   },
   "advanced": {

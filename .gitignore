@@ -11,3 +11,5 @@ docs/
 frontend/
 cli
 .idea/
+.codex/
+build/.icon-backup-orig/

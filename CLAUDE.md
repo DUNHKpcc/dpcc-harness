@@ -669,6 +669,12 @@ Always search the web when needed for up-to-date API references, Electron APIs, 
 - Body (optional): blank line after subject, then explain **why** not what, wrap at ~80 chars
 - Examples from repo: `feat: git worktree management, ACP utility sessions, and streaming UI overhaul`, `fix: build both mac arches in one job to prevent latest-mac.yml race`
 
+**Commit layering** — split work into one commit per functional layer, never one lump commit mixing unrelated concerns. When staging changes, group by feature/concern and commit each separately so history reads as a sequence of self-contained units:
+- One feature/concern per commit — e.g. account balance, usage stats, and the config panel each get their own commit rather than a single combined one.
+- Keep cross-cutting changes in their own commits — i18n string updates, brand/icon assets, type refactors, and build config changes are each committed apart from the feature logic that uses them.
+- Each commit should build and make sense on its own; order them so dependencies (types, shared utils) land before the code that consumes them.
+- Never commit local artifacts (e.g. `.codex/`, icon backups, scratch files) — add them to `.gitignore` instead.
+
 **Version bumping**:
 1. Check for latest `@anthropic-ai/claude-agent-sdk` version and update in `package.json` if newer
 2. Bump `version` in `package.json` (electron-builder uses this, NOT the git tag)

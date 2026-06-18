@@ -33,7 +33,7 @@
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.15.0",
     "@anthropic-ai/claude-agent-sdk": "^0.2.101",
-    "@fontsource-variable/inter": "^5.2.8",
+    "@fontsource-variable/hanken-grotesk": "^5.2.8",
     "@fontsource/instrument-serif": "^5.2.8",
     "@huggingface/transformers": "^3.8.1",
     "@modelcontextprotocol/sdk": "^1.26.0",

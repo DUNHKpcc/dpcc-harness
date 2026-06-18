@@ -4,10 +4,11 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@xterm/xterm/css/xterm.css";
-/* Body sans (Inter) + display serif (Instrument Serif) — bundled offline via
-   @fontsource. Anthropic's own faces are closed-source; these are the open
-   近似 substitutes referenced throughout the welcome wizard and chat empty state. */
-@import "@fontsource-variable/inter/standard.css";
+/* Body sans (Hanken Grotesk — open substitute for Anthropic's Styrene) + display
+   serif (Instrument Serif). Bundled offline via @fontsource. Anthropic's own
+   faces are closed-source and Latin-only, so Chinese falls through to the native
+   system CJK font (PingFang SC on macOS, Microsoft YaHei on Windows). */
+@import "@fontsource-variable/hanken-grotesk/wght.css";
 @import "@fontsource/instrument-serif/400.css";
 @import "@fontsource/instrument-serif/400-italic.css";
 @plugin "@tailwindcss/typography";
@@ -15,8 +16,9 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: "Inter Variable", system-ui, -apple-system, sans-serif;
-  --font-serif: "Instrument Serif", Georgia, serif;
+  --font-sans: "Hanken Grotesk Variable", -apple-system, "PingFang SC",
+    "Microsoft YaHei", system-ui, sans-serif;
+  --font-serif: "Instrument Serif", Georgia, "Songti SC", STSong, serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);

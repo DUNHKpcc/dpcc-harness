@@ -18,16 +18,21 @@ import {
 export const SettingsHeader = memo(function SettingsHeader({
   title,
   description,
+  actions,
 }: {
   title: string;
   description?: string;
+  actions?: React.ReactNode;
 }) {
   return (
-    <div className="border-b border-foreground/[0.06] px-6 py-4">
-      <h2 className="text-base font-semibold text-foreground">{title}</h2>
-      {description && (
-        <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
-      )}
+    <div className="flex items-start justify-between gap-4 border-b border-foreground/[0.06] px-6 py-4">
+      <div className="min-w-0">
+        <h2 className="text-base font-semibold text-foreground">{title}</h2>
+        {description && (
+          <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
+        )}
+      </div>
+      {actions && <div className="shrink-0">{actions}</div>}
     </div>
   );
 });

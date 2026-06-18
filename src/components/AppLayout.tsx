@@ -1099,6 +1099,10 @@ export function AppLayout() {
         {showSettings && (
           <SettingsView
             onClose={() => setShowSettings(false)}
+            currentConfigModelFallbacks={{
+              claude: settings.getModelForEngine("claude"),
+              codex: settings.getModelForEngine("codex"),
+            }}
             glassSupported={glassSupported}
             macLiquidGlassSupported={macLiquidGlassSupported}
             sidebarOpen={sidebar.isOpen}

@@ -60,7 +60,7 @@
 :root {
   --space-hue: 0;
   --space-chroma: 0;
-  --radius: 0.625rem;
+  --radius: 0.5rem;
   --island-gap: 0.375rem;
   --island-panel-gap: 0.25rem;
   --island-radius: 0.75rem;
@@ -184,16 +184,16 @@ html:not(.glass-enabled) #root {
 
 /* ── Liquid Glass sidebar colors (default glass-enabled) ── */
 .dark.glass-enabled {
-  --sidebar: oklch(0.139 0 0 / 0.34);
-  --sidebar-border: oklch(0.468 0 0 / 0.32);
-  --sidebar-accent: oklch(0.334 0 0 / 0.46);
+  --sidebar: oklch(0.139 0.004 90 / 0.34);
+  --sidebar-border: oklch(0.468 0.006 85 / 0.32);
+  --sidebar-accent: oklch(0.334 0.006 85 / 0.46);
 }
 
 .glass-enabled:not(.dark) {
-  --sidebar: oklch(1 0 0 / 0.4);
-  --sidebar-border: oklch(0 0 0 / 0.08);
-  --sidebar-accent: oklch(0.976 0.001 286.029 / 0.42);
-  --sidebar-ring: oklch(0.64 0 0);
+  --sidebar: oklch(0.99 0.005 95 / 0.4);
+  --sidebar-border: oklch(0.19 0.002 106 / 0.08);
+  --sidebar-accent: oklch(0.9435 0.014 88.7 / 0.42);
+  --sidebar-ring: oklch(0.64 0.01 90);
 }
 
 /* ── Vibrancy sidebar colors ──
@@ -201,41 +201,41 @@ html:not(.glass-enabled) #root {
    look, so the overlay stays light — a heavy film here is what turns the
    sidebar into a muddy "灰蒙蒙" gray. Just a thin tint for text contrast. */
 .dark.glass-vibrancy.glass-enabled {
-  --sidebar: oklch(0.16 0 0 / 0.28);
-  --sidebar-border: oklch(0.468 0 0 / 0.3);
-  --sidebar-accent: oklch(0.334 0 0 / 0.4);
+  --sidebar: oklch(0.16 0.004 90 / 0.28);
+  --sidebar-border: oklch(0.468 0.006 85 / 0.3);
+  --sidebar-accent: oklch(0.334 0.006 85 / 0.4);
 }
 
 .glass-vibrancy.glass-enabled:not(.dark) {
-  --sidebar: oklch(1 0 0 / 0.32);
-  --sidebar-border: oklch(0 0 0 / 0.08);
-  --sidebar-accent: oklch(0.95 0.001 286.029 / 0.5);
-  --sidebar-ring: oklch(0.64 0 0);
+  --sidebar: oklch(0.99 0.005 95 / 0.32);
+  --sidebar-border: oklch(0.19 0.002 106 / 0.08);
+  --sidebar-accent: oklch(0.95 0.012 90 / 0.5);
+  --sidebar-ring: oklch(0.64 0.01 90);
 }
 
 /* macOS Liquid Glass light mode: white sidebar text — the native material reads
    visually darker. NOT applied in vibrancy mode (lighter material, keep dark text).
    Windows Mica also stays light enough for standard dark-on-light text. */
 html.platform-darwin.glass-enabled:not(.dark):not(.glass-vibrancy) {
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.985 0.003 95);
+  --sidebar-primary: oklch(0.6724 0.1308 38.8);
+  --sidebar-primary-foreground: oklch(0.985 0.003 95);
 }
 
 /* Elements on light backgrounds (search box) — reset to dark text/icons */
 html.platform-darwin.glass-enabled:not(.dark):not(.glass-vibrancy) .glass-outline,
 html.platform-darwin.glass-enabled:not(.dark):not(.glass-vibrancy) .bg-sidebar-accent {
-  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-foreground: oklch(0.1908 0.002 106.6);
 }
 
 /* Sidebar search stays on the white-text treatment in liquid glass mode. */
 html.platform-darwin.glass-enabled:not(.dark):not(.glass-vibrancy) .sidebar-search-glass {
-  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.985 0.003 95);
 }
 
 /* In liquid glass light mode, selected chats stay white. */
 html.platform-darwin.glass-enabled:not(.dark):not(.glass-vibrancy) .session-item-active {
-  color: oklch(0.985 0 0);
+  color: oklch(0.985 0.003 95);
 }
 
 /* In liquid glass light mode, sidebar engine icons match white text via inversion */
@@ -264,13 +264,13 @@ html.platform-darwin.glass-enabled:not(.dark):not(.glass-vibrancy) .session-item
     linear-gradient(var(--island-fill, var(--background)) 0 0) padding-box,
     linear-gradient(
         135deg,
-        oklch(0.82 0.03 285 / 0.15) 0%,
-        oklch(0.82 0.03 285 / 0.055) 12%,
-        oklch(0.82 0.03 285 / 0.028) 30%,
-        oklch(0.82 0.03 285 / 0.02) 50%,
-        oklch(0.82 0.03 285 / 0.028) 70%,
-        oklch(0.82 0.03 285 / 0.055) 88%,
-        oklch(0.82 0.03 285 / 0.13) 100%
+        oklch(0.82 0.03 90 / 0.15) 0%,
+        oklch(0.82 0.03 90 / 0.055) 12%,
+        oklch(0.82 0.03 90 / 0.028) 30%,
+        oklch(0.82 0.03 90 / 0.02) 50%,
+        oklch(0.82 0.03 90 / 0.028) 70%,
+        oklch(0.82 0.03 90 / 0.055) 88%,
+        oklch(0.82 0.03 90 / 0.13) 100%
       )
       border-box;
 }
@@ -280,18 +280,18 @@ html.platform-darwin.glass-enabled:not(.dark):not(.glass-vibrancy) .session-item
    matches even in dark mode because non-html ancestors (body, div, etc.)
    don't carry the .dark class, so the :not() always finds a match. */
 html:not(.dark) .island {
-  box-shadow: 0 1px 2px oklch(0.28 0.025 285 / 0.035);
+  box-shadow: 0 1px 2px oklch(0.28 0.025 90 / 0.035);
   background:
     linear-gradient(var(--island-fill, var(--background)) 0 0) padding-box,
     linear-gradient(
         135deg,
-        oklch(0.28 0.03 285 / 0.1) 0%,
-        oklch(0.28 0.03 285 / 0.04) 12%,
-        oklch(0.28 0.03 285 / 0.025) 30%,
-        oklch(0.28 0.03 285 / 0.018) 50%,
-        oklch(0.28 0.03 285 / 0.025) 70%,
-        oklch(0.28 0.03 285 / 0.04) 88%,
-        oklch(0.28 0.03 285 / 0.09) 100%
+        oklch(0.28 0.03 90 / 0.1) 0%,
+        oklch(0.28 0.03 90 / 0.04) 12%,
+        oklch(0.28 0.03 90 / 0.025) 30%,
+        oklch(0.28 0.03 90 / 0.018) 50%,
+        oklch(0.28 0.03 90 / 0.025) 70%,
+        oklch(0.28 0.03 90 / 0.04) 88%,
+        oklch(0.28 0.03 90 / 0.09) 100%
       )
       border-box;
 }
@@ -317,9 +317,9 @@ html:not(.dark) .island {
     linear-gradient(var(--island-fill) 0 0) padding-box,
     linear-gradient(
         135deg,
-        oklch(0.82 0.03 285 / 0.06),
-        oklch(0.82 0.03 285 / 0.02) 50%,
-        oklch(0.82 0.03 285 / 0.06)
+        oklch(0.82 0.03 90 / 0.06),
+        oklch(0.82 0.03 90 / 0.02) 50%,
+        oklch(0.82 0.03 90 / 0.06)
       )
       border-box;
 }
@@ -330,9 +330,9 @@ html:not(.dark) .glass-outline {
     linear-gradient(var(--island-fill) 0 0) padding-box,
     linear-gradient(
         135deg,
-        oklch(0.28 0.03 285 / 0.07),
-        oklch(0.28 0.03 285 / 0.03) 50%,
-        oklch(0.28 0.03 285 / 0.07)
+        oklch(0.28 0.03 90 / 0.07),
+        oklch(0.28 0.03 90 / 0.03) 50%,
+        oklch(0.28 0.03 90 / 0.07)
       )
       border-box;
 }

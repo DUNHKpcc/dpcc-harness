@@ -4,11 +4,12 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@xterm/xterm/css/xterm.css";
-/* Body sans (Hanken Grotesk — open substitute for Anthropic's Styrene) + display
-   serif (Instrument Serif). Bundled offline via @fontsource. Anthropic's own
-   faces are closed-source and Latin-only, so Chinese falls through to the native
-   system CJK font (PingFang SC on macOS, Microsoft YaHei on Windows). */
+/* Body sans: Hanken Grotesk for Latin (open substitute for Anthropic's Styrene)
+   + Noto Sans SC for Chinese, so CJK gets a designed, cross-platform face that
+   pairs with the Latin grotesk instead of an inconsistent system fallback.
+   Display serif: Instrument Serif. All bundled offline via @fontsource. */
 @import "@fontsource-variable/hanken-grotesk/wght.css";
+@import "@fontsource-variable/noto-sans-sc/wght.css";
 @import "@fontsource/instrument-serif/400.css";
 @import "@fontsource/instrument-serif/400-italic.css";
 @plugin "@tailwindcss/typography";
@@ -16,8 +17,8 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: "Hanken Grotesk Variable", -apple-system, "PingFang SC",
-    "Microsoft YaHei", system-ui, sans-serif;
+  --font-sans: "Hanken Grotesk Variable", "Noto Sans SC Variable",
+    -apple-system, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   --font-serif: "Instrument Serif", Georgia, "Songti SC", STSong, serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);

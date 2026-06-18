@@ -296,13 +296,13 @@ export const ChatView = memo(function ChatView(props: ChatViewProps) {
         >
           <div className="flex flex-col items-center gap-3">
             <h2
-              className="text-3xl italic text-foreground/20"
+              className="text-3xl italic text-foreground/30"
               style={{ fontFamily: "'Instrument Serif', Georgia, serif" }}
             >
               {t("empty.title")}
             </h2>
             <p
-              className="text-sm italic text-muted-foreground/30"
+              className="text-sm italic text-muted-foreground/40"
               style={{ fontFamily: "'Instrument Serif', Georgia, serif" }}
             >
               {t("empty.subtitle")}

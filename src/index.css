@@ -4,12 +4,13 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@xterm/xterm/css/xterm.css";
-/* Body sans: Hanken Grotesk for Latin (open substitute for Anthropic's Styrene)
-   + Noto Sans SC for Chinese, so CJK gets a designed, cross-platform face that
-   pairs with the Latin grotesk instead of an inconsistent system fallback.
-   Display serif: Instrument Serif. All bundled offline via @fontsource. */
-@import "@fontsource-variable/hanken-grotesk/wght.css";
-@import "@fontsource-variable/noto-sans-sc/wght.css";
+/* The UI is intentionally all-serif. Latin → Source Serif 4 (a readable,
+   Tiempos-like text serif that holds up at small UI sizes), Chinese → Noto
+   Serif SC (思源宋体, the bundled equivalent of the Songti look). Big display
+   titles keep Instrument Serif. All bundled offline via @fontsource. */
+@import "@fontsource-variable/source-serif-4/wght.css";
+@import "@fontsource-variable/source-serif-4/wght-italic.css";
+@import "@fontsource-variable/noto-serif-sc/wght.css";
 @import "@fontsource/instrument-serif/400.css";
 @import "@fontsource/instrument-serif/400-italic.css";
 @plugin "@tailwindcss/typography";
@@ -17,9 +18,12 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: "Hanken Grotesk Variable", "Noto Sans SC Variable",
-    -apple-system, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
-  --font-serif: "Instrument Serif", Georgia, "Songti SC", STSong, serif;
+  /* All-serif UI: --font-sans intentionally resolves to a serif stack (Latin
+     Source Serif 4 → Chinese Noto Serif SC → system serif). Code keeps mono. */
+  --font-sans: "Source Serif 4 Variable", "Noto Serif SC Variable", Georgia,
+    "Songti SC", STSong, serif;
+  --font-serif: "Instrument Serif", "Noto Serif SC Variable", Georgia,
+    "Songti SC", STSong, serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);

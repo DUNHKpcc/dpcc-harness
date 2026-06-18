@@ -28,7 +28,7 @@ function StatCell({ value, label }: { value: string; label: string }) {
 export const UsageStatsCard = memo(function UsageStatsCard() {
   const { t, i18n } = useTranslation("settings");
   const lang = i18n.language;
-  const { stats, loading, error, refresh } = useUsageStats(true);
+  const { stats, loading, hasLoaded, error, load, refresh } = useUsageStats(false);
   const [mode, setMode] = useState<HeatmapMode>("daily");
 
   const grid = useMemo(
@@ -49,7 +49,7 @@ export const UsageStatsCard = memo(function UsageStatsCard() {
           {t("account.usage.title")}
         </p>
         <button
-          onClick={() => void refresh()}
+          onClick={() => void (hasLoaded ? refresh() : load())}
           disabled={loading}
           className="rounded p-1 text-muted-foreground/70 hover:text-foreground"
           title={t("account.refresh")}
@@ -58,11 +58,21 @@ export const UsageStatsCard = memo(function UsageStatsCard() {
         </button>
       </div>
 
-      {!stats && loading && (
+      {!hasLoaded && (
+        <button
+          onClick={() => void load()}
+          disabled={loading}
+          className="w-full rounded-md border border-dashed border-foreground/10 px-3 py-3 text-xs text-muted-foreground transition-colors hover:border-foreground/20 hover:text-foreground disabled:opacity-60"
+        >
+          {t("account.usage.load")}
+        </button>
+      )}
+
+      {hasLoaded && !stats && loading && (
         <div className="h-24 animate-pulse rounded-xl bg-foreground/[0.04]" />
       )}
 
-      {!stats && !loading && (
+      {hasLoaded && !stats && !loading && (
         <p className="rounded-md border border-dashed border-foreground/10 px-3 py-3 text-xs text-muted-foreground">
           {error === "not_configured"
             ? t("account.usage.notConfigured")

@@ -9,7 +9,12 @@ import {
 } from "@/components/ui/tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { useAccount, type UseAccountResult, type SaveAccountInput } from "@/hooks/useAccount";
+import {
+  shouldLoadAccountDetails,
+  useAccount,
+  type UseAccountResult,
+  type SaveAccountInput,
+} from "@/hooks/useAccount";
 import { DEFAULT_NEWAPI_BASE_URL } from "@shared/types/account";
 
 const ONBOARD_FLAG = "pcc-agent-account-onboarded";
@@ -388,7 +393,7 @@ export const AccountPopover = memo(function AccountPopover({
     let cancelled = false;
     void window.claude.account.getConfig().then((cfg) => {
       if (cancelled) return;
-      if (cfg.source === "none" || !cfg.hasToken) setOpen(true);
+      if (!shouldLoadAccountDetails(cfg)) setOpen(true);
       localStorage.setItem(ONBOARD_FLAG, "1");
     });
     return () => {
@@ -402,7 +407,7 @@ export const AccountPopover = memo(function AccountPopover({
   }, [onOpenSettings]);
 
   const cfg = account.config;
-  const needsSetup = !cfg || cfg.source === "none" || !cfg.hasToken;
+  const needsSetup = !cfg || !shouldLoadAccountDetails(cfg);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

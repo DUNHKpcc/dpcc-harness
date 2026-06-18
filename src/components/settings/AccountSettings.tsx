@@ -4,7 +4,6 @@ import { CircleUser, RefreshCw, ChevronRight } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { SettingsHeader } from "@/components/settings/shared";
 import { UsageStatsCard } from "@/components/settings/UsageStatsCard";
 import { useAccount } from "@/hooks/useAccount";
 import { DEFAULT_NEWAPI_BASE_URL } from "@shared/types/account";
@@ -181,8 +180,6 @@ export const AccountSettings = memo(function AccountSettings({
 
   return (
     <div className="flex h-full flex-col">
-      <SettingsHeader title={t("account.title")} description={t("account.description")} />
-
       <ScrollArea className="min-h-0 flex-1">
         <div className="space-y-4 px-6 py-5">
           {/* ── Compact status card ── */}

@@ -257,6 +257,7 @@
       "daily": "Daily",
       "weekly": "Weekly",
       "cumulative": "Cumulative",
+      "load": "Load usage stats",
       "noData": "No usage data yet.",
       "notConfigured": "Add an access token + user ID in Edit credentials to see your usage.",
       "error": "Couldn't load usage stats.",

@@ -257,6 +257,7 @@
       "daily": "每日",
       "weekly": "每周",
       "cumulative": "累计",
+      "load": "加载用量统计",
       "noData": "暂无用量数据。",
       "notConfigured": "在「编辑凭证」中填写访问令牌和用户 ID 后即可查看用量。",
       "error": "无法加载用量统计。",

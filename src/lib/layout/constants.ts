@@ -59,6 +59,7 @@ export function getBootstrapMinWindowWidth(platform: string): number {
     APP_SIDEBAR_WIDTH +
     ISLAND_LAYOUT_MARGIN +
     MIN_CHAT_WIDTH_ISLAND +
+    TOOL_PICKER_WIDTH_ISLAND +
     MIN_RIGHT_PANEL_WIDTH +
     RESIZE_HANDLE_WIDTH_ISLAND +
     MIN_TOOLS_PANEL_WIDTH +

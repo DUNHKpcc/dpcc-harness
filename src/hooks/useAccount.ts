@@ -3,6 +3,7 @@ import type { AppSettings } from "@shared/types/settings";
 import type {
   AccountConfig,
   AccountBalance,
+  AccountModelsResult,
   AccountStatus,
 } from "@shared/types/account";
 import { DEFAULT_NEWAPI_BASE_URL } from "@shared/types/account";
@@ -43,6 +44,14 @@ function normalizeHost(raw: string): string {
   return n || DEFAULT_NEWAPI_BASE_URL;
 }
 
+export function shouldLoadAccountDetails(config: AccountConfig): boolean {
+  return config.hasToken || config.hasAccessToken;
+}
+
+export function shouldLoadAccountModels(config: AccountConfig): boolean {
+  return config.hasToken;
+}
+
 /**
  * Reads the upstream (new-api) account: effective config, balance, and per-engine
  * model lists. Loads lazily — only fetches while `active` is true (e.g. when the
@@ -73,15 +82,18 @@ export function useAccount(active: boolean): UseAccountResult {
     try {
       const cfg = await window.claude.account.getConfig();
       setConfig(cfg);
-      if (cfg.source === "none" || !cfg.hasToken) {
+      if (!shouldLoadAccountDetails(cfg)) {
         setBalance(null);
         setClaudeModels([]);
         setCodexModels([]);
         return;
       }
+      const modelsPromise: Promise<AccountModelsResult> = shouldLoadAccountModels(cfg)
+        ? window.claude.account.getModels()
+        : Promise.resolve({ claude: [], codex: [] });
       const [bal, mdl] = await Promise.all([
         window.claude.account.getBalance(),
-        window.claude.account.getModels(),
+        modelsPromise,
       ]);
       if ("error" in bal) {
         setBalance(null);

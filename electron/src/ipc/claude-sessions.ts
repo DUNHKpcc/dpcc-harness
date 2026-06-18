@@ -12,7 +12,14 @@ import { getClaudeModelsCache, setClaudeModelsCache } from "../lib/claude-model-
 import { reportError } from "../lib/error-utils";
 import { buildSdkMcpConfig } from "@shared/lib/mcp-config";
 import type { McpServerInput } from "@shared/lib/mcp-config";
-import { getClaudeBinaryMetadata, getClaudeBinaryPath, getClaudeBinaryStatus, getClaudeVersion } from "../lib/claude-binary";
+import {
+  downloadClaudeUpdate,
+  getClaudeBinaryInfo,
+  getClaudeBinaryMetadata,
+  getClaudeBinaryPath,
+  getClaudeBinaryStatus,
+  getClaudeVersion,
+} from "../lib/claude-binary";
 import { getAppSetting } from "../lib/app-settings";
 import { captureEvent } from "../lib/posthog";
 import { loadLocalClaudeEnv, localClaudeGatewayTakesPriority, probeLocalClaudeGateway } from "../lib/local-cli-config";
@@ -1075,6 +1082,22 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
 
   ipcMain.handle("claude:binary-status", async () => {
     return getClaudeBinaryStatus();
+  });
+
+  ipcMain.handle("claude:binary-info", async () => {
+    try {
+      return await getClaudeBinaryInfo();
+    } catch (err) {
+      return { error: reportError("CLAUDE_BINARY_INFO_ERR", err, { engine: "claude" }) };
+    }
+  });
+
+  ipcMain.handle("claude:download-update", async () => {
+    try {
+      return await downloadClaudeUpdate();
+    } catch (err) {
+      return { error: reportError("CLAUDE_DOWNLOAD_UPDATE_ERR", err, { engine: "claude" }) };
+    }
   });
 
   ipcMain.handle("claude:mcp-reconnect", async (_event, { sessionId, serverName }: { sessionId: string; serverName: string }) => {

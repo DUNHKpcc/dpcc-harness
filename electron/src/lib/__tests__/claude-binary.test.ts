@@ -175,6 +175,26 @@ describe("claude binary resolution", () => {
     });
   });
 
+  it("exposes binary info for the settings UI", async () => {
+    allowExecutable("/Users/tester/.local/bin/claude");
+    mockExecFileSync.mockImplementation((command: string, args: string[]) => {
+      if (command === "/Users/tester/.local/bin/claude") {
+        expect(args).toEqual(["--version"]);
+        return "2.1.181\n";
+      }
+      throw new Error("unexpected");
+    });
+
+    const mod = await loadModule();
+
+    await expect(mod.getClaudeBinaryInfo()).resolves.toEqual({
+      path: "/Users/tester/.local/bin/claude",
+      origin: "known",
+      source: "auto",
+      version: "2.1.181",
+    });
+  });
+
   it("reads a provided binary path version directly", async () => {
     mockExecFileSync.mockImplementation((command: string, args: string[]) => {
       if (command === "/Users/tester/.local/bin/claude") {

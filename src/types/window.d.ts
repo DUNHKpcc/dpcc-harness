@@ -8,7 +8,7 @@ import type { GitRepoInfo, GitStatus, GitBranch, GitLogEntry } from "@shared/typ
 import type { InstalledAgent } from "@shared/types/registry";
 import type { EffectiveCliConfig } from "@shared/types/cc-config";
 import type { AppSettings, MacBackgroundEffect, ThemeOption } from "@shared/types/settings";
-import type { AccountConfig, AccountBalanceResult, AccountModelsResult, AccountStatus, UsageStatsResult } from "@shared/types/account";
+import type { AccountConfig, AccountBalanceResult, AccountModelsResult, AccountStatus, UsageStats, UsageStatsResult } from "@shared/types/account";
 import type {
   ACPSessionEvent,
   ACPPermissionEvent,
@@ -163,6 +163,14 @@ declare global {
       ) => Promise<IpcResult>;
       version: () => Promise<{ version?: string | null; error?: string }>;
       binaryStatus: () => Promise<{ installed: boolean; installing: boolean }>;
+      binaryInfo: () => Promise<{
+        path?: string | null;
+        origin?: "custom" | "env" | "known" | "path" | "sdk-fallback" | "none";
+        source?: "auto" | "managed" | "custom";
+        version?: string | null;
+        error?: string;
+      }>;
+      downloadUpdate: () => Promise<{ version?: string | null; error?: string }>;
       projects: {
         list: () => Promise<Project[]>;
         create: (spaceId?: string) => Promise<Project | null>;
@@ -402,6 +410,7 @@ declare global {
         getStatus: () => Promise<AccountStatus>;
         getBalance: () => Promise<AccountBalanceResult>;
         getModels: () => Promise<AccountModelsResult>;
+        getCachedUsageStats: () => Promise<UsageStats | null>;
         getUsageStats: (force?: boolean) => Promise<UsageStatsResult>;
       };
       jira: {

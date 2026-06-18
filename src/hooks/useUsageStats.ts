@@ -14,9 +14,9 @@ export interface UseUsageStatsResult {
 }
 
 /**
- * Loads Token-activity stats from the upstream account log. Lazy: only fetches
- * while `active` is true (e.g. the DPCC API settings panel is visible). Mirrors
- * the lazy-load pattern in useAccount.
+ * Loads Token-activity stats from the upstream account log. When `active` is
+ * true, it only hydrates an existing disk cache; fresh network loads stay
+ * user-triggered because the log endpoint can require many paginated requests.
  */
 export function useUsageStats(active: boolean): UseUsageStatsResult {
   const [stats, setStats] = useState<UsageStats | null>(null);
@@ -43,9 +43,22 @@ export function useUsageStats(active: boolean): UseUsageStatsResult {
     }
   }, []);
 
+  const hydrateCache = useCallback(async () => {
+    try {
+      const cached = await window.claude.account.getCachedUsageStats();
+      if (cached) {
+        setStats(cached);
+        setHasLoaded(true);
+        setError(null);
+      }
+    } catch {
+      /* Cache hydration is best-effort; the manual load path reports errors. */
+    }
+  }, []);
+
   useEffect(() => {
-    if (active) void load(false);
-  }, [active, load]);
+    if (active) void hydrateCache();
+  }, [active, hydrateCache]);
 
   const loadCached = useCallback(() => load(false), [load]);
   const refresh = useCallback(() => load(true), [load]);

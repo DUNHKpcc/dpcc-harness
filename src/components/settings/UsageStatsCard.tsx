@@ -18,9 +18,9 @@ const MODES: HeatmapMode[] = ["daily", "weekly", "cumulative"];
 
 function StatCell({ value, label }: { value: string; label: string }) {
   return (
-    <div className="flex flex-col items-center justify-center px-2 text-center">
-      <span className="text-lg font-semibold tabular-nums text-foreground">{value}</span>
-      <span className="mt-0.5 text-[11px] leading-tight text-muted-foreground">{label}</span>
+    <div className="flex min-w-0 flex-col items-center justify-center px-2 text-center" title={`${label}: ${value}`}>
+      <span className="block max-w-full truncate text-lg font-semibold tabular-nums text-foreground">{value}</span>
+      <span className="mt-0.5 block max-w-full truncate text-[11px] leading-tight text-muted-foreground">{label}</span>
     </div>
   );
 }
@@ -28,7 +28,7 @@ function StatCell({ value, label }: { value: string; label: string }) {
 export const UsageStatsCard = memo(function UsageStatsCard() {
   const { t, i18n } = useTranslation("settings");
   const lang = i18n.language;
-  const { stats, loading, hasLoaded, error, load, refresh } = useUsageStats(false);
+  const { stats, loading, hasLoaded, error, load, refresh } = useUsageStats(true);
   const [mode, setMode] = useState<HeatmapMode>("daily");
 
   const grid = useMemo(
@@ -85,7 +85,7 @@ export const UsageStatsCard = memo(function UsageStatsCard() {
       {stats && (
         <>
           {/* ── Stat row ── */}
-          <div className="grid grid-cols-5 divide-x divide-foreground/[0.06] rounded-xl border border-foreground/[0.08] py-3">
+          <div className="grid min-w-0 grid-cols-5 divide-x divide-foreground/[0.06] rounded-xl border border-foreground/[0.08] py-3">
             <StatCell value={formatCompactNumber(stats.totalTokens, lang)} label={t("account.usage.totalTokens")} />
             <StatCell value={formatCompactNumber(stats.peakDayTokens, lang)} label={t("account.usage.peakDayTokens")} />
             <StatCell value={formatDuration(stats.longestTaskSec, lang)} label={t("account.usage.longestTask")} />

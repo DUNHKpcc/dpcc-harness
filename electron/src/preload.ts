@@ -132,6 +132,8 @@ contextBridge.exposeInMainWorld("claude", {
     ipcRenderer.invoke("claude:set-thinking", { sessionId, thinkingEnabled }),
   version: () => ipcRenderer.invoke("claude:version"),
   binaryStatus: () => ipcRenderer.invoke("claude:binary-status"),
+  binaryInfo: () => ipcRenderer.invoke("claude:binary-info"),
+  downloadUpdate: () => ipcRenderer.invoke("claude:download-update"),
   supportedModels: (sessionId: string) => ipcRenderer.invoke("claude:supported-models", sessionId),
   slashCommands: (sessionId: string) => ipcRenderer.invoke("claude:slash-commands", sessionId),
   modelsCacheGet: () => ipcRenderer.invoke("claude:models-cache:get"),
@@ -369,6 +371,7 @@ contextBridge.exposeInMainWorld("claude", {
     getStatus: () => ipcRenderer.invoke("account:status"),
     getBalance: () => ipcRenderer.invoke("account:balance"),
     getModels: () => ipcRenderer.invoke("account:models"),
+    getCachedUsageStats: () => ipcRenderer.invoke("account:usageStatsCached"),
     getUsageStats: (force?: boolean) => ipcRenderer.invoke("account:usageStats", force),
   },
   jira: {

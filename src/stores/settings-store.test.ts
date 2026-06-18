@@ -38,6 +38,12 @@ describe("settings store", () => {
     vi.unstubAllGlobals();
   });
 
+  it("defaults new installs to flat layout", async () => {
+    const { useSettingsStore } = await import("./settings-store");
+
+    expect(useSettingsStore.getState().islandLayout).toBe(false);
+  });
+
   it("treats repeated active tool writes with the same contents as a no-op", async () => {
     const { useSettingsStore } = await import("./settings-store");
 

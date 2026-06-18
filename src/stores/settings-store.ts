@@ -304,7 +304,7 @@ function readLegacyGlobalSettings(): GlobalSettingsState {
   return {
     theme,
     language,
-    islandLayout: readLegacyBool("pcc-agent-island-layout", true),
+    islandLayout: readLegacyBool("pcc-agent-island-layout", false),
     islandShine: readLegacyBool("pcc-agent-island-shine", true),
     macNativeBackgroundEffect: "liquid-glass",
     transparency: readLegacyBool("pcc-agent-transparency", true),
@@ -418,7 +418,7 @@ export const useSettingsStore = create<SettingsStore>()(
       // ── Global state defaults ──
       theme: "dark",
       language: "system",
-      islandLayout: true,
+      islandLayout: false,
       islandShine: true,
       macNativeBackgroundEffect: "liquid-glass",
       transparency: true,

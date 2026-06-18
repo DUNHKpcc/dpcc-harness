@@ -271,7 +271,7 @@ export function useSettings(projectId: string | null, engine: EngineId = "claude
   }, []);
 
   const [islandLayout, setIslandLayoutRaw] = useState(() =>
-    readBool("pcc-agent-island-layout", true),
+    readBool("pcc-agent-island-layout", false),
   );
   const setIslandLayout = useCallback((enabled: boolean) => {
     setIslandLayoutRaw(enabled);

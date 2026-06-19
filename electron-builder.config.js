@@ -158,6 +158,7 @@ module.exports = {
   // --- macOS ---
   mac: {
     target: ["dmg", "zip"],
+    artifactName: "${productName}-${version}-mac-${arch}.${ext}",
     category: "public.app-category.developer-tools",
     // Use the regenerated .icns (824/1024 content grid, ~10% margin) instead of
     // the full-bleed .icon, which rendered oversized in the Dock. Revert to
@@ -174,6 +175,7 @@ module.exports = {
   },
 
   dmg: {
+    artifactName: "${productName}-${version}-mac-${arch}.${ext}",
     icon: "build/icon.icns",
     contents: [
       { x: 130, y: 220 },
@@ -202,8 +204,8 @@ module.exports = {
     allowToChangeInstallationDirectory: true,
     perMachine: false,
     deleteAppDataOnUninstall: false,
-    // Include arch in filename so x64 and arm64 installers don't collide
-    artifactName: "${productName}-Setup-${version}-${arch}.${ext}",
+    // Include platform + arch so users do not mistake x64 builds for universal builds.
+    artifactName: "${productName}-${version}-windows-${arch}-setup.${ext}",
   },
 
   // --- Linux ---

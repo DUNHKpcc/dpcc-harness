@@ -1,9 +1,9 @@
 ---
 name: release
-description: "Run the Harnss release workflow — review staged diff, bump version, commit, tag, push, and create a GitHub release. Use when releasing, bumping version, tagging, or creating a release. Argument: major, minor, or patch."
+description: "Run the PccAgent release workflow — review staged diff, bump version, commit, tag, push, and create a GitHub release. Use when releasing, bumping version, tagging, or creating a release. Argument: major, minor, or patch."
 ---
 
-# Harnss Release Workflow
+# PccAgent Release Workflow
 
 Run the full release pipeline. Bump type is passed as `$ARGUMENTS` (major, minor, or patch).
 
@@ -156,7 +156,7 @@ Output the release URL when done so the user can verify.
 
 - **Never skip reading the full diff** in Step 1. Every line matters.
 - The `Co-Authored-By` trailer is **mandatory** on every commit.
-- Repo: `https://github.com/OpenSource03/harnss`
+- Repo: `https://github.com/DUNHKpcc/dpcc-harness`
 - Main branch: `master`
-- Changelog URL format: `https://github.com/OpenSource03/harnss/compare/v{prev}...v{current}`
+- Changelog URL format: `https://github.com/DUNHKpcc/dpcc-harness/compare/v{prev}...v{current}`
 - Package manager: `pnpm` (never use npm or yarn for installs)

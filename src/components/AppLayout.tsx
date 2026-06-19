@@ -469,8 +469,11 @@ export function AppLayout() {
 
   const requestAddSplitSession = useCallback((sessionId: string, position?: number) => {
     const result = splitView.requestAddSplitSession({
+      // Read the live active session id (managerRef) so async callers — e.g. the
+      // Codex delegation flow that switches the active session mid-flight — split
+      // against the current pane, not a stale render-time snapshot.
       sessionId,
-      activeSessionId: manager.activeSessionId,
+      activeSessionId: managerRef.current.activeSessionId,
       maxPaneCount: maxSplitPaneCount,
       position,
     });
@@ -480,7 +483,7 @@ export function AppLayout() {
     }
 
     return result.ok;
-  }, [manager.activeSessionId, maxSplitPaneCount, splitView]);
+  }, [maxSplitPaneCount, splitView]);
 
   // Fresh-closure handler kept in a ref so the IPC subscription stays stable
   // and so it can reference requestAddSplitSession (declared above).
@@ -505,9 +508,6 @@ export function AppLayout() {
     const permissionMode = settings.permissionMode;
     void (async () => {
       try {
-        // Keep the originating Claude pane visible alongside the new Codex pane.
-        if (claudeSessionId) requestAddSplitSession(claudeSessionId);
-
         liveCodexStateRef.current = { sessionId: null, messages: [] };
         await managerRef.current.createSession(projectId, {
           engine: "codex",
@@ -538,7 +538,11 @@ export function AppLayout() {
           bridgeRequestId: request.id,
           settled: false,
         });
-        requestAddSplitSession(codexSessionId);
+        // Codex is now the active pane; add the originating Claude session to its
+        // left so the user sees Claude (left) + the delegated Codex run (right).
+        if (claudeSessionId && claudeSessionId !== codexSessionId) {
+          requestAddSplitSession(claudeSessionId, 0);
+        }
       } catch (err) {
         fail(err instanceof Error ? err.message : String(err));
       }

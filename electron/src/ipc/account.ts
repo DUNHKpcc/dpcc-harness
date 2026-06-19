@@ -419,6 +419,12 @@ export function register(): void {
     return { claude, codex };
   });
 
+  ipcMain.handle("account:usageStatsCached", async (): Promise<UsageStats | null> => {
+    const { host, accessToken, userId } = resolveUpstream();
+    if (!host || !accessToken || !userId) return null;
+    return readUsageCache();
+  });
+
   ipcMain.handle("account:usageStats", async (_e, force?: boolean): Promise<UsageStatsResult> => {
     const { host, accessToken, userId } = resolveUpstream();
     if (!host || !accessToken || !userId) return { error: "not_configured" };

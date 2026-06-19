@@ -1,9 +1,10 @@
 import { memo, useState, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Server, RefreshCw, Loader2 } from "lucide-react";
+import { Server, RefreshCw, Loader2, ChevronRight } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { SettingRow, SettingsSelect, SettingsHeader, SettingsSection } from "@/components/settings/shared";
 import type { AppSettings, ClaudeGatewaySettings, CodexGatewaySettings } from "@/types";
 
@@ -51,6 +52,7 @@ const GatewayTextField = memo(function GatewayTextField({
 
 
 type CodexOrigin = "env" | "managed" | "known" | "path" | "bundled" | "custom" | "none";
+type ClaudeOrigin = "custom" | "env" | "known" | "path" | "sdk-fallback" | "none";
 
 // ── Component ──
 
@@ -61,6 +63,10 @@ export const EngineSettings = memo(function EngineSettings({
   const { t } = useTranslation("settings");
   const [claudeBinarySource, setClaudeBinarySource] = useState<"auto" | "managed" | "custom">("auto");
   const [claudeCustomBinaryPath, setClaudeCustomBinaryPath] = useState("");
+  const [claudeVersion, setClaudeVersion] = useState<string | null>(null);
+  const [claudeOrigin, setClaudeOrigin] = useState<ClaudeOrigin>("none");
+  const [claudeUpdating, setClaudeUpdating] = useState(false);
+  const [claudeUpdateMsg, setClaudeUpdateMsg] = useState<string | null>(null);
   const [codexBinarySource, setCodexBinarySource] = useState<"auto" | "managed" | "custom">("auto");
   const [codexCustomBinaryPath, setCodexCustomBinaryPath] = useState("");
   const [codexVersion, setCodexVersion] = useState<string | null>(null);
@@ -69,6 +75,8 @@ export const EngineSettings = memo(function EngineSettings({
   const [codexUpdateMsg, setCodexUpdateMsg] = useState<string | null>(null);
   const [claudeGateway, setClaudeGateway] = useState<ClaudeGatewaySettings>(CLAUDE_GATEWAY_DEFAULT);
   const [codexGateway, setCodexGateway] = useState<CodexGatewaySettings>(CODEX_GATEWAY_DEFAULT);
+  const [claudeGatewayOpen, setClaudeGatewayOpen] = useState(false);
+  const [codexGatewayOpen, setCodexGatewayOpen] = useState(false);
 
   useEffect(() => {
     if (appSettings) {
@@ -81,6 +89,13 @@ export const EngineSettings = memo(function EngineSettings({
     }
   }, [appSettings]);
 
+  const refreshClaudeInfo = useCallback(async () => {
+    const info = await window.claude.binaryInfo();
+    if (info.error) return;
+    setClaudeVersion(info.version ?? null);
+    setClaudeOrigin((info.origin as ClaudeOrigin) ?? "none");
+  }, []);
+
   const refreshCodexInfo = useCallback(async () => {
     const info = await window.claude.codex.binaryInfo();
     if (info.error) return;
@@ -89,8 +104,30 @@ export const EngineSettings = memo(function EngineSettings({
   }, []);
 
   useEffect(() => {
+    void refreshClaudeInfo();
+  }, [refreshClaudeInfo, claudeBinarySource, claudeCustomBinaryPath]);
+
+  useEffect(() => {
     void refreshCodexInfo();
   }, [refreshCodexInfo, codexBinarySource, codexCustomBinaryPath]);
+
+  const handleClaudeCheckUpdate = useCallback(async () => {
+    setClaudeUpdating(true);
+    setClaudeUpdateMsg(null);
+    try {
+      const result = await window.claude.downloadUpdate();
+      if (result.error) {
+        setClaudeUpdateMsg(t("engines.claude.updateFailed", { error: result.error }));
+      } else {
+        setClaudeUpdateMsg(t("engines.claude.updated", { version: result.version ?? "" }));
+        await refreshClaudeInfo();
+      }
+    } catch (err) {
+      setClaudeUpdateMsg(t("engines.claude.updateFailed", { error: err instanceof Error ? err.message : String(err) }));
+    } finally {
+      setClaudeUpdating(false);
+    }
+  }, [refreshClaudeInfo, t]);
 
   const handleCodexCheckUpdate = useCallback(async () => {
     setCodexUpdating(true);
@@ -155,6 +192,15 @@ export const EngineSettings = memo(function EngineSettings({
     [onUpdateAppSettings],
   );
 
+  const handleClaudeGatewayEnabledChange = useCallback(
+    (checked: boolean) => {
+      if (checked && !claudeGateway.enabled) setClaudeGatewayOpen(true);
+      if (!checked) setClaudeGatewayOpen(false);
+      void handleClaudeGatewayChange({ enabled: checked });
+    },
+    [claudeGateway.enabled, handleClaudeGatewayChange],
+  );
+
   const handleCodexGatewayChange = useCallback(
     async (patch: Partial<CodexGatewaySettings>) => {
       setCodexGateway((prev) => {
@@ -164,6 +210,15 @@ export const EngineSettings = memo(function EngineSettings({
       });
     },
     [onUpdateAppSettings],
+  );
+
+  const handleCodexGatewayEnabledChange = useCallback(
+    (checked: boolean) => {
+      if (checked && !codexGateway.enabled) setCodexGatewayOpen(true);
+      if (!checked) setCodexGatewayOpen(false);
+      void handleCodexGatewayChange({ enabled: checked });
+    },
+    [codexGateway.enabled, handleCodexGatewayChange],
   );
 
   return (
@@ -192,6 +247,34 @@ export const EngineSettings = memo(function EngineSettings({
               />
             </SettingRow>
 
+            {claudeBinarySource !== "custom" && (
+              <SettingRow
+                label={t("engines.claude.versionLabel")}
+                description={
+                  claudeUpdateMsg ??
+                  t("engines.claude.versionDesc", {
+                    version: claudeVersion ?? t("engines.claude.origin.none"),
+                    origin: t(`engines.claude.origin.${claudeOrigin}`),
+                  })
+                }
+              >
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleClaudeCheckUpdate}
+                  disabled={claudeUpdating}
+                  className="gap-1.5"
+                >
+                  {claudeUpdating ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-3.5 w-3.5" />
+                  )}
+                  {claudeUpdating ? t("action.downloading", { ns: "common" }) : t("action.checkForUpdates", { ns: "common" })}
+                </Button>
+              </SettingRow>
+            )}
+
             {claudeBinarySource === "custom" && (
               <SettingRow
                 label={t("engines.claude.customLabel")}
@@ -218,35 +301,43 @@ export const EngineSettings = memo(function EngineSettings({
             >
               <Switch
                 checked={claudeGateway.enabled}
-                onCheckedChange={(checked) => handleClaudeGatewayChange({ enabled: checked })}
+                onCheckedChange={handleClaudeGatewayEnabledChange}
               />
             </SettingRow>
 
             {claudeGateway.enabled && (
-              <>
-                <SettingRow label={t("engines.claude.gateway.baseUrlLabel")} description={t("engines.claude.gateway.baseUrlDesc")}>
-                  <GatewayTextField
-                    value={claudeGateway.baseUrl}
-                    onSave={(v) => handleClaudeGatewayChange({ baseUrl: v.trim() })}
-                    placeholder={t("engines.claude.gateway.baseUrlPlaceholder")}
-                  />
-                </SettingRow>
-                <SettingRow label={t("engines.claude.gateway.tokenLabel")} description={t("engines.claude.gateway.tokenDesc")}>
-                  <GatewayTextField
-                    value={claudeGateway.authToken}
-                    onSave={(v) => handleClaudeGatewayChange({ authToken: v.trim() })}
-                    placeholder={t("engines.claude.gateway.tokenPlaceholder")}
-                    type="password"
-                  />
-                </SettingRow>
-                <SettingRow label={t("engines.claude.gateway.modelLabel")} description={t("engines.claude.gateway.modelDesc")}>
-                  <GatewayTextField
-                    value={claudeGateway.model}
-                    onSave={(v) => handleClaudeGatewayChange({ model: v.trim() })}
-                    placeholder={t("engines.claude.gateway.modelPlaceholder")}
-                  />
-                </SettingRow>
-              </>
+              <Collapsible open={claudeGatewayOpen} onOpenChange={setClaudeGatewayOpen}>
+                <CollapsibleTrigger className="flex w-full items-center gap-1.5 px-1 py-1.5 text-sm font-medium text-foreground/80 transition-colors hover:text-foreground">
+                  <ChevronRight className={`h-4 w-4 transition-transform ${claudeGatewayOpen ? "rotate-90" : ""}`} />
+                  {t("engines.claude.gateway.editLabel")}
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="px-1 pt-1">
+                    <SettingRow label={t("engines.claude.gateway.baseUrlLabel")} description={t("engines.claude.gateway.baseUrlDesc")}>
+                      <GatewayTextField
+                        value={claudeGateway.baseUrl}
+                        onSave={(v) => handleClaudeGatewayChange({ baseUrl: v.trim() })}
+                        placeholder={t("engines.claude.gateway.baseUrlPlaceholder")}
+                      />
+                    </SettingRow>
+                    <SettingRow label={t("engines.claude.gateway.tokenLabel")} description={t("engines.claude.gateway.tokenDesc")}>
+                      <GatewayTextField
+                        value={claudeGateway.authToken}
+                        onSave={(v) => handleClaudeGatewayChange({ authToken: v.trim() })}
+                        placeholder={t("engines.claude.gateway.tokenPlaceholder")}
+                        type="password"
+                      />
+                    </SettingRow>
+                    <SettingRow label={t("engines.claude.gateway.modelLabel")} description={t("engines.claude.gateway.modelDesc")}>
+                      <GatewayTextField
+                        value={claudeGateway.model}
+                        onSave={(v) => handleClaudeGatewayChange({ model: v.trim() })}
+                        placeholder={t("engines.claude.gateway.modelPlaceholder")}
+                      />
+                    </SettingRow>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
             )}
           </SettingsSection>
 
@@ -321,42 +412,50 @@ export const EngineSettings = memo(function EngineSettings({
             >
               <Switch
                 checked={codexGateway.enabled}
-                onCheckedChange={(checked) => handleCodexGatewayChange({ enabled: checked })}
+                onCheckedChange={handleCodexGatewayEnabledChange}
               />
             </SettingRow>
 
             {codexGateway.enabled && (
-              <>
-                <SettingRow label={t("engines.codex.gateway.nameLabel")} description={t("engines.codex.gateway.nameDesc")}>
-                  <GatewayTextField
-                    value={codexGateway.name}
-                    onSave={(v) => handleCodexGatewayChange({ name: v.trim() })}
-                    placeholder={t("engines.codex.gateway.namePlaceholder")}
-                  />
-                </SettingRow>
-                <SettingRow label={t("engines.codex.gateway.baseUrlLabel")} description={t("engines.codex.gateway.baseUrlDesc")}>
-                  <GatewayTextField
-                    value={codexGateway.baseUrl}
-                    onSave={(v) => handleCodexGatewayChange({ baseUrl: v.trim() })}
-                    placeholder={t("engines.codex.gateway.baseUrlPlaceholder")}
-                  />
-                </SettingRow>
-                <SettingRow label={t("engines.codex.gateway.apiKeyLabel")} description={t("engines.codex.gateway.apiKeyDesc")}>
-                  <GatewayTextField
-                    value={codexGateway.apiKey}
-                    onSave={(v) => handleCodexGatewayChange({ apiKey: v.trim() })}
-                    placeholder={t("engines.codex.gateway.apiKeyPlaceholder")}
-                    type="password"
-                  />
-                </SettingRow>
-                <SettingRow label={t("engines.codex.gateway.modelLabel")} description={t("engines.codex.gateway.modelDesc")}>
-                  <GatewayTextField
-                    value={codexGateway.model}
-                    onSave={(v) => handleCodexGatewayChange({ model: v.trim() })}
-                    placeholder={t("engines.codex.gateway.modelPlaceholder")}
-                  />
-                </SettingRow>
-              </>
+              <Collapsible open={codexGatewayOpen} onOpenChange={setCodexGatewayOpen}>
+                <CollapsibleTrigger className="flex w-full items-center gap-1.5 px-1 py-1.5 text-sm font-medium text-foreground/80 transition-colors hover:text-foreground">
+                  <ChevronRight className={`h-4 w-4 transition-transform ${codexGatewayOpen ? "rotate-90" : ""}`} />
+                  {t("engines.codex.gateway.editLabel")}
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <div className="px-1 pt-1">
+                    <SettingRow label={t("engines.codex.gateway.nameLabel")} description={t("engines.codex.gateway.nameDesc")}>
+                      <GatewayTextField
+                        value={codexGateway.name}
+                        onSave={(v) => handleCodexGatewayChange({ name: v.trim() })}
+                        placeholder={t("engines.codex.gateway.namePlaceholder")}
+                      />
+                    </SettingRow>
+                    <SettingRow label={t("engines.codex.gateway.baseUrlLabel")} description={t("engines.codex.gateway.baseUrlDesc")}>
+                      <GatewayTextField
+                        value={codexGateway.baseUrl}
+                        onSave={(v) => handleCodexGatewayChange({ baseUrl: v.trim() })}
+                        placeholder={t("engines.codex.gateway.baseUrlPlaceholder")}
+                      />
+                    </SettingRow>
+                    <SettingRow label={t("engines.codex.gateway.apiKeyLabel")} description={t("engines.codex.gateway.apiKeyDesc")}>
+                      <GatewayTextField
+                        value={codexGateway.apiKey}
+                        onSave={(v) => handleCodexGatewayChange({ apiKey: v.trim() })}
+                        placeholder={t("engines.codex.gateway.apiKeyPlaceholder")}
+                        type="password"
+                      />
+                    </SettingRow>
+                    <SettingRow label={t("engines.codex.gateway.modelLabel")} description={t("engines.codex.gateway.modelDesc")}>
+                      <GatewayTextField
+                        value={codexGateway.model}
+                        onSave={(v) => handleCodexGatewayChange({ model: v.trim() })}
+                        placeholder={t("engines.codex.gateway.modelPlaceholder")}
+                      />
+                    </SettingRow>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
             )}
           </SettingsSection>
         </div>

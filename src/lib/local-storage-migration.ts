@@ -10,6 +10,19 @@ const NEW_PREFIX = "pcc-agent-";
 const MIGRATION_FLAG = "pcc-agent-localstorage-migrated";
 
 export function migrateLocalStorage(): void {
+  // One-off (independent of the prefix-migration flag below): an early
+  // Claude↔Codex bridge build wrote this one key under the legacy "harnss-"
+  // prefix instead of "pcc-agent-". Carry its value over, then drop the old key.
+  const legacyBridgeKey = "harnss-claude-codex-bridge";
+  const newBridgeKey = "pcc-agent-claude-codex-bridge";
+  const legacyBridgeVal = localStorage.getItem(legacyBridgeKey);
+  if (legacyBridgeVal !== null) {
+    if (localStorage.getItem(newBridgeKey) === null) {
+      localStorage.setItem(newBridgeKey, legacyBridgeVal);
+    }
+    localStorage.removeItem(legacyBridgeKey);
+  }
+
   // Already migrated — skip
   if (localStorage.getItem(MIGRATION_FLAG)) return;
 

@@ -44,7 +44,9 @@
       "codexKeyLabel": "Codex key (sk-, optional)"
     },
     "claudeModels": "Claude models",
-    "codexModels": "Codex models"
+    "codexModels": "Codex models",
+    "recharge": "Recharge",
+    "website": "Official site"
   },
   "customizer": {
     "namePlaceholder": "Space name",

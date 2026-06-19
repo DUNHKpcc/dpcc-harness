@@ -21,6 +21,8 @@ function createState(): InternalState {
     codexPlanText: "",
     codexPlanTurnCounter: 0,
     activeTask: null,
+    turnSawCompaction: false,
+    turnSawOutput: false,
   };
 }
 

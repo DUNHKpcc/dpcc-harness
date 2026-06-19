@@ -3,6 +3,7 @@ import type { McpServerConfig, Project } from "../../types";
 import { toMcpStatusState } from "../../lib/mcp-utils";
 import { suppressNextSessionCompletion } from "../../lib/notification-utils";
 import { createSystemMessage } from "../../lib/message-factory";
+import { useSettingsStore } from "../../stores/settings-store";
 import {
   DRAFT_ID,
   getEffectiveClaudePermissionMode,
@@ -249,6 +250,7 @@ export function useSessionRestart({
       resume: currentId,
       forkSession: true,
       resumeSessionAt: checkpointId,
+      claudeCodexBridgeEnabled: useSettingsStore.getState().claudeCodexBridgeEnabled,
       mcpServers,
     });
 

@@ -88,6 +88,9 @@ function bundleTriple(triple) {
       cwd: tmpDir,
       stdio: ["ignore", "pipe", "inherit"],
       timeout: 300_000,
+      // Node 22 refuses to spawn `npm.cmd` (a .bat/.cmd) without a shell — it
+      // throws EINVAL. Use a shell on Windows; npm is a real binary elsewhere.
+      shell: process.platform === "win32",
     });
 
     const tgz = fs.readdirSync(tmpDir).find((f) => f.endsWith(".tgz"));
@@ -95,9 +98,29 @@ function bundleTriple(triple) {
 
     execFileSync("tar", ["xzf", tgz], { cwd: tmpDir, timeout: 120_000 });
 
-    const vendorSrc = path.join(tmpDir, "package", "vendor", triple);
+    // Each platform-specific @openai/codex package ships exactly one vendor
+    // triple dir. It usually matches our target triple, but upstream may name
+    // it differently (e.g. linux now ships `x86_64-unknown-linux-musl`, not the
+    // `-gnu` triple we request). Prefer an exact match, else fall back to the
+    // sole vendor subdir. The binary resolves its siblings relative to itself,
+    // so copying that dir's contents under our triple name still works.
+    const vendorRoot = path.join(tmpDir, "package", "vendor");
+    let vendorSrc = path.join(vendorRoot, triple);
     if (!fs.existsSync(vendorSrc)) {
-      throw new Error(`Expected vendor layout not found at ${vendorSrc}`);
+      const subdirs = fs.existsSync(vendorRoot)
+        ? fs
+            .readdirSync(vendorRoot, { withFileTypes: true })
+            .filter((d) => d.isDirectory())
+            .map((d) => d.name)
+        : [];
+      if (subdirs.length === 1) {
+        vendorSrc = path.join(vendorRoot, subdirs[0]);
+        console.log(`  • ${triple}: using vendor dir "${subdirs[0]}"`);
+      } else {
+        throw new Error(
+          `Expected vendor layout not found at ${vendorSrc} (vendor/ contains: ${subdirs.join(", ") || "nothing"})`,
+        );
+      }
     }
 
     fs.mkdirSync(OUTPUT_DIR, { recursive: true });

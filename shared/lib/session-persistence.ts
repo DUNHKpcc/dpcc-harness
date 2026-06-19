@@ -24,6 +24,8 @@ export interface SessionMeta {
   branch?: string;
   /** Agent ID — which agent was used for this session. */
   agentId?: string;
+  /** Set on a Codex session opened by a Claude `codex_delegate` tool call. */
+  delegatedFromSessionId?: string;
 }
 
 /**
@@ -61,5 +63,6 @@ export function extractSessionMeta(data: Record<string, unknown>, lastMessageAt:
     pinned: data.pinned as boolean | undefined,
     branch: data.branch as string | undefined,
     agentId: data.agentId as string | undefined,
+    delegatedFromSessionId: data.delegatedFromSessionId as string | undefined,
   };
 }

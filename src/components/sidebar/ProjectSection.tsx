@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, Fragment } from "react";
 import { useTranslation } from "react-i18next";
 import { useInlineRename } from "@/hooks/useInlineRename";
 import { useContextMenuPosition } from "@/hooks/useContextMenuPosition";
@@ -142,6 +142,47 @@ export function ProjectSection({
     [sessions, folders, organizeByChatBranch],
   );
 
+  // Map of parent session id -> delegated Codex children, rendered nested under
+  // their parent (and excluded from the top-level groups by buildSidebarGroups).
+  const delegatedChildrenByParent = useMemo(() => {
+    const map = new Map<string, ChatSession[]>();
+    for (const s of sessions) {
+      const parentId = s.delegatedFromSessionId;
+      if (!parentId) continue;
+      const arr = map.get(parentId) ?? [];
+      arr.push(s);
+      map.set(parentId, arr);
+    }
+    return map;
+  }, [sessions]);
+
+  /** Render a parent session's delegated Codex children as indented rows. */
+  function renderSessionChildren(parentId: string) {
+    const children = delegatedChildrenByParent.get(parentId);
+    if (!children?.length) return null;
+    return (
+      <div className="ms-2">
+        {children.map((child) => (
+          <SessionItem
+            key={child.id}
+            islandLayout={islandLayout}
+            session={child}
+            isActive={child.id === activeSessionId}
+            onSelect={() => selectSession(child.id)}
+            onDelete={() => deleteSession(child.id)}
+            onRename={(title) => renameSession(child.id, title)}
+            onPinToggle={() => pinSession(child.id, !child.pinned)}
+            folders={folders}
+            onMoveToFolder={(folderId) => moveSessionToFolder(child.id, folderId)}
+            agents={agents}
+            onOpenInSplitView={openInSplitView ? () => openInSplitView(child.id) : undefined}
+            canOpenInSplitView={canOpenSessionInSplitView?.(child.id) ?? true}
+          />
+        ))}
+      </div>
+    );
+  }
+
   // Count non-pinned items for pagination
   const pinnedItem = sidebarItems.find((item): item is PinnedSidebarItem => item.type === "pinned");
   const contentItems = sidebarItems.filter((item) => item.type !== "pinned");
@@ -194,6 +235,7 @@ export function ProjectSection({
           onRenameFolder={(name) => renameFolder(project.id, folder.id, name)}
           onDeleteFolder={() => deleteFolder(project.id, folder.id)}
           agents={agents}
+          renderSessionChildren={renderSessionChildren}
         />
       );
     }
@@ -208,6 +250,7 @@ export function ProjectSection({
           islandLayout={islandLayout}
           allFolders={folders}
           agents={agents}
+          renderSessionChildren={renderSessionChildren}
         />
       );
     }
@@ -215,21 +258,23 @@ export function ProjectSection({
     if (item.type === "session") {
       const { session } = item;
       return (
-        <SessionItem
-          key={session.id}
-          islandLayout={islandLayout}
-          session={session}
-          isActive={session.id === activeSessionId}
-          onSelect={() => selectSession(session.id)}
-          onDelete={() => deleteSession(session.id)}
-          onRename={(title) => renameSession(session.id, title)}
-          onPinToggle={() => pinSession(session.id, !session.pinned)}
-          folders={folders}
-          onMoveToFolder={(folderId) => moveSessionToFolder(session.id, folderId)}
-          agents={agents}
-          onOpenInSplitView={openInSplitView ? () => openInSplitView(session.id) : undefined}
-          canOpenInSplitView={canOpenSessionInSplitView?.(session.id) ?? true}
-        />
+        <Fragment key={session.id}>
+          <SessionItem
+            islandLayout={islandLayout}
+            session={session}
+            isActive={session.id === activeSessionId}
+            onSelect={() => selectSession(session.id)}
+            onDelete={() => deleteSession(session.id)}
+            onRename={(title) => renameSession(session.id, title)}
+            onPinToggle={() => pinSession(session.id, !session.pinned)}
+            folders={folders}
+            onMoveToFolder={(folderId) => moveSessionToFolder(session.id, folderId)}
+            agents={agents}
+            onOpenInSplitView={openInSplitView ? () => openInSplitView(session.id) : undefined}
+            canOpenInSplitView={canOpenSessionInSplitView?.(session.id) ?? true}
+          />
+          {renderSessionChildren(session.id)}
+        </Fragment>
       );
     }
 
@@ -452,6 +497,7 @@ export function ProjectSection({
               islandLayout={islandLayout}
               folders={folders}
               agents={agents}
+              renderSessionChildren={renderSessionChildren}
             />
           )}
 

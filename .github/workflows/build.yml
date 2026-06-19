@@ -107,7 +107,9 @@ jobs:
   build-win:
     needs: [prepare-release, test]
     if: ${{ always() && needs.test.result == 'success' && (needs.prepare-release.result == 'success' || needs.prepare-release.result == 'skipped') }}
-    runs-on: windows-latest
+    # Pin to windows-2022 (VS 2022). windows-latest now ships VS 2026, which
+    # node-gyp 11 can't detect → node-pty fails to compile during packaging.
+    runs-on: windows-2022
     steps:
       - name: Checkout
         uses: actions/checkout@v4

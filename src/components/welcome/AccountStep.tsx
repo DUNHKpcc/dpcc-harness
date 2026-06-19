@@ -23,7 +23,11 @@ export function AccountStep({ onNext }: WizardStepProps) {
   const [saving, setSaving] = useState(false);
 
   const canSave =
-    host.trim().length > 0 && (claudeToken.trim().length > 0 || codexToken.trim().length > 0) && !saving;
+    host.trim().length > 0 &&
+    (claudeToken.trim().length > 0 ||
+      codexToken.trim().length > 0 ||
+      (accessToken.trim().length > 0 && userId.trim().length > 0)) &&
+    !saving;
 
   const handleConnect = useCallback(async () => {
     setSaving(true);

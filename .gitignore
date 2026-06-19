@@ -12,4 +12,5 @@ frontend/
 cli
 .idea/
 .codex/
+.superpowers/
 build/.icon-backup-orig/

@@ -37,9 +37,9 @@ export async function initPostHog(): Promise<void> {
   userId = generateUserId();
 
   try {
-    // PostHog project API keys are public (client-side) — safe to embed in source.
-    // Override via POSTHOG_API_KEY env var if needed (e.g. for a fork's own project).
-    const apiKey = process.env.POSTHOG_API_KEY || "phc_lOKFRov0SWy2R71BNJ2t978tmNYc3ND7WwueOteV5vw";
+    // No analytics by default for this fork — telemetry must not be sent to a
+    // third-party project. Set POSTHOG_API_KEY to opt into your own PostHog.
+    const apiKey = process.env.POSTHOG_API_KEY || "";
     if (!apiKey) {
       log("POSTHOG", "API key not configured — analytics disabled");
       return;

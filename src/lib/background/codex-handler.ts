@@ -11,6 +11,7 @@ import type { CommandExecutionOutputDeltaNotification } from "../../types/codex-
 import type { PlanDeltaNotification } from "../../types/codex-protocol/v2/PlanDeltaNotification";
 import type { TurnPlanUpdatedNotification } from "../../types/codex-protocol/v2/TurnPlanUpdatedNotification";
 import type { CodexTokenUsageNotification } from "@/types";
+import { nextId } from "@/lib/message-factory";
 
 /**
  * Process a Codex notification for a background session, mutating `state` in place.
@@ -23,6 +24,7 @@ export function handleCodexEvent(
 ): {
   processingChanged?: boolean;
   isProcessing?: boolean;
+  suppressUnread?: boolean;
   permissionRequest?: PermissionRequest;
 } | undefined {
   state.isConnected = true;
@@ -33,22 +35,31 @@ export function handleCodexEvent(
       state.isProcessing = true;
       state.codexPlanText = "";
       state.codexPlanTurnCounter += 1;
+      state.turnSawCompaction = false;
+      state.turnSawOutput = false;
       return { processingChanged: true, isProcessing: true };
 
-    case "turn/completed":
+    case "turn/completed": {
       finalizeACPStreamingMsg(state); // reuse — same pattern
       state.isProcessing = false;
-      return { processingChanged: true, isProcessing: false };
+      // A compaction-only turn must not light up the unread dot / fire a notification.
+      const suppressUnread = state.turnSawCompaction && !state.turnSawOutput;
+      state.turnSawCompaction = false;
+      state.turnSawOutput = false;
+      return { processingChanged: true, isProcessing: false, suppressUnread };
+    }
 
     case "item/started": {
       const { item } = params as ItemStartedNotification;
       if (item.type === "agentMessage" || item.type === "reasoning") {
+        if (item.type === "agentMessage") state.turnSawOutput = true;
         ensureACPStreamingMsg(state);
       } else {
         // Non-assistant item is a hard boundary — finalize streaming first
         finalizeACPStreamingMsg(state);
         const toolName = codexItemToToolName(item);
         if (toolName) {
+          state.turnSawOutput = true;
           // Deterministic ID matches active hook so completions work after switch-back
           const msgId = `codex-tool-${item.id}`;
           state.parentToolMap.set(item.id, msgId);
@@ -68,6 +79,7 @@ export function handleCodexEvent(
     case "item/completed": {
       const { item } = params as ItemCompletedNotification;
       if (item.type === "agentMessage") {
+        state.turnSawOutput = true;
         const text = item.text || undefined;
         const target = state.messages.find(m => m.id === state.currentStreamingMsgId);
         if (target && text) target.content = text;
@@ -115,6 +127,19 @@ export function handleCodexEvent(
           state.pendingPermission = permission;
           return { permissionRequest: permission };
         }
+      } else if (item.type === "contextCompaction") {
+        // Newer Codex reports compaction completion as a contextCompaction item
+        // (legacy `thread/compacted` is deprecated). Mark the turn so the unread
+        // dot stays off, and record the summary for switch-back rendering.
+        state.isCompacting = false;
+        state.turnSawCompaction = true;
+        state.messages.push({
+          id: nextId("compact"),
+          role: "summary",
+          content: "Context compacted",
+          timestamp: Date.now(),
+          compactTrigger: "auto",
+        });
       } else {
         // Generic tool completion — deterministic fallback for cross-session mapping
         const msgId = state.parentToolMap.get(item.id) ?? `codex-tool-${item.id}`;
@@ -137,6 +162,7 @@ export function handleCodexEvent(
     case "item/agentMessage/delta": {
       const { delta } = params as AgentMessageDeltaNotification;
       if (delta) {
+        state.turnSawOutput = true;
         ensureACPStreamingMsg(state);
         const target = state.messages.find(m => m.id === state.currentStreamingMsgId);
         if (target) {
@@ -246,6 +272,7 @@ export function handleCodexEvent(
 
     case "thread/compacted":
       state.isCompacting = false;
+      state.turnSawCompaction = true;
       break;
   }
 

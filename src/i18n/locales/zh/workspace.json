@@ -44,7 +44,9 @@
       "codexKeyLabel": "Codex 密钥（sk-，可选）"
     },
     "claudeModels": "Claude 模型",
-    "codexModels": "Codex 模型"
+    "codexModels": "Codex 模型",
+    "recharge": "充值",
+    "website": "官网"
   },
   "customizer": {
     "namePlaceholder": "Space 名称",

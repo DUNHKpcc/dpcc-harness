@@ -2,6 +2,7 @@ import { BrowserWindow, ipcMain } from "electron";
 import crypto from "crypto";
 import fs from "fs";
 import os from "os";
+import path from "path";
 import { log } from "../lib/logger";
 import { safeSend } from "../lib/safe-send";
 import { AsyncChannel } from "../lib/async-channel";
@@ -12,7 +13,16 @@ import { getClaudeModelsCache, setClaudeModelsCache } from "../lib/claude-model-
 import { reportError } from "../lib/error-utils";
 import { buildSdkMcpConfig } from "@shared/lib/mcp-config";
 import type { McpServerInput } from "@shared/lib/mcp-config";
-import { getClaudeBinaryMetadata, getClaudeBinaryPath, getClaudeBinaryStatus, getClaudeVersion } from "../lib/claude-binary";
+import { appendClaudeCodexBridgeServer } from "@shared/lib/claude-codex-bridge";
+import { getClaudeCodexBridgeController } from "../lib/claude-codex-bridge-controller";
+import {
+  downloadClaudeUpdate,
+  getClaudeBinaryInfo,
+  getClaudeBinaryMetadata,
+  getClaudeBinaryPath,
+  getClaudeBinaryStatus,
+  getClaudeVersion,
+} from "../lib/claude-binary";
 import { getAppSetting } from "../lib/app-settings";
 import { captureEvent } from "../lib/posthog";
 import { loadLocalClaudeEnv, localClaudeGatewayTakesPriority, probeLocalClaudeGateway } from "../lib/local-cli-config";
@@ -394,6 +404,8 @@ interface StartOptions {
   /** Resume at a specific message UUID — used with forkSession to truncate history */
   resumeSessionAt?: string;
   mcpServers?: McpServerInput[];
+  /** When true, inject the built-in `harnss-codex` bridge MCP server so Claude can delegate to a visible Codex pane. */
+  claudeCodexBridgeEnabled?: boolean;
 }
 
 function buildThinkingConfig(): { type: "adaptive" } {
@@ -524,6 +536,25 @@ const mcpConfigOptions = {
   onWarn: (label: string, message: string) => log(label, message),
 };
 
+/**
+ * Augment the user's MCP server list with the built-in `harnss-codex` bridge
+ * when the per-session toggle is enabled and the bridge controller is running.
+ * No-op otherwise, so plain sessions are unaffected.
+ */
+function applyCodexBridge(servers: McpServerInput[] | undefined, enabled: boolean): McpServerInput[] {
+  const base = servers ?? [];
+  if (!enabled) return base;
+  const controller = getClaudeCodexBridgeController();
+  if (!controller || !controller.endpoint) return base;
+  return appendClaudeCodexBridgeServer(base, {
+    enabled: true,
+    command: process.execPath,
+    args: [path.join(__dirname, "claude-codex-mcp.js")],
+    endpoint: controller.endpoint,
+    token: controller.token,
+  });
+}
+
 // ── Restart a running session with fresh config (resume = same conversation) ──
 
 async function restartSession(
@@ -533,6 +564,7 @@ async function restartSession(
   cwdOverride?: string,
   effortOverride?: StartOptions["effort"],
   modelOverride?: string,
+  bridgeEnabledOverride?: boolean,
 ): Promise<{ ok?: boolean; error?: string; restarted?: boolean }> {
   const session = sessions.get(sessionId);
   if (!session?.queryHandle || !session.startOptions) {
@@ -555,6 +587,7 @@ async function restartSession(
 
   const opts = session.startOptions;
   const mcpServers = mcpServersOverride ?? opts.mcpServers;
+  const bridgeEnabled = bridgeEnabledOverride ?? opts.claudeCodexBridgeEnabled === true;
   const cwd = cwdOverride || opts.cwd || process.cwd();
   const query = await getSDK();
   const newChannel = new AsyncChannel<unknown>();
@@ -570,6 +603,7 @@ async function restartSession(
       ...opts,
       cwd,
       mcpServers,
+      claudeCodexBridgeEnabled: bridgeEnabled,
       ...(effortOverride ? { effort: effortOverride } : {}),
       ...(modelOverride ? { model: modelOverride } : {}),
     },
@@ -618,8 +652,9 @@ async function restartSession(
     queryOptions.effort = effortOverride ?? opts.effort;
   }
 
-  if (mcpServers?.length) {
-    queryOptions.mcpServers = await buildSdkMcpConfig(mcpServers, mcpConfigOptions);
+  const restartMcpServers = applyCodexBridge(mcpServers, bridgeEnabled);
+  if (restartMcpServers.length) {
+    queryOptions.mcpServers = await buildSdkMcpConfig(restartMcpServers, mcpConfigOptions);
   }
 
   log("SESSION_RESTART_SPAWN", { sessionId, options: summarizeSpawnOptions(queryOptions) });
@@ -738,8 +773,9 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         queryOptions.effort = options.effort;
       }
 
-      if (options.mcpServers?.length) {
-        queryOptions.mcpServers = await buildSdkMcpConfig(options.mcpServers, mcpConfigOptions);
+      const startMcpServers = applyCodexBridge(options.mcpServers, options.claudeCodexBridgeEnabled === true);
+      if (startMcpServers.length) {
+        queryOptions.mcpServers = await buildSdkMcpConfig(startMcpServers, mcpConfigOptions);
       }
 
       log("SPAWN", { sessionId, resume: options.resume || null, options: summarizeSpawnOptions(queryOptions) });
@@ -1077,6 +1113,22 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     return getClaudeBinaryStatus();
   });
 
+  ipcMain.handle("claude:binary-info", async () => {
+    try {
+      return await getClaudeBinaryInfo();
+    } catch (err) {
+      return { error: reportError("CLAUDE_BINARY_INFO_ERR", err, { engine: "claude" }) };
+    }
+  });
+
+  ipcMain.handle("claude:download-update", async () => {
+    try {
+      return await downloadClaudeUpdate();
+    } catch (err) {
+      return { error: reportError("CLAUDE_DOWNLOAD_UPDATE_ERR", err, { engine: "claude" }) };
+    }
+  });
+
   ipcMain.handle("claude:mcp-reconnect", async (_event, { sessionId, serverName }: { sessionId: string; serverName: string }) => {
     const session = sessions.get(sessionId);
     if (!session?.queryHandle) return { error: "No active session" };
@@ -1110,14 +1162,16 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     cwd,
     effort,
     model,
+    claudeCodexBridgeEnabled,
   }: {
     sessionId: string;
     mcpServers?: McpServerInput[];
     cwd?: string;
     effort?: StartOptions["effort"];
     model?: string;
+    claudeCodexBridgeEnabled?: boolean;
   }) => {
-    return restartSession(sessionId, getMainWindow, mcpServers, cwd, effort, model);
+    return restartSession(sessionId, getMainWindow, mcpServers, cwd, effort, model, claudeCodexBridgeEnabled);
   });
 }
 

@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { CircleUser, RefreshCw, Settings, ChevronDown } from "lucide-react";
+import { CircleUser, RefreshCw, Settings, ChevronDown, CreditCard, Globe, ExternalLink } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -18,6 +18,12 @@ import {
 import { DEFAULT_NEWAPI_BASE_URL } from "@shared/types/account";
 
 const ONBOARD_FLAG = "pcc-agent-account-onboarded";
+
+/** External quick links surfaced in the account panel footer. */
+const ACCOUNT_LINKS = {
+  recharge: "https://dpccgaming.xyz/payment",
+  website: "https://api.dpccgaming.xyz",
+} as const;
 
 const INPUT_CLASS =
   "w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-primary/60";
@@ -64,7 +70,11 @@ const SetupCard = memo(function SetupCard({
   const [userId, setUserId] = useState("");
   const [saving, setSaving] = useState(false);
   const canSave =
-    host.trim().length > 0 && (claudeToken.trim().length > 0 || codexToken.trim().length > 0) && !saving;
+    host.trim().length > 0 &&
+    (claudeToken.trim().length > 0 ||
+      codexToken.trim().length > 0 ||
+      (accessToken.trim().length > 0 && userId.trim().length > 0)) &&
+    !saving;
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -362,8 +372,24 @@ const AccountView = memo(function AccountView({
         <ModelsSection t={t} label={t("account.codexModels")} models={account.codexModels} />
       )}
 
-      {/* Footer — settings entry */}
+      {/* Footer — quick links + settings entry */}
       <div className="p-1.5">
+        <button
+          onClick={() => void window.claude.openExternal(ACCOUNT_LINKS.recharge)}
+          className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-sm text-foreground transition-colors hover:bg-foreground/5"
+        >
+          <CreditCard className="h-4 w-4 text-muted-foreground" />
+          {t("account.recharge")}
+          <ExternalLink className="ms-auto h-3.5 w-3.5 text-muted-foreground/50" />
+        </button>
+        <button
+          onClick={() => void window.claude.openExternal(ACCOUNT_LINKS.website)}
+          className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-sm text-foreground transition-colors hover:bg-foreground/5"
+        >
+          <Globe className="h-4 w-4 text-muted-foreground" />
+          {t("account.website")}
+          <ExternalLink className="ms-auto h-3.5 w-3.5 text-muted-foreground/50" />
+        </button>
         <button
           onClick={onSettings}
           className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-sm text-foreground transition-colors hover:bg-foreground/5"

@@ -80,7 +80,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: Harnss Version
+      label: PccAgent Version
       description: Found in the title bar or About screen. (e.g. `0.9.0`)
       placeholder: "0.x.x"
     validations:
@@ -90,7 +90,7 @@ body:
     id: area
     attributes:
       label: Area
-      description: Which part of Harnss is affected? (select all that apply)
+      description: Which part of PccAgent is affected? (select all that apply)
       multiple: true
       options:
         - Chat / Messaging
@@ -116,9 +116,9 @@ body:
         Paste any relevant logs here. **Please redact any sensitive data (API keys, tokens, passwords, file paths with personal info) before sharing.**
 
         **Where to find logs** (files are named `main-{timestamp}.log` — attach the most recent one):
-        - macOS: `~/Library/Application Support/Harnss/logs/`
-        - Windows: `%APPDATA%\Harnss\logs\`
-        - Linux: `~/.config/Harnss/logs/`
+        - macOS: `~/Library/Application Support/PccAgent/logs/`
+        - Windows: `%APPDATA%\PccAgent\logs\`
+        - Linux: `~/.config/PccAgent/logs/`
       render: text
       placeholder: Paste logs here...
 

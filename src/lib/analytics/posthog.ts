@@ -11,9 +11,9 @@
 
 import posthog from "posthog-js";
 
-// Same public API key used by the main process (posthog-node).
-// PostHog project API keys are client-side safe — designed to be embedded in source.
-const POSTHOG_KEY = "phc_lOKFRov0SWy2R71BNJ2t978tmNYc3ND7WwueOteV5vw";
+// No analytics key by default for this fork — telemetry must not be sent to a
+// third-party project. Set VITE_POSTHOG_KEY at build time to opt into your own.
+const POSTHOG_KEY = import.meta.env.VITE_POSTHOG_KEY || "";
 const POSTHOG_HOST = "https://us.i.posthog.com";
 
 /**
@@ -24,6 +24,8 @@ const POSTHOG_HOST = "https://us.i.posthog.com";
  * capturing based on the user's preference.
  */
 export function initPostHog(): void {
+  // No key configured → never initialize, so nothing can be sent anywhere.
+  if (!POSTHOG_KEY) return;
   posthog.init(POSTHOG_KEY, {
     api_host: POSTHOG_HOST,
     defaults: "2026-01-30",
@@ -54,6 +56,7 @@ export function initPostHog(): void {
  * - Whenever the user toggles analytics on/off in settings
  */
 export async function syncAnalyticsSettings(): Promise<void> {
+  if (!POSTHOG_KEY) return;
   try {
     const settings = await window.claude.settings.get();
 

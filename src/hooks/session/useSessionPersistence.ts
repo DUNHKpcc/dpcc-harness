@@ -73,7 +73,7 @@ export function useSessionPersistence({
 
   // Wire up background store callbacks for sidebar indicators
   useEffect(() => {
-    backgroundStoreRef.current.onProcessingChange = (sessionId, isProcessing) => {
+    backgroundStoreRef.current.onProcessingChange = (sessionId, isProcessing, suppressUnread) => {
       const session = sessionsRef.current.find((s) => s.id === sessionId);
       const wasProcessing = !!session?.isProcessing;
       setSessions((prev) =>
@@ -82,9 +82,12 @@ export function useSessionPersistence({
             ? {
                 ...s,
                 isProcessing,
+                // A compaction-only completion must not light up the unread dot.
                 ...(isProcessing
                   ? { hasUnreadCompletion: false }
-                  : { hasUnreadCompletion: true })
+                  : suppressUnread
+                    ? {}
+                    : { hasUnreadCompletion: true })
               }
             : s,
         ),
@@ -94,7 +97,7 @@ export function useSessionPersistence({
         ? !!continueQueuedBackgroundSession?.(sessionId)
         : false;
 
-      if (wasProcessing && !isProcessing && session && !continuedQueuedSession) {
+      if (wasProcessing && !isProcessing && session && !continuedQueuedSession && !suppressUnread) {
         window.dispatchEvent(new CustomEvent("pcc-agent:background-session-complete", {
           detail: {
             sessionId,
@@ -345,6 +348,7 @@ export function useSessionPersistence({
         engine: session.engine,
         ...(session.agentId ? { agentId: session.agentId } : {}),
         ...(session.agentSessionId ? { agentSessionId: session.agentSessionId } : {}),
+        ...(session.delegatedFromSessionId ? { delegatedFromSessionId: session.delegatedFromSessionId } : {}),
         ...(session.engine === "codex" && session.codexThreadId ? { codexThreadId: session.codexThreadId } : {}),
       };
       void persistSessionWithCodexFallback(data);

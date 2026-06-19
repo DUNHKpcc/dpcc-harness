@@ -311,6 +311,37 @@ export function getClaudeBinaryMetadata(options?: ResolveClaudeBinaryOptions): {
   };
 }
 
+export async function getClaudeBinaryInfo(): Promise<{
+  path: string | null;
+  origin: ClaudeBinaryResolutionStrategy | "none";
+  source: ClaudeBinarySource;
+  version: string | null;
+}> {
+  const metadata = getClaudeBinaryMetadata({ installIfMissing: false, allowSdkFallback: true });
+  return {
+    path: metadata?.path ?? null,
+    origin: metadata?.strategy ?? "none",
+    source: getSource(),
+    version: metadata ? await getClaudeVersion(metadata.path) : null,
+  };
+}
+
+export async function downloadClaudeUpdate(): Promise<{ version: string | null }> {
+  if (!installInFlight) {
+    installInFlight = installClaudeBinary()
+      .then((binaryPath) => {
+        cachedPath = binaryPath;
+        cachedSource = getSource();
+        return binaryPath;
+      })
+      .finally(() => {
+        installInFlight = null;
+      });
+  }
+  const binaryPath = await installInFlight;
+  return { version: await getClaudeVersion(binaryPath) };
+}
+
 export async function getClaudeVersion(binaryPath?: string): Promise<string | null> {
   try {
     if (binaryPath) return readClaudeVersion(binaryPath);

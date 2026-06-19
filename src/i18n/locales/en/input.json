@@ -52,6 +52,9 @@
     "plan": "Plan",
     "planModeOn": "Plan mode on",
     "planModeOff": "Plan mode off",
+    "codex": "Codex",
+    "codexBridgeOn": "Claude can delegate to Codex in a visible split pane",
+    "codexBridgeOff": "Allow Claude to delegate to Codex",
     "permissionMode": {
       "default": "Ask Before Edits",
       "acceptEdits": "Accept Edits",

@@ -132,6 +132,8 @@ contextBridge.exposeInMainWorld("claude", {
     ipcRenderer.invoke("claude:set-thinking", { sessionId, thinkingEnabled }),
   version: () => ipcRenderer.invoke("claude:version"),
   binaryStatus: () => ipcRenderer.invoke("claude:binary-status"),
+  binaryInfo: () => ipcRenderer.invoke("claude:binary-info"),
+  downloadUpdate: () => ipcRenderer.invoke("claude:download-update"),
   supportedModels: (sessionId: string) => ipcRenderer.invoke("claude:supported-models", sessionId),
   slashCommands: (sessionId: string) => ipcRenderer.invoke("claude:slash-commands", sessionId),
   modelsCacheGet: () => ipcRenderer.invoke("claude:models-cache:get"),
@@ -141,8 +143,8 @@ contextBridge.exposeInMainWorld("claude", {
     ipcRenderer.invoke("claude:mcp-reconnect", { sessionId, serverName }),
   revertFiles: (sessionId: string, checkpointId: string) =>
     ipcRenderer.invoke("claude:revert-files", { sessionId, checkpointId }),
-  restartSession: (sessionId: string, mcpServers?: unknown[], cwd?: string, effort?: string, model?: string) =>
-    ipcRenderer.invoke("claude:restart-session", { sessionId, mcpServers, cwd, effort, model }),
+  restartSession: (sessionId: string, mcpServers?: unknown[], cwd?: string, effort?: string, model?: string, claudeCodexBridgeEnabled?: boolean) =>
+    ipcRenderer.invoke("claude:restart-session", { sessionId, mcpServers, cwd, effort, model, claudeCodexBridgeEnabled }),
   readFile: (filePath: string) => ipcRenderer.invoke("file:read", filePath),
   renameFile: (oldPath: string, newPath: string) => ipcRenderer.invoke("file:rename", { oldPath, newPath }),
   trashItem: (filePath: string) => ipcRenderer.invoke("file:trash", filePath),
@@ -156,6 +158,13 @@ contextBridge.exposeInMainWorld("claude", {
   showItemInFolder: (filePath: string) => ipcRenderer.invoke("shell:show-item-in-folder", filePath),
   generateTitle: (message: string, cwd?: string, engine?: string, sessionId?: string) =>
     ipcRenderer.invoke("claude:generate-title", { message, cwd, engine, sessionId }),
+  onCodexDelegationRequest: (callback: (data: unknown) => void) => {
+    const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);
+    ipcRenderer.on("claude-codex:delegate-request", listener);
+    return () => ipcRenderer.removeListener("claude-codex:delegate-request", listener);
+  },
+  completeCodexDelegation: (result: unknown) =>
+    ipcRenderer.invoke("claude-codex:complete-delegation", result),
   projects: {
     list: () => ipcRenderer.invoke("projects:list"),
     create: (spaceId?: string) => ipcRenderer.invoke("projects:create", spaceId),
@@ -369,6 +378,7 @@ contextBridge.exposeInMainWorld("claude", {
     getStatus: () => ipcRenderer.invoke("account:status"),
     getBalance: () => ipcRenderer.invoke("account:balance"),
     getModels: () => ipcRenderer.invoke("account:models"),
+    getCachedUsageStats: () => ipcRenderer.invoke("account:usageStatsCached"),
     getUsageStats: (force?: boolean) => ipcRenderer.invoke("account:usageStats", force),
   },
   jira: {

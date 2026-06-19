@@ -398,6 +398,9 @@ export function useSessionManager(
               hasPendingPermission: existing.hasPendingPermission,
               hasUnreadCompletion: existing.hasUnreadCompletion,
               titleGenerating: existing.titleGenerating,
+              // Preserve the delegation link if disk meta hasn't caught up yet
+              // (the child's first save may not have flushed before this refresh).
+              delegatedFromSessionId: session.delegatedFromSessionId ?? existing.delegatedFromSessionId,
             }
           : session);
       });

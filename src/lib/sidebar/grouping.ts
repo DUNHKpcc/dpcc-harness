@@ -81,9 +81,13 @@ export function buildSidebarGroups(
 ): SidebarItem[] {
   const result: SidebarItem[] = [];
 
+  // Delegated Codex children are rendered nested under their parent Claude
+  // session (see ProjectSection), never as top-level rows in the sidebar.
+  const visibleSessions = sessions.filter((s) => !s.delegatedFromSessionId);
+
   // 1. Extract pinned sessions and pinned folders
-  const pinnedSessions = sessions.filter((s) => s.pinned);
-  const unpinned = sessions.filter((s) => !s.pinned);
+  const pinnedSessions = visibleSessions.filter((s) => s.pinned);
+  const unpinned = visibleSessions.filter((s) => !s.pinned);
   const pinnedFolders = folders.filter((f) => f.pinned);
   const unpinnedFolders = folders.filter((f) => !f.pinned);
 
@@ -92,7 +96,7 @@ export function buildSidebarGroups(
 
     // Build pinned folder items with their sessions
     const pinnedFolderItems: FolderSidebarItem[] = pinnedFolders.map((folder) => {
-      const folderSessions = sessions
+      const folderSessions = visibleSessions
         .filter((s) => s.folderId === folder.id)
         .sort((a, b) => getSortTimestamp(b) - getSortTimestamp(a));
       const newestTs = folderSessions.length > 0 ? getSortTimestamp(folderSessions[0]) : folder.createdAt;

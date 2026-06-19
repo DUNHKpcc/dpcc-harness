@@ -30,6 +30,23 @@ function normalizeHost(raw: string): string {
   return n || DEFAULT_NEWAPI_BASE_URL;
 }
 
+/**
+ * Pick the host to seed the form with. Mirrors resolveUpstream(): prefer the
+ * base URL of a gateway that is actually active (enabled + has a token) so a
+ * stale, disabled gateway's host can't get written back on save. Falls back to
+ * any stored base URL when neither gateway is active.
+ */
+function pickInitialHost(
+  cg: AppSettings["claudeGateway"] | undefined,
+  xg: AppSettings["codexGateway"] | undefined,
+): string {
+  const claudeOn = !!(cg?.enabled && cg.authToken.trim());
+  const codexOn = !!(xg?.enabled && xg.apiKey.trim());
+  const candidate =
+    (claudeOn && cg?.baseUrl) || (codexOn && xg?.baseUrl) || cg?.baseUrl || xg?.baseUrl || "";
+  return normalizeHost(candidate);
+}
+
 /** Small on/off credential pill. */
 const Chip = memo(function Chip({ label, on }: { label: string; on: boolean }) {
   return (
@@ -116,7 +133,7 @@ export const AccountSettings = memo(function AccountSettings({
     if (!appSettings) return;
     const cg = appSettings.claudeGateway;
     const xg = appSettings.codexGateway;
-    setHost(normalizeHost(cg?.baseUrl || xg?.baseUrl || ""));
+    setHost(pickInitialHost(cg, xg));
     setClaudeToken(cg?.authToken || "");
     setCodexToken(xg?.apiKey || "");
     setClaudeModel(cg?.model || "");
@@ -182,8 +199,8 @@ export const AccountSettings = memo(function AccountSettings({
     <div className="flex h-full flex-col">
       <ScrollArea className="min-h-0 flex-1">
         <div className="space-y-4 px-6 py-5">
-          {/* ── Compact status card ── */}
-          <div className="rounded-xl border border-foreground/[0.08] p-4">
+          {/* ── Account status ── */}
+          <div className="border-b border-foreground/[0.06] pb-4">
             {/* Identity row */}
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-primary">
@@ -216,7 +233,7 @@ export const AccountSettings = memo(function AccountSettings({
             </div>
 
             {/* Balance */}
-            <div className="mt-4 border-t border-foreground/[0.06] pt-3">
+            <div className="mt-4 border-t border-foreground/[0.06] pt-4">
               {balance ? (
                 balance.unlimited ? (
                   <div className="flex items-baseline gap-2">
@@ -238,8 +255,8 @@ export const AccountSettings = memo(function AccountSettings({
                     <div className="text-2xl font-semibold tabular-nums text-foreground">
                       ${balance.remainingUsd.toFixed(2)}
                     </div>
-                    <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-foreground/10">
-                      <div className="h-full rounded-full bg-primary" style={{ width: `${usedPct}%` }} />
+                    <div className="mt-3 h-1.5 w-full overflow-hidden bg-foreground/10">
+                      <div className="h-full bg-primary" style={{ width: `${usedPct}%` }} />
                     </div>
                   </>
                 )
@@ -251,7 +268,7 @@ export const AccountSettings = memo(function AccountSettings({
             </div>
 
             {/* Credential chips + model counts */}
-            <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-foreground/[0.06] pt-3">
+            <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-foreground/[0.06] pt-4">
               <Chip label={`${t("account.claudeKey")}${claudeModels.length ? ` · ${claudeModels.length}` : ""}`} on={!!config?.hasClaudeToken} />
               <Chip label={`${t("account.codexKey")}${codexModels.length ? ` · ${codexModels.length}` : ""}`} on={!!config?.hasCodexToken} />
               <Chip label={t("account.accessToken")} on={!!config?.hasAccessToken} />

@@ -4,6 +4,7 @@ export default defineConfig({
   entry: {
     main: "electron/src/main.ts",
     preload: "electron/src/preload.ts",
+    "claude-codex-mcp": "electron/src/bridge/claude-codex-mcp.ts",
   },
   outDir: "electron/dist",
   format: ["cjs"],

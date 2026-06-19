@@ -57,6 +57,8 @@ function handleStreamEvent(state: InternalState, event: StreamEvent): void {
         if (target.thinking && !target.thinkingComplete) {
           target.thinkingComplete = true;
         }
+        // Real assistant text → this turn is not compaction-only
+        state.turnSawOutput = true;
         // SDK text deltas are pure incremental chunks — simple concatenation
         // avoids false-positive overlap detection eating markdown chars.
         target.content = target.content + streamEvt.delta.text;
@@ -154,7 +156,7 @@ function handleSubagentEvent(
 export function handleClaudeEvent(
   state: InternalState,
   event: ClaudeEvent & { _sessionId?: string },
-): { processingChanged: boolean; isProcessing: boolean } | undefined {
+): { processingChanged: boolean; isProcessing: boolean; suppressUnread?: boolean } | undefined {
   const sessionId = event._sessionId;
   if (!sessionId) return undefined;
 
@@ -192,6 +194,7 @@ export function handleClaudeEvent(
     case "system": {
       if ("subtype" in event && event.subtype === "compact_boundary") {
         state.isCompacting = false;
+        state.turnSawCompaction = true;
         const compactMeta = (event as SystemCompactBoundaryEvent).compact_metadata;
         state.messages.push({
           id: nextId("compact"),
@@ -207,10 +210,13 @@ export function handleClaudeEvent(
         const statusEvent = event as SystemStatusEvent;
         if (statusEvent.status === "compacting") {
           state.isCompacting = true;
+          state.turnSawCompaction = true;
         }
         break;
       }
       const init = event as SystemInitEvent;
+      state.turnSawCompaction = false;
+      state.turnSawOutput = false;
       state.sessionInfo = {
         sessionId: init.session_id,
         model: init.model,
@@ -238,6 +244,8 @@ export function handleClaudeEvent(
         ) ?? state.contextUsage;
       const textContent = extractTextContent(evt.message.content);
       const thinkingContent = extractThinkingContent(evt.message.content);
+      // Real assistant text → this turn is not compaction-only
+      if (textContent) state.turnSawOutput = true;
 
       const target = state.currentStreamingMsgId
         ? state.messages.find((m) => m.id === state.currentStreamingMsgId)
@@ -268,6 +276,8 @@ export function handleClaudeEvent(
 
       for (const block of evt.message.content) {
         if (block.type === "tool_use") {
+          // A tool call is real work → this turn is not compaction-only
+          state.turnSawOutput = true;
           const isTask = block.name === "Task" || block.name === "Agent";
           const msgId = `tool-${block.id}`;
           if (!state.messages.some((m) => m.id === msgId)) {
@@ -384,7 +394,12 @@ export function handleClaudeEvent(
         const errorMsg = formatResultError(resultEvt.subtype, detail);
         state.messages.push(createSystemMessage(errorMsg, true));
       }
-      return { processingChanged: true, isProcessing: false };
+      // A compaction-only turn (no real assistant/tool output) must not light up
+      // the sidebar's unread dot or fire a completion notification.
+      const suppressUnread = state.turnSawCompaction && !state.turnSawOutput;
+      state.turnSawCompaction = false;
+      state.turnSawOutput = false;
+      return { processingChanged: true, isProcessing: false, suppressUnread };
     }
   }
 

@@ -84,6 +84,7 @@ export function useDraftMaterialization({
         permissionMode: getEffectiveClaudePermissionMode(options ?? {}),
         thinkingEnabled: options?.thinkingEnabled,
         effort: options?.effort,
+        claudeCodexBridgeEnabled: options?.claudeCodexBridgeEnabled,
         mcpServers,
       });
     } catch (err) {
@@ -579,6 +580,7 @@ export function useDraftMaterialization({
               permissionMode: getEffectiveClaudePermissionMode(options),
               thinkingEnabled: options.thinkingEnabled,
               effort: options.effort,
+              claudeCodexBridgeEnabled: options.claudeCodexBridgeEnabled,
               mcpServers,
             });
           } catch (err) {

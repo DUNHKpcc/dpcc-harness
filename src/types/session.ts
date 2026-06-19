@@ -108,6 +108,8 @@ export interface SessionBase {
   pinned?: boolean;
   /** Git branch at session creation time. */
   branch?: string;
+  /** Set on a Codex session that was opened by a Claude `codex_delegate` tool call. */
+  delegatedFromSessionId?: string;
 }
 
 export interface ChatSession extends SessionBase {

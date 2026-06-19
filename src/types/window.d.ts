@@ -8,7 +8,7 @@ import type { GitRepoInfo, GitStatus, GitBranch, GitLogEntry } from "@shared/typ
 import type { InstalledAgent } from "@shared/types/registry";
 import type { EffectiveCliConfig } from "@shared/types/cc-config";
 import type { AppSettings, MacBackgroundEffect, ThemeOption } from "@shared/types/settings";
-import type { AccountConfig, AccountBalanceResult, AccountModelsResult, AccountStatus, UsageStatsResult } from "@shared/types/account";
+import type { AccountConfig, AccountBalanceResult, AccountModelsResult, AccountStatus, UsageStats, UsageStatsResult } from "@shared/types/account";
 import type {
   ACPSessionEvent,
   ACPPermissionEvent,
@@ -86,6 +86,8 @@ declare global {
         /** Resume at a specific message UUID — used with forkSession to truncate history */
         resumeSessionAt?: string;
         mcpServers?: McpServerConfig[];
+        /** Inject the built-in `harnss-codex` bridge MCP server for visible Codex delegation. */
+        claudeCodexBridgeEnabled?: boolean;
       }) => Promise<{ sessionId: string; pid: number; error?: string }>;
       send: (
         sessionId: string,
@@ -105,7 +107,7 @@ declare global {
       mcpStatus: (sessionId: string) => Promise<{ servers: McpServerStatus[]; error?: string }>;
       mcpReconnect: (sessionId: string, serverName: string) => Promise<IpcResult & { restarted?: boolean }>;
       revertFiles: (sessionId: string, checkpointId: string) => Promise<IpcResult>;
-      restartSession: (sessionId: string, mcpServers?: McpServerConfig[], cwd?: string, effort?: ClaudeEffort, model?: string) => Promise<IpcResult & { restarted?: boolean }>;
+      restartSession: (sessionId: string, mcpServers?: McpServerConfig[], cwd?: string, effort?: ClaudeEffort, model?: string, claudeCodexBridgeEnabled?: boolean) => Promise<IpcResult & { restarted?: boolean }>;
       readFile: (filePath: string) => Promise<{ content?: string; error?: string }>;
       renameFile: (oldPath: string, newPath: string) => Promise<IpcResult>;
       trashItem: (filePath: string) => Promise<IpcResult>;
@@ -125,6 +127,21 @@ declare global {
         engine?: EngineId,
         sessionId?: string,
       ) => Promise<{ title?: string; error?: string }>;
+      /** Fired when Claude calls the `codex_delegate` bridge tool and a visible Codex pane must be opened. */
+      onCodexDelegationRequest: (callback: (request: {
+        id: string;
+        prompt: string;
+        cwd?: string;
+        claudeSessionId?: string;
+      }) => void) => () => void;
+      /** Report the delegated Codex turn result back to the waiting Claude MCP tool call. */
+      completeCodexDelegation: (result: {
+        id: string;
+        ok: boolean;
+        content: string;
+        codexSessionId?: string;
+        error?: string;
+      }) => Promise<IpcResult>;
       log: (label: string, data: unknown) => void;
       onEvent: (callback: (event: ClaudeEvent & { _sessionId: string }) => void) => () => void;
       onStderr: (callback: (data: { data: string; _sessionId: string }) => void) => () => void;
@@ -163,6 +180,14 @@ declare global {
       ) => Promise<IpcResult>;
       version: () => Promise<{ version?: string | null; error?: string }>;
       binaryStatus: () => Promise<{ installed: boolean; installing: boolean }>;
+      binaryInfo: () => Promise<{
+        path?: string | null;
+        origin?: "custom" | "env" | "known" | "path" | "sdk-fallback" | "none";
+        source?: "auto" | "managed" | "custom";
+        version?: string | null;
+        error?: string;
+      }>;
+      downloadUpdate: () => Promise<{ version?: string | null; error?: string }>;
       projects: {
         list: () => Promise<Project[]>;
         create: (spaceId?: string) => Promise<Project | null>;
@@ -402,6 +427,7 @@ declare global {
         getStatus: () => Promise<AccountStatus>;
         getBalance: () => Promise<AccountBalanceResult>;
         getModels: () => Promise<AccountModelsResult>;
+        getCachedUsageStats: () => Promise<UsageStats | null>;
         getUsageStats: (force?: boolean) => Promise<UsageStatsResult>;
       };
       jira: {

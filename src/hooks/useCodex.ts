@@ -418,7 +418,8 @@ export function useCodex({
     // previous assistant stream so future deltas append below these items.
     finalizeStreamingAssistant();
 
-    // contextCompaction is handled via thread/compacted notification, not item/started
+    // contextCompaction completion is handled in handleItemCompleted (item/completed),
+    // with the deprecated thread/compacted notification as a fallback.
     // Tool-type item — create a tool_call message
     const toolName = codexItemToToolName(item);
     if (toolName) {
@@ -501,6 +502,24 @@ export function useCodex({
       if (activeAssistantItemIdRef.current === item.id) {
         activeAssistantItemIdRef.current = null;
       }
+      return;
+    }
+
+    // Newer Codex app-servers report compaction completion as a contextCompaction
+    // item (the legacy `thread/compacted` notification is deprecated). Reset the
+    // gauge here too so it doesn't spin forever.
+    if (item.type === "contextCompaction") {
+      setIsCompacting(false);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: nextId("compact"),
+          role: "summary",
+          content: "Context compacted",
+          timestamp: Date.now(),
+          compactTrigger: "auto",
+        },
+      ]);
       return;
     }
 
@@ -827,6 +846,7 @@ export function useCodex({
     if (data._sessionId !== sessionIdRef.current) return;
     setIsConnected(false);
     setIsProcessing(false);
+    setIsCompacting(false);
   }, []);
 
   // ── Subscribe to events ──
@@ -925,12 +945,14 @@ export function useCodex({
 
   const stop = useCallback(async () => {
     if (!sessionId) return;
+    setIsCompacting(false);
     suppressNextSessionCompletion(sessionId);
     await window.claude.codex.stop(sessionId);
   }, [sessionId]);
 
   const interrupt = useCallback(async () => {
     if (!sessionId) return;
+    setIsCompacting(false);
     suppressNextSessionCompletion(sessionId);
     await window.claude.codex.interrupt(sessionId);
   }, [sessionId]);
@@ -938,7 +960,10 @@ export function useCodex({
   const compact = useCallback(async () => {
     if (!sessionId) return;
     setIsCompacting(true);
-    await window.claude.codex.compact(sessionId);
+    // If the RPC fails (e.g. timeout, no active thread), the completion signal
+    // never arrives — reset here so the gauge doesn't spin forever.
+    const res = await window.claude.codex.compact(sessionId);
+    if (res?.error) setIsCompacting(false);
   }, [sessionId]);
 
   const respondPermission = useCallback(

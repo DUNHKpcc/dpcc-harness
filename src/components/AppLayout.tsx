@@ -18,7 +18,9 @@ import {
   RESIZE_HANDLE_WIDTH_ISLAND,
   equalWidthFractions,
 } from "@/lib/layout/constants";
-import type { InstalledAgent } from "@/types";
+import type { InstalledAgent, UIMessage } from "@/types";
+import { extractCodexDelegationFinalText } from "@/lib/claude-codex-visible-session";
+import { CodexBridgeProvider } from "./input-bar/CodexBridgeContext";
 import { AppSidebar } from "./AppSidebar";
 import { ChatHeader } from "./ChatHeader";
 import { ChatSearchBar } from "./ChatSearchBar";
@@ -76,6 +78,36 @@ import {
   isNearBottomDockZone,
 } from "@/lib/workspace/drag";
 import { AgentProvider, type AgentContextValue } from "./AgentContext";
+import { useSettingsStore, DEFAULT_ENGINE_MODELS } from "@/stores/settings-store";
+
+/**
+ * Poll a ref until the delegated Codex session has materialised to a real id.
+ * Returns the id, or null if it never appears within the timeout.
+ */
+async function waitForCodexSessionId(
+  ref: React.MutableRefObject<{ sessionId: string | null; messages: UIMessage[] }>,
+  attempts = 80,
+  intervalMs = 100,
+): Promise<string | null> {
+  for (let i = 0; i < attempts; i += 1) {
+    if (ref.current.sessionId) return ref.current.sessionId;
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  return ref.current.sessionId;
+}
+
+/** Poll a predicate until it returns true (or attempts run out). */
+async function waitForCondition(
+  predicate: () => boolean,
+  attempts = 60,
+  intervalMs = 50,
+): Promise<boolean> {
+  for (let i = 0; i < attempts; i += 1) {
+    if (predicate()) return true;
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  return predicate();
+}
 
 export function AppLayout() {
   const o = useAppOrchestrator();
@@ -83,6 +115,14 @@ export function AppLayout() {
   const {
     sidebar, projectManager, spaceManager, manager, settings, resolvedTheme, spaceTerminals, activeSpaceTerminals, splitView,
   } = managers;
+  // Always-fresh manager handle for async flows (e.g. Codex delegation) that
+  // span multiple renders and must read the latest session state, not a stale
+  // closure snapshot.
+  const managerRef = useRef(manager);
+  managerRef.current = manager;
+  // Global last-selected model per engine — drives Current Config so it reflects
+  // each engine's model without first opening a session of that engine.
+  const lastModelByEngine = useSettingsStore((s) => s.lastModelByEngine);
   const {
     agents, selectedAgent, saveAgent, deleteAgent, handleAgentChange, lockedEngine, lockedAgentId,
   } = agentState;
@@ -189,19 +229,148 @@ export function AppLayout() {
     [activeProjectId, activeSpaceProject, clearGrabbedElements, handleOpenNewChat],
   );
 
+  // Claude-only: toggle whether Claude may delegate to a visible Codex split pane.
+  // A live Claude session restarts so the bridge MCP server is added/removed.
+  const handleClaudeCodexBridgeChange = useCallback(
+    (enabled: boolean) => {
+      settings.setClaudeCodexBridgeEnabled(enabled);
+      // Delegation opens a Codex pane beside Claude — warn if the window is too
+      // narrow to show a 2-pane split, so the user can widen it first.
+      if (enabled && maxSplitPaneCountRef.current < 2) {
+        toast.warning("Widen the window to show the Codex split pane when Claude delegates.");
+      }
+      const active = manager.activeSession;
+      if (!active || manager.isDraft || (active.engine ?? "claude") !== "claude") return;
+      void window.claude
+        .restartSession(active.id, undefined, undefined, undefined, undefined, enabled)
+        .then((res) => {
+          if (res?.error) toast.error(res.error);
+        })
+        .catch((err) => {
+          toast.error(err instanceof Error ? err.message : String(err));
+        });
+    },
+    [settings, manager.activeSession, manager.isDraft],
+  );
+
+  // Shared via context so every input bar (single + each split pane) shows the
+  // Claude→Codex toggle without threading props through the split-pane chain.
+  const codexBridgeContextValue = useMemo(
+    () => ({ enabled: settings.claudeCodexBridgeEnabled, onChange: handleClaudeCodexBridgeChange }),
+    [settings.claudeCodexBridgeEnabled, handleClaudeCodexBridgeChange],
+  );
+
+  // ── Claude → Codex visible delegation ──
+  // When Claude calls the bridge `codex_delegate` tool, the main process emits a
+  // delegation request. We open a real, visible Codex session in a split pane,
+  // run the delegated prompt, and report the final Codex reply back to the
+  // blocking MCP tool call. Direct follow-up turns the user types into the Codex
+  // pane are NOT synced back to Claude (only the first turn resolves the bridge).
+  const liveCodexStateRef = useRef<{ sessionId: string | null; messages: UIMessage[] }>({
+    sessionId: null,
+    messages: [],
+  });
+  const pendingCodexDelegationsRef = useRef(new Map<string, { bridgeRequestId: string; settled: boolean }>());
+  // Parent Claude session id -> its delegated Codex child session id. Lets a
+  // Claude session reuse one Codex pane across multiple delegations instead of
+  // spawning a fresh Codex session every time it calls the bridge tool.
+  const codexChildByParentRef = useRef(new Map<string, string>());
+  // Parents with a delegation currently being set up — guards against a second
+  // request racing in and creating a duplicate child before the first records it.
+  const delegationInFlightRef = useRef(new Set<string>());
+  // Mirrors maxSplitPaneCount (computed later in render) so the toggle handler,
+  // declared above it, can read the current value without a TDZ reference.
+  const maxSplitPaneCountRef = useRef(1);
+  // Delegation split pairs the user has explicitly closed (via the pane ✕), keyed
+  // by parent Claude session id. Selecting such a parent no longer re-opens the
+  // bound split until a fresh delegation occurs.
+  const dismissedDelegationParentsRef = useRef(new Set<string>());
+  // Bridges requestAddSplitSession (declared later) to earlier callbacks.
+  const requestAddSplitSessionRef = useRef<(sessionId: string, position?: number) => boolean>(() => false);
+
+  useEffect(() => {
+    if ((manager.activeSession?.engine ?? "") === "codex" && manager.activeSessionId) {
+      liveCodexStateRef.current = { sessionId: manager.activeSessionId, messages: manager.messages };
+    }
+  }, [manager.activeSessionId, manager.activeSession, manager.messages]);
+
+  // Unblock a Claude→Codex delegation whose parent Claude session was stopped.
+  // The `codex_delegate` MCP call blocks until the visible Codex pane finishes,
+  // so without this the bridge subprocess sits idle until its 30-minute cap.
+  // Resolving it as cancelled frees the bridge; the Codex pane keeps running so
+  // the user can still interact with it directly.
+  const cancelPendingDelegationFor = useCallback((claudeSessionId: string) => {
+    const childId = codexChildByParentRef.current.get(claudeSessionId);
+    if (!childId) return;
+    const pending = pendingCodexDelegationsRef.current.get(childId);
+    if (!pending || pending.settled) return;
+    pending.settled = true;
+    pendingCodexDelegationsRef.current.delete(childId);
+    void window.claude.completeCodexDelegation({
+      id: pending.bridgeRequestId,
+      ok: false,
+      content: "",
+      error: "Delegation cancelled by user.",
+    });
+  }, []);
+
+  // Wrap the stop handler so stopping a delegating Claude session also tears
+  // down its in-flight delegation (single-pane onStop + the focused split pane).
+  const handleStopWithDelegationCancel = useCallback(async () => {
+    const active = managerRef.current;
+    if (active.activeSession?.engine === "claude" && active.activeSessionId) {
+      cancelPendingDelegationFor(active.activeSessionId);
+    }
+    await handleStop();
+  }, [cancelPendingDelegationFor, handleStop]);
+
   const handleSidebarSelectSession = useCallback(
     (sessionId: string) => {
-      const session = manager.sessions.find((item) => item.id === sessionId);
+      const sessions = managerRef.current.sessions;
+      const session = sessions.find((item) => item.id === sessionId);
       const project = session
         ? projectManager.projects.find((item) => item.id === session.projectId)
         : null;
       if (project) {
         setJiraBoardProjectForSpace(project.spaceId || "default", null);
       }
+
+      // A Claude↔Codex delegation pair stays bound: selecting either the parent
+      // Claude session or its delegated Codex child re-shows the split rather
+      // than collapsing to a single pane. The binding only breaks when the user
+      // closes a pane via its ✕ (tracked in dismissedDelegationParentsRef).
+      let parentId: string | undefined;
+      let childId: string | undefined;
+      if (session?.delegatedFromSessionId) {
+        parentId = session.delegatedFromSessionId;
+        childId = sessionId;
+      } else {
+        const child = sessions.find((s) => s.delegatedFromSessionId === sessionId);
+        if (child) {
+          parentId = sessionId;
+          childId = child.id;
+        }
+      }
+      const pairLive =
+        !!parentId && !!childId &&
+        sessions.some((s) => s.id === parentId) &&
+        sessions.some((s) => s.id === childId) &&
+        !dismissedDelegationParentsRef.current.has(parentId);
+
+      if (pairLive && parentId && childId) {
+        const other = sessionId === parentId ? childId : parentId;
+        void (async () => {
+          await managerRef.current.switchSession(sessionId);
+          // Keep Claude on the left, Codex on the right regardless of which was clicked.
+          requestAddSplitSessionRef.current(other, sessionId === parentId ? 1 : 0);
+        })();
+        return;
+      }
+
       splitView.dismissSplitView();
       handleSelectSession(sessionId);
     },
-    [handleSelectSession, manager.sessions, projectManager.projects, setJiraBoardProjectForSpace, splitView.dismissSplitView],
+    [handleSelectSession, projectManager.projects, setJiraBoardProjectForSpace, splitView],
   );
 
 
@@ -266,6 +435,7 @@ export function AppLayout() {
     () => getMaxVisibleSplitPaneCount(availableSplitWidth),
     [availableSplitWidth],
   );
+  maxSplitPaneCountRef.current = maxSplitPaneCount;
 
   const paneResize = usePaneResize({
     widthFractions: splitView.widthFractions,
@@ -393,8 +563,11 @@ export function AppLayout() {
 
   const requestAddSplitSession = useCallback((sessionId: string, position?: number) => {
     const result = splitView.requestAddSplitSession({
+      // Read the live active session id (managerRef) so async callers — e.g. the
+      // Codex delegation flow that switches the active session mid-flight — split
+      // against the current pane, not a stale render-time snapshot.
       sessionId,
-      activeSessionId: manager.activeSessionId,
+      activeSessionId: managerRef.current.activeSessionId,
       maxPaneCount: maxSplitPaneCount,
       position,
     });
@@ -404,13 +577,198 @@ export function AppLayout() {
     }
 
     return result.ok;
-  }, [manager.activeSessionId, maxSplitPaneCount, splitView]);
+  }, [maxSplitPaneCount, splitView]);
+  requestAddSplitSessionRef.current = requestAddSplitSession;
+
+  // Fresh-closure handler kept in a ref so the IPC subscription stays stable
+  // and so it can reference requestAddSplitSession (declared above).
+  const delegationRequestHandlerRef = useRef<(request: {
+    id: string;
+    prompt: string;
+    cwd?: string;
+    claudeSessionId?: string;
+  }) => void>(() => {});
+  delegationRequestHandlerRef.current = (request) => {
+    const fail = (error: string) => {
+      void window.claude.completeCodexDelegation({ id: request.id, ok: false, content: "", error });
+    };
+    const projectId =
+      manager.activeSession?.projectId ?? activeProjectId ?? activeSpaceProject?.id ?? null;
+    if (!projectId) {
+      fail("No active project to run the delegated Codex session in.");
+      return;
+    }
+    const claudeSessionId = manager.activeSessionId;
+    const codexModel = settings.getModelForEngine("codex") || undefined;
+    const permissionMode = settings.permissionMode;
+    // A fresh delegation re-binds the split, even if the user closed it before.
+    if (claudeSessionId) dismissedDelegationParentsRef.current.delete(claudeSessionId);
+    window.claude.log("CODEX_DELEGATION", {
+      step: "request",
+      bridgeRequestId: request.id,
+      claudeParent: claudeSessionId,
+      projectId,
+    });
+    void (async () => {
+      try {
+        // If a delegation for this same Claude parent is mid-setup, wait for its
+        // child to be recorded so we reuse it instead of creating a duplicate.
+        if (claudeSessionId && delegationInFlightRef.current.has(claudeSessionId)) {
+          await waitForCondition(
+            () => codexChildByParentRef.current.has(claudeSessionId) && !delegationInFlightRef.current.has(claudeSessionId),
+            120,
+            100,
+          );
+        }
+
+        const existingChildId = claudeSessionId
+          ? codexChildByParentRef.current.get(claudeSessionId)
+          : undefined;
+        const childIsLive = !!existingChildId && managerRef.current.sessions.some((s) => s.id === existingChildId);
+
+        let codexSessionId: string | null;
+        if (existingChildId && childIsLive) {
+          // Reuse the existing Codex child: focus it and send the new prompt.
+          liveCodexStateRef.current = { sessionId: null, messages: [] };
+          await managerRef.current.switchSession(existingChildId);
+          const ready = await waitForCondition(
+            () => managerRef.current.activeSessionId === existingChildId && !managerRef.current.isProcessing,
+          );
+          if (!ready) {
+            fail("Could not reuse the delegated Codex session.");
+            return;
+          }
+          await managerRef.current.send(request.prompt);
+          codexSessionId = existingChildId;
+          window.claude.log("CODEX_DELEGATION", { step: "reused", codexSessionId, claudeParent: claudeSessionId });
+        } else {
+          if (claudeSessionId) delegationInFlightRef.current.add(claudeSessionId);
+          try {
+            // Pre-place the Codex draft as a second split pane BEFORE creating it,
+            // so when createSession makes the draft active it's already part of the
+            // split (Claude left, Codex right) — no flash to a lone Codex pane.
+            // The existing replaceSessionId effect swaps DRAFT_ID for the real id
+            // once the session materialises.
+            const preSplitOk = claudeSessionId ? requestAddSplitSession(DRAFT_ID, 1) : false;
+            liveCodexStateRef.current = { sessionId: null, messages: [] };
+            await managerRef.current.createSession(projectId, {
+              engine: "codex",
+              agentId: "codex",
+              model: codexModel,
+              planMode: false,
+              permissionMode,
+            });
+            // createSession sets state asynchronously; wait until the Codex draft
+            // is committed (so the internal refs are in sync) before sending,
+            // otherwise send() routes to the previous session.
+            const draftReady = await waitForCondition(
+              () => managerRef.current.isDraft && managerRef.current.activeSessionId === DRAFT_ID,
+            );
+            if (!draftReady) {
+              fail("The delegated Codex session draft did not initialise.");
+              return;
+            }
+            await managerRef.current.send(request.prompt);
+
+            // The Codex draft materialises to a real session id once the prompt sends.
+            codexSessionId = await waitForCodexSessionId(liveCodexStateRef);
+            if (!codexSessionId) {
+              fail("The delegated Codex session failed to start.");
+              return;
+            }
+            // Tag the child with its parent so the sidebar nests it under Claude
+            // (and hides it from the top-level list), and record it for reuse.
+            if (claudeSessionId) {
+              const childId = codexSessionId;
+              codexChildByParentRef.current.set(claudeSessionId, childId);
+              managerRef.current.setSessions((prev) =>
+                prev.map((s) => (s.id === childId ? { ...s, delegatedFromSessionId: claudeSessionId } : s)),
+              );
+            }
+            window.claude.log("CODEX_DELEGATION", {
+              step: "created",
+              codexSessionId,
+              claudeParent: claudeSessionId,
+              activeNow: managerRef.current.activeSessionId,
+              preSplitOk,
+            });
+          } finally {
+            if (claudeSessionId) delegationInFlightRef.current.delete(claudeSessionId);
+          }
+        }
+
+        pendingCodexDelegationsRef.current.set(codexSessionId, {
+          bridgeRequestId: request.id,
+          settled: false,
+        });
+        // Codex is now the active pane; add the originating Claude session to its
+        // left so the user sees Claude (left) + the delegated Codex run (right).
+        if (claudeSessionId && claudeSessionId !== codexSessionId) {
+          const splitOk = requestAddSplitSession(claudeSessionId, 0);
+          window.claude.log("CODEX_DELEGATION", {
+            step: "splitAdd",
+            splitOk,
+            active: managerRef.current.activeSessionId,
+            codexSessionId,
+            claudeParent: claudeSessionId,
+          });
+        }
+      } catch (err) {
+        if (claudeSessionId) delegationInFlightRef.current.delete(claudeSessionId);
+        fail(err instanceof Error ? err.message : String(err));
+      }
+    })();
+  };
+
+  useEffect(() => {
+    return window.claude.onCodexDelegationRequest((request) => {
+      delegationRequestHandlerRef.current(request);
+    });
+  }, []);
+
+  // Resolve the blocking bridge call on the FIRST Codex turn completion.
+  useEffect(() => {
+    return window.claude.codex.onEvent((event) => {
+      if (event.method !== "turn/completed") return;
+      const codexSessionId = event._sessionId;
+      const pending = pendingCodexDelegationsRef.current.get(codexSessionId);
+      if (!pending || pending.settled) return;
+      pending.settled = true;
+      void (async () => {
+        // Give React a tick to commit the final assistant message into the transcript.
+        await new Promise((resolve) => setTimeout(resolve, 60));
+        let messages: UIMessage[] = [];
+        if (liveCodexStateRef.current.sessionId === codexSessionId) {
+          messages = liveCodexStateRef.current.messages;
+        } else {
+          const bootstrap = await manager.loadSplitPaneBootstrap(codexSessionId);
+          messages = bootstrap?.initialMessages ?? [];
+        }
+        const finalText = extractCodexDelegationFinalText(messages);
+        void window.claude.completeCodexDelegation({
+          id: pending.bridgeRequestId,
+          ok: true,
+          content: finalText,
+          codexSessionId,
+        });
+        pendingCodexDelegationsRef.current.delete(codexSessionId);
+      })();
+    });
+  }, [manager.loadSplitPaneBootstrap]);
 
   const handleCloseSplitPane = useCallback(async (sessionId: string | null) => {
     if (!sessionId) {
       splitView.dismissSplitView();
       return;
     }
+
+    // Closing a pane of a Claude↔Codex delegation split unbinds the pair, so
+    // re-selecting the parent later won't auto-reopen the split.
+    const paneSessions = managerRef.current.sessions;
+    const closing = paneSessions.find((s) => s.id === sessionId);
+    const boundParentId = closing?.delegatedFromSessionId
+      ?? (paneSessions.some((s) => s.delegatedFromSessionId === sessionId) ? sessionId : undefined);
+    if (boundParentId) dismissedDelegationParentsRef.current.add(boundParentId);
 
     if (sessionId !== manager.activeSessionId) {
       splitView.removeSplitSession(sessionId);
@@ -840,7 +1198,7 @@ export function AppLayout() {
     handlePlanModeChange,
     handlePermissionModeChange,
     handleAgentChange,
-    handleStop,
+    handleStop: handleStopWithDelegationCancel,
     handleComposerClear,
     wrappedHandleSend,
     manager: {
@@ -865,7 +1223,7 @@ export function AppLayout() {
   }), [
     agents, selectedAgent, settings, manager, splitView.setFocusedSession,
     handleModelChange, handleClaudeModelEffortChange, handlePlanModeChange,
-    handlePermissionModeChange, handleAgentChange, handleStop,
+    handlePermissionModeChange, handleAgentChange, handleStopWithDelegationCancel,
     handleComposerClear, wrappedHandleSend,
     createSplitPaneDraftSession, queueSplitPaneSendAfterSwitch,
   ]);
@@ -1003,6 +1361,7 @@ export function AppLayout() {
   return (
     <ThemeProvider value={resolvedTheme}>
     <AgentProvider value={agentContextValue}>
+    <CodexBridgeProvider value={codexBridgeContextValue}>
     <div
       className={`relative flex h-screen overflow-hidden bg-sidebar text-foreground${settings.islandLayout ? "" : " no-islands"}${settings.islandShine ? "" : " no-island-shine"}`}
       style={islandLayoutVars}
@@ -1099,6 +1458,10 @@ export function AppLayout() {
         {showSettings && (
           <SettingsView
             onClose={() => setShowSettings(false)}
+            currentConfigModelFallbacks={{
+              claude: lastModelByEngine.claude || DEFAULT_ENGINE_MODELS.claude,
+              codex: lastModelByEngine.codex || DEFAULT_ENGINE_MODELS.codex,
+            }}
             glassSupported={glassSupported}
             macLiquidGlassSupported={macLiquidGlassSupported}
             sidebarOpen={sidebar.isOpen}
@@ -1541,7 +1904,7 @@ export function AppLayout() {
                   onRespondPermission={manager.respondPermission}
                   onSend={wrappedHandleSend}
                   onClear={handleComposerClear}
-                  onStop={handleStop}
+                  onStop={handleStopWithDelegationCancel}
                   isProcessing={manager.isProcessing}
                   queuedCount={manager.queuedCount}
                   model={activePaneCtrl?.paneModel ?? settings.model}
@@ -1757,6 +2120,7 @@ export function AppLayout() {
         />
       )}
     </div>
+    </CodexBridgeProvider>
     </AgentProvider>
     </ThemeProvider>
   );

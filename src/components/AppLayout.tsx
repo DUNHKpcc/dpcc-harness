@@ -20,6 +20,7 @@ import {
 } from "@/lib/layout/constants";
 import type { InstalledAgent, UIMessage } from "@/types";
 import { extractCodexDelegationFinalText } from "@/lib/claude-codex-visible-session";
+import { CodexBridgeProvider } from "./input-bar/CodexBridgeContext";
 import { AppSidebar } from "./AppSidebar";
 import { ChatHeader } from "./ChatHeader";
 import { ChatSearchBar } from "./ChatSearchBar";
@@ -233,6 +234,11 @@ export function AppLayout() {
   const handleClaudeCodexBridgeChange = useCallback(
     (enabled: boolean) => {
       settings.setClaudeCodexBridgeEnabled(enabled);
+      // Delegation opens a Codex pane beside Claude — warn if the window is too
+      // narrow to show a 2-pane split, so the user can widen it first.
+      if (enabled && maxSplitPaneCountRef.current < 2) {
+        toast.warning("Widen the window to show the Codex split pane when Claude delegates.");
+      }
       const active = manager.activeSession;
       if (!active || manager.isDraft || (active.engine ?? "claude") !== "claude") return;
       void window.claude
@@ -245,6 +251,13 @@ export function AppLayout() {
         });
     },
     [settings, manager.activeSession, manager.isDraft],
+  );
+
+  // Shared via context so every input bar (single + each split pane) shows the
+  // Claude→Codex toggle without threading props through the split-pane chain.
+  const codexBridgeContextValue = useMemo(
+    () => ({ enabled: settings.claudeCodexBridgeEnabled, onChange: handleClaudeCodexBridgeChange }),
+    [settings.claudeCodexBridgeEnabled, handleClaudeCodexBridgeChange],
   );
 
   // ── Claude → Codex visible delegation ──
@@ -265,6 +278,9 @@ export function AppLayout() {
   // Parents with a delegation currently being set up — guards against a second
   // request racing in and creating a duplicate child before the first records it.
   const delegationInFlightRef = useRef(new Set<string>());
+  // Mirrors maxSplitPaneCount (computed later in render) so the toggle handler,
+  // declared above it, can read the current value without a TDZ reference.
+  const maxSplitPaneCountRef = useRef(1);
 
   useEffect(() => {
     if ((manager.activeSession?.engine ?? "") === "codex" && manager.activeSessionId) {
@@ -349,6 +365,7 @@ export function AppLayout() {
     () => getMaxVisibleSplitPaneCount(availableSplitWidth),
     [availableSplitWidth],
   );
+  maxSplitPaneCountRef.current = maxSplitPaneCount;
 
   const paneResize = usePaneResize({
     widthFractions: splitView.widthFractions,
@@ -1256,6 +1273,7 @@ export function AppLayout() {
   return (
     <ThemeProvider value={resolvedTheme}>
     <AgentProvider value={agentContextValue}>
+    <CodexBridgeProvider value={codexBridgeContextValue}>
     <div
       className={`relative flex h-screen overflow-hidden bg-sidebar text-foreground${settings.islandLayout ? "" : " no-islands"}${settings.islandShine ? "" : " no-island-shine"}`}
       style={islandLayoutVars}
@@ -1809,8 +1827,6 @@ export function AppLayout() {
                   onClaudeModelEffortChange={activePaneCtrl?.handlePaneClaudeModelEffortChange ?? handleClaudeModelEffortChange}
                   onPlanModeChange={activePaneCtrl?.handlePanePlanModeChange ?? handlePlanModeChange}
                   onPermissionModeChange={activePaneCtrl?.handlePanePermissionModeChange ?? handlePermissionModeChange}
-                  claudeCodexBridgeEnabled={settings.claudeCodexBridgeEnabled}
-                  onClaudeCodexBridgeEnabledChange={handleClaudeCodexBridgeChange}
                   projectPath={activeProjectPath}
                   contextUsage={manager.contextUsage}
                   isCompacting={manager.isCompacting}
@@ -2016,6 +2032,7 @@ export function AppLayout() {
         />
       )}
     </div>
+    </CodexBridgeProvider>
     </AgentProvider>
     </ThemeProvider>
   );

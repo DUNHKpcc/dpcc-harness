@@ -80,9 +80,6 @@ export interface InputBarProps {
   onClaudeModelEffortChange: (model: string, effort: ClaudeEffort) => void;
   onPlanModeChange: (enabled: boolean) => void;
   onPermissionModeChange: (mode: string) => void;
-  /** Claude-only: whether Claude may delegate to a visible Codex split pane. */
-  claudeCodexBridgeEnabled?: boolean;
-  onClaudeCodexBridgeEnabledChange?: (enabled: boolean) => void;
   projectPath?: string;
   contextUsage?: ContextUsage | null;
   isCompacting?: boolean;
@@ -139,8 +136,6 @@ export const InputBar = memo(function InputBar({
   onClaudeModelEffortChange,
   onPlanModeChange,
   onPermissionModeChange,
-  claudeCodexBridgeEnabled,
-  onClaudeCodexBridgeEnabledChange,
   projectPath,
   contextUsage,
   isCompacting,
@@ -963,8 +958,6 @@ export const InputBar = memo(function InputBar({
                   onPermissionModeChange={onPermissionModeChange}
                   planMode={planMode}
                   onPlanModeChange={onPlanModeChange}
-                  claudeCodexBridgeEnabled={claudeCodexBridgeEnabled}
-                  onClaudeCodexBridgeEnabledChange={onClaudeCodexBridgeEnabledChange}
                   acpPermissionBehavior={acpPermissionBehavior}
                   onAcpPermissionBehaviorChange={onAcpPermissionBehaviorChange}
                 />

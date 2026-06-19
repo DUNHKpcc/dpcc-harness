@@ -13,6 +13,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { AcpPermissionBehavior } from "@/types";
+import { useCodexBridge } from "./CodexBridgeContext";
 import {
   TOOLBAR_BTN,
   ACP_PERMISSION_BEHAVIORS,
@@ -138,9 +139,6 @@ export interface EngineControlsProps {
   onPlanModeChange: (enabled: boolean) => void;
   acpPermissionBehavior?: AcpPermissionBehavior;
   onAcpPermissionBehaviorChange?: (behavior: AcpPermissionBehavior) => void;
-  /** Claude-only: whether Claude may delegate to a visible Codex split pane. */
-  claudeCodexBridgeEnabled?: boolean;
-  onClaudeCodexBridgeEnabledChange?: (enabled: boolean) => void;
 }
 
 /** Claude-only toggle that lets Claude delegate to a visible Codex split pane. */
@@ -241,9 +239,8 @@ export function EngineControls({
   disabled,
   planMode,
   onPlanModeChange,
-  claudeCodexBridgeEnabled,
-  onClaudeCodexBridgeEnabledChange,
 }: EngineControlsProps) {
+  const codexBridge = useCodexBridge();
   if (isACPAgent) return null;
   return (
     <>
@@ -252,10 +249,10 @@ export function EngineControls({
         onPlanModeChange={onPlanModeChange}
         disabled={disabled}
       />
-      {!isCodexAgent && onClaudeCodexBridgeEnabledChange && (
+      {!isCodexAgent && codexBridge && (
         <CodexBridgeToggle
-          enabled={claudeCodexBridgeEnabled === true}
-          onChange={onClaudeCodexBridgeEnabledChange}
+          enabled={codexBridge.enabled}
+          onChange={codexBridge.onChange}
           disabled={disabled || isProcessing}
         />
       )}

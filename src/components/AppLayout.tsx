@@ -18,7 +18,8 @@ import {
   RESIZE_HANDLE_WIDTH_ISLAND,
   equalWidthFractions,
 } from "@/lib/layout/constants";
-import type { InstalledAgent } from "@/types";
+import type { InstalledAgent, UIMessage } from "@/types";
+import { extractCodexDelegationFinalText } from "@/lib/claude-codex-visible-session";
 import { AppSidebar } from "./AppSidebar";
 import { ChatHeader } from "./ChatHeader";
 import { ChatSearchBar } from "./ChatSearchBar";
@@ -77,6 +78,22 @@ import {
 } from "@/lib/workspace/drag";
 import { AgentProvider, type AgentContextValue } from "./AgentContext";
 import { useSettingsStore, DEFAULT_ENGINE_MODELS } from "@/stores/settings-store";
+
+/**
+ * Poll a ref until the delegated Codex session has materialised to a real id.
+ * Returns the id, or null if it never appears within the timeout.
+ */
+async function waitForCodexSessionId(
+  ref: React.MutableRefObject<{ sessionId: string | null; messages: UIMessage[] }>,
+  attempts = 80,
+  intervalMs = 100,
+): Promise<string | null> {
+  for (let i = 0; i < attempts; i += 1) {
+    if (ref.current.sessionId) return ref.current.sessionId;
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  return ref.current.sessionId;
+}
 
 export function AppLayout() {
   const o = useAppOrchestrator();
@@ -211,6 +228,24 @@ export function AppLayout() {
     },
     [settings, manager.activeSession, manager.isDraft],
   );
+
+  // ── Claude → Codex visible delegation ──
+  // When Claude calls the bridge `codex_delegate` tool, the main process emits a
+  // delegation request. We open a real, visible Codex session in a split pane,
+  // run the delegated prompt, and report the final Codex reply back to the
+  // blocking MCP tool call. Direct follow-up turns the user types into the Codex
+  // pane are NOT synced back to Claude (only the first turn resolves the bridge).
+  const liveCodexStateRef = useRef<{ sessionId: string | null; messages: UIMessage[] }>({
+    sessionId: null,
+    messages: [],
+  });
+  const pendingCodexDelegationsRef = useRef(new Map<string, { bridgeRequestId: string; settled: boolean }>());
+
+  useEffect(() => {
+    if ((manager.activeSession?.engine ?? "") === "codex" && manager.activeSessionId) {
+      liveCodexStateRef.current = { sessionId: manager.activeSessionId, messages: manager.messages };
+    }
+  }, [manager.activeSessionId, manager.activeSession, manager.messages]);
 
   const handleSidebarSelectSession = useCallback(
     (sessionId: string) => {
@@ -428,6 +463,93 @@ export function AppLayout() {
 
     return result.ok;
   }, [manager.activeSessionId, maxSplitPaneCount, splitView]);
+
+  // Fresh-closure handler kept in a ref so the IPC subscription stays stable
+  // and so it can reference requestAddSplitSession (declared above).
+  const delegationRequestHandlerRef = useRef<(request: {
+    id: string;
+    prompt: string;
+    cwd?: string;
+    claudeSessionId?: string;
+  }) => void>(() => {});
+  delegationRequestHandlerRef.current = (request) => {
+    const fail = (error: string) => {
+      void window.claude.completeCodexDelegation({ id: request.id, ok: false, content: "", error });
+    };
+    const projectId =
+      manager.activeSession?.projectId ?? activeProjectId ?? activeSpaceProject?.id ?? null;
+    if (!projectId) {
+      fail("No active project to run the delegated Codex session in.");
+      return;
+    }
+    const claudeSessionId = manager.activeSessionId;
+    void (async () => {
+      try {
+        // Keep the originating Claude pane visible alongside the new Codex pane.
+        if (claudeSessionId) requestAddSplitSession(claudeSessionId);
+
+        liveCodexStateRef.current = { sessionId: null, messages: [] };
+        await manager.createSession(projectId, {
+          engine: "codex",
+          agentId: "codex",
+          model: settings.getModelForEngine("codex") || undefined,
+          planMode: false,
+          permissionMode: settings.permissionMode,
+        });
+        await manager.send(request.prompt);
+
+        // The Codex draft materialises to a real session id once the prompt sends.
+        const codexSessionId = await waitForCodexSessionId(liveCodexStateRef);
+        if (!codexSessionId) {
+          fail("The delegated Codex session failed to start.");
+          return;
+        }
+        pendingCodexDelegationsRef.current.set(codexSessionId, {
+          bridgeRequestId: request.id,
+          settled: false,
+        });
+        requestAddSplitSession(codexSessionId);
+      } catch (err) {
+        fail(err instanceof Error ? err.message : String(err));
+      }
+    })();
+  };
+
+  useEffect(() => {
+    return window.claude.onCodexDelegationRequest((request) => {
+      delegationRequestHandlerRef.current(request);
+    });
+  }, []);
+
+  // Resolve the blocking bridge call on the FIRST Codex turn completion.
+  useEffect(() => {
+    return window.claude.codex.onEvent((event) => {
+      if (event.method !== "turn/completed") return;
+      const codexSessionId = event._sessionId;
+      const pending = pendingCodexDelegationsRef.current.get(codexSessionId);
+      if (!pending || pending.settled) return;
+      pending.settled = true;
+      void (async () => {
+        // Give React a tick to commit the final assistant message into the transcript.
+        await new Promise((resolve) => setTimeout(resolve, 60));
+        let messages: UIMessage[] = [];
+        if (liveCodexStateRef.current.sessionId === codexSessionId) {
+          messages = liveCodexStateRef.current.messages;
+        } else {
+          const bootstrap = await manager.loadSplitPaneBootstrap(codexSessionId);
+          messages = bootstrap?.initialMessages ?? [];
+        }
+        const finalText = extractCodexDelegationFinalText(messages);
+        void window.claude.completeCodexDelegation({
+          id: pending.bridgeRequestId,
+          ok: true,
+          content: finalText,
+          codexSessionId,
+        });
+        pendingCodexDelegationsRef.current.delete(codexSessionId);
+      })();
+    });
+  }, [manager.loadSplitPaneBootstrap]);
 
   const handleCloseSplitPane = useCallback(async (sessionId: string | null) => {
     if (!sessionId) {

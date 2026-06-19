@@ -1,3 +1,4 @@
+import { Fragment, type ReactNode } from "react";
 import type { ChatFolder, ChatSession, InstalledAgent } from "@/types";
 import type { FolderSidebarItem } from "@/lib/sidebar/grouping";
 import { SessionItem } from "./SessionItem";
@@ -11,6 +12,7 @@ export function PinnedSection({
   islandLayout,
   folders,
   agents,
+  renderSessionChildren,
 }: {
   sessions: ChatSession[];
   pinnedFolders?: FolderSidebarItem[];
@@ -18,6 +20,8 @@ export function PinnedSection({
   islandLayout: boolean;
   folders: ChatFolder[];
   agents?: InstalledAgent[];
+  /** Render delegated Codex children nested under a parent session. */
+  renderSessionChildren?: (sessionId: string) => ReactNode;
 }) {
   const {
     selectSession,
@@ -49,25 +53,28 @@ export function PinnedSection({
             onRenameFolder={(name) => renameFolder(folder.projectId, folder.id, name)}
             onDeleteFolder={() => deleteFolder(folder.projectId, folder.id)}
             agents={agents}
+            renderSessionChildren={renderSessionChildren}
           />
         );
       })}
       {sessions.map((session) => (
-        <SessionItem
-          key={session.id}
-          islandLayout={islandLayout}
-          session={session}
-          isActive={session.id === activeSessionId}
-          onSelect={() => selectSession(session.id)}
-          onDelete={() => deleteSession(session.id)}
-          onRename={(title) => renameSession(session.id, title)}
-          onPinToggle={() => pinSession(session.id, false)}
-          folders={folders}
-          onMoveToFolder={(folderId) => moveSessionToFolder(session.id, folderId)}
-          agents={agents}
-          onOpenInSplitView={openInSplitView ? () => openInSplitView(session.id) : undefined}
-          canOpenInSplitView={canOpenSessionInSplitView?.(session.id) ?? true}
-        />
+        <Fragment key={session.id}>
+          <SessionItem
+            islandLayout={islandLayout}
+            session={session}
+            isActive={session.id === activeSessionId}
+            onSelect={() => selectSession(session.id)}
+            onDelete={() => deleteSession(session.id)}
+            onRename={(title) => renameSession(session.id, title)}
+            onPinToggle={() => pinSession(session.id, false)}
+            folders={folders}
+            onMoveToFolder={(folderId) => moveSessionToFolder(session.id, folderId)}
+            agents={agents}
+            onOpenInSplitView={openInSplitView ? () => openInSplitView(session.id) : undefined}
+            canOpenInSplitView={canOpenSessionInSplitView?.(session.id) ?? true}
+          />
+          {renderSessionChildren?.(session.id)}
+        </Fragment>
       ))}
     </div>
   );

@@ -513,6 +513,12 @@ export function AppLayout() {
     const claudeSessionId = manager.activeSessionId;
     const codexModel = settings.getModelForEngine("codex") || undefined;
     const permissionMode = settings.permissionMode;
+    window.claude.log("CODEX_DELEGATION", {
+      step: "request",
+      bridgeRequestId: request.id,
+      claudeParent: claudeSessionId,
+      projectId,
+    });
     void (async () => {
       try {
         // If a delegation for this same Claude parent is mid-setup, wait for its
@@ -544,6 +550,7 @@ export function AppLayout() {
           }
           await managerRef.current.send(request.prompt);
           codexSessionId = existingChildId;
+          window.claude.log("CODEX_DELEGATION", { step: "reused", codexSessionId, claudeParent: claudeSessionId });
         } else {
           if (claudeSessionId) delegationInFlightRef.current.add(claudeSessionId);
           try {
@@ -582,6 +589,12 @@ export function AppLayout() {
                 prev.map((s) => (s.id === childId ? { ...s, delegatedFromSessionId: claudeSessionId } : s)),
               );
             }
+            window.claude.log("CODEX_DELEGATION", {
+              step: "created",
+              codexSessionId,
+              claudeParent: claudeSessionId,
+              activeNow: managerRef.current.activeSessionId,
+            });
           } finally {
             if (claudeSessionId) delegationInFlightRef.current.delete(claudeSessionId);
           }
@@ -594,7 +607,14 @@ export function AppLayout() {
         // Codex is now the active pane; add the originating Claude session to its
         // left so the user sees Claude (left) + the delegated Codex run (right).
         if (claudeSessionId && claudeSessionId !== codexSessionId) {
-          requestAddSplitSession(claudeSessionId, 0);
+          const splitOk = requestAddSplitSession(claudeSessionId, 0);
+          window.claude.log("CODEX_DELEGATION", {
+            step: "splitAdd",
+            splitOk,
+            active: managerRef.current.activeSessionId,
+            codexSessionId,
+            claudeParent: claudeSessionId,
+          });
         }
       } catch (err) {
         if (claudeSessionId) delegationInFlightRef.current.delete(claudeSessionId);

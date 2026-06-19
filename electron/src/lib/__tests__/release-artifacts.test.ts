@@ -23,4 +23,12 @@ describe("release artifact configuration", () => {
     expect(workflow).toContain('for file in "${DIR}"/*.dmg "${DIR}"/*.zip "${DIR}"/latest-mac.yml; do');
     expect(workflow).toContain('for file in "${DIR}"/*.exe "${DIR}"/latest.yml; do');
   });
+
+  it("creates the GitHub release before upload jobs run", () => {
+    const workflow = fs.readFileSync(path.join(repoRoot, ".github/workflows/build.yml"), "utf8");
+
+    expect(workflow).toContain("ensure-release:");
+    expect(workflow).toContain('gh release create "$TAG"');
+    expect(workflow).toContain("needs: [prepare-release, test, ensure-release]");
+  });
 });

@@ -50,12 +50,52 @@ jobs:
       - name: Run tests
         run: pnpm test
 
+  ensure-release:
+    needs: [prepare-release, test]
+    if: ${{ startsWith(github.ref, 'refs/tags/v') && needs.test.result == 'success' && (needs.prepare-release.result == 'success' || needs.prepare-release.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" &>/dev/null; then
+            echo "Release $TAG already exists"
+            exit 0
+          fi
+
+          cat > release-notes.md <<'EOF'
+          ## Changes
+
+          ### 📦 Safer Downloads
+          - macOS downloads now include both platform and architecture in the file name, so Apple Silicon users can pick the `mac-arm64` build instead of accidentally installing the Intel build through Rosetta.
+          - Windows installers now use clearer names for `windows-x64` and `windows-arm64`.
+
+          ### 🔄 Cleaner Release Page
+          - Release uploads are now limited to the actual installers and updater manifests, reducing noisy extra files on the release page.
+
+          ### 🐛 Bug Fixes
+          - Fixed lingering PccAgent rename details in release links, issue templates, logs, and delegation copy.
+          - Disabled inherited analytics keys by default for this fork.
+          - Preserved the Claude-to-Codex bridge setting when migrating from the old localStorage key.
+
+          ---
+
+          **Full Changelog**: https://github.com/DUNHKpcc/dpcc-harness/compare/v1.0.0...v1.0.1
+          EOF
+
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$TAG — Clear Installer Names & Cleaner Downloads" \
+            --notes-file release-notes.md
+
   # macOS: build both arm64 + x64 in one job so electron-builder writes a single
   # latest-mac.yml containing both architectures. Separate jobs race and the last
   # one to finish overwrites the other's YAML → wrong arch served to half the users.
   build-mac:
-    needs: [prepare-release, test]
-    if: ${{ always() && needs.test.result == 'success' && (needs.prepare-release.result == 'success' || needs.prepare-release.result == 'skipped') }}
+    needs: [prepare-release, test, ensure-release]
+    if: ${{ always() && needs.test.result == 'success' && (needs.prepare-release.result == 'success' || needs.prepare-release.result == 'skipped') && (needs.ensure-release.result == 'success' || needs.ensure-release.result == 'skipped') }}
     runs-on: macos-26
     steps:
       - name: Checkout
@@ -118,8 +158,8 @@ jobs:
   # Windows: same approach as macOS — one job builds both arches so electron-builder
   # writes a single latest.yml with both installers listed.
   build-win:
-    needs: [prepare-release, test]
-    if: ${{ always() && needs.test.result == 'success' && (needs.prepare-release.result == 'success' || needs.prepare-release.result == 'skipped') }}
+    needs: [prepare-release, test, ensure-release]
+    if: ${{ always() && needs.test.result == 'success' && (needs.prepare-release.result == 'success' || needs.prepare-release.result == 'skipped') && (needs.ensure-release.result == 'success' || needs.ensure-release.result == 'skipped') }}
     # Pin to windows-2022 (VS 2022). windows-latest now ships VS 2026, which
     # node-gyp 11 can't detect → node-pty fails to compile during packaging.
     runs-on: windows-2022
@@ -194,8 +234,8 @@ jobs:
   # access cross-arch vendor binaries that don't exist in the other arch's staging
   # dir). Build sequentially, then merge latest-linux.yml before publishing.
   build-linux:
-    needs: [prepare-release, test]
-    if: ${{ always() && needs.test.result == 'success' && (needs.prepare-release.result == 'success' || needs.prepare-release.result == 'skipped') }}
+    needs: [prepare-release, test, ensure-release]
+    if: ${{ always() && needs.test.result == 'success' && (needs.prepare-release.result == 'success' || needs.prepare-release.result == 'skipped') && (needs.ensure-release.result == 'success' || needs.ensure-release.result == 'skipped') }}
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout

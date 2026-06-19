@@ -35,6 +35,10 @@ export interface InternalState extends BackgroundSessionState {
   codexPlanTurnCounter: number;
   /** Active ACP task/subagent — inner tool_calls and text are routed into its card. */
   activeTask: { msgId: string; toolCallId: string; hasInnerTools: boolean; textBuffer: string } | null;
+  /** The current turn involved context compaction (used to suppress the unread dot). */
+  turnSawCompaction: boolean;
+  /** The current turn produced real assistant/tool output (overrides compaction suppression). */
+  turnSawOutput: boolean;
 }
 
 /** Callback fired when a background session receives a permission request */
@@ -46,7 +50,7 @@ type PermissionRequestCallback = (sessionId: string, permission: PermissionReque
  */
 export class BackgroundSessionStore {
   private sessions = new Map<string, InternalState>();
-  onProcessingChange?: (sessionId: string, isProcessing: boolean) => void;
+  onProcessingChange?: (sessionId: string, isProcessing: boolean, suppressUnread?: boolean) => void;
   onPermissionRequest?: PermissionRequestCallback;
 
   private getOrCreate(sessionId: string): InternalState {
@@ -68,6 +72,8 @@ export class BackgroundSessionStore {
         codexPlanText: "",
         codexPlanTurnCounter: 0,
         activeTask: null,
+        turnSawCompaction: false,
+        turnSawOutput: false,
       };
       this.sessions.set(sessionId, state);
     }
@@ -81,7 +87,7 @@ export class BackgroundSessionStore {
     const state = this.getOrCreate(sessionId);
     const result = handleClaudeEvent(state, event);
     if (result?.processingChanged) {
-      this.onProcessingChange?.(sessionId, result.isProcessing);
+      this.onProcessingChange?.(sessionId, result.isProcessing, result.suppressUnread);
     }
   }
 
@@ -109,7 +115,7 @@ export class BackgroundSessionStore {
     const state = this.getOrCreate(sessionId);
     const result = codexHandler(state, event);
     if (result?.processingChanged) {
-      this.onProcessingChange?.(sessionId, result.isProcessing!);
+      this.onProcessingChange?.(sessionId, result.isProcessing!, result.suppressUnread);
     }
     if (result?.permissionRequest) {
       this.onPermissionRequest?.(sessionId, result.permissionRequest);
@@ -237,6 +243,31 @@ export class BackgroundSessionStore {
     const planInput = latestPlanStreamMsg?.toolInput as { plan?: string } | undefined;
     const codexPlanText = planInput?.plan ?? "";
 
+    // 重建 in-flight turn 的 compaction/output 标记。这两个是 turn 级别的标记
+    // (每个 `result` 后重置),且只存在于 background store 中,因此从 active view
+    // seed 时会丢失。若不处理:在 compaction 进行中切走(例如手动 /compact 的 summary
+    // 已插入、但该 turn 的 `result` 尚未到达),「compaction-only」这一事实就会丢失,
+    // 随后到达的 `result` 会错误地点亮 unread dot 并触发 completion notification。
+    // Claude 和 Codex 在 compaction boundary 都会 push 一条 `role: "summary"` 消息,
+    // 因此该扫描是 engine-agnostic 的。从尾部反向扫描、在 turn 边界(user 消息)处停止,
+    // 可保证只看当前 turn;seed 之后到来的输出会由 live handler 重新置位 `turnSawOutput`。
+    let turnSawCompaction = state.isCompacting ?? false;
+    let turnSawOutput = false;
+    if (state.isProcessing) {
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const m = messages[i];
+        if (m.role === "summary") {
+          turnSawCompaction = true;
+          break;
+        }
+        if (m.role === "tool_call" || (m.role === "assistant" && (!!m.content.trim() || !!m.thinking))) {
+          turnSawOutput = true;
+          break;
+        }
+        if (m.role === "user") break; // turn 边界 —— 不要串到上一个 turn
+      }
+    }
+
     this.sessions.set(sessionId, {
       messages,
       isProcessing: state.isProcessing,
@@ -253,6 +284,8 @@ export class BackgroundSessionStore {
       codexPlanText,
       codexPlanTurnCounter,
       activeTask: null,
+      turnSawCompaction,
+      turnSawOutput,
     });
   }
 

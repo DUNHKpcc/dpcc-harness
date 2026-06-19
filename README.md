@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/OpenSource03/harnss/releases"><img alt="Latest Release" src="https://img.shields.io/github/v/release/OpenSource03/harnss?style=flat-square&color=blue" /></a>
+  <a href="https://github.com/DUNHKpcc/dpcc-harness/releases"><img alt="Latest Release" src="https://img.shields.io/github/v/release/DUNHKpcc/dpcc-harness?style=flat-square&color=blue" /></a>
   <a href="https://github.com/OpenSource03/harnss/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/OpenSource03/harnss?style=flat-square" /></a>
   <img alt="Platform" src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-brightgreen?style=flat-square" />
   <img alt="Electron" src="https://img.shields.io/badge/electron-40-47848F?style=flat-square&logo=electron&logoColor=white" />
@@ -133,7 +133,7 @@ Full-text search across session titles and message content. Import and resume co
 
 ## Quick Start
 
-1. **Download** the latest release for your platform from the [Releases page](https://github.com/OpenSource03/harnss/releases/latest)
+1. **Download** the latest release for your platform from the [Releases page](https://github.com/DUNHKpcc/dpcc-harness/releases/latest)
 2. **Open a project** — point Harnss at any folder on disk
 3. **Choose an engine** — Claude Code, Codex, or any installed ACP agent — and start working
 
@@ -178,11 +178,11 @@ MCP servers are configured per project through the **MCP Servers panel** in the 
 
 | Platform | Download |
 |----------|----------|
-| macOS (Apple Silicon) | [`.dmg` (arm64)](https://github.com/OpenSource03/harnss/releases/latest) |
-| macOS (Intel) | [`.dmg` (x64)](https://github.com/OpenSource03/harnss/releases/latest) |
-| Windows (x64) | [`.exe` installer](https://github.com/OpenSource03/harnss/releases/latest) |
-| Windows (ARM64) | [`.exe` installer](https://github.com/OpenSource03/harnss/releases/latest) |
-| Linux | [`.AppImage`](https://github.com/OpenSource03/harnss/releases/latest) / [`.deb`](https://github.com/OpenSource03/harnss/releases/latest) |
+| macOS (Apple Silicon) | [`.dmg` (arm64)](https://github.com/DUNHKpcc/dpcc-harness/releases/latest) |
+| macOS (Intel) | [`.dmg` (x64)](https://github.com/DUNHKpcc/dpcc-harness/releases/latest) |
+| Windows (x64) | [`.exe` installer](https://github.com/DUNHKpcc/dpcc-harness/releases/latest) |
+| Windows (ARM64) | [`.exe` installer](https://github.com/DUNHKpcc/dpcc-harness/releases/latest) |
+| Linux | [`.AppImage`](https://github.com/DUNHKpcc/dpcc-harness/releases/latest) / [`.deb`](https://github.com/DUNHKpcc/dpcc-harness/releases/latest) |
 
 ---
 

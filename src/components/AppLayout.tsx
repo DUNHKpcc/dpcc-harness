@@ -281,6 +281,12 @@ export function AppLayout() {
   // Mirrors maxSplitPaneCount (computed later in render) so the toggle handler,
   // declared above it, can read the current value without a TDZ reference.
   const maxSplitPaneCountRef = useRef(1);
+  // Delegation split pairs the user has explicitly closed (via the pane ✕), keyed
+  // by parent Claude session id. Selecting such a parent no longer re-opens the
+  // bound split until a fresh delegation occurs.
+  const dismissedDelegationParentsRef = useRef(new Set<string>());
+  // Bridges requestAddSplitSession (declared later) to earlier callbacks.
+  const requestAddSplitSessionRef = useRef<(sessionId: string, position?: number) => boolean>(() => false);
 
   useEffect(() => {
     if ((manager.activeSession?.engine ?? "") === "codex" && manager.activeSessionId) {
@@ -290,17 +296,51 @@ export function AppLayout() {
 
   const handleSidebarSelectSession = useCallback(
     (sessionId: string) => {
-      const session = manager.sessions.find((item) => item.id === sessionId);
+      const sessions = managerRef.current.sessions;
+      const session = sessions.find((item) => item.id === sessionId);
       const project = session
         ? projectManager.projects.find((item) => item.id === session.projectId)
         : null;
       if (project) {
         setJiraBoardProjectForSpace(project.spaceId || "default", null);
       }
+
+      // A Claude↔Codex delegation pair stays bound: selecting either the parent
+      // Claude session or its delegated Codex child re-shows the split rather
+      // than collapsing to a single pane. The binding only breaks when the user
+      // closes a pane via its ✕ (tracked in dismissedDelegationParentsRef).
+      let parentId: string | undefined;
+      let childId: string | undefined;
+      if (session?.delegatedFromSessionId) {
+        parentId = session.delegatedFromSessionId;
+        childId = sessionId;
+      } else {
+        const child = sessions.find((s) => s.delegatedFromSessionId === sessionId);
+        if (child) {
+          parentId = sessionId;
+          childId = child.id;
+        }
+      }
+      const pairLive =
+        !!parentId && !!childId &&
+        sessions.some((s) => s.id === parentId) &&
+        sessions.some((s) => s.id === childId) &&
+        !dismissedDelegationParentsRef.current.has(parentId);
+
+      if (pairLive && parentId && childId) {
+        const other = sessionId === parentId ? childId : parentId;
+        void (async () => {
+          await managerRef.current.switchSession(sessionId);
+          // Keep Claude on the left, Codex on the right regardless of which was clicked.
+          requestAddSplitSessionRef.current(other, sessionId === parentId ? 1 : 0);
+        })();
+        return;
+      }
+
       splitView.dismissSplitView();
       handleSelectSession(sessionId);
     },
-    [handleSelectSession, manager.sessions, projectManager.projects, setJiraBoardProjectForSpace, splitView.dismissSplitView],
+    [handleSelectSession, projectManager.projects, setJiraBoardProjectForSpace, splitView],
   );
 
 
@@ -508,6 +548,7 @@ export function AppLayout() {
 
     return result.ok;
   }, [maxSplitPaneCount, splitView]);
+  requestAddSplitSessionRef.current = requestAddSplitSession;
 
   // Fresh-closure handler kept in a ref so the IPC subscription stays stable
   // and so it can reference requestAddSplitSession (declared above).
@@ -530,6 +571,8 @@ export function AppLayout() {
     const claudeSessionId = manager.activeSessionId;
     const codexModel = settings.getModelForEngine("codex") || undefined;
     const permissionMode = settings.permissionMode;
+    // A fresh delegation re-binds the split, even if the user closed it before.
+    if (claudeSessionId) dismissedDelegationParentsRef.current.delete(claudeSessionId);
     window.claude.log("CODEX_DELEGATION", {
       step: "request",
       bridgeRequestId: request.id,
@@ -571,6 +614,12 @@ export function AppLayout() {
         } else {
           if (claudeSessionId) delegationInFlightRef.current.add(claudeSessionId);
           try {
+            // Pre-place the Codex draft as a second split pane BEFORE creating it,
+            // so when createSession makes the draft active it's already part of the
+            // split (Claude left, Codex right) — no flash to a lone Codex pane.
+            // The existing replaceSessionId effect swaps DRAFT_ID for the real id
+            // once the session materialises.
+            const preSplitOk = claudeSessionId ? requestAddSplitSession(DRAFT_ID, 1) : false;
             liveCodexStateRef.current = { sessionId: null, messages: [] };
             await managerRef.current.createSession(projectId, {
               engine: "codex",
@@ -611,6 +660,7 @@ export function AppLayout() {
               codexSessionId,
               claudeParent: claudeSessionId,
               activeNow: managerRef.current.activeSessionId,
+              preSplitOk,
             });
           } finally {
             if (claudeSessionId) delegationInFlightRef.current.delete(claudeSessionId);
@@ -681,6 +731,14 @@ export function AppLayout() {
       splitView.dismissSplitView();
       return;
     }
+
+    // Closing a pane of a Claude↔Codex delegation split unbinds the pair, so
+    // re-selecting the parent later won't auto-reopen the split.
+    const paneSessions = managerRef.current.sessions;
+    const closing = paneSessions.find((s) => s.id === sessionId);
+    const boundParentId = closing?.delegatedFromSessionId
+      ?? (paneSessions.some((s) => s.delegatedFromSessionId === sessionId) ? sessionId : undefined);
+    if (boundParentId) dismissedDelegationParentsRef.current.add(boundParentId);
 
     if (sessionId !== manager.activeSessionId) {
       splitView.removeSplitSession(sessionId);

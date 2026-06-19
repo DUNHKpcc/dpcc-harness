@@ -7,7 +7,7 @@ import type { McpServerInput } from "@shared/lib/mcp-config";
 
 describe("appendClaudeCodexBridgeServer", () => {
   const baseConfig = {
-    command: "/Applications/Harnss.app/Contents/MacOS/Harnss",
+    command: "/Applications/PccAgent.app/Contents/MacOS/PccAgent",
     args: ["/app/electron/dist/claude-codex-mcp.js"],
     endpoint: "http://127.0.0.1:43210",
     token: "secret-token",

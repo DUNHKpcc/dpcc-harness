@@ -2,7 +2,7 @@
  * Dependency-light stdio MCP helper launched by the Claude Agent SDK.
  *
  * It speaks newline-delimited JSON-RPC 2.0 on stdin/stdout and exposes a single
- * `codex_delegate` tool. Tool calls are forwarded to the Harnss main-process
+ * `codex_delegate` tool. Tool calls are forwarded to the PccAgent main-process
  * bridge controller over loopback HTTP; the bridge blocks until the visible
  * Codex split pane finishes the delegated turn, then returns the final text.
  *
@@ -134,7 +134,7 @@ async function handleRequest(request: JsonRpcRequest): Promise<void> {
           {
             name: TOOL_NAME,
             description:
-              "Delegate a coding task to Codex. Opens a visible Codex split pane in Harnss, runs the task, and returns Codex's final result. Use for work better suited to Codex.",
+              "Delegate a coding task to Codex. Opens a visible Codex split pane in PccAgent, runs the task, and returns Codex's final result. Use for work better suited to Codex.",
             inputSchema: {
               type: "object",
               properties: {

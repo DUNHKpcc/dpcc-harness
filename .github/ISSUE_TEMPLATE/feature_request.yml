@@ -8,7 +8,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Have an idea that would make Harnss better? We'd love to hear it! Please fill out the form below with as much detail as you can.
+        Have an idea that would make PccAgent better? We'd love to hear it! Please fill out the form below with as much detail as you can.
 
   - type: textarea
     id: problem
@@ -28,7 +28,7 @@ body:
       description: Describe the feature you'd like to see. Be as specific as possible.
       placeholder: |
         I'd like a button/panel/setting that...
-        When I do X, Harnss should...
+        When I do X, PccAgent should...
     validations:
       required: true
 
@@ -43,7 +43,7 @@ body:
     id: area
     attributes:
       label: Area
-      description: Which part of Harnss does this feature relate to? (select all that apply)
+      description: Which part of PccAgent does this feature relate to? (select all that apply)
       multiple: true
       options:
         - Chat / Messaging
@@ -82,7 +82,7 @@ body:
       options:
         - Nice to have
         - Would significantly improve my workflow
-        - Blocking my use of Harnss
+        - Blocking my use of PccAgent
     validations:
       required: true
 

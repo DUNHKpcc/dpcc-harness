@@ -1,5 +1,5 @@
 > [!WARNING]
-> Harnss is in early development and issues are to be expected. Please feel free to report bugs and issues in the Issues section.
+> PccAgent is in early development and issues are to be expected. Please feel free to report bugs and issues in the Issues section.
 
 <p align="center">
   <img alt="harnss_banner" src="https://github.com/user-attachments/assets/88f4dce1-c12b-493a-be8c-a3c418293ef4" />
@@ -11,18 +11,18 @@
 
 <p align="center">
   <a href="https://github.com/DUNHKpcc/dpcc-harness/releases"><img alt="Latest Release" src="https://img.shields.io/github/v/release/DUNHKpcc/dpcc-harness?style=flat-square&color=blue" /></a>
-  <a href="https://github.com/OpenSource03/harnss/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/OpenSource03/harnss?style=flat-square" /></a>
+  <a href="https://github.com/DUNHKpcc/dpcc-harness/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/DUNHKpcc/dpcc-harness?style=flat-square" /></a>
   <img alt="Platform" src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-brightgreen?style=flat-square" />
   <img alt="Electron" src="https://img.shields.io/badge/electron-40-47848F?style=flat-square&logo=electron&logoColor=white" />
-  <img alt="License" src="https://img.shields.io/github/license/OpenSource03/harnss?style=flat-square" />
-  <a href="https://github.com/OpenSource03/harnss/actions"><img alt="Build" src="https://img.shields.io/github/actions/workflow/status/OpenSource03/harnss/build.yml?style=flat-square&label=build" /></a>
+  <img alt="License" src="https://img.shields.io/github/license/DUNHKpcc/dpcc-harness?style=flat-square" />
+  <a href="https://github.com/DUNHKpcc/dpcc-harness/actions"><img alt="Build" src="https://img.shields.io/github/actions/workflow/status/DUNHKpcc/dpcc-harness/build.yml?style=flat-square&label=build" /></a>
 </p>
 
 ---
 
-Harnss is a cross-platform desktop app that gives you one interface to run, manage, and switch between AI coding agents — Claude Code, Codex, and any ACP-compatible agent — without losing context, sessions, or tool state.
+PccAgent is a cross-platform desktop app that gives you one interface to run, manage, and switch between AI coding agents — Claude Code, Codex, and any ACP-compatible agent — without losing context, sessions, or tool state.
 
-**Why Harnss?**
+**Why PccAgent?**
 
 - **One app, every agent.** Run Claude Code, Codex, and custom ACP agents side by side. No more juggling terminals or losing context when switching tools.
 - **See what your AI is actually doing.** Tool calls render as interactive cards with word-level diffs, syntax highlighting, and inline bash output — not raw JSON.
@@ -134,14 +134,14 @@ Full-text search across session titles and message content. Import and resume co
 ## Quick Start
 
 1. **Download** the latest release for your platform from the [Releases page](https://github.com/DUNHKpcc/dpcc-harness/releases/latest)
-2. **Open a project** — point Harnss at any folder on disk
+2. **Open a project** — point PccAgent at any folder on disk
 3. **Choose an engine** — Claude Code, Codex, or any installed ACP agent — and start working
 
 ---
 
 ## Engines & Agents
 
-Harnss supports three execution engines out of the box:
+PccAgent supports three execution engines out of the box:
 
 | Engine | Protocol | Requirements |
 |--------|----------|--------------|
@@ -189,7 +189,7 @@ MCP servers are configured per project through the **MCP Servers panel** in the 
 ## Development
 
 ```bash
-git clone https://github.com/OpenSource03/harnss.git
+git clone https://github.com/DUNHKpcc/dpcc-harness.git
 cd harnss
 pnpm install
 pnpm dev

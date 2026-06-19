@@ -26,6 +26,11 @@ import { getAppSettings } from "./lib/app-settings";
 import { initAutoUpdater, getIsInstallingUpdate } from "./lib/updater";
 import { initPreReleaseCheck } from "./lib/prerelease-check";
 import { initPostHog, shutdownPostHog, reinitPostHog, captureEvent } from "./lib/posthog";
+import {
+  createClaudeCodexBridgeController,
+  setClaudeCodexBridgeController,
+} from "./lib/claude-codex-bridge-controller";
+import { safeSend } from "./lib/safe-send";
 import { getAcpAnalyticsPropertiesForSession } from "./ipc/acp-sessions";
 import { terminals } from "./ipc/terminal";
 
@@ -392,6 +397,20 @@ settingsIpc.register(getMainWindow);
 accountIpc.register();
 jiraIpc.register();
 
+// --- Claude → Codex visible delegation bridge ---
+// Loopback controller the stdio MCP helper forwards `codex_delegate` calls to.
+// The renderer opens a visible Codex split pane and reports completion back.
+const claudeCodexBridge = createClaudeCodexBridgeController({
+  notifyRenderer: (request) => {
+    safeSend(getMainWindow, "claude-codex:delegate-request", request);
+  },
+});
+setClaudeCodexBridgeController(claudeCodexBridge);
+ipcMain.handle("claude-codex:complete-delegation", (_event, result) => {
+  claudeCodexBridge.completeDelegation(result);
+  return { ok: true };
+});
+
 // Listen for analytics settings changes and reinitialize PostHog
 let lastAnalyticsEnabled: boolean | undefined;
 onSettingsChanged((settings) => {
@@ -515,6 +534,11 @@ app.whenReady().then(() => {
   initAutoUpdater(getMainWindow);
   initPreReleaseCheck(getMainWindow);
 
+  // Start the Claude→Codex delegation bridge before any session can be created.
+  claudeCodexBridge.start().catch((err) => {
+    reportError("CLAUDE_CODEX_BRIDGE", err, { context: "startup" });
+  });
+
   // Initialize PostHog analytics (if enabled in settings) — fire-and-forget to avoid blocking startup
   initPostHog().catch((err) => {
     reportError("POSTHOG", err, { context: "startup-init" });
@@ -557,6 +581,7 @@ app.whenReady().then(() => {
 
 app.on("will-quit", (event) => {
   globalShortcut.unregisterAll();
+  void claudeCodexBridge.stop();
 
   // When an update is being installed, let the updater control the quit lifecycle.
   // In that case, fire-and-forget PostHog shutdown and do not delay quit.

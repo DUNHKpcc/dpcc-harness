@@ -158,6 +158,13 @@ contextBridge.exposeInMainWorld("claude", {
   showItemInFolder: (filePath: string) => ipcRenderer.invoke("shell:show-item-in-folder", filePath),
   generateTitle: (message: string, cwd?: string, engine?: string, sessionId?: string) =>
     ipcRenderer.invoke("claude:generate-title", { message, cwd, engine, sessionId }),
+  onCodexDelegationRequest: (callback: (data: unknown) => void) => {
+    const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);
+    ipcRenderer.on("claude-codex:delegate-request", listener);
+    return () => ipcRenderer.removeListener("claude-codex:delegate-request", listener);
+  },
+  completeCodexDelegation: (result: unknown) =>
+    ipcRenderer.invoke("claude-codex:complete-delegation", result),
   projects: {
     list: () => ipcRenderer.invoke("projects:list"),
     create: (spaceId?: string) => ipcRenderer.invoke("projects:create", spaceId),

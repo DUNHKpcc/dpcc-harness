@@ -204,3 +204,18 @@ export function createClaudeCodexBridgeController(
     completeDelegation,
   };
 }
+
+/**
+ * Process-wide singleton accessor. `main.ts` owns the lifecycle (create →
+ * start → stop); `claude-sessions.ts` reads the running instance to inject the
+ * bridge MCP server config into Claude sessions.
+ */
+let activeController: ClaudeCodexBridgeController | null = null;
+
+export function setClaudeCodexBridgeController(controller: ClaudeCodexBridgeController | null): void {
+  activeController = controller;
+}
+
+export function getClaudeCodexBridgeController(): ClaudeCodexBridgeController | null {
+  return activeController;
+}

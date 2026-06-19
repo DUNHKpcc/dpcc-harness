@@ -125,6 +125,21 @@ declare global {
         engine?: EngineId,
         sessionId?: string,
       ) => Promise<{ title?: string; error?: string }>;
+      /** Fired when Claude calls the `codex_delegate` bridge tool and a visible Codex pane must be opened. */
+      onCodexDelegationRequest: (callback: (request: {
+        id: string;
+        prompt: string;
+        cwd?: string;
+        claudeSessionId?: string;
+      }) => void) => () => void;
+      /** Report the delegated Codex turn result back to the waiting Claude MCP tool call. */
+      completeCodexDelegation: (result: {
+        id: string;
+        ok: boolean;
+        content: string;
+        codexSessionId?: string;
+        error?: string;
+      }) => Promise<IpcResult>;
       log: (label: string, data: unknown) => void;
       onEvent: (callback: (event: ClaudeEvent & { _sessionId: string }) => void) => () => void;
       onStderr: (callback: (data: { data: string; _sessionId: string }) => void) => () => void;

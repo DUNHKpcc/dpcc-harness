@@ -386,11 +386,11 @@ export function useSettings(projectId: string | null, engine: EngineId = "claude
   }, []);
 
   const [claudeCodexBridgeEnabled, setClaudeCodexBridgeEnabledRaw] = useState(() =>
-    readBool("harnss-claude-codex-bridge", false),
+    readBool("pcc-agent-claude-codex-bridge", false),
   );
   const setClaudeCodexBridgeEnabled = useCallback((enabled: boolean) => {
     setClaudeCodexBridgeEnabledRaw(enabled);
-    localStorage.setItem("harnss-claude-codex-bridge", String(enabled));
+    localStorage.setItem("pcc-agent-claude-codex-bridge", String(enabled));
   }, []);
 
   const [claudeEffort, setClaudeEffortRaw] = useState<ClaudeEffort>(() => {

@@ -9,6 +9,7 @@
  * Built by tsup to `electron/dist/claude-codex-mcp.js` and run via Electron with
  * `ELECTRON_RUN_AS_NODE=1`, so only Node built-ins / globals are available here.
  */
+import http from "http";
 
 const TOOL_NAME = "codex_delegate";
 const DEFAULT_PROTOCOL_VERSION = "2025-06-18";
@@ -42,6 +43,56 @@ function toolResult(text: string, isError: boolean): Record<string, unknown> {
   return { content: [{ type: "text", text }], isError };
 }
 
+/**
+ * POST the delegation to the bridge using Node's raw http client. Unlike the
+ * global fetch (undici), http.request has no default response/headers timeout,
+ * so the request can stay open for the full duration of the delegated Codex
+ * turn (which routinely exceeds undici's 5-minute headersTimeout). The bridge
+ * controller enforces its own 30-minute cap.
+ */
+function postDelegate(
+  endpoint: string,
+  token: string,
+  body: { prompt: string; cwd?: string },
+): Promise<{ status: number; data: BridgeResponse }> {
+  return new Promise((resolve, reject) => {
+    const target = new URL(`${endpoint}/delegate`);
+    const payload = JSON.stringify(body);
+    const req = http.request(
+      {
+        hostname: target.hostname,
+        port: target.port,
+        path: target.pathname,
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "content-length": Buffer.byteLength(payload),
+          authorization: `Bearer ${token}`,
+        },
+      },
+      (res) => {
+        let raw = "";
+        res.setEncoding("utf8");
+        res.on("data", (chunk) => {
+          raw += chunk;
+        });
+        res.on("end", () => {
+          try {
+            resolve({ status: res.statusCode ?? 0, data: raw ? (JSON.parse(raw) as BridgeResponse) : {} });
+          } catch (err) {
+            reject(err instanceof Error ? err : new Error("Invalid bridge response"));
+          }
+        });
+      },
+    );
+    req.on("error", reject);
+    // No socket timeout — the bridge holds the response until Codex finishes.
+    req.setTimeout(0);
+    req.write(payload);
+    req.end();
+  });
+}
+
 async function delegateToBridge(prompt: string, cwd: string | undefined): Promise<Record<string, unknown>> {
   const url = process.env.HARNSS_CODEX_BRIDGE_URL;
   const token = process.env.HARNSS_CODEX_BRIDGE_TOKEN;
@@ -50,19 +101,11 @@ async function delegateToBridge(prompt: string, cwd: string | undefined): Promis
   }
 
   try {
-    const response = await fetch(`${url}/delegate`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ prompt, cwd }),
-    });
-    const data = (await response.json()) as BridgeResponse;
-    if (response.ok && data.ok === true) {
+    const { status, data } = await postDelegate(url, token, { prompt, cwd });
+    if (status >= 200 && status < 300 && data.ok === true) {
       return toolResult(data.content ?? "", false);
     }
-    return toolResult(data.error ?? `Codex delegation failed (HTTP ${response.status}).`, true);
+    return toolResult(data.error ?? `Codex delegation failed (HTTP ${status}).`, true);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return toolResult(`Codex delegation request failed: ${message}`, true);

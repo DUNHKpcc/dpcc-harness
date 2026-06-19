@@ -155,6 +155,12 @@ export function createClaudeCodexBridgeController(
         sendJson(res, 404, { ok: false, error: "Not found" });
       });
       httpServer.on("error", reject);
+      // Delegations hold the HTTP response open for the full Codex turn. Disable
+      // the server-side request/socket timeouts so long turns aren't aborted;
+      // the pending-map timeout below is the single source of truth (30 min).
+      httpServer.requestTimeout = 0;
+      httpServer.timeout = 0;
+      httpServer.headersTimeout = 0;
       httpServer.listen(0, "127.0.0.1", () => {
         const address = httpServer.address();
         if (address === null || typeof address === "string") {

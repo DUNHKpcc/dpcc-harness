@@ -99,7 +99,11 @@
     "ready": " ready",
     "restarting": "Restarting...",
     "restart": "Restart",
-    "installFailed": "Failed to restart and install update"
+    "installFailed": "Failed to restart and install update",
+    "installErrors": {
+      "downloadMissing": "Update failed to download. Try downloading the latest version manually.",
+      "manualInstallFailed": "Automatic install failed. The download page has been opened — please install manually."
+    }
   },
   "preReleaseBanner": {
     "title": "Pre-release version",

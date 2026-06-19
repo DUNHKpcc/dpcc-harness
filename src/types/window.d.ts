@@ -467,7 +467,7 @@ declare global {
         onUpdateAvailable: (cb: (info: { version: string; releaseNotes?: string }) => void) => () => void;
         onDownloadProgress: (cb: (progress: { percent: number; bytesPerSecond: number; total: number; transferred: number }) => void) => () => void;
         onUpdateDownloaded: (cb: (info: { version: string }) => void) => () => void;
-        onInstallError: (cb: (error: { message: string }) => void) => () => void;
+        onInstallError: (cb: (error: { code?: string; message: string }) => void) => () => void;
         download: () => Promise<unknown>;
         install: () => Promise<void>;
         check: () => Promise<unknown>;

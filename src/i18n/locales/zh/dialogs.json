@@ -99,7 +99,11 @@
     "ready": " 已就绪",
     "restarting": "正在重启…",
     "restart": "重启",
-    "installFailed": "重启并安装更新失败"
+    "installFailed": "重启并安装更新失败",
+    "installErrors": {
+      "downloadMissing": "更新包尚未下载完成，请重新下载或手动安装最新版。",
+      "manualInstallFailed": "自动安装失败，已打开下载页面，请手动安装。"
+    }
   },
   "preReleaseBanner": {
     "title": "预发布版本",

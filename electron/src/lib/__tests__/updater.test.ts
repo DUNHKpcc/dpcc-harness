@@ -565,6 +565,7 @@ describe("initAutoUpdater", () => {
       expect(mockWebContents.send).toHaveBeenCalledWith(
         "updater:install-error",
         expect.objectContaining({
+          code: "download-missing",
           message: expect.stringContaining("failed to download"),
         }),
       );
@@ -650,6 +651,7 @@ describe("initAutoUpdater", () => {
       expect(mockWebContents.send).toHaveBeenCalledWith(
         "updater:install-error",
         expect.objectContaining({
+          code: "manual-install-failed",
           message: expect.stringContaining("install manually"),
         }),
       );

@@ -32,5 +32,46 @@
     "disabled": "已禁用",
     "on": "开",
     "off": "关"
+  },
+  "toasts": {
+    "permission": {
+      "respondFailed": "响应权限请求失败",
+      "autoRespondFailed": "自动响应权限请求失败",
+      "noMatchingOption": "没有可用的 ACP 权限选项。",
+      "backgroundSession": "后台会话",
+      "waiting": "正在等待权限：{{tool}}",
+      "switch": "切换"
+    },
+    "session": {
+      "modelSwitchFailed": "切换模型失败",
+      "reasoningUpdateFailed": "更新推理设置失败",
+      "effortUpdateFailed": "更新 effort 失败",
+      "modelEffortUpdateFailed": "更新模型 effort 失败",
+      "permissionModeUpdateFailed": "更新权限模式失败",
+      "planModeUpdateFailed": "更新 Plan 模式失败",
+      "sendMessageFailed": "发送消息失败",
+      "restartFailed": "重启会话失败"
+    },
+    "acp": {
+      "initFailed": "初始化 ACP agent 失败",
+      "autoUpdateFailed": "自动更新 ACP agent 失败",
+      "agentUpdated": "ACP agent 已更新",
+      "agentsUpdated": "已更新 {{count}} 个 ACP agent",
+      "agentNowOnVersion": "{{name}} 已更新到 v{{version}}",
+      "andMore": "{{summary}}，另有 {{count}} 个。"
+    },
+    "claude": {
+      "modelsLoadFailed": "加载 Claude 模型失败"
+    },
+    "jira": {
+      "noTransition": "没有可用的 Jira 流转可移动到 {{column}}",
+      "moveFailed": "移动 Jira issue 失败",
+      "moved": "{{issue}} 已移动到 {{status}}"
+    },
+    "glass": {
+      "restartRequired": "需要重启",
+      "restartDescription": "重启 PccAgent 后即可干净地退出 Liquid Glass。",
+      "restartAction": "重启"
+    }
   }
 }

@@ -14,6 +14,7 @@ const execFileAsync = promisify(execFile);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing internal MacUpdater state for diagnostics
 type MacUpdaterInternal = { squirrelDownloadedUpdate?: boolean };
+type UpdateInstallErrorCode = "download-missing" | "manual-install-failed";
 
 // Track the latest downloaded update version for manual macOS install
 let lastDownloadedVersion: string | null = null;
@@ -39,6 +40,15 @@ function isCurrentVersionPreRelease(): boolean {
 function syncUpdateChannelPreferences(allowPrereleaseUpdates: boolean): void {
   autoUpdater.allowPrerelease = allowPrereleaseUpdates;
   autoUpdater.allowDowngrade = !allowPrereleaseUpdates && isCurrentVersionPreRelease();
+}
+
+function sendInstallError(
+  getMainWindow: () => BrowserWindow | null,
+  code: UpdateInstallErrorCode,
+  message: string,
+): void {
+  const win = getMainWindow();
+  win?.webContents.send("updater:install-error", { code, message });
 }
 
 /** @internal Exported for testing. */
@@ -162,10 +172,11 @@ export function initAutoUpdater(
             ? `https://github.com/DUNHKpcc/dpcc-harness/releases/tag/v${lastDownloadedVersion}`
             : "https://github.com/DUNHKpcc/dpcc-harness/releases/latest";
           shell.openExternal(releaseUrl);
-          const win = getMainWindow();
-          win?.webContents.send("updater:install-error", {
-            message: "Automatic install failed. The download page has been opened — please install manually.",
-          });
+          sendInstallError(
+            getMainWindow,
+            "manual-install-failed",
+            "Automatic install failed. The download page has been opened — please install manually.",
+          );
         }
         return;
       }
@@ -176,10 +187,11 @@ export function initAutoUpdater(
       // update-downloaded event has fired (tracked by lastDownloadedVersion).
       if (!lastDownloadedVersion) {
         log("UPDATER_ERR", "Cannot install: no update has been downloaded yet");
-        const win = getMainWindow();
-        win?.webContents.send("updater:install-error", {
-          message: "Update failed to download. Try downloading the latest version manually.",
-        });
+        sendInstallError(
+          getMainWindow,
+          "download-missing",
+          "Update failed to download. Try downloading the latest version manually.",
+        );
         return;
       }
     }

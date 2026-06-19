@@ -4,6 +4,7 @@ import type { PersistedSession, ClaudeEffort } from "../../types";
 import { toMcpStatusState } from "../../lib/mcp-utils";
 import { capture, captureException } from "../../lib/analytics/analytics";
 import { suppressNextSessionCompletion } from "../../lib/notification-utils";
+import { toastText } from "../../lib/toast-i18n";
 import {
   DRAFT_ID,
   DEFAULT_PERMISSION_MODE,
@@ -137,14 +138,14 @@ export function useSessionSettings({
     if (isLiveClaudeSession) {
       claude.setModel(getClaudeSdkModel(model)).then((result) => {
         if (result?.error) {
-          toast.error("Failed to switch model", { description: result.error });
+          toast.error(toastText("session.modelSwitchFailed"), { description: result.error });
           return;
         }
         persistModel();
       }).catch((err) => {
         captureException(err instanceof Error ? err : new Error(String(err)), { label: "CLAUDE_MODEL_SWITCH_ERR" });
         const message = err instanceof Error ? err.message : String(err);
-        toast.error("Failed to switch model", { description: message });
+        toast.error(toastText("session.modelSwitchFailed"), { description: message });
       });
       return;
     }
@@ -152,7 +153,7 @@ export function useSessionSettings({
     if (isLiveCodexSession) {
       window.claude.codex.setModel(id, model).then((result) => {
         if (result?.error) {
-          toast.error("Failed to switch model", { description: result.error });
+          toast.error(toastText("session.modelSwitchFailed"), { description: result.error });
           return;
         }
         applyCodexDefaultEffort(model);
@@ -160,7 +161,7 @@ export function useSessionSettings({
       }).catch((err) => {
         captureException(err instanceof Error ? err : new Error(String(err)), { label: "CODEX_MODEL_SWITCH_ERR" });
         const message = err instanceof Error ? err.message : String(err);
-        toast.error("Failed to switch model", { description: message });
+        toast.error(toastText("session.modelSwitchFailed"), { description: message });
       });
       return;
     }
@@ -273,12 +274,12 @@ export function useSessionSettings({
 
     claude.setThinkingEnabled(thinkingEnabled).then((result) => {
       if (result?.error) {
-        toast.error("Failed to update reasoning", { description: result.error });
+        toast.error(toastText("session.reasoningUpdateFailed"), { description: result.error });
       }
     }).catch((err) => {
       captureException(err instanceof Error ? err : new Error(String(err)), { label: "THINKING_TOGGLE_ERR" });
       const message = err instanceof Error ? err.message : String(err);
-      toast.error("Failed to update reasoning", { description: message });
+      toast.error(toastText("session.reasoningUpdateFailed"), { description: message });
     });
   }, [claude.setThinkingEnabled]);
 
@@ -296,7 +297,7 @@ export function useSessionSettings({
 
       const restartResult = await window.claude.restartSession(preStartedId, undefined, undefined, effort);
       if (restartResult?.error) {
-        toast.error("Failed to update effort", { description: restartResult.error });
+        toast.error(toastText("session.effortUpdateFailed"), { description: restartResult.error });
         return;
       }
 
@@ -327,7 +328,7 @@ export function useSessionSettings({
 
     const restartResult = await window.claude.restartSession(id, undefined, undefined, effort);
     if (restartResult?.error) {
-      toast.error("Failed to update effort", { description: restartResult.error });
+      toast.error(toastText("session.effortUpdateFailed"), { description: restartResult.error });
       return;
     }
     persistSessionPatch(id, { effort });
@@ -354,7 +355,7 @@ export function useSessionSettings({
         getClaudeSdkModel(model),
       );
       if (restartResult?.error) {
-        toast.error("Failed to update model effort", { description: restartResult.error });
+        toast.error(toastText("session.modelEffortUpdateFailed"), { description: restartResult.error });
         return;
       }
 
@@ -394,7 +395,7 @@ export function useSessionSettings({
         getClaudeSdkModel(model),
       );
       if (restartResult?.error) {
-        toast.error("Failed to update model effort", { description: restartResult.error });
+        toast.error(toastText("session.modelEffortUpdateFailed"), { description: restartResult.error });
         return;
       }
     }
@@ -417,7 +418,7 @@ export function useSessionSettings({
     if ((session.engine ?? "claude") === "claude" && liveSessionIdsRef.current.has(sessionId)) {
       const result = await window.claude.setModel(sessionId, getClaudeSdkModel(model));
       if (result?.error) {
-        toast.error("Failed to switch model", { description: result.error });
+        toast.error(toastText("session.modelSwitchFailed"), { description: result.error });
         return;
       }
       persistModel();
@@ -427,7 +428,7 @@ export function useSessionSettings({
     if ((session.engine ?? "claude") === "codex" && liveSessionIdsRef.current.has(sessionId)) {
       const result = await window.claude.codex.setModel(sessionId, model);
       if (result?.error) {
-        toast.error("Failed to switch model", { description: result.error });
+        toast.error(toastText("session.modelSwitchFailed"), { description: result.error });
         return;
       }
       persistModel();
@@ -460,7 +461,7 @@ export function useSessionSettings({
     });
     const result = await window.claude.setPermissionMode(sessionId, effectiveClaudeMode);
     if (result?.error) {
-      toast.error("Failed to update permission mode", { description: result.error });
+      toast.error(toastText("session.permissionModeUpdateFailed"), { description: result.error });
     }
   }, [liveSessionIdsRef, persistSessionPatch, sessionsRef]);
 
@@ -485,7 +486,7 @@ export function useSessionSettings({
     });
     const result = await window.claude.setPermissionMode(sessionId, effectiveClaudeMode);
     if (result?.error) {
-      toast.error("Failed to update plan mode", { description: result.error });
+      toast.error(toastText("session.planModeUpdateFailed"), { description: result.error });
     }
   }, [liveSessionIdsRef, persistSessionPatch, sessionsRef]);
 
@@ -506,7 +507,7 @@ export function useSessionSettings({
         getClaudeSdkModel(model),
       );
       if (restartResult?.error) {
-        toast.error("Failed to update model effort", { description: restartResult.error });
+        toast.error(toastText("session.modelEffortUpdateFailed"), { description: restartResult.error });
         return;
       }
     }

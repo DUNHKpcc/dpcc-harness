@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { isMac } from "@/lib/utils";
+import { toastText } from "@/lib/toast-i18n";
 import type { MacBackgroundEffect, ThemeOption } from "@/types";
 
 type MacNativeBackgroundEffect = Exclude<MacBackgroundEffect, "off">;
@@ -107,12 +108,12 @@ export function useGlassOrchestrator({
       return;
     }
 
-    toast("Restart required", {
+    toast(toastText("glass.restartRequired"), {
       id: MAC_BACKGROUND_EFFECT_RESTART_TOAST_ID,
       duration: Infinity,
-      description: "Restart PccAgent to switch away from Liquid Glass cleanly.",
+      description: toastText("glass.restartDescription"),
       action: {
-        label: "Restart",
+        label: toastText("glass.restartAction"),
         onClick: () => {
           void window.claude.relaunchApp();
         },

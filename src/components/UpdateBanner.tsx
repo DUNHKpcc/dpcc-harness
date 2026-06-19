@@ -10,6 +10,26 @@ type UpdateState =
   | { phase: "ready"; version: string }
   | { phase: "error"; message: string };
 
+export type UpdateInstallErrorCode = "download-missing" | "manual-install-failed";
+
+export interface UpdateInstallError {
+  code?: UpdateInstallErrorCode | string;
+  message?: string;
+}
+
+type Translate = (key: string) => string;
+
+export function getUpdateInstallErrorMessage(error: UpdateInstallError, t: Translate): string {
+  switch (error.code) {
+    case "download-missing":
+      return t("updateBanner.installErrors.downloadMissing");
+    case "manual-install-failed":
+      return t("updateBanner.installErrors.manualInstallFailed");
+    default:
+      return t("updateBanner.installFailed");
+  }
+}
+
 export const UpdateBanner = memo(function UpdateBanner() {
   const { t } = useTranslation("dialogs");
   const [state, setState] = useState<UpdateState>({ phase: "idle" });
@@ -47,7 +67,7 @@ export const UpdateBanner = memo(function UpdateBanner() {
 
     unsubs.push(
       window.claude.updater.onInstallError((error) => {
-        setState({ phase: "error", message: error.message });
+        setState({ phase: "error", message: getUpdateInstallErrorMessage(error, t) });
         setDismissed(false);
         setIsInstalling(false);
         installRequestedRef.current = false;
@@ -55,7 +75,7 @@ export const UpdateBanner = memo(function UpdateBanner() {
     );
 
     return () => unsubs.forEach((u) => u());
-  }, []);
+  }, [t]);
 
   const handleDownload = useCallback(() => {
     window.claude.updater.download();
@@ -75,10 +95,10 @@ export const UpdateBanner = memo(function UpdateBanner() {
       setDismissed(false);
       setState({
         phase: "error",
-        message: err instanceof Error ? err.message : t("updateBanner.installFailed"),
+        message: t("updateBanner.installFailed"),
       });
     });
-  }, []);
+  }, [t]);
 
   if (state.phase === "idle" || dismissed) return null;
 

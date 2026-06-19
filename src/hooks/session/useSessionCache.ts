@@ -2,6 +2,7 @@ import { startTransition, useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import type { PersistedSession, Project } from "../../types";
 import { toChatSession } from "../../lib/session/records";
+import { toastText } from "../../lib/toast-i18n";
 import { DRAFT_ID } from "./types";
 import type { SharedSessionRefs, SharedSessionSetters, EngineHooks } from "./types";
 
@@ -185,7 +186,7 @@ export function useSessionCache({
           return;
         }
         if (result.error) {
-          toast.error("Failed to load Claude models", { description: result.error });
+          toast.error(toastText("claude.modelsLoadFailed"), { description: result.error });
         }
       }).catch(() => { /* keep stale cache if revalidation fails */ });
     }, 3000);

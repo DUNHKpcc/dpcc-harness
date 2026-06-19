@@ -9,7 +9,7 @@ import { SettingsHeader } from "@/components/settings/shared";
 function PccAgentLogo({ className }: { className: string }) {
   return (
     <img
-      src="/icon.png"
+      src="icon.png"
       alt="PccAgent"
       className={className}
     />

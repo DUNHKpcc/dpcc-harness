@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import type { PersistedSession, ClaudeEvent, SystemInitEvent, EngineId, ACPSessionEvent, ACPPermissionEvent, ACPTurnCompleteEvent } from "@/types";
 import { canonicalizeModelValue } from "@/lib/model-utils";
 import { getSessionNotificationActor } from "@/lib/session-notifications";
+import { toastText } from "@/lib/toast-i18n";
 import { toMcpStatusState } from "../../lib/mcp-utils";
 import { buildPersistedSession } from "../../lib/session/records";
 import { normalizeToolInput as acpNormalizeToolInput, pickAutoResponseOption } from "../../lib/engine/acp-adapter";
@@ -119,15 +120,15 @@ export function useSessionPersistence({
 
       // Show a persistent toast so the user notices the blocked session
       const session = sessionsRef.current.find((s) => s.id === sessionId);
-      const sessionTitle = session?.title ?? "Background session";
+      const sessionTitle = session?.title ?? toastText("permission.backgroundSession");
       const toolLabel = permission.toolName;
 
-      toast(`${sessionTitle}`, {
+      toast(sessionTitle, {
         id: `permission-${sessionId}`,
-        description: `Waiting for permission: ${toolLabel}`,
+        description: toastText("permission.waiting", { tool: toolLabel }),
         duration: Infinity, // Permission is blocking — keep until resolved
         action: {
-          label: "Switch",
+          label: toastText("permission.switch"),
           onClick: () => switchSessionRef.current?.(sessionId),
         },
       });

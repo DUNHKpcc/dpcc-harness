@@ -39,6 +39,7 @@ import { suppressNextSessionCompletion } from "../lib/notification-utils";
 import { advancePermissionQueue, enqueuePermissionRequest } from "../lib/engine/permission-queue";
 import { normalizeTodoToolInput } from "../lib/chat/todo-utils";
 import { capture } from "../lib/analytics/analytics";
+import { toastText } from "../lib/toast-i18n";
 import { useEngineBase } from "./useEngineBase";
 
 function uiLog(label: string, data: unknown) {
@@ -914,7 +915,7 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
           permissionQueue.current = nextState.queue;
           setPendingPermission(nextState.current);
         } else {
-          toast.error("Failed to respond to permission prompt", {
+          toast.error(toastText("permission.respondFailed"), {
             description: result.error,
           });
         }

@@ -99,7 +99,9 @@
     "redo": "Redo"
   },
   "split": {
-    "dropToOpen": "Drop to open"
+    "dropToOpen": "Drop to open",
+    "codexDelegationNeedsWidth": "Widen the window to show the Codex split pane when Claude delegates.",
+    "addPaneNeedsWidth": "Widen the window to add another split pane."
   },
   "dock": {
     "moveToBottom": "Move to bottom",

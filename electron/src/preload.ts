@@ -431,8 +431,8 @@ contextBridge.exposeInMainWorld("claude", {
       ipcRenderer.on("updater:update-downloaded", listener);
       return () => ipcRenderer.removeListener("updater:update-downloaded", listener);
     },
-    onInstallError: (cb: (error: { message: string }) => void) => {
-      const listener = (_event: IpcRendererEvent, error: { message: string }) => cb(error);
+    onInstallError: (cb: (error: { code?: string; message: string }) => void) => {
+      const listener = (_event: IpcRendererEvent, error: { code?: string; message: string }) => cb(error);
       ipcRenderer.on("updater:install-error", listener);
       return () => ipcRenderer.removeListener("updater:install-error", listener);
     },

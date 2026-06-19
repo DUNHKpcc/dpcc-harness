@@ -14,6 +14,7 @@ import type { SessionPaneState } from "@/hooks/session/useSessionPane";
 import type { CodexModelSummary } from "@/hooks/session/types";
 import { buildCodexCollabMode, DEFAULT_PERMISSION_MODE } from "@/hooks/session/types";
 import { canonicalizeModelValue, findEquivalentModel } from "@/lib/model-utils";
+import { toastText } from "@/lib/toast-i18n";
 import type { PaneController } from "@/types";
 
 // ── Model catalog builders (moved from AppLayout) ──
@@ -251,7 +252,7 @@ export function usePaneController(
             await ctx.queueSplitPaneSendAfterSwitch?.(sessionId, text, images, displayText);
           }
         } catch (err) {
-          toast.error("Failed to send message", {
+          toast.error(toastText("session.sendMessageFailed"), {
             description: err instanceof Error ? err.message : String(err),
           });
         }

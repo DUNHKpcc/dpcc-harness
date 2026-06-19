@@ -4,6 +4,7 @@ import type { UIMessage, ChatSession, McpServerConfig, Project, ImageAttachment,
 import { toMcpStatusState } from "../../lib/mcp-utils";
 import { suppressNextSessionCompletion } from "../../lib/notification-utils";
 import { captureException } from "../../lib/analytics/analytics";
+import { toastText } from "../../lib/toast-i18n";
 import { createSystemMessage, createUserMessage } from "../../lib/message-factory";
 import {
   DRAFT_ID,
@@ -146,7 +147,7 @@ export function useDraftMaterialization({
     } catch (err) {
       captureException(err instanceof Error ? err : new Error(String(err)), { label: "ACP_EAGER_START_ERR" });
       console.warn("[eagerStartAcpSession] start() failed:", err);
-      toast.error("Failed to initialize ACP agent", {
+      toast.error(toastText("acp.initFailed"), {
         description: err instanceof Error ? err.message : String(err),
       });
       setAcpConfigOptionsLoading(false);
@@ -159,9 +160,9 @@ export function useDraftMaterialization({
     }
 
     if (!("sessionId" in result) || !result.sessionId) {
-      const message = ("error" in result && result.error) ? result.error : "Failed to initialize ACP agent";
+      const message = ("error" in result && result.error) ? result.error : toastText("acp.initFailed");
       console.warn("[eagerStartAcpSession] start() returned error:", message);
-      toast.error("Failed to initialize ACP agent", { description: message });
+      toast.error(toastText("acp.initFailed"), { description: message });
       setAcpConfigOptionsLoading(false);
       return;
     }

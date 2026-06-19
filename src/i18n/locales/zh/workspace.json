@@ -99,7 +99,9 @@
     "redo": "重做"
   },
   "split": {
-    "dropToOpen": "拖放以打开"
+    "dropToOpen": "拖放以打开",
+    "codexDelegationNeedsWidth": "请加宽窗口，以便 Claude 委托时显示 Codex 分屏。",
+    "addPaneNeedsWidth": "请加宽窗口，以添加另一个分屏。"
   },
   "dock": {
     "moveToBottom": "移到底部",

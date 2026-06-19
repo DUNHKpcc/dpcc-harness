@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useRef, useEffect, useLayoutEffect, useState } from "react";
 import { LayoutGroup, motion } from "motion/react";
+import { useTranslation } from "react-i18next";
 import { PanelLeft } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -79,6 +80,7 @@ import {
 } from "@/lib/workspace/drag";
 import { AgentProvider, type AgentContextValue } from "./AgentContext";
 import { useSettingsStore, DEFAULT_ENGINE_MODELS } from "@/stores/settings-store";
+import { toastText } from "@/lib/toast-i18n";
 
 /**
  * Poll a ref until the delegated Codex session has materialised to a real id.
@@ -110,6 +112,7 @@ async function waitForCondition(
 }
 
 export function AppLayout() {
+  const { t } = useTranslation("workspace");
   const o = useAppOrchestrator();
   const { managers, agentState, state, ui, actions } = o;
   const {
@@ -237,20 +240,22 @@ export function AppLayout() {
       // Delegation opens a Codex pane beside Claude — warn if the window is too
       // narrow to show a 2-pane split, so the user can widen it first.
       if (enabled && maxSplitPaneCountRef.current < 2) {
-        toast.warning("Widen the window to show the Codex split pane when Claude delegates.");
+        toast.warning(t("split.codexDelegationNeedsWidth"));
       }
       const active = manager.activeSession;
       if (!active || manager.isDraft || (active.engine ?? "claude") !== "claude") return;
       void window.claude
         .restartSession(active.id, undefined, undefined, undefined, undefined, enabled)
         .then((res) => {
-          if (res?.error) toast.error(res.error);
+          if (res?.error) toast.error(toastText("session.restartFailed"), { description: res.error });
         })
         .catch((err) => {
-          toast.error(err instanceof Error ? err.message : String(err));
+          toast.error(toastText("session.restartFailed"), {
+            description: err instanceof Error ? err.message : String(err),
+          });
         });
     },
-    [settings, manager.activeSession, manager.isDraft],
+    [settings, manager.activeSession, manager.isDraft, t],
   );
 
   // Shared via context so every input bar (single + each split pane) shows the
@@ -573,11 +578,11 @@ export function AppLayout() {
     });
 
     if (!result.ok && result.reason === "insufficient-width") {
-      toast.error("Widen the window to add another split pane.");
+      toast.error(t("split.addPaneNeedsWidth"));
     }
 
     return result.ok;
-  }, [maxSplitPaneCount, splitView]);
+  }, [maxSplitPaneCount, splitView, t]);
   requestAddSplitSessionRef.current = requestAddSplitSession;
 
   // Fresh-closure handler kept in a ref so the IPC subscription stays stable

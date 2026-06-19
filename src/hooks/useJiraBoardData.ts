@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { toast } from "sonner";
 import { reportError } from "@/lib/analytics/analytics";
 import { PRIORITY_ORDER } from "@/lib/jira-utils";
+import { toastText } from "@/lib/toast-i18n";
 import type {
   JiraProjectConfig,
   JiraBoard,
@@ -383,7 +384,7 @@ export function useJiraBoardData({ config }: UseJiraBoardDataOptions) {
         );
 
         if (!transition) {
-          toast.error(`No Jira transition available to ${column.name}`);
+          toast.error(toastText("jira.noTransition", { column: column.name }));
           return;
         }
 
@@ -394,7 +395,7 @@ export function useJiraBoardData({ config }: UseJiraBoardDataOptions) {
         });
 
         if (transitionResult.error) {
-          toast.error("Failed to move Jira issue", { description: transitionResult.error });
+          toast.error(toastText("jira.moveFailed"), { description: transitionResult.error });
           return;
         }
 
@@ -411,10 +412,10 @@ export function useJiraBoardData({ config }: UseJiraBoardDataOptions) {
               : item,
           ),
         );
-        toast.success(`${issue.key} moved to ${transition.toStatus.name}`);
+        toast.success(toastText("jira.moved", { issue: issue.key, status: transition.toStatus.name }));
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        toast.error("Failed to move Jira issue", { description: message });
+        toast.error(toastText("jira.moveFailed"), { description: message });
       } finally {
         setMovingIssueKey(null);
       }

@@ -18,6 +18,7 @@ import { extractTaskSubagentSteps, getTaskStatus, isTaskToolName } from "@/lib/e
 import { suppressNextSessionCompletion } from "@/lib/notification-utils";
 import { captureException } from "@/lib/analytics/analytics";
 import { createSystemMessage, createUserMessage, nextId } from "@/lib/message-factory";
+import { toastText } from "@/lib/toast-i18n";
 import { useEngineBase } from "./useEngineBase";
 
 interface UseACPOptions {
@@ -435,7 +436,7 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
         void window.claude.acp.respondPermission(data._sessionId, data.requestId, autoOptionId)
           .then((result) => {
             if (!result?.error) return;
-            toast.error("Failed to auto-respond to permission prompt", {
+            toast.error(toastText("permission.autoRespondFailed"), {
               description: result.error,
             });
             acpPermissionRef.current = data;
@@ -448,7 +449,7 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
           })
           .catch((err) => {
             const message = err instanceof Error ? err.message : String(err);
-            toast.error("Failed to auto-respond to permission prompt", {
+            toast.error(toastText("permission.autoRespondFailed"), {
               description: message,
             });
             acpPermissionRef.current = data;
@@ -592,15 +593,15 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
     });
 
     if (!optionId) {
-      toast.error("Failed to respond to permission prompt", {
-        description: "No matching ACP permission option was available.",
+      toast.error(toastText("permission.respondFailed"), {
+        description: toastText("permission.noMatchingOption"),
       });
       return;
     }
 
     const result = await window.claude.acp.respondPermission(sessionId, acpData.requestId, optionId);
     if (result?.error) {
-      toast.error("Failed to respond to permission prompt", {
+      toast.error(toastText("permission.respondFailed"), {
         description: result.error,
       });
       return;

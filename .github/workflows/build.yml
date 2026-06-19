@@ -65,29 +65,32 @@ jobs:
             exit 0
           fi
 
-          cat > release-notes.md <<'EOF'
+          PREV_TAG=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 20 --json tagName --jq "[.[].tagName | select(. != \"$TAG\")][0] // \"\"")
+
+          cat > release-notes.md <<EOF
           ## Changes
 
-          ### 📦 Safer Downloads
-          - macOS downloads now include both platform and architecture in the file name, so Apple Silicon users can pick the `mac-arm64` build instead of accidentally installing the Intel build through Rosetta.
-          - Windows installers now use clearer names for `windows-x64` and `windows-arm64`.
+          ### Bug Fixes
+          - Fixed the About page PccAgent logo path so it loads correctly in packaged builds.
+          - Localized top-right app notifications, including split-pane width warnings, permission errors, ACP updates, Jira moves, and restart prompts.
+          - Localized updater install failures and added structured install error codes for renderer-side translation.
 
-          ### 🔄 Cleaner Release Page
-          - Release uploads are now limited to the actual installers and updater manifests, reducing noisy extra files on the release page.
+          ### Tests
+          - Added regression coverage for the About logo asset path, update install error localization, split warning localization, and toast i18n coverage.
+          EOF
 
-          ### 🐛 Bug Fixes
-          - Fixed lingering PccAgent rename details in release links, issue templates, logs, and delegation copy.
-          - Disabled inherited analytics keys by default for this fork.
-          - Preserved the Claude-to-Codex bridge setting when migrating from the old localStorage key.
+          if [ -n "$PREV_TAG" ]; then
+            cat >> release-notes.md <<EOF
 
           ---
 
-          **Full Changelog**: https://github.com/DUNHKpcc/dpcc-harness/compare/v1.0.0...v1.0.1
+          **Full Changelog**: https://github.com/DUNHKpcc/dpcc-harness/compare/${PREV_TAG}...${TAG}
           EOF
+          fi
 
           gh release create "$TAG" \
             --repo "$GITHUB_REPOSITORY" \
-            --title "$TAG — Clear Installer Names & Cleaner Downloads" \
+            --title "$TAG — Localization & Update Fixes" \
             --notes-file release-notes.md
 
   # macOS: build both arm64 + x64 in one job so electron-builder writes a single

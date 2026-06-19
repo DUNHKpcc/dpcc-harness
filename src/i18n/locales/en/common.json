@@ -32,5 +32,46 @@
     "disabled": "Disabled",
     "on": "On",
     "off": "Off"
+  },
+  "toasts": {
+    "permission": {
+      "respondFailed": "Failed to respond to permission prompt",
+      "autoRespondFailed": "Failed to auto-respond to permission prompt",
+      "noMatchingOption": "No matching ACP permission option was available.",
+      "backgroundSession": "Background session",
+      "waiting": "Waiting for permission: {{tool}}",
+      "switch": "Switch"
+    },
+    "session": {
+      "modelSwitchFailed": "Failed to switch model",
+      "reasoningUpdateFailed": "Failed to update reasoning",
+      "effortUpdateFailed": "Failed to update effort",
+      "modelEffortUpdateFailed": "Failed to update model effort",
+      "permissionModeUpdateFailed": "Failed to update permission mode",
+      "planModeUpdateFailed": "Failed to update plan mode",
+      "sendMessageFailed": "Failed to send message",
+      "restartFailed": "Failed to restart session"
+    },
+    "acp": {
+      "initFailed": "Failed to initialize ACP agent",
+      "autoUpdateFailed": "Failed to auto-update ACP agents",
+      "agentUpdated": "ACP agent updated",
+      "agentsUpdated": "Updated {{count}} ACP agents",
+      "agentNowOnVersion": "{{name}} is now on v{{version}}",
+      "andMore": "{{summary}}, and {{count}} more."
+    },
+    "claude": {
+      "modelsLoadFailed": "Failed to load Claude models"
+    },
+    "jira": {
+      "noTransition": "No Jira transition available to {{column}}",
+      "moveFailed": "Failed to move Jira issue",
+      "moved": "{{issue}} moved to {{status}}"
+    },
+    "glass": {
+      "restartRequired": "Restart required",
+      "restartDescription": "Restart PccAgent to switch away from Liquid Glass cleanly.",
+      "restartAction": "Restart"
+    }
   }
 }

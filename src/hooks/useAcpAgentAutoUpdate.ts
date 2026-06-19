@@ -4,6 +4,7 @@ import type { InstalledAgent } from "@/types";
 import { reportError } from "@/lib/analytics/analytics";
 import { fetchAgentRegistry, resolveRegistryBinaryPaths } from "@/lib/engine/acp-agent-registry";
 import { planAcpAgentUpdates } from "@/lib/engine/acp-agent-updates";
+import { toastText } from "@/lib/toast-i18n";
 
 const PERIODIC_ACP_AGENT_UPDATE_CHECK_MS = 4 * 60 * 60 * 1000; // 4 hours
 const ACTIVE_ACP_AGENT_UPDATE_MIN_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
@@ -64,7 +65,10 @@ export function useAcpAgentAutoUpdate({
       await refreshInstalledAgentsRef.current();
 
       const versionSummary = updates.length === 1
-        ? `${updates[0].current.name} is now on v${updates[0].registry.version}`
+        ? toastText("acp.agentNowOnVersion", {
+            name: updates[0].current.name,
+            version: updates[0].registry.version,
+          })
         : updates
           .slice(0, 2)
           .map((update) => `${update.current.name} v${update.registry.version}`)
@@ -72,18 +76,18 @@ export function useAcpAgentAutoUpdate({
 
       toast.success(
         updates.length === 1
-          ? "ACP agent updated"
-          : `Updated ${updates.length} ACP agents`,
+          ? toastText("acp.agentUpdated")
+          : toastText("acp.agentsUpdated", { count: updates.length }),
         {
           description: updates.length > 2
-            ? `${versionSummary}, and ${updates.length - 2} more.`
+            ? toastText("acp.andMore", { summary: versionSummary, count: updates.length - 2 })
             : versionSummary,
         },
       );
     } catch (err) {
       const message = reportError("ACP_AGENT_AUTO_UPDATE", err, { trigger });
       if (attemptedUpdate) {
-        toast.error("Failed to auto-update ACP agents", { description: message });
+        toast.error(toastText("acp.autoUpdateFailed"), { description: message });
       }
     } finally {
       isCheckingRef.current = false;

@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import type { ChatSession, McpServerConfig, PersistedSession, Project, ACPConfigOption } from "@/types";
 import { suppressNextSessionCompletion } from "../../lib/notification-utils";
 import { capture } from "../../lib/analytics/analytics";
+import { toastText } from "../../lib/toast-i18n";
 import { bgAgentStore } from "../../lib/background/agent-store";
 import {
   DRAFT_ID,
@@ -113,11 +114,11 @@ export function useSessionCrud({
     });
     window.claude.setPermissionMode(session.id, effectiveMode).then((result) => {
       if (result?.error) {
-        toast.error("Failed to update plan mode", { description: result.error });
+        toast.error(toastText("session.planModeUpdateFailed"), { description: result.error });
       }
     }).catch((err) => {
       const message = err instanceof Error ? err.message : String(err);
-      toast.error("Failed to update plan mode", { description: message });
+      toast.error(toastText("session.planModeUpdateFailed"), { description: message });
     });
   }, [liveSessionIdsRef, setSessions]);
 

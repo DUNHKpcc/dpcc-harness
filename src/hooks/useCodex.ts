@@ -32,6 +32,7 @@ import {
 import { suppressNextSessionCompletion } from "@/lib/notification-utils";
 import { captureException } from "@/lib/analytics/analytics";
 import { createSystemMessage, createUserMessage, nextId } from "@/lib/message-factory";
+import { toastText } from "@/lib/toast-i18n";
 import { useEngineBase } from "./useEngineBase";
 
 interface UseCodexOptions {
@@ -44,7 +45,7 @@ interface UseCodexOptions {
 }
 
 function showCodexPermissionError(message: string): void {
-  toast.error("Failed to respond to permission prompt", {
+  toast.error(toastText("permission.respondFailed"), {
     description: message,
   });
 }

@@ -53,9 +53,13 @@ function EngineCard({
       </div>
 
       {engine.source === "default" ? (
-        <p className="rounded-md border border-dashed border-foreground/10 px-3 py-2 text-xs text-muted-foreground">
-          {t("currentConfig.defaultHint")}
-        </p>
+        <div className="space-y-1.5">
+          <p className="rounded-md border border-dashed border-foreground/10 px-3 py-2 text-xs text-muted-foreground">
+            {t("currentConfig.defaultHint")}
+          </p>
+          {/* A local model override still applies under the default source — surface it. */}
+          {effectiveModel && <ConfigRow label={t("currentConfig.fields.model")} value={effectiveModel} />}
+        </div>
       ) : (
         <div className="space-y-1.5">
           {isCodex && <ConfigRow label={t("currentConfig.fields.provider")} value={engine.providerName} mono={false} />}

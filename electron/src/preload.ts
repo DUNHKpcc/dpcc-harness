@@ -143,8 +143,8 @@ contextBridge.exposeInMainWorld("claude", {
     ipcRenderer.invoke("claude:mcp-reconnect", { sessionId, serverName }),
   revertFiles: (sessionId: string, checkpointId: string) =>
     ipcRenderer.invoke("claude:revert-files", { sessionId, checkpointId }),
-  restartSession: (sessionId: string, mcpServers?: unknown[], cwd?: string, effort?: string, model?: string) =>
-    ipcRenderer.invoke("claude:restart-session", { sessionId, mcpServers, cwd, effort, model }),
+  restartSession: (sessionId: string, mcpServers?: unknown[], cwd?: string, effort?: string, model?: string, claudeCodexBridgeEnabled?: boolean) =>
+    ipcRenderer.invoke("claude:restart-session", { sessionId, mcpServers, cwd, effort, model, claudeCodexBridgeEnabled }),
   readFile: (filePath: string) => ipcRenderer.invoke("file:read", filePath),
   renameFile: (oldPath: string, newPath: string) => ipcRenderer.invoke("file:rename", { oldPath, newPath }),
   trashItem: (filePath: string) => ipcRenderer.invoke("file:trash", filePath),

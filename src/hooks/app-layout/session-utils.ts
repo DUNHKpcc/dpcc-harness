@@ -10,6 +10,7 @@ export function buildSessionOptions(
   thinking: boolean,
   getClaudeEffortForModel: (model: string | undefined) => ClaudeEffort | undefined,
   agent: InstalledAgent | null,
+  claudeCodexBridgeEnabled: boolean = false,
 ): StartOptions {
   const model = getModelForEngine(engine) || undefined;
   return {
@@ -20,6 +21,7 @@ export function buildSessionOptions(
     effort: engine === "claude" ? getClaudeEffortForModel(model) : undefined,
     engine,
     agentId: agent?.id ?? "claude-code",
+    claudeCodexBridgeEnabled: engine === "claude" ? claudeCodexBridgeEnabled : false,
     cachedConfigOptions: agent?.cachedConfigOptions,
   };
 }

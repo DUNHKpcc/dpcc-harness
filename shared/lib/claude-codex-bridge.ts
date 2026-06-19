@@ -34,6 +34,8 @@ export function appendClaudeCodexBridgeServer(
       command: config.command,
       args: config.args,
       env: {
+        // The bridge command is the Electron binary; run it as plain Node.
+        ELECTRON_RUN_AS_NODE: "1",
         HARNSS_CODEX_BRIDGE_URL: config.endpoint,
         HARNSS_CODEX_BRIDGE_TOKEN: config.token,
       },

@@ -14,6 +14,8 @@ export interface StartOptions {
   effort?: ClaudeEffort;
   engine?: EngineId;
   agentId?: string;
+  /** When true (Claude only), Claude can delegate to a visible Codex split pane via the built-in bridge MCP server. */
+  claudeCodexBridgeEnabled?: boolean;
   /** Cached config options from previous sessions */
   cachedConfigOptions?: ACPConfigOption[];
 }

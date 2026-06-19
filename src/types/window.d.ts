@@ -86,6 +86,8 @@ declare global {
         /** Resume at a specific message UUID — used with forkSession to truncate history */
         resumeSessionAt?: string;
         mcpServers?: McpServerConfig[];
+        /** Inject the built-in `harnss-codex` bridge MCP server for visible Codex delegation. */
+        claudeCodexBridgeEnabled?: boolean;
       }) => Promise<{ sessionId: string; pid: number; error?: string }>;
       send: (
         sessionId: string,
@@ -105,7 +107,7 @@ declare global {
       mcpStatus: (sessionId: string) => Promise<{ servers: McpServerStatus[]; error?: string }>;
       mcpReconnect: (sessionId: string, serverName: string) => Promise<IpcResult & { restarted?: boolean }>;
       revertFiles: (sessionId: string, checkpointId: string) => Promise<IpcResult>;
-      restartSession: (sessionId: string, mcpServers?: McpServerConfig[], cwd?: string, effort?: ClaudeEffort, model?: string) => Promise<IpcResult & { restarted?: boolean }>;
+      restartSession: (sessionId: string, mcpServers?: McpServerConfig[], cwd?: string, effort?: ClaudeEffort, model?: string, claudeCodexBridgeEnabled?: boolean) => Promise<IpcResult & { restarted?: boolean }>;
       readFile: (filePath: string) => Promise<{ content?: string; error?: string }>;
       renameFile: (oldPath: string, newPath: string) => Promise<IpcResult>;
       trashItem: (filePath: string) => Promise<IpcResult>;

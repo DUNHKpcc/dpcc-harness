@@ -294,6 +294,36 @@ export function AppLayout() {
     }
   }, [manager.activeSessionId, manager.activeSession, manager.messages]);
 
+  // Unblock a Claude→Codex delegation whose parent Claude session was stopped.
+  // The `codex_delegate` MCP call blocks until the visible Codex pane finishes,
+  // so without this the bridge subprocess sits idle until its 30-minute cap.
+  // Resolving it as cancelled frees the bridge; the Codex pane keeps running so
+  // the user can still interact with it directly.
+  const cancelPendingDelegationFor = useCallback((claudeSessionId: string) => {
+    const childId = codexChildByParentRef.current.get(claudeSessionId);
+    if (!childId) return;
+    const pending = pendingCodexDelegationsRef.current.get(childId);
+    if (!pending || pending.settled) return;
+    pending.settled = true;
+    pendingCodexDelegationsRef.current.delete(childId);
+    void window.claude.completeCodexDelegation({
+      id: pending.bridgeRequestId,
+      ok: false,
+      content: "",
+      error: "Delegation cancelled by user.",
+    });
+  }, []);
+
+  // Wrap the stop handler so stopping a delegating Claude session also tears
+  // down its in-flight delegation (single-pane onStop + the focused split pane).
+  const handleStopWithDelegationCancel = useCallback(async () => {
+    const active = managerRef.current;
+    if (active.activeSession?.engine === "claude" && active.activeSessionId) {
+      cancelPendingDelegationFor(active.activeSessionId);
+    }
+    await handleStop();
+  }, [cancelPendingDelegationFor, handleStop]);
+
   const handleSidebarSelectSession = useCallback(
     (sessionId: string) => {
       const sessions = managerRef.current.sessions;
@@ -1168,7 +1198,7 @@ export function AppLayout() {
     handlePlanModeChange,
     handlePermissionModeChange,
     handleAgentChange,
-    handleStop,
+    handleStop: handleStopWithDelegationCancel,
     handleComposerClear,
     wrappedHandleSend,
     manager: {
@@ -1193,7 +1223,7 @@ export function AppLayout() {
   }), [
     agents, selectedAgent, settings, manager, splitView.setFocusedSession,
     handleModelChange, handleClaudeModelEffortChange, handlePlanModeChange,
-    handlePermissionModeChange, handleAgentChange, handleStop,
+    handlePermissionModeChange, handleAgentChange, handleStopWithDelegationCancel,
     handleComposerClear, wrappedHandleSend,
     createSplitPaneDraftSession, queueSplitPaneSendAfterSwitch,
   ]);
@@ -1874,7 +1904,7 @@ export function AppLayout() {
                   onRespondPermission={manager.respondPermission}
                   onSend={wrappedHandleSend}
                   onClear={handleComposerClear}
-                  onStop={handleStop}
+                  onStop={handleStopWithDelegationCancel}
                   isProcessing={manager.isProcessing}
                   queuedCount={manager.queuedCount}
                   model={activePaneCtrl?.paneModel ?? settings.model}

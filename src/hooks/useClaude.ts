@@ -811,6 +811,23 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
     [],
   );
 
+  // Stamp a synthetic "stopped" result on every tool_call still in flight.
+  // ToolCall.tsx treats `!toolResult` as running, so a blocking MCP tool that
+  // never returns (e.g. the `codex_delegate` bridge) would otherwise spin on
+  // "正在调用 …" forever after the user stops the turn. toolError renders the
+  // localized failure label; if the SDK later delivers a real tool_result it
+  // overwrites this stamp, so only genuinely orphaned calls stay "stopped".
+  const finalizeInFlightToolCalls = useCallback(() => {
+    setMessages((prev) => {
+      if (!prev.some((m) => m.role === "tool_call" && !m.toolResult)) return prev;
+      return prev.map((m) =>
+        m.role === "tool_call" && !m.toolResult
+          ? { ...m, toolError: true, toolResult: { content: "已被用户停止" } }
+          : m,
+      );
+    });
+  }, [setMessages]);
+
   const stop = useCallback(async () => {
     if (!sessionIdRef.current) return;
     suppressNextSessionCompletion(sessionIdRef.current);
@@ -818,8 +835,9 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
     setIsConnected(false);
     setIsProcessing(false);
     setIsCompacting(false);
+    finalizeInFlightToolCalls();
     resetStreaming();
-  }, [resetStreaming]);
+  }, [resetStreaming, finalizeInFlightToolCalls]);
 
   const interrupt = useCallback(async () => {
     if (!sessionIdRef.current) return;
@@ -858,7 +876,8 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
 
     // Reset streaming buffer for next turn
     resetStreaming();
-  }, [flushNow, resetStreaming]);
+    finalizeInFlightToolCalls();
+  }, [flushNow, resetStreaming, finalizeInFlightToolCalls]);
 
   const respondPermission = useCallback(
     async (behavior: AppPermissionBehavior, updatedInput?: Record<string, unknown>, newPermissionMode?: string, updatedPermissions?: unknown[]) => {

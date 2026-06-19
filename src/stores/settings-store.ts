@@ -91,6 +91,13 @@ export interface ProjectSettings {
 interface GlobalSettingsState {
   theme: ThemeOption;
   language: LanguageOption;
+  /**
+   * Most recently selected model per engine, independent of project/session.
+   * Lets views that aren't tied to an active session (e.g. Settings → Current
+   * Config) show the model each engine would actually use without first opening
+   * a session of that engine.
+   */
+  lastModelByEngine: Record<EngineId, string>;
   islandLayout: boolean;
   islandShine: boolean;
   /** The native macOS background material (liquid-glass or vibrancy) — never "off" */
@@ -102,6 +109,8 @@ interface GlobalSettingsState {
   acpPermissionBehavior: AcpPermissionBehavior;
   thinking: boolean;
   claudeEffort: ClaudeEffort;
+  /** Claude-only: allow Claude to delegate to a visible Codex split pane via the built-in bridge. */
+  claudeCodexBridgeEnabled: boolean;
   autoGroupTools: boolean;
   avoidGroupingEdits: boolean;
   autoExpandTools: boolean;
@@ -125,6 +134,7 @@ interface SettingsActions {
   setAcpPermissionBehavior: (b: AcpPermissionBehavior) => void;
   setThinking: (on: boolean) => void;
   setClaudeEffort: (effort: ClaudeEffort) => void;
+  setClaudeCodexBridgeEnabled: (enabled: boolean) => void;
   setAutoGroupTools: (on: boolean) => void;
   setAvoidGroupingEdits: (on: boolean) => void;
   setAutoExpandTools: (on: boolean) => void;
@@ -304,6 +314,8 @@ function readLegacyGlobalSettings(): GlobalSettingsState {
   return {
     theme,
     language,
+    // Legacy storage had no global last-model; default and let it populate on next pick.
+    lastModelByEngine: DEFAULT_ENGINE_MODELS,
     islandLayout: readLegacyBool("pcc-agent-island-layout", false),
     islandShine: readLegacyBool("pcc-agent-island-shine", true),
     macNativeBackgroundEffect: "liquid-glass",
@@ -313,6 +325,7 @@ function readLegacyGlobalSettings(): GlobalSettingsState {
     acpPermissionBehavior,
     thinking: readLegacyBool("pcc-agent-thinking", true),
     claudeEffort,
+    claudeCodexBridgeEnabled: false,
     autoGroupTools: readLegacyBool("pcc-agent-auto-group-tools", true),
     avoidGroupingEdits: readLegacyBool("pcc-agent-avoid-grouping-edits", false),
     autoExpandTools: readLegacyBool("pcc-agent-auto-expand-tools", false),
@@ -418,6 +431,7 @@ export const useSettingsStore = create<SettingsStore>()(
       // ── Global state defaults ──
       theme: "dark",
       language: "system",
+      lastModelByEngine: DEFAULT_ENGINE_MODELS,
       islandLayout: false,
       islandShine: true,
       macNativeBackgroundEffect: "liquid-glass",
@@ -427,6 +441,7 @@ export const useSettingsStore = create<SettingsStore>()(
       acpPermissionBehavior: "ask",
       thinking: true,
       claudeEffort: DEFAULT_CLAUDE_EFFORT,
+      claudeCodexBridgeEnabled: false,
       autoGroupTools: true,
       avoidGroupingEdits: false,
       autoExpandTools: false,
@@ -478,6 +493,8 @@ export const useSettingsStore = create<SettingsStore>()(
 
       setThinking: (on) => set({ thinking: on }),
 
+      setClaudeCodexBridgeEnabled: (enabled) => set({ claudeCodexBridgeEnabled: enabled }),
+
       setClaudeEffort: (effort) => set({ claudeEffort: effort }),
 
       setAutoGroupTools: (on) => set({ autoGroupTools: on }),
@@ -500,11 +517,23 @@ export const useSettingsStore = create<SettingsStore>()(
       setModelForEngine: (projectId, engine, model) => {
         const normalized = model.trim();
         if (!normalized) return;
-        const { projects } = get();
+        const { projects, lastModelByEngine } = get();
         const current = getProjectSettings(projects, projectId);
-        if (current.modelsByEngine[engine] === normalized) return;
-        const nextModels = { ...current.modelsByEngine, [engine]: normalized };
-        set({ projects: updateProject(projects, projectId, { modelsByEngine: nextModels }) });
+        const projectChanged = current.modelsByEngine[engine] !== normalized;
+        const globalChanged = lastModelByEngine[engine] !== normalized;
+        if (!projectChanged && !globalChanged) return;
+        set({
+          ...(projectChanged
+            ? {
+                projects: updateProject(projects, projectId, {
+                  modelsByEngine: { ...current.modelsByEngine, [engine]: normalized },
+                }),
+              }
+            : {}),
+          ...(globalChanged
+            ? { lastModelByEngine: { ...lastModelByEngine, [engine]: normalized } }
+            : {}),
+        });
       },
 
       setGitCwd: (projectId, path) => {
@@ -608,6 +637,7 @@ export const useSettingsStore = create<SettingsStore>()(
         // Global state
         theme: state.theme,
         language: state.language,
+        lastModelByEngine: state.lastModelByEngine,
         islandLayout: state.islandLayout,
         islandShine: state.islandShine,
         macNativeBackgroundEffect: state.macNativeBackgroundEffect,
@@ -617,6 +647,7 @@ export const useSettingsStore = create<SettingsStore>()(
         acpPermissionBehavior: state.acpPermissionBehavior,
         thinking: state.thinking,
         claudeEffort: state.claudeEffort,
+        claudeCodexBridgeEnabled: state.claudeCodexBridgeEnabled,
         autoGroupTools: state.autoGroupTools,
         avoidGroupingEdits: state.avoidGroupingEdits,
         autoExpandTools: state.autoExpandTools,

@@ -52,6 +52,9 @@
     "plan": "Plan",
     "planModeOn": "Plan 模式已开启",
     "planModeOff": "Plan 模式已关闭",
+    "codex": "Codex",
+    "codexBridgeOn": "Claude 可以在可见分屏中调用 Codex",
+    "codexBridgeOff": "允许 Claude 调用 Codex",
     "permissionMode": {
       "default": "编辑前询问",
       "acceptEdits": "接受编辑",

@@ -1,4 +1,4 @@
-import { ChevronDown, Map, Shield } from "lucide-react";
+import { Bot, ChevronDown, Map, Shield } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
@@ -138,6 +138,47 @@ export interface EngineControlsProps {
   onPlanModeChange: (enabled: boolean) => void;
   acpPermissionBehavior?: AcpPermissionBehavior;
   onAcpPermissionBehaviorChange?: (behavior: AcpPermissionBehavior) => void;
+  /** Claude-only: whether Claude may delegate to a visible Codex split pane. */
+  claudeCodexBridgeEnabled?: boolean;
+  onClaudeCodexBridgeEnabledChange?: (enabled: boolean) => void;
+}
+
+/** Claude-only toggle that lets Claude delegate to a visible Codex split pane. */
+function CodexBridgeToggle({
+  enabled,
+  onChange,
+  disabled,
+}: {
+  enabled: boolean;
+  onChange: (enabled: boolean) => void;
+  disabled?: boolean;
+}) {
+  const { t } = useTranslation("input");
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="xs"
+          disabled={disabled}
+          onClick={() => onChange(!enabled)}
+          className={`rounded-lg font-normal ${
+            enabled
+              ? "text-teal-400 bg-teal-500/10 hover:bg-teal-500/15 hover:text-teal-400 dark:hover:bg-teal-500/15"
+              : "text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+          }`}
+        >
+          <Bot className="size-3" />
+          {t("control.codex")}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="top">
+        <p className="text-xs">
+          {enabled ? t("control.codexBridgeOn") : t("control.codexBridgeOff")}
+        </p>
+      </TooltipContent>
+    </Tooltip>
+  );
 }
 
 /** ACP permission behavior dropdown -- used by ACP agents */
@@ -194,17 +235,30 @@ export function AcpBehaviorDropdown({
 /** Renders the in-capsule Plan toggle. Permission/ACP-behavior have been moved
  *  out into a sunken row below the capsule. */
 export function EngineControls({
+  isCodexAgent,
   isACPAgent,
+  isProcessing,
   disabled,
   planMode,
   onPlanModeChange,
+  claudeCodexBridgeEnabled,
+  onClaudeCodexBridgeEnabledChange,
 }: EngineControlsProps) {
   if (isACPAgent) return null;
   return (
-    <PlanModeToggle
-      planMode={planMode}
-      onPlanModeChange={onPlanModeChange}
-      disabled={disabled}
-    />
+    <>
+      <PlanModeToggle
+        planMode={planMode}
+        onPlanModeChange={onPlanModeChange}
+        disabled={disabled}
+      />
+      {!isCodexAgent && onClaudeCodexBridgeEnabledChange && (
+        <CodexBridgeToggle
+          enabled={claudeCodexBridgeEnabled === true}
+          onChange={onClaudeCodexBridgeEnabledChange}
+          disabled={disabled || isProcessing}
+        />
+      )}
+    </>
   );
 }

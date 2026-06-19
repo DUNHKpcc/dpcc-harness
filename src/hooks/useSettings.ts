@@ -114,6 +114,8 @@ export interface Settings {
   setThinking: (on: boolean) => void;
   claudeEffort: ClaudeEffort;
   setClaudeEffort: (effort: ClaudeEffort) => void;
+  claudeCodexBridgeEnabled: boolean;
+  setClaudeCodexBridgeEnabled: (enabled: boolean) => void;
   autoGroupTools: boolean;
   setAutoGroupTools: (on: boolean) => void;
   avoidGroupingEdits: boolean;
@@ -381,6 +383,14 @@ export function useSettings(projectId: string | null, engine: EngineId = "claude
   const setThinking = useCallback((on: boolean) => {
     setThinkingRaw(on);
     localStorage.setItem("pcc-agent-thinking", String(on));
+  }, []);
+
+  const [claudeCodexBridgeEnabled, setClaudeCodexBridgeEnabledRaw] = useState(() =>
+    readBool("harnss-claude-codex-bridge", false),
+  );
+  const setClaudeCodexBridgeEnabled = useCallback((enabled: boolean) => {
+    setClaudeCodexBridgeEnabledRaw(enabled);
+    localStorage.setItem("harnss-claude-codex-bridge", String(enabled));
   }, []);
 
   const [claudeEffort, setClaudeEffortRaw] = useState<ClaudeEffort>(() => {
@@ -705,6 +715,8 @@ export function useSettings(projectId: string | null, engine: EngineId = "claude
     setAcpPermissionBehavior,
     thinking,
     setThinking,
+    claudeCodexBridgeEnabled,
+    setClaudeCodexBridgeEnabled,
     claudeEffort,
     setClaudeEffort,
     autoGroupTools,

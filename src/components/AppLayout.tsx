@@ -76,6 +76,7 @@ import {
   isNearBottomDockZone,
 } from "@/lib/workspace/drag";
 import { AgentProvider, type AgentContextValue } from "./AgentContext";
+import { useSettingsStore, DEFAULT_ENGINE_MODELS } from "@/stores/settings-store";
 
 export function AppLayout() {
   const o = useAppOrchestrator();
@@ -83,6 +84,9 @@ export function AppLayout() {
   const {
     sidebar, projectManager, spaceManager, manager, settings, resolvedTheme, spaceTerminals, activeSpaceTerminals, splitView,
   } = managers;
+  // Global last-selected model per engine — drives Current Config so it reflects
+  // each engine's model without first opening a session of that engine.
+  const lastModelByEngine = useSettingsStore((s) => s.lastModelByEngine);
   const {
     agents, selectedAgent, saveAgent, deleteAgent, handleAgentChange, lockedEngine, lockedAgentId,
   } = agentState;
@@ -187,6 +191,25 @@ export function AppLayout() {
       await handleOpenNewChat(projectId);
     },
     [activeProjectId, activeSpaceProject, clearGrabbedElements, handleOpenNewChat],
+  );
+
+  // Claude-only: toggle whether Claude may delegate to a visible Codex split pane.
+  // A live Claude session restarts so the bridge MCP server is added/removed.
+  const handleClaudeCodexBridgeChange = useCallback(
+    (enabled: boolean) => {
+      settings.setClaudeCodexBridgeEnabled(enabled);
+      const active = manager.activeSession;
+      if (!active || manager.isDraft || (active.engine ?? "claude") !== "claude") return;
+      void window.claude
+        .restartSession(active.id, undefined, undefined, undefined, undefined, enabled)
+        .then((res) => {
+          if (res?.error) toast.error(res.error);
+        })
+        .catch((err) => {
+          toast.error(err instanceof Error ? err.message : String(err));
+        });
+    },
+    [settings, manager.activeSession, manager.isDraft],
   );
 
   const handleSidebarSelectSession = useCallback(
@@ -1100,8 +1123,8 @@ export function AppLayout() {
           <SettingsView
             onClose={() => setShowSettings(false)}
             currentConfigModelFallbacks={{
-              claude: settings.getModelForEngine("claude"),
-              codex: settings.getModelForEngine("codex"),
+              claude: lastModelByEngine.claude || DEFAULT_ENGINE_MODELS.claude,
+              codex: lastModelByEngine.codex || DEFAULT_ENGINE_MODELS.codex,
             }}
             glassSupported={glassSupported}
             macLiquidGlassSupported={macLiquidGlassSupported}
@@ -1556,6 +1579,8 @@ export function AppLayout() {
                   onClaudeModelEffortChange={activePaneCtrl?.handlePaneClaudeModelEffortChange ?? handleClaudeModelEffortChange}
                   onPlanModeChange={activePaneCtrl?.handlePanePlanModeChange ?? handlePlanModeChange}
                   onPermissionModeChange={activePaneCtrl?.handlePanePermissionModeChange ?? handlePermissionModeChange}
+                  claudeCodexBridgeEnabled={settings.claudeCodexBridgeEnabled}
+                  onClaudeCodexBridgeEnabledChange={handleClaudeCodexBridgeChange}
                   projectPath={activeProjectPath}
                   contextUsage={manager.contextUsage}
                   isCompacting={manager.isCompacting}

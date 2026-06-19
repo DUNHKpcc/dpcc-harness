@@ -45,6 +45,7 @@ export function useAppSessionActions(input: UseAppSessionActionsInput) {
         input.settings.thinking,
         getClaudeEffortForModel,
         input.selectedAgent,
+        input.settings.claudeCodexBridgeEnabled,
       );
       void input.manager.createSession(input.manager.activeSession.projectId, {
         ...options,
@@ -73,6 +74,7 @@ export function useAppSessionActions(input: UseAppSessionActionsInput) {
         input.settings.thinking,
         getClaudeEffortForModel,
         agent,
+        input.settings.claudeCodexBridgeEnabled,
       );
       void input.manager.createSession(input.manager.activeSession!.projectId, options);
       return;
@@ -99,6 +101,7 @@ export function useAppSessionActions(input: UseAppSessionActionsInput) {
       input.settings.thinking,
       getClaudeEffortForModel,
       input.selectedAgent,
+      input.settings.claudeCodexBridgeEnabled,
     );
     await input.manager.createSession(projectId, options);
   }, [getClaudeEffortForModel, input.manager, input.selectedAgent, input.setShowSettings, input.settings]);
@@ -119,6 +122,7 @@ export function useAppSessionActions(input: UseAppSessionActionsInput) {
         input.settings.thinking,
         getClaudeEffortForModel,
         input.selectedAgent,
+        input.settings.claudeCodexBridgeEnabled,
       );
       await input.manager.createSession(input.manager.activeSession!.projectId, options);
     }

@@ -1,6 +1,6 @@
 {
   "name": "pcc-agent",
-  "version": "0.22.0-beta.2",
+  "version": "1.0.0",
   "productName": "PccAgent",
   "description": "Harness your AI coding agents — one desktop app for Claude Code, Codex, and any ACP agent",
   "author": {

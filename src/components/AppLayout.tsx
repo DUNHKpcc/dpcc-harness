@@ -95,12 +95,30 @@ async function waitForCodexSessionId(
   return ref.current.sessionId;
 }
 
+/** Poll a predicate until it returns true (or attempts run out). */
+async function waitForCondition(
+  predicate: () => boolean,
+  attempts = 60,
+  intervalMs = 50,
+): Promise<boolean> {
+  for (let i = 0; i < attempts; i += 1) {
+    if (predicate()) return true;
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  return predicate();
+}
+
 export function AppLayout() {
   const o = useAppOrchestrator();
   const { managers, agentState, state, ui, actions } = o;
   const {
     sidebar, projectManager, spaceManager, manager, settings, resolvedTheme, spaceTerminals, activeSpaceTerminals, splitView,
   } = managers;
+  // Always-fresh manager handle for async flows (e.g. Codex delegation) that
+  // span multiple renders and must read the latest session state, not a stale
+  // closure snapshot.
+  const managerRef = useRef(manager);
+  managerRef.current = manager;
   // Global last-selected model per engine — drives Current Config so it reflects
   // each engine's model without first opening a session of that engine.
   const lastModelByEngine = useSettingsStore((s) => s.lastModelByEngine);
@@ -483,20 +501,32 @@ export function AppLayout() {
       return;
     }
     const claudeSessionId = manager.activeSessionId;
+    const codexModel = settings.getModelForEngine("codex") || undefined;
+    const permissionMode = settings.permissionMode;
     void (async () => {
       try {
         // Keep the originating Claude pane visible alongside the new Codex pane.
         if (claudeSessionId) requestAddSplitSession(claudeSessionId);
 
         liveCodexStateRef.current = { sessionId: null, messages: [] };
-        await manager.createSession(projectId, {
+        await managerRef.current.createSession(projectId, {
           engine: "codex",
           agentId: "codex",
-          model: settings.getModelForEngine("codex") || undefined,
+          model: codexModel,
           planMode: false,
-          permissionMode: settings.permissionMode,
+          permissionMode,
         });
-        await manager.send(request.prompt);
+        // createSession sets state asynchronously; wait until the Codex draft is
+        // committed (so the internal session/startOptions refs are in sync)
+        // before sending, otherwise send() routes to the previous session.
+        const draftReady = await waitForCondition(
+          () => managerRef.current.isDraft && managerRef.current.activeSessionId === DRAFT_ID,
+        );
+        if (!draftReady) {
+          fail("The delegated Codex session draft did not initialise.");
+          return;
+        }
+        await managerRef.current.send(request.prompt);
 
         // The Codex draft materialises to a real session id once the prompt sends.
         const codexSessionId = await waitForCodexSessionId(liveCodexStateRef);

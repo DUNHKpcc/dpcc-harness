@@ -6,6 +6,7 @@ import { imageAttachmentsToCodexInputs } from "../../lib/engine/codex-adapter";
 import { buildSdkContent } from "../../lib/engine/protocol";
 import { capture } from "../../lib/analytics/analytics";
 import { createSystemMessage, createUserMessage } from "../../lib/message-factory";
+import { useSettingsStore } from "../../stores/settings-store";
 import {
   DRAFT_ID,
   getEffectiveClaudePermissionMode,
@@ -216,6 +217,7 @@ export function useSessionRevival({
         permissionMode: getEffectiveClaudePermissionMode(startOptionsRef.current),
         thinkingEnabled: startOptionsRef.current.thinkingEnabled,
         effort: startOptionsRef.current.effort,
+        claudeCodexBridgeEnabled: useSettingsStore.getState().claudeCodexBridgeEnabled,
         resume: oldId, // Resume the SDK session to restore conversation context
       };
 

@@ -258,6 +258,13 @@ export function AppLayout() {
     messages: [],
   });
   const pendingCodexDelegationsRef = useRef(new Map<string, { bridgeRequestId: string; settled: boolean }>());
+  // Parent Claude session id -> its delegated Codex child session id. Lets a
+  // Claude session reuse one Codex pane across multiple delegations instead of
+  // spawning a fresh Codex session every time it calls the bridge tool.
+  const codexChildByParentRef = useRef(new Map<string, string>());
+  // Parents with a delegation currently being set up — guards against a second
+  // request racing in and creating a duplicate child before the first records it.
+  const delegationInFlightRef = useRef(new Set<string>());
 
   useEffect(() => {
     if ((manager.activeSession?.engine ?? "") === "codex" && manager.activeSessionId) {
@@ -508,32 +515,78 @@ export function AppLayout() {
     const permissionMode = settings.permissionMode;
     void (async () => {
       try {
-        liveCodexStateRef.current = { sessionId: null, messages: [] };
-        await managerRef.current.createSession(projectId, {
-          engine: "codex",
-          agentId: "codex",
-          model: codexModel,
-          planMode: false,
-          permissionMode,
-        });
-        // createSession sets state asynchronously; wait until the Codex draft is
-        // committed (so the internal session/startOptions refs are in sync)
-        // before sending, otherwise send() routes to the previous session.
-        const draftReady = await waitForCondition(
-          () => managerRef.current.isDraft && managerRef.current.activeSessionId === DRAFT_ID,
-        );
-        if (!draftReady) {
-          fail("The delegated Codex session draft did not initialise.");
-          return;
+        // If a delegation for this same Claude parent is mid-setup, wait for its
+        // child to be recorded so we reuse it instead of creating a duplicate.
+        if (claudeSessionId && delegationInFlightRef.current.has(claudeSessionId)) {
+          await waitForCondition(
+            () => codexChildByParentRef.current.has(claudeSessionId) && !delegationInFlightRef.current.has(claudeSessionId),
+            120,
+            100,
+          );
         }
-        await managerRef.current.send(request.prompt);
 
-        // The Codex draft materialises to a real session id once the prompt sends.
-        const codexSessionId = await waitForCodexSessionId(liveCodexStateRef);
-        if (!codexSessionId) {
-          fail("The delegated Codex session failed to start.");
-          return;
+        const existingChildId = claudeSessionId
+          ? codexChildByParentRef.current.get(claudeSessionId)
+          : undefined;
+        const childIsLive = !!existingChildId && managerRef.current.sessions.some((s) => s.id === existingChildId);
+
+        let codexSessionId: string | null;
+        if (existingChildId && childIsLive) {
+          // Reuse the existing Codex child: focus it and send the new prompt.
+          liveCodexStateRef.current = { sessionId: null, messages: [] };
+          await managerRef.current.switchSession(existingChildId);
+          const ready = await waitForCondition(
+            () => managerRef.current.activeSessionId === existingChildId && !managerRef.current.isProcessing,
+          );
+          if (!ready) {
+            fail("Could not reuse the delegated Codex session.");
+            return;
+          }
+          await managerRef.current.send(request.prompt);
+          codexSessionId = existingChildId;
+        } else {
+          if (claudeSessionId) delegationInFlightRef.current.add(claudeSessionId);
+          try {
+            liveCodexStateRef.current = { sessionId: null, messages: [] };
+            await managerRef.current.createSession(projectId, {
+              engine: "codex",
+              agentId: "codex",
+              model: codexModel,
+              planMode: false,
+              permissionMode,
+            });
+            // createSession sets state asynchronously; wait until the Codex draft
+            // is committed (so the internal refs are in sync) before sending,
+            // otherwise send() routes to the previous session.
+            const draftReady = await waitForCondition(
+              () => managerRef.current.isDraft && managerRef.current.activeSessionId === DRAFT_ID,
+            );
+            if (!draftReady) {
+              fail("The delegated Codex session draft did not initialise.");
+              return;
+            }
+            await managerRef.current.send(request.prompt);
+
+            // The Codex draft materialises to a real session id once the prompt sends.
+            codexSessionId = await waitForCodexSessionId(liveCodexStateRef);
+            if (!codexSessionId) {
+              fail("The delegated Codex session failed to start.");
+              return;
+            }
+            // Tag the child with its parent so the sidebar nests it under Claude
+            // (and hides it from the top-level list), and record it for reuse.
+            if (claudeSessionId) {
+              const childId = codexSessionId;
+              codexChildByParentRef.current.set(claudeSessionId, childId);
+              managerRef.current.setSessions((prev) =>
+                prev.map((s) => (s.id === childId ? { ...s, delegatedFromSessionId: claudeSessionId } : s)),
+              );
+            }
+          } finally {
+            if (claudeSessionId) delegationInFlightRef.current.delete(claudeSessionId);
+          }
         }
+
         pendingCodexDelegationsRef.current.set(codexSessionId, {
           bridgeRequestId: request.id,
           settled: false,
@@ -544,6 +597,7 @@ export function AppLayout() {
           requestAddSplitSession(claudeSessionId, 0);
         }
       } catch (err) {
+        if (claudeSessionId) delegationInFlightRef.current.delete(claudeSessionId);
         fail(err instanceof Error ? err.message : String(err));
       }
     })();

@@ -9,6 +9,7 @@
     "agents": "ACP Agents",
     "mcp": "MCP Servers",
     "engines": "Engines",
+    "wechat": "WeChat",
     "currentConfig": "Current Config",
     "skills": "Skills",
     "customAgents": "Agents",
@@ -455,5 +456,53 @@
     "liveStatusDesc": "servers can disconnect mid-session. The toolbar panel shows real-time connection status so you can spot and fix issues quickly.",
     "alwaysTitle": "Always accessible",
     "alwaysDesc": "add, remove, authenticate, and reconnect servers without leaving your chat."
+  },
+  "wechat": {
+    "title": "WeChat Bridge",
+    "description": "Control the built-in Claude Code and Codex CLIs from your phone over WeChat.",
+    "loading": "Loading…",
+    "connection": "Connection",
+    "notLoggedIn": "Not connected. Scan a QR code with WeChat to link the bridge.",
+    "login": "Connect WeChat",
+    "requestingQr": "Requesting QR code…",
+    "cancelLogin": "Cancel",
+    "loggedIn": "WeChat connected",
+    "logout": "Sign out",
+    "enableLabel": "Enable bridge",
+    "enableDesc": "Start the bridge now and on every app launch.",
+    "behavior": "Behavior",
+    "defaultTool": "Default engine",
+    "defaultToolDesc": "Engine used when a message doesn't pick one via @mention.",
+    "permissionMode": "Permission mode",
+    "permissionModeDesc": "How much autonomy the CLI gets per message.",
+    "mode": {
+      "safe": "Safe (read-only)",
+      "auto": "Auto (full access)",
+      "plan": "Plan (planning only)"
+    },
+    "workDir": "Working directory",
+    "workDirDesc": "Directory the CLIs run in (empty = app default).",
+    "workDirPlaceholder": "/path/to/project",
+    "model": "Model",
+    "modelDesc": "Model override (empty = engine default).",
+    "modelPlaceholder": "default",
+    "access": "Access control",
+    "allowedUsersDesc": "Allowed WeChat user IDs, one per line. Leave empty to allow anyone who can message the bot (unsafe).",
+    "allowedUsersPlaceholder": "ilink_user_id…",
+    "allowAllWarning": "No allowlist set — anyone who can message the bot can run the CLI with full permissions. Add your own WeChat user ID to restrict access.",
+    "activity": "Activity",
+    "activityEmpty": "No activity yet.",
+    "status": {
+      "disconnected": "Disconnected",
+      "connecting": "Connecting",
+      "connected": "Connected",
+      "error": "Error"
+    },
+    "loginStatus": {
+      "wait": "Scan the QR code with WeChat",
+      "scaned": "Scanned — confirm on your phone",
+      "confirmed": "Confirmed!",
+      "expired": "QR code expired, requesting a new one…"
+    }
   }
 }

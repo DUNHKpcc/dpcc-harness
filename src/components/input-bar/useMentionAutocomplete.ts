@@ -69,8 +69,9 @@ export function useMentionAutocomplete({
     void refreshFileCache(projectPath);
     void window.claude.files.watch(projectPath);
 
-    const unsubscribe = window.claude.files.onChanged(({ cwd }) => {
+    const unsubscribe = window.claude.files.onChanged(({ cwd, hasStructuralChange }) => {
       if (cwd !== projectPath) return;
+      if (hasStructuralChange === false) return;
       scheduleFileCacheRefresh(projectPath);
     });
 

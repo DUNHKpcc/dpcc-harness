@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { buildFileTree, type FileTreeNode } from "@/lib/file-tree";
 import { captureException } from "@/lib/analytics/analytics";
+import { shouldFetchProjectFiles, type ProjectFilesRefreshReason } from "./project-files-utils";
 
 interface UseProjectFilesReturn {
   tree: FileTreeNode[] | null;
@@ -9,6 +10,14 @@ interface UseProjectFilesReturn {
   /** Re-fetch the file list from disk. */
   refresh: () => void;
 }
+
+interface ProjectFilesCacheEntry {
+  tree: FileTreeNode[];
+  fetchedAt: number;
+}
+
+const PROJECT_FILES_FOCUS_STALE_MS = 30_000;
+const projectFilesCache = new Map<string, ProjectFilesCacheEntry>();
 
 /**
  * Fetches the project file list via IPC and builds a nested tree.
@@ -25,6 +34,7 @@ export function useProjectFiles(
   // Track the latest fetch to avoid stale responses
   const fetchIdRef = useRef(0);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const lastFetchAtRef = useRef<number | null>(null);
 
   const fetchFiles = useCallback(async (dir: string) => {
     const id = ++fetchIdRef.current;
@@ -35,7 +45,11 @@ export function useProjectFiles(
       const result = await window.claude.files.listAll(dir);
       // Guard against stale response (cwd changed while fetching)
       if (id !== fetchIdRef.current) return;
-      setTree(buildFileTree(result.files));
+      const nextTree = buildFileTree(result.files);
+      const fetchedAt = Date.now();
+      lastFetchAtRef.current = fetchedAt;
+      projectFilesCache.set(dir, { tree: nextTree, fetchedAt });
+      setTree(nextTree);
     } catch (err) {
       if (id !== fetchIdRef.current) return;
       captureException(err instanceof Error ? err : new Error(String(err)), { label: "FILE_LIST_ERR" });
@@ -54,13 +68,28 @@ export function useProjectFiles(
       setTree(null);
       setLoading(false);
       setError(null);
+      lastFetchAtRef.current = null;
       return;
     }
 
+    const cached = projectFilesCache.get(cwd);
+    if (cached) {
+      lastFetchAtRef.current = cached.fetchedAt;
+      setTree(cached.tree);
+    }
     fetchFiles(cwd);
   }, [cwd, enabled, fetchFiles]);
 
-  const scheduleRefresh = useCallback((dir: string) => {
+  const scheduleRefresh = useCallback((dir: string, reason: ProjectFilesRefreshReason) => {
+    if (!shouldFetchProjectFiles({
+      reason,
+      now: Date.now(),
+      lastFetchAt: lastFetchAtRef.current,
+      staleMs: PROJECT_FILES_FOCUS_STALE_MS,
+    })) {
+      return;
+    }
+
     clearTimeout(refreshTimerRef.current);
     refreshTimerRef.current = setTimeout(() => {
       void fetchFiles(dir);
@@ -71,15 +100,15 @@ export function useProjectFiles(
     if (!cwd || !enabled) return;
 
     void window.claude.files.watch(cwd);
-    const unsubscribe = window.claude.files.onChanged(({ cwd: changedCwd }) => {
+    const unsubscribe = window.claude.files.onChanged(({ cwd: changedCwd, hasStructuralChange }) => {
       if (changedCwd !== cwd) return;
-      scheduleRefresh(cwd);
+      scheduleRefresh(cwd, hasStructuralChange === false ? "content-change" : "structure-change");
     });
 
-    const refreshOnFocus = () => scheduleRefresh(cwd);
+    const refreshOnFocus = () => scheduleRefresh(cwd, "focus");
     const refreshOnVisible = () => {
       if (document.visibilityState === "visible") {
-        scheduleRefresh(cwd);
+        scheduleRefresh(cwd, "focus");
       }
     };
 

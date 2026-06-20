@@ -50,6 +50,12 @@ interface IpcResult {
   error?: string;
 }
 
+interface FileWatchChangeEvent {
+  cwd: string;
+  paths?: string[];
+  hasStructuralChange?: boolean;
+}
+
 type CodexImageInput = { type: "image"; url: string } | { type: "localImage"; path: string };
 
 declare global {
@@ -261,7 +267,7 @@ declare global {
             | { path: string; error: string; content?: undefined; isDir?: undefined }
           >
         >;
-        onChanged: (callback: (data: { cwd: string }) => void) => () => void;
+        onChanged: (callback: (data: FileWatchChangeEvent) => void) => () => void;
       };
       git: {
         discoverRepos: (projectPath: string) => Promise<GitRepoInfo[]>;

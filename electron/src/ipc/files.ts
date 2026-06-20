@@ -10,6 +10,12 @@ import { getAppSetting } from "../lib/app-settings";
 import { captureEvent } from "../lib/posthog";
 import { reportError } from "../lib/error-utils";
 import { safeSend } from "../lib/safe-send";
+import {
+  mergeFileWatchEvents,
+  normalizeFileWatchPath,
+  shouldIgnoreFileWatchPath,
+  type FileWatchEvent,
+} from "@shared/lib/file-watch-events";
 
 function listFilesGit(cwd: string): Promise<string[]> {
   return new Promise((resolve, reject) => {
@@ -116,6 +122,7 @@ interface ProjectWatchState {
   refCount: number;
   watcher: fs.FSWatcher;
   notifyTimer?: ReturnType<typeof setTimeout>;
+  pendingEvents: FileWatchEvent[];
 }
 
 const projectWatchers = new Map<string, ProjectWatchState>();
@@ -130,22 +137,25 @@ function startProjectWatcher(
     return;
   }
 
-  const watcher = fs.watch(cwd, { recursive: true, persistent: false }, (_eventType, filename) => {
+  const watcher = fs.watch(cwd, { recursive: true, persistent: false }, (eventType, filename) => {
     // Ignore changes in directories we don't care about (node_modules, .git, etc.)
-    if (filename) {
-      const firstSegment = filename.split(path.sep)[0];
-      if (ALWAYS_SKIP.has(firstSegment) || firstSegment.startsWith(".")) return;
-    }
+    const normalizedPath = normalizeFileWatchPath(filename);
+    if (shouldIgnoreFileWatchPath(normalizedPath)) return;
 
     const state = projectWatchers.get(cwd);
-    if (!state || state.notifyTimer) return;
+    if (!state) return;
+
+    state.pendingEvents.push({ eventType, path: normalizedPath });
+    if (state.notifyTimer) return;
 
     // Debounce: coalesce rapid changes into a single notification
     state.notifyTimer = setTimeout(() => {
       const current = projectWatchers.get(cwd);
       if (!current) return;
+      const summary = mergeFileWatchEvents(current.pendingEvents);
+      current.pendingEvents = [];
       current.notifyTimer = undefined;
-      safeSend(getMainWindow, "files:changed", { cwd });
+      safeSend(getMainWindow, "files:changed", { cwd, ...summary });
     }, 200);
   });
 
@@ -154,7 +164,11 @@ function startProjectWatcher(
     stopProjectWatcher(cwd);
   });
 
-  projectWatchers.set(cwd, { refCount: 1, watcher });
+  projectWatchers.set(cwd, {
+    refCount: 1,
+    watcher,
+    pendingEvents: [],
+  });
 }
 
 function stopProjectWatcher(cwd: string): void {

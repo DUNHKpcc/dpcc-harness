@@ -541,7 +541,7 @@ const mcpConfigOptions = {
  * when the per-session toggle is enabled and the bridge controller is running.
  * No-op otherwise, so plain sessions are unaffected.
  */
-function applyCodexBridge(servers: McpServerInput[] | undefined, enabled: boolean): McpServerInput[] {
+function applyCodexBridge(servers: McpServerInput[] | undefined, enabled: boolean, claudeSessionId?: string): McpServerInput[] {
   const base = servers ?? [];
   if (!enabled) return base;
   const controller = getClaudeCodexBridgeController();
@@ -552,6 +552,7 @@ function applyCodexBridge(servers: McpServerInput[] | undefined, enabled: boolea
     args: [path.join(__dirname, "claude-codex-mcp.js")],
     endpoint: controller.endpoint,
     token: controller.token,
+    claudeSessionId,
   });
 }
 
@@ -652,7 +653,7 @@ async function restartSession(
     queryOptions.effort = effortOverride ?? opts.effort;
   }
 
-  const restartMcpServers = applyCodexBridge(mcpServers, bridgeEnabled);
+  const restartMcpServers = applyCodexBridge(mcpServers, bridgeEnabled, sessionId);
   if (restartMcpServers.length) {
     queryOptions.mcpServers = await buildSdkMcpConfig(restartMcpServers, mcpConfigOptions);
   }
@@ -773,7 +774,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         queryOptions.effort = options.effort;
       }
 
-      const startMcpServers = applyCodexBridge(options.mcpServers, options.claudeCodexBridgeEnabled === true);
+      const startMcpServers = applyCodexBridge(options.mcpServers, options.claudeCodexBridgeEnabled === true, sessionId);
       if (startMcpServers.length) {
         queryOptions.mcpServers = await buildSdkMcpConfig(startMcpServers, mcpConfigOptions);
       }

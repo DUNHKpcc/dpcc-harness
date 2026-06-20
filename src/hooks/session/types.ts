@@ -12,6 +12,7 @@ export interface StartOptions {
   planMode?: boolean;
   thinkingEnabled?: boolean;
   effort?: ClaudeEffort;
+  cwd?: string;
   engine?: EngineId;
   agentId?: string;
   /** When true (Claude only), Claude can delegate to a visible Codex split pane via the built-in bridge MCP server. */

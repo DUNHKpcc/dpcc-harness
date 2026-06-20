@@ -352,6 +352,7 @@ export function useDraftMaterialization({
 
       // Load per-project MCP servers to pass to the session
       const mcpServers = await window.claude.mcp.list(project.id);
+      const draftCwd = options.cwd ?? getProjectCwd(project);
 
       if (draftEngine === "acp" && options.agentId) {
         // Show a "New Chat" entry in the sidebar immediately — before the blocking acp:start.
@@ -379,7 +380,7 @@ export function useDraftMaterialization({
         } else {
           const result = await window.claude.acp.start({
             agentId: options.agentId,
-            cwd: getProjectCwd(project),
+            cwd: draftCwd,
             mcpServers,
           });
           if ("cancelled" in result && result.cancelled) {
@@ -478,7 +479,7 @@ export function useDraftMaterialization({
         const approvalPolicy = getCodexApprovalPolicy(options);
         const sandbox = getCodexSandboxMode(options);
         const result = await window.claude.codex.start({
-          cwd: getProjectCwd(project),
+          cwd: draftCwd,
           ...(draftModel ? { model: draftModel } : {}),
           ...(approvalPolicy ? { approvalPolicy } : {}),
           ...(sandbox ? { sandbox } : {}),
@@ -576,7 +577,7 @@ export function useDraftMaterialization({
           let result;
           try {
             result = await window.claude.start({
-              cwd: getProjectCwd(project),
+              cwd: draftCwd,
               model: options.model,
               permissionMode: getEffectiveClaudePermissionMode(options),
               thinkingEnabled: options.thinkingEnabled,
@@ -663,7 +664,7 @@ export function useDraftMaterialization({
       setTimeout(() => { claude.refreshMcpStatus(); }, 500);
 
       // Fire-and-forget AI title generation — routes through ACP if that's the active engine
-      generateSessionTitle(sessionId, text, getProjectCwd(project), draftEngine);
+      generateSessionTitle(sessionId, text, draftCwd, draftEngine);
 
       materializingRef.current = false;
       return sessionId;

@@ -53,7 +53,7 @@ function toolResult(text: string, isError: boolean): Record<string, unknown> {
 function postDelegate(
   endpoint: string,
   token: string,
-  body: { prompt: string; cwd?: string },
+  body: { prompt: string; cwd?: string; claudeSessionId?: string },
 ): Promise<{ status: number; data: BridgeResponse }> {
   return new Promise((resolve, reject) => {
     const target = new URL(`${endpoint}/delegate`);
@@ -96,12 +96,13 @@ function postDelegate(
 async function delegateToBridge(prompt: string, cwd: string | undefined): Promise<Record<string, unknown>> {
   const url = process.env.HARNSS_CODEX_BRIDGE_URL;
   const token = process.env.HARNSS_CODEX_BRIDGE_TOKEN;
+  const claudeSessionId = process.env.HARNSS_CLAUDE_SESSION_ID;
   if (url === undefined || token === undefined) {
     return toolResult("Codex bridge is not configured (missing endpoint or token).", true);
   }
 
   try {
-    const { status, data } = await postDelegate(url, token, { prompt, cwd });
+    const { status, data } = await postDelegate(url, token, { prompt, cwd, claudeSessionId });
     if (status >= 200 && status < 300 && data.ok === true) {
       return toolResult(data.content ?? "", false);
     }

@@ -20,7 +20,10 @@ import {
   equalWidthFractions,
 } from "@/lib/layout/constants";
 import type { InstalledAgent, UIMessage } from "@/types";
-import { extractCodexDelegationFinalText } from "@/lib/claude-codex-visible-session";
+import {
+  buildCodexDelegationCompletion,
+  resolveCodexDelegationRuntime,
+} from "@/lib/claude-codex-visible-session";
 import { CodexBridgeProvider } from "./input-bar/CodexBridgeContext";
 import { AppSidebar } from "./AppSidebar";
 import { ChatHeader } from "./ChatHeader";
@@ -319,6 +322,19 @@ export function AppLayout() {
     });
   }, []);
 
+  const cancelPendingDelegationForCodex = useCallback((codexSessionId: string, error: string) => {
+    const pending = pendingCodexDelegationsRef.current.get(codexSessionId);
+    if (!pending || pending.settled) return;
+    pending.settled = true;
+    pendingCodexDelegationsRef.current.delete(codexSessionId);
+    void window.claude.completeCodexDelegation({
+      id: pending.bridgeRequestId,
+      ok: false,
+      content: "",
+      error,
+    });
+  }, []);
+
   // Wrap the stop handler so stopping a delegating Claude session also tears
   // down its in-flight delegation (single-pane onStop + the focused split pane).
   const handleStopWithDelegationCancel = useCallback(async () => {
@@ -597,13 +613,21 @@ export function AppLayout() {
     const fail = (error: string) => {
       void window.claude.completeCodexDelegation({ id: request.id, ok: false, content: "", error });
     };
-    const projectId =
-      manager.activeSession?.projectId ?? activeProjectId ?? activeSpaceProject?.id ?? null;
+    const runtime = resolveCodexDelegationRuntime({
+      request,
+      activeSessionId: manager.activeSessionId,
+      activeSessionProjectId: manager.activeSession?.projectId ?? null,
+      activeProjectId: activeProjectId ?? null,
+      activeSpaceProjectId: activeSpaceProject?.id ?? null,
+      sessions: manager.sessions,
+      projects: projectManager.projects,
+    });
+    const projectId = runtime.projectId;
     if (!projectId) {
       fail("No active project to run the delegated Codex session in.");
       return;
     }
-    const claudeSessionId = manager.activeSessionId;
+    const claudeSessionId = runtime.claudeSessionId;
     const codexModel = settings.getModelForEngine("codex") || undefined;
     const permissionMode = settings.permissionMode;
     // A fresh delegation re-binds the split, even if the user closed it before.
@@ -662,6 +686,7 @@ export function AppLayout() {
               model: codexModel,
               planMode: false,
               permissionMode,
+              cwd: runtime.cwd,
             });
             // createSession sets state asynchronously; wait until the Codex draft
             // is committed (so the internal refs are in sync) before sending,
@@ -749,17 +774,24 @@ export function AppLayout() {
           const bootstrap = await manager.loadSplitPaneBootstrap(codexSessionId);
           messages = bootstrap?.initialMessages ?? [];
         }
-        const finalText = extractCodexDelegationFinalText(messages);
-        void window.claude.completeCodexDelegation({
-          id: pending.bridgeRequestId,
-          ok: true,
-          content: finalText,
+        const completion = buildCodexDelegationCompletion({
+          bridgeRequestId: pending.bridgeRequestId,
           codexSessionId,
+          status: event.params.turn.status,
+          errorMessage: event.params.turn.error?.message,
+          messages,
         });
+        void window.claude.completeCodexDelegation(completion);
         pendingCodexDelegationsRef.current.delete(codexSessionId);
       })();
     });
   }, [manager.loadSplitPaneBootstrap]);
+
+  useEffect(() => {
+    return window.claude.codex.onExit((event) => {
+      cancelPendingDelegationForCodex(event._sessionId, "Delegation cancelled by user.");
+    });
+  }, [cancelPendingDelegationForCodex]);
 
   const handleCloseSplitPane = useCallback(async (sessionId: string | null) => {
     if (!sessionId) {

@@ -33,6 +33,18 @@ describe("appendClaudeCodexBridgeServer", () => {
     });
   });
 
+  it("passes the owning Claude session id to the MCP helper", () => {
+    const result = appendClaudeCodexBridgeServer([], {
+      ...baseConfig,
+      enabled: true,
+      claudeSessionId: "claude-parent-1",
+    });
+
+    expect(result[0]?.env).toMatchObject({
+      HARNSS_CLAUDE_SESSION_ID: "claude-parent-1",
+    });
+  });
+
   it("does not overwrite a user-configured server with the same name", () => {
     const userServer: McpServerInput = {
       name: CLAUDE_CODEX_BRIDGE_SERVER_NAME,

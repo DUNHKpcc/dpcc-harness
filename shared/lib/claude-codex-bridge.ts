@@ -13,6 +13,7 @@ export interface ClaudeCodexBridgeServerConfig {
   args: string[];
   endpoint: string;
   token: string;
+  claudeSessionId?: string;
 }
 
 /**
@@ -38,6 +39,7 @@ export function appendClaudeCodexBridgeServer(
         ELECTRON_RUN_AS_NODE: "1",
         HARNSS_CODEX_BRIDGE_URL: config.endpoint,
         HARNSS_CODEX_BRIDGE_TOKEN: config.token,
+        ...(config.claudeSessionId ? { HARNSS_CLAUDE_SESSION_ID: config.claudeSessionId } : {}),
       },
     },
   ];

@@ -53,6 +53,7 @@ import * as mcpIpc from "./ipc/mcp";
 import * as settingsIpc from "./ipc/settings";
 import * as accountIpc from "./ipc/account";
 import * as jiraIpc from "./ipc/jira";
+import * as wechatIpc from "./ipc/wechat";
 import { onSettingsChanged } from "./ipc/settings";
 
 // --- Performance: Chromium/V8 flags (must be set before app.whenReady()) ---
@@ -396,6 +397,7 @@ mcpIpc.register();
 settingsIpc.register(getMainWindow);
 accountIpc.register();
 jiraIpc.register();
+wechatIpc.register(getMainWindow);
 
 // --- Claude → Codex visible delegation bridge ---
 // Loopback controller the stdio MCP helper forwards `codex_delegate` calls to.
@@ -544,6 +546,13 @@ app.whenReady().then(() => {
     reportError("POSTHOG", err, { context: "startup-init" });
   });
 
+  // Auto-start the WeChat bridge if the user enabled it and is already logged in.
+  try {
+    wechatIpc.autoStart();
+  } catch (err) {
+    reportError("WECHAT_AUTOSTART", err);
+  }
+
   // Allow microphone access for Whisper voice dictation (getUserMedia in renderer)
   session.defaultSession.setPermissionRequestHandler(
     (webContents, permission, callback) => {
@@ -607,6 +616,7 @@ app.on("window-all-closed", () => {
   claudeSessionsIpc.stopAll();
   acpSessionsIpc.stopAll();
   codexSessionsIpc.stopAll();
+  wechatIpc.stopBridge();
 
   for (const [terminalId, term] of terminals) {
     log("CLEANUP", `Killing terminal ${terminalId.slice(0, 8)}`);

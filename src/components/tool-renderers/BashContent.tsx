@@ -1,15 +1,13 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronsUpDown } from "lucide-react";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
 import type { UIMessage } from "@/types";
 import { INLINE_HIGHLIGHT_STYLE, INLINE_CODE_TAG_STYLE } from "@/lib/languages";
 import { useResolvedTheme } from "@/hooks/useTheme";
 import { formatBashResult } from "@/components/lib/tool-formatting";
 import { useChatPersistedState } from "@/components/chat-ui-state";
 import { renderAnsi } from "@/lib/ansi";
+import { CodeSyntaxHighlighter } from "@/components/CodeSyntaxHighlighter";
 
 const MAX_OUTPUT_LINES = 200;
 
@@ -18,7 +16,7 @@ export function BashContent({ message }: { message: UIMessage }) {
   const command = message.toolInput?.command;
   const result = message.toolResult;
   const resolvedTheme = useResolvedTheme();
-  const syntaxStyle = resolvedTheme === "dark" ? oneDark : oneLight;
+  const syntaxTheme = resolvedTheme === "dark" ? "dark" : "light";
   const [expanded, setExpanded] = useChatPersistedState(`bash:${message.id}`, false);
 
   const formattedResult = useMemo(() => (result ? formatBashResult(result, t) : ""), [result, t]);
@@ -45,16 +43,16 @@ export function BashContent({ message }: { message: UIMessage }) {
         {!!command && (
           <div className="px-3 py-2">
             <span className="text-foreground/30 select-none">$ </span>
-            <SyntaxHighlighter
+            <CodeSyntaxHighlighter
               language="bash"
-              style={syntaxStyle}
+              theme={syntaxTheme}
+              code={String(command)}
               customStyle={INLINE_HIGHLIGHT_STYLE}
               codeTagProps={{ style: INLINE_CODE_TAG_STYLE }}
               PreTag="span"
               CodeTag="span"
-            >
-              {String(command)}
-            </SyntaxHighlighter>
+              fallback={<span>{String(command)}</span>}
+            />
           </div>
         )}
 

@@ -18,10 +18,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           "vendor-markdown": ["react-markdown", "remark-gfm"],
-          "vendor-syntax": ["react-syntax-highlighter", "refractor"],
           "vendor-xterm": ["@xterm/xterm", "@xterm/addon-fit"],
-          "vendor-diff": ["diff"],
-          "vendor-konva": ["konva", "react-konva"],
         },
       },
     },

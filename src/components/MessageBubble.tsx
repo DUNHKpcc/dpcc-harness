@@ -3,8 +3,6 @@ import { useTranslation } from "react-i18next";
 import { AlertCircle, Clock, Crosshair, File, Folder, Info, RotateCcw, Send, Undo2, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   DropdownMenu,
@@ -19,6 +17,7 @@ import type { UIMessage, ImageAttachment } from "@/types";
 import { ThinkingBlock } from "./ThinkingBlock";
 import { CopyButton } from "./CopyButton";
 import { ImageLightbox } from "./ImageLightbox";
+import { CodeSyntaxHighlighter } from "./CodeSyntaxHighlighter";
 // Lazy-loaded: mermaid is a very large dependency (~70MB unpacked) and most
 // chats never render a diagram, so keep it out of the main startup chunk.
 const MermaidDiagram = lazy(() =>
@@ -448,15 +447,19 @@ function CodeBlock(props: React.HTMLAttributes<HTMLElement> & { node?: unknown }
             <code>{code}</code>
           </pre>
         ) : (
-          <SyntaxHighlighter
-            style={oneDark}
+          <CodeSyntaxHighlighter
+            theme="dark"
             language={language}
+            code={code}
             PreTag="div"
             customStyle={SYNTAX_STYLE}
             codeTagProps={CODE_TAG_PROPS}
-          >
-            {code}
-          </SyntaxHighlighter>
+            fallback={(
+              <pre className="overflow-x-auto p-3 text-xs font-mono" style={SYNTAX_STYLE}>
+                <code>{code}</code>
+              </pre>
+            )}
+          />
         )}
       </div>
     );
@@ -476,15 +479,19 @@ function CodeBlock(props: React.HTMLAttributes<HTMLElement> & { node?: unknown }
           <CopyButton text={code} className="opacity-0 transition-opacity group-hover/code:opacity-100" />
         </div>
         {guessedLang ? (
-          <SyntaxHighlighter
-            style={oneDark}
+          <CodeSyntaxHighlighter
+            theme="dark"
             language={guessedLang}
+            code={code}
             PreTag="div"
             customStyle={SYNTAX_STYLE}
             codeTagProps={CODE_TAG_PROPS}
-          >
-            {code}
-          </SyntaxHighlighter>
+            fallback={(
+              <pre className="overflow-x-auto p-3 text-xs font-mono" style={SYNTAX_STYLE}>
+                <code>{code}</code>
+              </pre>
+            )}
+          />
         ) : (
           <pre className="overflow-x-auto p-3 text-xs font-mono">
             <code>{code}</code>

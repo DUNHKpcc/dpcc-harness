@@ -21,7 +21,7 @@ Always reply to the user in Chinese (Simplified). Keep code, identifiers, API na
 - **ACP SDK**: @agentclientprotocol/sdk (Agent Client Protocol client — ACP sessions use `ClientSideConnection`)
 - **Terminal**: node-pty (main process) + @xterm/xterm + @xterm/addon-fit (renderer)
 - **Browser**: Electron `<webview>` tag (requires `webviewTag: true` in webPreferences)
-- **Virtualization**: @tanstack/react-virtual (chat message windowing)
+- **Chat list rendering**: custom progressive hydration in `ChatView.tsx` (NOT virtualized — `@tanstack/react-virtual` is present in `package.json` but unused; see Performance Guidelines)
 - **State management**: zustand (settings store, localStorage wrapper)
 - **Animation**: motion (v12, formerly framer-motion)
 - **Canvas/Annotations**: react-konva + konva (image annotation editor)
@@ -473,7 +473,7 @@ Key event types in order:
 
 **Glass morphism**: On macOS Tahoe+, uses `electron-liquid-glass` for native transparency. DevTools opened via remote debugging on a separate window to avoid Electron bug #42846 (transparent + frameless + DevTools = broken clicks).
 
-**Chat UI state persistence**: The virtualized list unmounts rows that scroll out of view. To preserve per-message UI state (e.g. collapsed/expanded tool calls, copy button hover states), `ChatUiStateProvider` (`src/components/chat-ui-state.tsx`) + `useChatPersistedState` store these flags in a `Map` outside the row component tree. Rows read and write to this map via the context hook rather than local state.
+**Chat UI state persistence**: Rows can unmount and remount — during progressive hydration (top rows live in the spacer until hydrated) and on session/space switches (the chat content fully remounts via `contentKey`). To preserve per-message UI state (e.g. collapsed/expanded tool calls, copy button hover states) across these unmounts, `ChatUiStateProvider` (`src/components/chat-ui-state.tsx`) + `useChatPersistedState` store these flags in a `Map` outside the row component tree. Rows read and write to this map via the context hook rather than local state.
 
 **Pane controller pattern**: `usePaneController` (`src/hooks/usePaneController.ts`) builds a `PaneController` object (defined in `src/types/pane-controller.ts`) containing all per-pane callbacks — send, stop, interrupt, set-model, set-permission-mode, onElementGrab. Both the single-pane layout and each `SplitChatPane` receive a `PaneController`, enabling full parity without prop drilling or conditional logic.
 
@@ -579,7 +579,7 @@ Users can add/remove/configure MCP servers from Settings → MCP. MCP servers ca
 
 ### Chat Search
 
-`ChatSearchBar.tsx` provides in-session message search. Triggered by keyboard shortcut. Highlights matching messages and scrolls to them within the virtualized list.
+`ChatSearchBar.tsx` provides in-session message search. Triggered by keyboard shortcut. Highlights matching messages and scrolls to them within the chat list (force-hydrating the target row first if it is still in the unhydrated spacer region).
 
 ### Todo Panel
 
@@ -837,9 +837,19 @@ Key main-process infrastructure:
 
 Hard-won lessons from the chat rendering rebuild. Apply these whenever building list-heavy or streaming-heavy UI.
 
-### Virtualization over content-visibility
+### Chat list rendering: progressive hydration (NOT virtualized)
 
-**Never use `content-visibility: auto` for long lists.** It keeps all DOM nodes alive (300+ React trees in memory) and merely defers painting. Use `@tanstack/react-virtual` (or equivalent) for true windowing — only ~20 DOM nodes exist regardless of list length. This is the single biggest perf win for large chats.
+**The chat list is intentionally NOT virtualized.** This contradicts older notes that claimed `@tanstack/react-virtual` windowing — those are stale. History: a full virtualizer was wired (commit `41cbe07`), then **deliberately replaced** with progressive hydration (`a83c2aa`) because the virtualizer caused session/space-switch freezes and scroll-to-bottom-lock regressions; a later hybrid attempt (#41) left unused helpers in `src/lib/chat/virtualization.ts` (`computeTailStartIndex`, the measured-height cache, `VIRTUALIZER_OVERSCAN`). `@tanstack/react-virtual` is still a `package.json` dependency but is **not imported anywhere** — `estimateRowHeight` is the only `virtualization.ts` export currently used.
+
+**Current approach (`ChatView.tsx` → `ChatViewContent`):**
+- Render the bottom `INITIAL_RENDER_ROWS` (20) immediately; a `requestAnimationFrame` loop hydrates older rows upward in `HYDRATION_BATCH_SIZE` (40) batches inside `startTransition`.
+- Unhydrated top rows collapse into a **single spacer `<div>`** sized by summing `estimateRowHeight` — one div instead of hundreds of placeholders.
+- A one-frame deferred mount (`contentReady`) shows a spinner before heavy work, avoiding switch-time freezes.
+- **Once hydration completes, every row stays mounted.** This is the deliberate tradeoff: memory and per-frame work grow with conversation length (reset on session/space switch via the `contentKey` remount), in exchange for reliable scroll/streaming behavior and no markdown-as-plaintext glitches.
+
+**Practical impact**: fine for typical sessions; only very long single sessions (1000+ rows) get heavy (linear RAM, scroll/repaint cost). Do **not** re-introduce a virtualizer without interactively verifying streaming bottom-lock, user-scroll-intent unlock, scroll-to-message, and session-switch — those are exactly what the two prior attempts regressed. A safer path if revisited is the hybrid the leftover helpers imply: virtualize only the older *head* while keeping the active *tail* (last ~8 rows, where streaming + bottom-lock happen) in normal document flow.
+
+Separately: **never reach for `content-visibility: auto` on long lists** — it keeps all React trees alive and merely defers painting, so it solves neither the memory nor the per-frame-work problem.
 
 ### Streaming update isolation
 
@@ -857,15 +867,15 @@ Scroll position, bottom-lock state, animation frame IDs, user scroll intent time
 
 Components defined inside other components (`const Row = () => ...` inside a list component) are re-created on every render, destroying all internal state and remounting the DOM. Always extract to module level. Same for helper functions used in `useMemo` — define them outside the component to avoid stale closure issues and enable referential stability.
 
-### Height estimation for virtualizers
+### Height estimation for the unhydrated spacer
 
-`@tanstack/react-virtual` needs `estimateSize` for items before measurement. Provide role-based estimates (system: 32px, tool_call: 44px, user: 48-200px, assistant: 40-600px scaled by content length). The virtualizer corrects via `measureElement` after first render. Poor estimates cause scroll jumps but are self-healing.
+`estimateRowHeight` (`src/lib/chat/virtualization.ts`) sizes the single spacer div that stands in for not-yet-hydrated top rows. Role-based estimates (system: 32px, tool_call: 44px, user: 48-200px, assistant: 40-600px scaled by content length). Poor estimates only cause a minor scroll jump as rows hydrate into real DOM (self-healing); they are not used for any live virtualizer.
 
 ### Explicit height vs CSS padding with border-box
 
-When setting explicit `height` on a container, **do not use CSS padding** (`pt-*`, `pb-*`). With Tailwind's `box-sizing: border-box`, padding is subtracted from the content area, shrinking it below what the virtualizer expects. Instead, add padding values directly to the height calculation:
+When setting explicit `height` on a container, **do not use CSS padding** (`pt-*`, `pb-*`). With Tailwind's `box-sizing: border-box`, padding is subtracted from the content area, shrinking it below the intended size. Instead, add padding values directly to the height calculation:
 ```tsx
-style={{ height: `${virtualizer.getTotalSize() + headerSpace + bottomSpace}px` }}
+style={{ height: `${contentHeight + headerSpace + bottomSpace}px` }}
 ```
 
 ### Performance best practices reference

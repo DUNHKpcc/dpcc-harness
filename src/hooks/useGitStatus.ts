@@ -183,22 +183,32 @@ export function useGitStatus({ projectPath }: UseGitStatusOptions) {
     });
   }, [isRequestCurrent]);
 
-  // Poll all repos every 3s (initial fetch handled by discovery effect above)
+  // Poll all repos every 3s (initial fetch handled by discovery effect above).
+  // Each tick spawns real `git status`/`git diff` child processes per repo, so
+  // poll only while the window is BOTH visible and focused — polling a
+  // backgrounded/unfocused window is pure CPU/battery waste with no user value
+  // (document.hidden stays false for a merely-unfocused window).
   useEffect(() => {
     if (!projectPath || repoStates.length === 0) return;
 
+    const shouldPoll = () => !document.hidden && document.hasFocus();
+
     const interval = setInterval(() => {
-      if (!document.hidden) void refreshKnownRepos();
+      if (shouldPoll()) void refreshKnownRepos();
     }, 3000);
 
-    const onVisibilityChange = () => {
-      if (!document.hidden) void refreshKnownRepos();
+    // Refresh immediately on wake (regaining focus / becoming visible) so the
+    // panel isn't stale after the user returns.
+    const onWake = () => {
+      if (shouldPoll()) void refreshKnownRepos();
     };
-    document.addEventListener("visibilitychange", onVisibilityChange);
+    document.addEventListener("visibilitychange", onWake);
+    window.addEventListener("focus", onWake);
 
     return () => {
       clearInterval(interval);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
+      document.removeEventListener("visibilitychange", onWake);
+      window.removeEventListener("focus", onWake);
     };
   }, [projectPath, repoStates.length, refreshKnownRepos]);
 

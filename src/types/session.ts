@@ -73,6 +73,11 @@ export interface Project {
   spaceId?: string;
   icon?: string;
   iconType?: "emoji" | "lucide";
+  /**
+   * Auto-created by the WeChat bridge to hold its conversations. Hidden from the
+   * normal project list (those chats live in the dedicated WeChat area instead).
+   */
+  wechat?: boolean;
 }
 
 /** A user-created folder for organizing chats within a project. */
@@ -110,6 +115,10 @@ export interface SessionBase {
   branch?: string;
   /** Set on a Codex session that was opened by a Claude `codex_delegate` tool call. */
   delegatedFromSessionId?: string;
+  /** Origin of the session — undefined = normal desktop UI, "wechat" = WeChat bridge conversation. */
+  source?: "wechat";
+  /** The originating WeChat `ilink_user_id` when `source === "wechat"`. */
+  wechatUserId?: string;
 }
 
 export interface ChatSession extends SessionBase {

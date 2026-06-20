@@ -29,6 +29,8 @@ export function toChatSession(
     branch: session.branch,
     agentId: session.agentId,
     delegatedFromSessionId: session.delegatedFromSessionId,
+    source: session.source,
+    wechatUserId: session.wechatUserId,
   };
 }
 
@@ -58,5 +60,7 @@ export function buildPersistedSession(
     ...(session.agentSessionId ? { agentSessionId: session.agentSessionId } : {}),
     ...(session.delegatedFromSessionId ? { delegatedFromSessionId: session.delegatedFromSessionId } : {}),
     ...(session.engine === "codex" && session.codexThreadId ? { codexThreadId: session.codexThreadId } : {}),
+    ...(session.source ? { source: session.source } : {}),
+    ...(session.wechatUserId ? { wechatUserId: session.wechatUserId } : {}),
   };
 }

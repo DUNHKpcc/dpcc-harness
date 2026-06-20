@@ -26,6 +26,10 @@ export interface SessionMeta {
   agentId?: string;
   /** Set on a Codex session opened by a Claude `codex_delegate` tool call. */
   delegatedFromSessionId?: string;
+  /** Origin of the session — undefined/"desktop" = normal UI, "wechat" = WeChat bridge. */
+  source?: "wechat";
+  /** The originating WeChat `ilink_user_id` when `source === "wechat"`. */
+  wechatUserId?: string;
 }
 
 /**
@@ -64,5 +68,7 @@ export function extractSessionMeta(data: Record<string, unknown>, lastMessageAt:
     branch: data.branch as string | undefined,
     agentId: data.agentId as string | undefined,
     delegatedFromSessionId: data.delegatedFromSessionId as string | undefined,
+    source: data.source === "wechat" ? "wechat" : undefined,
+    wechatUserId: data.wechatUserId as string | undefined,
   };
 }

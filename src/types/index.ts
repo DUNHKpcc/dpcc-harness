@@ -110,6 +110,18 @@ export type {
   CodexGatewaySettings,
 } from "@shared/types/settings";
 
+// ── WeChat bridge types (shared) ──
+
+export type {
+  WeChatTool,
+  WeChatPermissionMode,
+  WeChatBridgeConfig,
+  WeChatConnectionStatus,
+  WeChatBridgeState,
+  WeChatLoginStatus,
+  WeChatBridgeEvent,
+} from "@shared/types/wechat";
+
 // ── Git types (shared) ──
 
 export type {

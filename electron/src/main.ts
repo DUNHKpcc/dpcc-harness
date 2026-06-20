@@ -18,7 +18,7 @@ if (process.platform !== "win32") {
     // Fall through — keep whatever PATH we already have
   }
 }
-import { log } from "./lib/logger";
+import { log, closeLogStream } from "./lib/logger";
 import { reportError } from "./lib/error-utils";
 import { migrateFromOpenAcpUi } from "./lib/migration";
 import { glassEnabled, applyGlass, setGlassTint } from "./lib/glass";
@@ -229,6 +229,20 @@ function createWindow(): void {
       applyMacBackgroundEffect(pendingMacBackgroundEffect);
     });
   }
+
+  // A renderer crash abandons every session/terminal handle it owned. Without
+  // this, the orphaned SDK queries (and their bundled CLI subprocesses), ACP/
+  // Codex child processes, and node-pty shells keep running and holding RAM/CPU
+  // until the whole app quits. Tear them down so the reloaded renderer starts
+  // clean (it revives sessions via `resume`).
+  mainWindow.webContents.on("render-process-gone", (_e, details) => {
+    reportError(
+      "RENDER_PROCESS_GONE",
+      new Error(`Renderer process gone: ${details.reason}`),
+      { reason: details.reason, exitCode: details.exitCode },
+    );
+    teardownSessionsAndTerminals(`render-process-gone:${details.reason}`);
+  });
 
   // electron-context-menu is ESM-only (and pulls in ESM-only electron-dl), so it
   // must be loaded via dynamic import rather than a synchronous require.
@@ -588,6 +602,34 @@ app.whenReady().then(() => {
   }
 });
 
+// Kill all renderer-owned processes (Claude/ACP/Codex sessions + node-pty
+// terminals). Idempotent and safe to call repeatedly — used by window-all-closed,
+// renderer-crash, and OS signal paths. Does NOT touch the WeChat bridge, which
+// runs independently of the renderer.
+function teardownSessionsAndTerminals(reason: string): void {
+  log("CLEANUP", `Teardown sessions/terminals (${reason})`);
+  try { claudeSessionsIpc.stopAll(); } catch (err) { reportError("CLEANUP", err, { context: "claude-stopAll", reason }); }
+  try { acpSessionsIpc.stopAll(); } catch (err) { reportError("CLEANUP", err, { context: "acp-stopAll", reason }); }
+  try { codexSessionsIpc.stopAll(); } catch (err) { reportError("CLEANUP", err, { context: "codex-stopAll", reason }); }
+
+  for (const [terminalId, term] of terminals) {
+    if (term.exited) continue;
+    log("CLEANUP", `Killing terminal ${terminalId.slice(0, 8)}`);
+    try { term.pty.kill(); } catch { /* already dead */ }
+  }
+  terminals.clear();
+}
+
+// Hard termination (Ctrl+C in dev, OS shutdown/SIGTERM) bypasses
+// window-all-closed, which would otherwise orphan child processes/terminals.
+// Kill them, then quit cleanly through the normal lifecycle.
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.on(signal, () => {
+    teardownSessionsAndTerminals(signal);
+    app.quit();
+  });
+}
+
 app.on("will-quit", (event) => {
   globalShortcut.unregisterAll();
   void claudeCodexBridge.stop();
@@ -595,6 +637,9 @@ app.on("will-quit", (event) => {
   // When an update is being installed, let the updater control the quit lifecycle.
   // In that case, fire-and-forget PostHog shutdown and do not delay quit.
   if (getIsInstallingUpdate()) {
+    // Don't close the log stream here: shutdownPostHog runs async and may still
+    // log, and the process exits imminently (OS reclaims the fd). Closing now
+    // would only silently drop those final shutdown lines.
     void shutdownPostHog();
     return;
   }
@@ -608,21 +653,14 @@ app.on("will-quit", (event) => {
       reportError("POSTHOG", err, { context: "shutdown" });
     })
     .finally(() => {
+      closeLogStream();
       app.exit(0);
     });
 });
 
 app.on("window-all-closed", () => {
-  claudeSessionsIpc.stopAll();
-  acpSessionsIpc.stopAll();
-  codexSessionsIpc.stopAll();
+  teardownSessionsAndTerminals("window-all-closed");
   wechatIpc.stopBridge();
-
-  for (const [terminalId, term] of terminals) {
-    log("CLEANUP", `Killing terminal ${terminalId.slice(0, 8)}`);
-    term.pty.kill();
-  }
-  terminals.clear();
 
   // When quitAndInstall() is running, Squirrel.Mac needs to control the quit lifecycle.
   // Calling app.quit() here would kill the process before the update is applied on macOS.

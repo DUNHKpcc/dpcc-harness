@@ -877,10 +877,13 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
   });
 }
 
-/** Stop all Codex sessions (called on app quit). */
+/** Stop all Codex sessions (called on app quit / renderer-crash teardown). Idempotent. */
 export function stopAll(): void {
   for (const [id, session] of codexSessions) {
-    session.rpc.destroy();
-    codexSessions.delete(id);
+    log("CLEANUP", `Stopping Codex session ${id.slice(0, 8)}`);
+    // Guard each destroy so one throwing RPC can't leave the rest of the
+    // sessions alive (this runs from app-quit and renderer-crash teardown).
+    try { session.rpc.destroy(); } catch { /* already dead */ }
   }
+  codexSessions.clear();
 }

@@ -366,11 +366,20 @@ function startEventLoop(
         const stopRequested = session.stopping;
         const exitCode = (queryError && !stopRequested) ? 1 : 0;
         log("EXIT", `${logPrefix} total_events=${session.eventCounter} stopRequested=${!!stopRequested} stopReason=${session.stopReason ?? "none"} error=${queryError ?? "none"}`);
-        sessions.delete(sessionId);
-        safeSend(getMainWindow, "claude:exit", {
-          code: exitCode, _sessionId: sessionId,
-          ...((queryError && !stopRequested) ? { error: queryError } : {}),
-        });
+        // Only delete + notify if this loop still owns the Map entry. A resume
+        // (e.g. renderer reload) can replace the entry under the same id while
+        // this old loop is still draining; deleting by id would wipe the live
+        // replacement and a spurious claude:exit would tell the renderer the
+        // new session died.
+        if (sessions.get(sessionId) === session) {
+          sessions.delete(sessionId);
+          safeSend(getMainWindow, "claude:exit", {
+            code: exitCode, _sessionId: sessionId,
+            ...((queryError && !stopRequested) ? { error: queryError } : {}),
+          });
+        } else {
+          log("EXIT", `${logPrefix} stale loop ended — entry was replaced, skipping delete/exit`);
+        }
       } else {
         log("EXIT_RESTART", `${logPrefix} old loop ended (restarting)`);
       }
@@ -695,6 +704,24 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
 
     try {
       const query = await getSDK();
+
+      // Resuming under an existing id (e.g. the renderer reloaded and is
+      // reviving the same session) would otherwise overwrite the Map entry and
+      // leave the previous query handle + its CLI subprocess running forever.
+      // Close the stale entry first; its event loop's finally is guarded by an
+      // identity check so it won't delete the replacement we set below.
+      const stale = sessions.get(sessionId);
+      if (stale) {
+        log("CLEANUP", `Closing stale session entry before resume ${sessionId.slice(0, 8)}`);
+        stale.stopping = true;
+        stale.stopReason = "resume-replaced";
+        for (const [, pending] of stale.pendingPermissions) {
+          pending.resolve({ behavior: "deny", message: "Session replaced" });
+        }
+        stale.pendingPermissions.clear();
+        stale.channel.close();
+        stale.queryHandle?.close();
+      }
 
       const channel = new AsyncChannel<unknown>();
       const session: SessionEntry = {

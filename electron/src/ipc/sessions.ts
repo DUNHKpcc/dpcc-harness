@@ -3,6 +3,7 @@ import path from "path";
 import fs from "fs";
 import { getDataDir, getProjectSessionsDir, getSessionFilePath } from "../lib/data-dir";
 import { reportError } from "../lib/error-utils";
+import { saveSessionToDisk, getSessionMetaFilePath } from "../lib/session-store";
 import {
   getLastUserMessageTimestamp,
   extractSessionMeta,
@@ -26,36 +27,12 @@ interface SearchResult {
   }>;
 }
 
-function getMetaFilePath(projectId: string, sessionId: string): string {
-  return getSessionFilePath(projectId, sessionId).replace(/\.json$/, ".meta.json");
-}
+const getMetaFilePath = getSessionMetaFilePath;
 
 export function register(): void {
   ipcMain.handle("sessions:save", async (_event, data: { projectId: string; id: string; createdAt?: number; messages?: Array<{ role?: string; timestamp?: number }> }) => {
     try {
-      const filePath = getSessionFilePath(data.projectId, data.id);
-      const providedLastMessageAt = (data as Record<string, unknown>).lastMessageAt;
-      const normalizedProvidedLastMessageAt =
-        typeof providedLastMessageAt === "number" ? providedLastMessageAt : undefined;
-      // Always prefer the latest user message timestamp when messages are present.
-      const lastMessageAt =
-        getLastUserMessageTimestamp(data.messages) ??
-        normalizedProvidedLastMessageAt ??
-        data.createdAt ??
-        0;
-      const enriched = { ...data, lastMessageAt };
-
-      // Write main session file (no pretty-printing for smaller file size)
-      const writeMain = fs.promises.writeFile(filePath, JSON.stringify(enriched), "utf-8");
-
-      // Write metadata sidecar (fire-and-forget alongside main write)
-      const meta = extractSessionMeta(enriched as unknown as Record<string, unknown>, lastMessageAt);
-      const metaPath = getMetaFilePath(data.projectId, data.id);
-      const writeMeta = fs.promises.writeFile(metaPath, JSON.stringify(meta), "utf-8").catch((err) => {
-        reportError("SESSIONS:META_WRITE_ERR", err, { sessionId: data.id });
-      });
-
-      await Promise.all([writeMain, writeMeta]);
+      await saveSessionToDisk(data);
       return { ok: true };
     } catch (err) {
       const message = reportError("SESSIONS:SAVE_ERR", err, { sessionId: data.id });

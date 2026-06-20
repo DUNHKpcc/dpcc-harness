@@ -11,7 +11,13 @@ interface SessionPreview {
   timestamp: string;
 }
 
-interface UIMessage {
+/**
+ * Loose UIMessage shape produced by the JSONL importer. Mirrors a subset of the
+ * renderer `UIMessage` (which main-process code can't import) — the roles it
+ * emits ("user"/"assistant"/"tool_call"/"tool_result") are all valid members of
+ * the canonical union, so the result is structurally compatible on the renderer.
+ */
+export interface CCImportedMessage {
   id: string;
   role: string;
   content: string;
@@ -26,7 +32,14 @@ interface UIMessage {
   subagentStatus?: string;
 }
 
-function getCCProjectDir(projectPath: string): string {
+type UIMessage = CCImportedMessage;
+
+/**
+ * Claude Code's on-disk session directory for a given working dir. The Claude
+ * Code SDK (and our WeChat adapter via `persistSession: true`) writes session
+ * JSONL transcripts here, one file per `session_id`.
+ */
+export function getCCProjectDir(projectPath: string): string {
   const hash = projectPath.replace(/\//g, "-");
   return path.join(os.homedir(), ".claude", "projects", hash);
 }
@@ -84,7 +97,7 @@ function extractSessionPreview(filePath: string): SessionPreview | null {
   }
 }
 
-function parseJsonlToUIMessages(filePath: string): UIMessage[] {
+export function parseJsonlToUIMessages(filePath: string): UIMessage[] {
   const content = fs.readFileSync(filePath, "utf-8");
   const lines = content.split("\n").filter((l) => l.trim());
   const parsed: Array<Record<string, unknown>> = [];

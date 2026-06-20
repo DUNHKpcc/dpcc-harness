@@ -5,34 +5,7 @@ import crypto from "crypto";
 import { getDataDir } from "../lib/data-dir";
 import { reportError } from "../lib/error-utils";
 import { captureEvent } from "../lib/posthog";
-
-interface Project {
-  id: string;
-  name: string;
-  path: string;
-  createdAt: number;
-  spaceId?: string;
-  icon?: string;
-  iconType?: "emoji" | "lucide";
-}
-
-function getProjectsFilePath(): string {
-  return path.join(getDataDir(), "projects.json");
-}
-
-function readProjects(): Project[] {
-  const filePath = getProjectsFilePath();
-  if (!fs.existsSync(filePath)) return [];
-  try {
-    return JSON.parse(fs.readFileSync(filePath, "utf-8"));
-  } catch {
-    return [];
-  }
-}
-
-function writeProjects(projects: Project[]): void {
-  fs.writeFileSync(getProjectsFilePath(), JSON.stringify(projects, null, 2), "utf-8");
-}
+import { readProjects, writeProjects, type Project } from "../lib/projects-store";
 
 export function register(getMainWindow: () => BrowserWindow | null): void {
   ipcMain.handle("projects:list", () => {

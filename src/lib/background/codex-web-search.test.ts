@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { CodexSessionEvent } from "@/types";
+import type { CodexSessionEvent, CodexThreadItem } from "@/types";
 import { codexItemToToolInput, codexItemToToolResult } from "@/lib/engine/codex-adapter";
 import { handleCodexEvent } from "./codex-handler";
 import type { InternalState } from "./session-store";
@@ -40,7 +40,7 @@ describe("codex web search mapping", () => {
           "site:docs.anthropic.com Claude Agent SDK docs",
         ],
       },
-    } as const;
+    } satisfies Extract<CodexThreadItem, { type: "webSearch" }>;
 
     expect(codexItemToToolInput(item)).toEqual({
       query: "Anthropic Claude Agent SDK docs",
@@ -75,6 +75,8 @@ describe("codex web search mapping", () => {
       _sessionId: "session-1",
       method: "item/started",
       params: {
+        threadId: "thread-1",
+        turnId: "turn-1",
         item: {
           type: "webSearch",
           id: "ws_123",
@@ -88,6 +90,8 @@ describe("codex web search mapping", () => {
       _sessionId: "session-1",
       method: "item/completed",
       params: {
+        threadId: "thread-1",
+        turnId: "turn-1",
         item: {
           type: "webSearch",
           id: "ws_123",

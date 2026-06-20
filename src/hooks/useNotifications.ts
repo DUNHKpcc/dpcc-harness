@@ -196,12 +196,13 @@ export function useNotifications({
     prevSessionState.current = tracked;
 
     if (completed) {
-      if (consumeSuppressedSessionCompletion(current.sessionId)) return;
+      const completedSessionId = current.sessionId;
+      if (consumeSuppressedSessionCompletion(completedSessionId)) return;
       fireNotification(
         settings.sessionComplete,
         "Task complete",
         `${activeActor} has finished processing.`,
-        current.sessionId ? () => openSession(current.sessionId) : undefined,
+        completedSessionId ? () => openSession(completedSessionId) : undefined,
       );
     }
   }, [activeActor, activeSessionId, isProcessing, openSession, settings]);

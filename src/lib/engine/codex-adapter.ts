@@ -14,7 +14,7 @@ import { parseUnifiedDiff } from "@/lib/diff/unified-diff";
 
 export { SimpleStreamingBuffer as CodexStreamingBuffer } from "@/lib/engine/streaming-buffer";
 
-interface CodexWebSearchToolPayload {
+interface CodexWebSearchToolPayload extends Record<string, unknown> {
   query: string;
   actionType: WebSearchAction["type"];
   actionQuery?: string;

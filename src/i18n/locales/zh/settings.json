@@ -9,6 +9,7 @@
     "agents": "ACP Agents",
     "mcp": "MCP 服务器",
     "engines": "引擎",
+    "wechat": "微信",
     "currentConfig": "当前配置",
     "skills": "Skills",
     "customAgents": "Agents",
@@ -455,5 +456,53 @@
     "liveStatusDesc": "服务器可能在会话中途断开。工具栏面板会实时显示连接状态，方便你快速发现并解决问题。",
     "alwaysTitle": "随时可用",
     "alwaysDesc": "无需离开对话即可添加、移除、认证和重新连接服务器。"
+  },
+  "wechat": {
+    "title": "微信桥接",
+    "description": "通过微信，用手机远程控制内置的 Claude Code 和 Codex CLI。",
+    "loading": "加载中…",
+    "connection": "连接",
+    "notLoggedIn": "尚未连接。用微信扫描二维码以绑定桥接。",
+    "login": "连接微信",
+    "requestingQr": "正在获取二维码…",
+    "cancelLogin": "取消",
+    "loggedIn": "微信已连接",
+    "logout": "退出登录",
+    "enableLabel": "启用桥接",
+    "enableDesc": "立即启动，并在每次启动应用时自动启动。",
+    "behavior": "行为",
+    "defaultTool": "默认引擎",
+    "defaultToolDesc": "消息未通过 @ 指定引擎时使用的默认引擎。",
+    "permissionMode": "权限模式",
+    "permissionModeDesc": "每条消息允许 CLI 的自主程度。",
+    "mode": {
+      "safe": "安全（只读）",
+      "auto": "自动（完整权限）",
+      "plan": "规划（仅规划）"
+    },
+    "workDir": "工作目录",
+    "workDirDesc": "CLI 运行的目录（留空使用应用默认）。",
+    "workDirPlaceholder": "/项目/路径",
+    "model": "模型",
+    "modelDesc": "模型覆盖（留空使用引擎默认）。",
+    "modelPlaceholder": "默认",
+    "access": "访问控制",
+    "allowedUsersDesc": "允许的微信用户 ID，每行一个。留空则任何能私聊机器人的人都可使用（不安全）。",
+    "allowedUsersPlaceholder": "ilink_user_id…",
+    "allowAllWarning": "未设置白名单——任何能私聊机器人的人都能以完整权限运行 CLI。请添加你自己的微信用户 ID 以限制访问。",
+    "activity": "活动",
+    "activityEmpty": "暂无活动。",
+    "status": {
+      "disconnected": "未连接",
+      "connecting": "连接中",
+      "connected": "已连接",
+      "error": "错误"
+    },
+    "loginStatus": {
+      "wait": "请用微信扫描二维码",
+      "scaned": "已扫码——请在手机上确认",
+      "confirmed": "已确认！",
+      "expired": "二维码已过期，正在重新获取…"
+    }
   }
 }

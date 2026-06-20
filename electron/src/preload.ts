@@ -373,6 +373,20 @@ contextBridge.exposeInMainWorld("claude", {
       return () => ipcRenderer.removeListener("settings:changed", listener);
     },
   },
+  wechat: {
+    getState: () => ipcRenderer.invoke("wechat:get-state"),
+    setConfig: (patch: Record<string, unknown>) => ipcRenderer.invoke("wechat:set-config", patch),
+    login: () => ipcRenderer.invoke("wechat:login"),
+    cancelLogin: () => ipcRenderer.invoke("wechat:cancel-login"),
+    logout: () => ipcRenderer.invoke("wechat:logout"),
+    start: () => ipcRenderer.invoke("wechat:start"),
+    stop: () => ipcRenderer.invoke("wechat:stop"),
+    onEvent: (callback: (data: unknown) => void) => {
+      const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);
+      ipcRenderer.on("wechat:event", listener);
+      return () => ipcRenderer.removeListener("wechat:event", listener);
+    },
+  },
   account: {
     getConfig: () => ipcRenderer.invoke("account:config"),
     getStatus: () => ipcRenderer.invoke("account:status"),

@@ -8,6 +8,7 @@ import type { GitRepoInfo, GitStatus, GitBranch, GitLogEntry } from "@shared/typ
 import type { InstalledAgent } from "@shared/types/registry";
 import type { EffectiveCliConfig } from "@shared/types/cc-config";
 import type { AppSettings, MacBackgroundEffect, ThemeOption } from "@shared/types/settings";
+import type { WeChatBridgeState, WeChatBridgeConfig, WeChatBridgeEvent } from "@shared/types/wechat";
 import type { AccountConfig, AccountBalanceResult, AccountModelsResult, AccountStatus, UsageStats, UsageStatsResult } from "@shared/types/account";
 import type {
   ACPSessionEvent,
@@ -427,6 +428,17 @@ declare global {
         set: (patch: Partial<AppSettings>) => Promise<IpcResult>;
         /** Subscribe to settings changes pushed from the main process. */
         onChanged: (callback: (settings: AppSettings) => void) => () => void;
+      };
+      wechat: {
+        getState: () => Promise<WeChatBridgeState>;
+        setConfig: (patch: Partial<WeChatBridgeConfig>) => Promise<{ ok: boolean; state?: WeChatBridgeState; error?: string }>;
+        login: () => Promise<{ ok: boolean; error?: string }>;
+        cancelLogin: () => Promise<IpcResult>;
+        logout: () => Promise<WeChatBridgeState>;
+        start: () => Promise<{ ok: boolean; error?: string }>;
+        stop: () => Promise<IpcResult>;
+        /** Subscribe to bridge events (qrcode, login status, state, activity). */
+        onEvent: (callback: (event: WeChatBridgeEvent) => void) => () => void;
       };
       account: {
         getConfig: () => Promise<AccountConfig>;

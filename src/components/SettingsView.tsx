@@ -16,10 +16,12 @@ import {
   Server,
   X,
   Wallet,
+  Smartphone,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AgentSettings } from "@/components/settings/AgentSettings";
+import { WeChatSettings } from "@/components/settings/WeChatSettings";
 import { AppearanceSettings } from "@/components/settings/AppearanceSettings";
 import { GeneralSettings } from "@/components/settings/GeneralSettings";
 import { AccountSettings } from "@/components/settings/AccountSettings";
@@ -38,7 +40,7 @@ import { useAgentContext } from "./AgentContext";
 
 // ── Section definitions ──
 
-export type SettingsSection = "general" | "account" | "appearance" | "notifications" | "analytics" | "agents" | "mcp" | "engines" | "current-config" | "skills" | "custom-agents" | "advanced" | "about";
+export type SettingsSection = "general" | "account" | "appearance" | "notifications" | "analytics" | "agents" | "mcp" | "engines" | "wechat" | "current-config" | "skills" | "custom-agents" | "advanced" | "about";
 
 interface NavItem {
   id: SettingsSection;
@@ -58,6 +60,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "agents", labelKey: "nav.agents", icon: Bot },
   { id: "mcp", labelKey: "nav.mcp", icon: Plug },
   { id: "engines", labelKey: "nav.engines", icon: Cpu },
+  { id: "wechat", labelKey: "nav.wechat", icon: Smartphone },
   { id: "current-config", labelKey: "nav.currentConfig", icon: Server },
   { id: "skills", labelKey: "nav.skills", icon: Sparkles, comingSoon: true },
   { id: "custom-agents", labelKey: "nav.customAgents", icon: Users, comingSoon: true },
@@ -169,6 +172,8 @@ export const SettingsView = memo(function SettingsView({
         );
       case "mcp":
         return <McpSettings />;
+      case "wechat":
+        return <WeChatSettings />;
       case "engines":
         return (
           <EngineSettings

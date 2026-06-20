@@ -20,7 +20,7 @@ vi.mock("fs", async () => {
   const mocked = {
     ...actual,
     mkdirSync: vi.fn(),
-    createWriteStream: vi.fn(() => ({ write: mockWrite })),
+    createWriteStream: vi.fn(() => ({ write: mockWrite, on: vi.fn(), end: vi.fn() })),
   };
   return {
     ...mocked,

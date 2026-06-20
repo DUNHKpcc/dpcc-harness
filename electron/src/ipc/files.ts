@@ -577,16 +577,32 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     let isDir = false;
     try { isDir = fs.statSync(filePath).isDirectory(); } catch { /* not found — treat as file */ }
 
+    const isWin = process.platform === "win32";
+    // Quote a token for cmd.exe: wrap in double quotes and double any embedded
+    // ones, so shell metacharacters (& | ^ < >) in a path stay inert.
+    const quoteWinArg = (a: string) => `"${a.replace(/"/g, '""')}"`;
+
     /** Try launching a single editor CLI. Resolves on success, rejects if not found. */
     const tryEditor = (editor: string): Promise<{ ok: true; editor: string }> =>
       new Promise((resolve, reject) => {
         const args = isDir
           ? [filePath]
           : ["--goto", line ? `${filePath}:${line}` : filePath];
-        execFile(editor, args, { timeout: 3000 }, (err) => {
-          if (err) reject(err);
-          else resolve({ ok: true, editor });
-        });
+        if (isWin) {
+          // On Windows these editor CLIs ship as .cmd batch shims; Node refuses
+          // to execFile a .cmd without a shell (and a bare name won't resolve
+          // via PATHEXT otherwise). Run through the shell with pre-quoted args.
+          const cmdline = [editor, ...args].map(quoteWinArg).join(" ");
+          execFile(cmdline, { timeout: 3000, shell: true }, (err) => {
+            if (err) reject(err);
+            else resolve({ ok: true, editor });
+          });
+        } else {
+          execFile(editor, args, { timeout: 3000 }, (err) => {
+            if (err) reject(err);
+            else resolve({ ok: true, editor });
+          });
+        }
       });
 
     // Resolution order: explicit override → AppSettings preferredEditor → auto-detect

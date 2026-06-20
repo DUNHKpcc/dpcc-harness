@@ -1,26 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { GitRepoInfo, GitStatus, GitBranch, GitLogEntry } from "@/types";
+import type { GitRepoInfo } from "@/types";
 import { reportError } from "@/lib/analytics/analytics";
 import { discoverReposCached, invalidateDiscoverReposCache } from "@/lib/git/discover-repos-cache";
-
-export interface DiffStat {
-  additions: number;
-  deletions: number;
-}
-
-export interface RepoState {
-  repo: GitRepoInfo;
-  status: GitStatus | null;
-  branches: GitBranch[];
-  log: GitLogEntry[];
-  diffStat: DiffStat;
-}
+import {
+  type LightRepoRefreshResult,
+  mergeLightRepoRefreshResults,
+  mergeRepoState,
+  type RepoState,
+} from "./git-status-utils";
+export type { DiffStat, RepoState } from "./git-status-utils";
 
 interface UseGitStatusOptions {
   projectPath?: string;
 }
 
 const repoStatesCache = new Map<string, RepoState[]>();
+type RefreshMode = "full" | "light";
 
 export function useGitStatus({ projectPath }: UseGitStatusOptions) {
   const [repoStates, setRepoStates] = useState<RepoState[]>([]);
@@ -47,11 +42,36 @@ export function useGitStatus({ projectPath }: UseGitStatusOptions) {
     repoStatesCache.set(scopePath, nextStates);
   }, []);
 
+  const applyLightRepoStates = useCallback((results: LightRepoRefreshResult[], scopePath?: string) => {
+    if (!scopePath || projectPathRef.current !== scopePath) return;
+    setRepoStates((prev) => {
+      const next = mergeLightRepoRefreshResults(prev, results);
+      repoStatesCache.set(scopePath, next);
+      return next;
+    });
+  }, []);
+
   const loadRepoStates = useCallback(async (
     repos: GitRepoInfo[],
     requestId: number,
     scopePath?: string,
+    mode: RefreshMode = "full",
   ) => {
+    if (mode === "light") {
+      const results = await Promise.all(
+        repos.map(async (repo) => {
+          const [statusResult, diffStatResult] = await Promise.all([
+            window.claude.git.status(repo.path),
+            window.claude.git.diffStat(repo.path),
+          ]);
+          return { repo, statusResult, diffStatResult };
+        }),
+      );
+      if (!isRequestCurrent(requestId, scopePath)) return;
+      applyLightRepoStates(results, scopePath);
+      return;
+    }
+
     const previousByPath = new Map(repoStatesRef.current.map((state) => [state.repo.path, state]));
     const updated = await Promise.all(
       repos.map(async (repo) => {
@@ -62,18 +82,17 @@ export function useGitStatus({ projectPath }: UseGitStatusOptions) {
           window.claude.git.log(repo.path, 30),
           window.claude.git.diffStat(repo.path),
         ]);
-        return {
-          repo,
-          status: "error" in statusResult ? previous?.status ?? null : statusResult,
-          branches: Array.isArray(branchesResult) ? branchesResult : previous?.branches ?? [],
-          log: Array.isArray(logResult) ? logResult : previous?.log ?? [],
-          diffStat: diffStatResult ?? previous?.diffStat ?? { additions: 0, deletions: 0 },
-        };
+        return mergeRepoState(previous, repo, {
+          statusResult,
+          branchesResult,
+          logResult,
+          diffStatResult,
+        });
       }),
     );
     if (!isRequestCurrent(requestId, scopePath)) return;
     applyRepoStates(updated, scopePath);
-  }, [applyRepoStates, isRequestCurrent]);
+  }, [applyLightRepoStates, applyRepoStates, isRequestCurrent]);
 
   const refreshKnownRepos = useCallback(async () => {
     if (pollingInFlightRef.current) return;
@@ -82,8 +101,8 @@ export function useGitStatus({ projectPath }: UseGitStatusOptions) {
       const scopePath = projectPathRef.current;
       const repos = repoStatesRef.current.map((state) => state.repo);
       if (!scopePath || repos.length === 0) return;
-      const requestId = ++requestIdRef.current;
-      await loadRepoStates(repos, requestId, scopePath);
+      const requestId = requestIdRef.current;
+      await loadRepoStates(repos, requestId, scopePath, "light");
     } finally {
       pollingInFlightRef.current = false;
     }
@@ -152,11 +171,12 @@ export function useGitStatus({ projectPath }: UseGitStatusOptions) {
 
       const next = [...prev];
       next[nextIdx] = {
-        repo: rs.repo,
-        status: "error" in statusResult ? rs.status : statusResult,
-        branches: Array.isArray(branchesResult) ? branchesResult : rs.branches,
-        log: Array.isArray(logResult) ? logResult : rs.log,
-        diffStat: diffStatResult ?? rs.diffStat,
+        ...mergeRepoState(rs, rs.repo, {
+          statusResult,
+          branchesResult,
+          logResult,
+          diffStatResult,
+        }),
       };
       repoStatesCache.set(scopePath, next);
       return next;

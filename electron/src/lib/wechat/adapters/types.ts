@@ -16,6 +16,12 @@ export interface AdapterExecOptions {
   signal: AbortSignal;
   /** Streamed intermediate text for progressive WeChat replies (optional). */
   onIntermediate?: (chunk: string) => void;
+  /**
+   * Raw engine event passthrough (optional). For Claude these are the SDK
+   * `query()` messages verbatim, so the renderer's existing `claude:event`
+   * pipeline can render WeChat runs live when tagged with a `_sessionId`.
+   */
+  onEvent?: (raw: unknown) => void;
 }
 
 /** Result of a one-shot CLI run. */

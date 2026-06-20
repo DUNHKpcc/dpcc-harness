@@ -437,7 +437,9 @@ declare global {
         logout: () => Promise<WeChatBridgeState>;
         start: () => Promise<{ ok: boolean; error?: string }>;
         stop: () => Promise<IpcResult>;
-        /** Subscribe to bridge events (qrcode, login status, state, activity). */
+        /** Continue a WeChat conversation from the desktop (relays the reply to WeChat). */
+        send: (args: { sessionId: string; text: string }) => Promise<{ ok: boolean; error?: string }>;
+        /** Subscribe to bridge events (qrcode, login status, state, activity, session-upsert). */
         onEvent: (callback: (event: WeChatBridgeEvent) => void) => () => void;
       };
       account: {

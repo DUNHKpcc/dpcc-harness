@@ -3,15 +3,37 @@ import path from "node:path";
 import { JsonFileStore } from "../json-file-store";
 import { getDataDir } from "../data-dir";
 import { reportError } from "../error-utils";
-import type { WeChatBridgeConfig } from "@shared/types/wechat";
+import type { WeChatBridgeConfig, WeChatTool, WeChatPermissionMode } from "@shared/types/wechat";
 import type { Credentials } from "./types";
 import type { ILinkPersistence } from "./ilink-client";
+
+/**
+ * Per-conversation persistence so a `(userId, tool)` thread survives app
+ * restarts: maps it to a stable PccAgent session id and the engine resume id.
+ * Keyed by `${userId}:${tool}`.
+ */
+export interface WeChatConversationRecord {
+  userId: string;
+  tool: WeChatTool;
+  /** Stable PccAgent session id (file name + `_sessionId` tag for live events). */
+  pccSessionId: string;
+  /** Project the session was created under — snapshot so a later config change can't orphan it. */
+  projectId: string;
+  /** Engine session id used for resume + locating the on-disk JSONL transcript. */
+  resumeId?: string;
+  /** Permission mode the Codex thread was created in (gates `--last` resume). */
+  codexResumeMode?: WeChatPermissionMode;
+  title: string;
+  createdAt: number;
+  lastUpdatedMs: number;
+}
 
 /** Out-of-the-box bridge config: off, Claude, safe mode, no whitelist. */
 export const DEFAULT_WECHAT_CONFIG: WeChatBridgeConfig = {
   enabled: false,
   defaultTool: "claude",
   workDir: "",
+  projectId: "",
   allowedUsers: [],
   permissionMode: "safe",
   model: "",
@@ -22,6 +44,7 @@ const SUB_DIR = "wechat";
 const CONFIG_KEY = "config";
 const CRED_KEY = "credentials";
 const TOKENS_KEY = "context_tokens";
+const CONVERSATIONS_KEY = "conversations";
 
 // Credentials and per-user reply tokens are send-capability secrets → encrypt at
 // rest (safeStorage). Config is non-sensitive. The encrypted token store also
@@ -29,6 +52,7 @@ const TOKENS_KEY = "context_tokens";
 const credStore = new JsonFileStore<Credentials>({ subDir: SUB_DIR, encrypt: true, label: "WECHAT_CRED" });
 const configStore = new JsonFileStore<WeChatBridgeConfig>({ subDir: SUB_DIR, label: "WECHAT_CONFIG" });
 const tokenStore = new JsonFileStore<Record<string, string>>({ subDir: SUB_DIR, encrypt: true, label: "WECHAT_TOKENS" });
+const conversationStore = new JsonFileStore<Record<string, WeChatConversationRecord>>({ subDir: SUB_DIR, label: "WECHAT_CONVOS" });
 
 // ─── Config ────────────────────────────────────────────────
 
@@ -54,6 +78,7 @@ function normalizeConfig(raw: unknown): WeChatBridgeConfig {
     enabled: c.enabled === true,
     defaultTool: c.defaultTool === "codex" ? "codex" : "claude",
     workDir: typeof c.workDir === "string" ? c.workDir : "",
+    projectId: typeof c.projectId === "string" ? c.projectId : "",
     allowedUsers: Array.isArray(c.allowedUsers)
       ? c.allowedUsers.map((u) => String(u).trim()).filter(Boolean)
       : [],
@@ -79,6 +104,24 @@ export function saveWeChatCredentials(creds: Credentials): void {
 
 export function clearWeChatCredentials(): void {
   credStore.delete(CRED_KEY);
+}
+
+// ─── Conversations (per-user/tool session mapping) ─────────
+
+export function loadWeChatConversations(): Record<string, WeChatConversationRecord> {
+  return conversationStore.load(CONVERSATIONS_KEY) ?? {};
+}
+
+export function saveWeChatConversations(map: Record<string, WeChatConversationRecord>): void {
+  try {
+    conversationStore.save(CONVERSATIONS_KEY, map);
+  } catch (err) {
+    reportError("WECHAT_CONVOS_SAVE", err);
+  }
+}
+
+export function clearWeChatConversations(): void {
+  conversationStore.delete(CONVERSATIONS_KEY);
 }
 
 // ─── iLink runtime persistence (poll cursor + context tokens) ──────────────
@@ -126,6 +169,7 @@ export const ilinkPersistence: ILinkPersistence = {
 /** Wipe all persisted bridge data (used on logout). */
 export function clearWeChatRuntimeState(): void {
   tokenStore.delete(TOKENS_KEY);
+  clearWeChatConversations();
   try {
     fs.unlinkSync(POLL_CURSOR_FILE());
   } catch {

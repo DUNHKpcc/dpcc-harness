@@ -50,6 +50,9 @@ export class ClaudeAdapter implements CLIAdapter {
       permissionMode,
       pathToClaudeCodeExecutable: cliPath,
       persistSession: true,
+      // Emit partial streaming events so the desktop UI renders WeChat runs
+      // token-by-token, matching a normal session's feel.
+      includePartialMessages: true,
       settingSources: ["user", "project", "local"],
       env: { ...process.env, ...loadLocalClaudeEnv(), ...clientAppEnv() },
     };
@@ -96,6 +99,9 @@ export class ClaudeAdapter implements CLIAdapter {
         for await (const message of q) {
           if (opts.signal.aborted) break;
           const msg = message as Record<string, unknown>;
+
+          // Forward the raw SDK event so the desktop UI can stream this run live.
+          opts.onEvent?.(message);
 
           if (msg.type === "assistant") {
             const content = extractAssistantText(msg);

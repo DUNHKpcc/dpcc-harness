@@ -1,7 +1,11 @@
+import os from "node:os";
+import type { BrowserWindow } from "electron";
 import { log } from "../logger";
 import { reportError } from "../error-utils";
+import { readProjects, ensureProjectForPath, markWechatProject } from "../projects-store";
 import { ILinkClient } from "./ilink-client";
 import { WeChatRouter } from "./router";
+import { WeChatSessionSink } from "./session-sink";
 import { login, isLoginCancelled } from "./auth";
 import { ClaudeAdapter } from "./adapters/claude-adapter";
 import { CodexAdapter } from "./adapters/codex-adapter";
@@ -41,11 +45,23 @@ export class WeChatBridge {
   private loginAbort: AbortController | null = null;
   private readonly listeners = new Set<EventListener>();
   private readonly adapters: Record<WeChatTool, CLIAdapter>;
+  private readonly sink: WeChatSessionSink;
+  private getMainWindow: () => BrowserWindow | null = () => null;
 
   constructor() {
     this.config = loadWeChatConfig();
     this.credentials = loadWeChatCredentials();
     this.adapters = { claude: new ClaudeAdapter(), codex: new CodexAdapter() };
+    this.sink = new WeChatSessionSink({
+      getMainWindow: () => this.getMainWindow(),
+      getConfig: () => this.config,
+      emit: (event) => this.emit(event),
+    });
+  }
+
+  /** Supply the live BrowserWindow getter so the sink can stream events to the UI. */
+  attachWindow(getMainWindow: () => BrowserWindow | null): void {
+    this.getMainWindow = getMainWindow;
   }
 
   // ─── Events / state ──────────────────────────────────────
@@ -151,6 +167,7 @@ export class WeChatBridge {
     this.stop();
     clearWeChatCredentials();
     clearWeChatRuntimeState();
+    this.sink.clear();
     this.credentials = null;
     this.config = saveWeChatConfig({ ...this.config, enabled: false });
     this.setStatus("disconnected");
@@ -164,6 +181,7 @@ export class WeChatBridge {
     if (this.isRunning()) return { ok: true };
 
     this.error = null;
+    this.ensureProject();
     const client = new ILinkClient(this.credentials, ilinkPersistence);
     client.setReloginHandler(() => this.reloginForSelfHeal());
 
@@ -172,6 +190,7 @@ export class WeChatBridge {
       this.adapters,
       () => this.config,
       (event) => this.emit(event),
+      this.sink,
     );
     this.router.start();
     client.start();
@@ -192,6 +211,39 @@ export class WeChatBridge {
     this.client = null;
     if (this.status !== "error") this.setStatus("disconnected");
     this.emit({ type: "activity", level: "info", message: "微信桥接已停止" });
+  }
+
+  /**
+   * Bind the bridge to a single PccAgent project so its conversations land in the
+   * sidebar's WeChat area. Reuses the configured project if still valid, otherwise
+   * creates/reuses one for the working directory and persists the id.
+   */
+  private ensureProject(): void {
+    const ICON = { icon: "Smartphone", iconType: "lucide" } as const;
+    try {
+      const projects = readProjects();
+      const bound = this.config.projectId
+        ? projects.find((p) => p.id === this.config.projectId)
+        : undefined;
+      if (bound) {
+        // Heal the auto-created dedicated project so the sidebar hides the empty
+        // duplicate. A user-chosen project (different name) is left untouched.
+        if (bound.name === "微信") markWechatProject(bound.id, ICON.icon, ICON.iconType);
+        return;
+      }
+      const dir = this.config.workDir || os.homedir();
+      const project = ensureProjectForPath(dir, "微信", { ...ICON, wechat: true });
+      this.config = saveWeChatConfig({ ...this.config, projectId: project.id });
+      this.emit({ type: "state", state: this.getState() });
+    } catch (err) {
+      reportError("WECHAT_ENSURE_PROJECT", err);
+    }
+  }
+
+  /** Continue a WeChat conversation from the desktop (relays the reply back to WeChat). */
+  async sendFromDesktop(opts: { sessionId: string; text: string }): Promise<{ ok: boolean; error?: string }> {
+    if (!this.router) return { ok: false, error: "微信桥接未运行，无法续聊" };
+    return this.router.runFromDesktop(opts.sessionId, opts.text);
   }
 
   /** Auto-start at app launch when enabled and already logged in. */

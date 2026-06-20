@@ -2,6 +2,7 @@ import os from "node:os";
 import { log } from "../logger";
 import type { ILinkClient } from "./ilink-client";
 import type { CLIAdapter } from "./adapters/types";
+import type { WeChatSessionSink } from "./session-sink";
 import type { WeixinMessage } from "./types";
 import type { WeChatBridgeConfig, WeChatBridgeEvent, WeChatTool, WeChatPermissionMode } from "@shared/types/wechat";
 
@@ -19,6 +20,10 @@ interface UserState {
   resumeIds: Partial<Record<WeChatTool, string>>;
   /** Permission mode the user's Codex thread was created in (gates `--last` resume). */
   codexResumeMode?: WeChatPermissionMode;
+  /** Per-user model override (via /model), falls back to the global config model. */
+  model?: string;
+  /** Per-user permission-mode override (via /mode), falls back to the global config. */
+  permissionMode?: WeChatPermissionMode;
 }
 
 interface ActiveTask {
@@ -46,12 +51,46 @@ export class WeChatRouter {
     private readonly adapters: Record<WeChatTool, CLIAdapter>,
     private readonly getConfig: () => WeChatBridgeConfig,
     private readonly emit: (event: WeChatBridgeEvent) => void,
+    private readonly sink: WeChatSessionSink,
   ) {}
 
   start(): void {
+    this.hydrateFromSink();
     this.ilink.onMessage((msg, text, refText) => {
       this.handle(msg, text, refText).catch((err) => log("WECHAT_ROUTER", `路由异常: ${(err as Error).message}`));
     });
+  }
+
+  /** Restore per-user resume ids from disk so a restart can continue threads. */
+  private hydrateFromSink(): void {
+    for (const rec of this.sink.allRecords()) {
+      if (!rec.resumeId) continue;
+      const state = this.getUserState(rec.userId);
+      state.resumeIds[rec.tool] = rec.resumeId;
+      if (rec.tool === "codex" && rec.codexResumeMode) state.codexResumeMode = rec.codexResumeMode;
+    }
+  }
+
+  /**
+   * Continue a WeChat conversation from the desktop: runs the same engine turn
+   * (resuming context), streams events to the UI, and ships the reply back to
+   * the WeChat user — making the desktop a second terminal on the same thread.
+   */
+  async runFromDesktop(pccSessionId: string, text: string): Promise<{ ok: boolean; error?: string }> {
+    const rec = this.sink.getRecordBySessionId(pccSessionId);
+    if (!rec) return { ok: false, error: "找不到对应的微信会话" };
+    const { userId, tool } = rec;
+    if (this.active.has(`${userId}:${tool}`)) {
+      return { ok: false, error: `${this.adapters[tool].displayName} 正在运行中，请稍候` };
+    }
+    const trimmed = text.trim();
+    if (!trimmed) return { ok: false, error: "消息为空" };
+
+    // Fire-and-forget: events stream to the renderer, the reply goes to WeChat.
+    this.exec(userId, tool, trimmed, this.getConfig()).catch((err) =>
+      log("WECHAT_ROUTER", `桌面续聊失败: ${(err as Error).message}`),
+    );
+    return { ok: true };
   }
 
   /** Abort every in-flight run (shutdown / stop). */
@@ -161,16 +200,23 @@ export class WeChatRouter {
     this.getUserState(uid).defaultTool = tool;
     const stopTyping = await this.ilink.startTyping(uid);
     const state = this.getUserState(uid);
-    const resumeId = this.resolveResumeId(uid, tool, state, config.permissionMode);
+    // Per-user overrides (via /model, /mode) take precedence over the global config.
+    const mode = state.permissionMode ?? config.permissionMode;
+    const model = state.model ?? config.model;
+    const resumeId = this.resolveResumeId(uid, tool, state, mode);
+
+    // Bind this turn to a persisted PccAgent session and stream events to the UI.
+    const pccSessionId = await this.sink.ensureSession(uid, tool, prompt);
 
     try {
       const result = await adapter.execute(prompt, {
         workDir: config.workDir || os.homedir(),
-        permissionMode: config.permissionMode,
-        model: config.model,
+        permissionMode: mode,
+        model,
         maxTurns: config.maxTurns,
         resumeId,
         signal: abort.signal,
+        onEvent: (raw) => this.sink.forwardEvent(pccSessionId, raw),
       });
 
       if (abort.signal.aborted) return;
@@ -183,8 +229,18 @@ export class WeChatRouter {
       }
       if (result.resumeId) {
         state.resumeIds[tool] = result.resumeId;
-        if (tool === "codex") state.codexResumeMode = config.permissionMode;
+        if (tool === "codex") state.codexResumeMode = mode;
       }
+
+      // Persist the full transcript and refresh the sidebar entry.
+      await this.sink.finalizeTurn(
+        uid,
+        tool,
+        result.resumeId,
+        prompt,
+        result.text,
+        tool === "codex" ? mode : undefined,
+      );
 
       const footer = formatFooter(adapter.displayName, result.durationMs, result.error);
       await this.reply(uid, `${resetNotice}${result.text}\n\n${footer}`);
@@ -215,13 +271,21 @@ export class WeChatRouter {
             "=== PccAgent 微信助手 ===",
             "直接发消息即可让当前引擎处理。",
             "",
+            "【引擎】",
             "/claude /cc  切换到 Claude Code",
             "/codex /cx   切换到 Codex",
-            "/status      查看当前状态",
-            "/new         开始新会话(清除上下文)",
-            "/clear       清除所有会话与设置",
-            "/cancel      取消当前运行",
-            "/help        显示帮助",
+            "",
+            "【模型 / 模式】",
+            "/model <名称>  切换模型 (如 opus / sonnet / haiku)",
+            "/model         查看当前模型",
+            "/mode <模式>   切换 auto / safe / plan",
+            "",
+            "【会话】",
+            "/status /st  查看当前状态",
+            "/new /n      开始新会话 (清除上下文)",
+            "/clear       清除会话与所有偏好",
+            "/cancel /c   取消当前运行",
+            "/help /h     显示帮助",
             "",
             "也可用 @claude / @codex 指定引擎，例如:",
             "@codex 帮我重构这个函数",
@@ -244,16 +308,46 @@ export class WeChatRouter {
       case "status":
       case "st": {
         const modeLabel: Record<string, string> = { auto: "auto(完整权限)", safe: "safe(只读)", plan: "plan(规划)" };
+        const effMode = state.permissionMode ?? config.permissionMode;
         await this.reply(
           uid,
           [
             `引擎: ${this.adapters[currentTool].displayName}`,
-            `模式: ${modeLabel[config.permissionMode] ?? config.permissionMode}`,
-            `模型: ${config.model || "默认"}`,
+            `模式: ${modeLabel[effMode] ?? effMode}`,
+            `模型: ${state.model || config.model || "默认"}`,
             `目录: ${config.workDir || `${os.homedir()} (默认主目录)`}`,
             `会话: ${state.resumeIds[currentTool] ? "进行中" : "新会话"}`,
           ].join("\n"),
         );
+        return;
+      }
+
+      case "model":
+      case "m": {
+        const arg = parts.slice(1).join(" ").trim();
+        if (!arg) {
+          await this.reply(
+            uid,
+            `当前模型: ${state.model || config.model || "默认"}\n用法: /model <名称>（如 opus / sonnet / haiku，或完整模型 id）`,
+          );
+          return;
+        }
+        state.model = arg;
+        await this.reply(uid, `已切换模型: ${arg}\n（下一条消息生效，当前会话继续）`);
+        return;
+      }
+
+      case "mode": {
+        const arg = (parts[1] || "").toLowerCase();
+        if (arg !== "auto" && arg !== "safe" && arg !== "plan") {
+          await this.reply(
+            uid,
+            `当前模式: ${state.permissionMode ?? config.permissionMode}\n用法: /mode <auto|safe|plan>\nauto=完整权限 safe=只读 plan=规划`,
+          );
+          return;
+        }
+        state.permissionMode = arg;
+        await this.reply(uid, `已切换模式: ${arg}`);
         return;
       }
 
@@ -266,7 +360,9 @@ export class WeChatRouter {
       case "clear":
         state.resumeIds = {};
         state.defaultTool = undefined;
-        await this.reply(uid, "已清除所有会话与设置");
+        state.model = undefined;
+        state.permissionMode = undefined;
+        await this.reply(uid, "已清除会话与所有偏好");
         return;
 
       case "cancel":

@@ -10,7 +10,10 @@ let unsubscribe: (() => void) | null = null;
 export function register(getMainWindow: () => BrowserWindow | null): void {
   const bridge = getWeChatBridge();
 
-  // Forward all bridge events (qrcode, login status, state, activity) to the renderer.
+  // Give the bridge the window getter so the session sink can stream live events.
+  bridge.attachWindow(getMainWindow);
+
+  // Forward all bridge events (qrcode, login status, state, activity, session-upsert) to the renderer.
   unsubscribe?.();
   unsubscribe = bridge.onEvent((event) => {
     safeSend(getMainWindow, "wechat:event", event);
@@ -41,6 +44,17 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     bridge.stop();
     return { ok: true };
   });
+
+  ipcMain.handle(
+    "wechat:send",
+    async (_event, args: { sessionId: string; text: string }) => {
+      try {
+        return await bridge.sendFromDesktop(args);
+      } catch (err) {
+        return { ok: false, error: reportError("WECHAT_SEND", err) };
+      }
+    },
+  );
 }
 
 /** Start the bridge at launch if the user enabled it and is logged in. */

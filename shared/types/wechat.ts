@@ -8,6 +8,8 @@
  * Canonical definitions — import from here, never redefine.
  */
 
+import type { SessionMeta } from "@shared/lib/session-persistence";
+
 /** Which built-in CLI engine handles an inbound WeChat message. */
 export type WeChatTool = "claude" | "codex";
 
@@ -27,6 +29,12 @@ export interface WeChatBridgeConfig {
   defaultTool: WeChatTool;
   /** Working directory the CLIs run in (empty = app cwd). */
   workDir: string;
+  /**
+   * PccAgent project id WeChat conversations are persisted under. Bound to
+   * `workDir` (auto-created if empty/stale) so the conversations show up in the
+   * sidebar's WeChat area grouped by project.
+   */
+  projectId: string;
   /**
    * Whitelist of `ilink_user_id`s allowed to drive the bridge.
    * Empty = allow anyone who can message the bot (unsafe — surfaced in UI).
@@ -85,4 +93,10 @@ export type WeChatBridgeEvent =
       userId: string;
       tool: WeChatTool | null;
       preview: string;
-    };
+    }
+  /**
+   * A WeChat conversation was created or updated as a persisted session — tells
+   * the renderer to upsert it into the sidebar's WeChat area immediately, without
+   * waiting for a full session-list refresh.
+   */
+  | { type: "session-upsert"; meta: SessionMeta };

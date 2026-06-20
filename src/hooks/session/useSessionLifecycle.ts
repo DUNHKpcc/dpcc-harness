@@ -3,6 +3,7 @@ import type { ImageAttachment, McpServerConfig, Project } from "@/types";
 import type { CollaborationMode } from "../../types/codex-protocol/CollaborationMode";
 import { imageAttachmentsToCodexInputs } from "../../lib/engine/codex-adapter";
 import { createSystemMessage, createUserMessage } from "../../lib/message-factory";
+import { continueWeChatSession } from "../../lib/session/wechat-continue";
 import { buildSdkContent } from "../../lib/engine/protocol";
 import { capture } from "../../lib/analytics/analytics";
 import { DRAFT_ID, buildCodexCollabMode } from "./types";
@@ -277,6 +278,26 @@ export function useSessionLifecycle({
       }
 
       if (!activeId) return;
+
+      // WeChat sessions: continue the conversation through the bridge (which also
+      // relays the reply back to the WeChat user). Live events stream back over
+      // claude:event tagged with this session id.
+      const activeSessionRecord = refs.sessionsRef.current.find((s) => s.id === activeId);
+      if (activeSessionRecord?.source === "wechat") {
+        trackMessageSent();
+        await continueWeChatSession({
+          sessionId: activeId,
+          engine: activeSessionRecord.engine,
+          text,
+          images,
+          displayText,
+          claude,
+          codex,
+          markLive: (id, live) =>
+            live ? refs.liveSessionIdsRef.current.add(id) : refs.liveSessionIdsRef.current.delete(id),
+        });
+        return;
+      }
 
       // Queue check: if engine is processing, enqueue instead of sending directly
       const activeSessionEngine = refs.sessionsRef.current.find(s => s.id === activeId)?.engine ?? "claude";

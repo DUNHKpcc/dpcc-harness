@@ -15,6 +15,7 @@ import type { CodexModelSummary } from "@/hooks/session/types";
 import { buildCodexCollabMode, DEFAULT_PERMISSION_MODE } from "@/hooks/session/types";
 import { canonicalizeModelValue, findEquivalentModel } from "@/lib/model-utils";
 import { toastText } from "@/lib/toast-i18n";
+import { continueWeChatSession } from "@/lib/session/wechat-continue";
 import type { PaneController } from "@/types";
 
 // ── Model catalog builders (moved from AppLayout) ──
@@ -233,6 +234,21 @@ export function usePaneController(
       }
 
       if (!session) return;
+
+      // WeChat sessions continue through the bridge (relays the reply to WeChat);
+      // live events stream back over claude:event into this pane's engine hook.
+      if (session.source === "wechat") {
+        await continueWeChatSession({
+          sessionId,
+          engine: session.engine,
+          text,
+          images,
+          displayText,
+          claude: paneState.claude,
+          codex: paneState.codex,
+        });
+        return;
+      }
 
       if (!paneState.isConnected) {
         await ctx.queueSplitPaneSendAfterSwitch?.(sessionId, text, images, displayText);

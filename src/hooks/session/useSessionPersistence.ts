@@ -5,7 +5,7 @@ import { canonicalizeModelValue } from "@/lib/model-utils";
 import { getSessionNotificationActor } from "@/lib/session-notifications";
 import { toastText } from "@/lib/toast-i18n";
 import { toMcpStatusState } from "../../lib/mcp-utils";
-import { buildPersistedSession } from "../../lib/session/records";
+import { buildPersistedSession, toChatSession } from "../../lib/session/records";
 import { normalizeToolInput as acpNormalizeToolInput, pickAutoResponseOption } from "../../lib/engine/acp-adapter";
 import { DRAFT_ID } from "./types";
 import type { SharedSessionRefs, SharedSessionSetters, EngineHooks } from "./types";
@@ -193,6 +193,32 @@ export function useSessionPersistence({
       unsubAcpExit();
       unsubCodexExit();
     };
+  }, []);
+
+  // Upsert WeChat-originated sessions into the sidebar as the bridge creates/updates them.
+  useEffect(() => {
+    const unsub = window.claude.wechat.onEvent((event) => {
+      if (event.type !== "session-upsert") return;
+      const meta = event.meta;
+      setSessions((prev) => {
+        const incoming = toChatSession(meta, meta.id === activeSessionIdRef.current);
+        const idx = prev.findIndex((s) => s.id === meta.id);
+        if (idx === -1) return [...prev, incoming];
+        const copy = prev.slice();
+        // Refresh persisted fields but preserve renderer-owned transient flags.
+        copy[idx] = {
+          ...prev[idx],
+          title: incoming.title,
+          lastMessageAt: incoming.lastMessageAt,
+          model: incoming.model ?? prev[idx].model,
+          projectId: incoming.projectId,
+          source: incoming.source,
+          wechatUserId: incoming.wechatUserId,
+        };
+        return copy;
+      });
+    });
+    return () => unsub();
   }, []);
 
   // Route events for non-active sessions to the background store

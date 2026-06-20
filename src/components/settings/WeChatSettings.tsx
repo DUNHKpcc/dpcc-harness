@@ -14,6 +14,7 @@ import type {
   WeChatTool,
   WeChatPermissionMode,
   WeChatLoginStatus,
+  Project,
 } from "@/types";
 
 const MAX_ACTIVITY = 50;
@@ -31,6 +32,7 @@ export const WeChatSettings = memo(function WeChatSettings() {
   const [loginStatus, setLoginStatus] = useState<WeChatLoginStatus | null>(null);
   const [activity, setActivity] = useState<ActivityLine[]>([]);
   const [allowedUsersText, setAllowedUsersText] = useState("");
+  const [projects, setProjects] = useState<Project[]>([]);
   const activityIdRef = useRef(0);
 
   const pushActivity = useCallback((level: ActivityLine["level"], text: string) => {
@@ -47,6 +49,9 @@ export const WeChatSettings = memo(function WeChatSettings() {
       if (!active) return;
       setState(s);
       setAllowedUsersText(s.config.allowedUsers.join("\n"));
+    });
+    window.claude.projects.list().then((list) => {
+      if (active) setProjects(list);
     });
 
     const unsubscribe = window.claude.wechat.onEvent((event: WeChatBridgeEvent) => {
@@ -248,6 +253,16 @@ export const WeChatSettings = memo(function WeChatSettings() {
                 placeholder={t("wechat.workDirPlaceholder")}
                 className="w-64"
                 onBlur={(e) => void patchConfig({ workDir: e.target.value.trim() })}
+              />
+            </SettingRow>
+            <SettingRow label="项目" description="微信对话归属的项目（自动则按工作目录绑定）">
+              <SettingsSelect
+                value={config.projectId || "__auto__"}
+                onValueChange={(v) => void patchConfig({ projectId: v === "__auto__" ? "" : v })}
+                options={[
+                  { value: "__auto__", label: "自动（按工作目录）" },
+                  ...projects.map((p) => ({ value: p.id, label: p.name })),
+                ]}
               />
             </SettingRow>
             <SettingRow label={t("wechat.model")} description={t("wechat.modelDesc")}>

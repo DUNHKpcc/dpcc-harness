@@ -18,6 +18,7 @@ import { SpaceCustomizer } from "./SpaceCustomizer";
 import { UpdateBanner } from "./UpdateBanner";
 import { PreReleaseBanner } from "./PreReleaseBanner";
 import { ProjectSection } from "./sidebar/ProjectSection";
+import { WeChatSection } from "./sidebar/WeChatSection";
 import { SidebarActionsProvider } from "./sidebar/SidebarActionsContext";
 import { useAgentContext } from "./AgentContext";
 import { clearSidebarDragPayload, isSidebarDragKind } from "@/lib/sidebar/dnd";
@@ -256,10 +257,16 @@ export const AppSidebar = memo(function AppSidebar({
 
   const projectIds = useMemo(() => filteredProjects.map((p) => p.id), [filteredProjects]);
 
+  // WeChat-bound projects are represented by the dedicated WeChat area, so they're
+  // hidden from the normal project list (but kept in projectIds for search).
+  const visibleProjects = useMemo(() => filteredProjects.filter((p) => !p.wechat), [filteredProjects]);
+
   // Pre-group sessions by projectId (O(n) once) instead of filtering per project (O(n*m))
   const sessionsByProject = useMemo(() => {
     const map = new Map<string, ChatSession[]>();
     for (const s of sessions) {
+      // WeChat-originated chats live in their own dedicated area, not the project list.
+      if (s.source === "wechat") continue;
       const arr = map.get(s.projectId) ?? [];
       arr.push(s);
       map.set(s.projectId, arr);
@@ -626,7 +633,14 @@ export const AppSidebar = memo(function AppSidebar({
           >
             <ScrollArea ref={scrollRef} className="h-full">
               <div ref={projectListRef} className={`px-3 pt-2 pb-8 ${slideClass}`}>
-                {filteredProjects.map((project) => {
+                <WeChatSection
+                  sessions={sessions}
+                  projects={projects}
+                  activeSessionId={activeSessionId}
+                  islandLayout={islandLayout}
+                  agents={agents}
+                />
+                {visibleProjects.map((project) => {
                   const projectSessions = sessionsByProject.get(project.id) ?? [];
                   const projectFolders = foldersByProject[project.id] ?? [];
 
@@ -671,7 +685,7 @@ export const AppSidebar = memo(function AppSidebar({
                   );
                 })}
 
-                {filteredProjects.length === 0 && (
+                {visibleProjects.length === 0 && (
                   <p className="px-2 py-8 text-center text-xs text-sidebar-foreground/50">
                     {projects.length === 0
                       ? t("empty.addProjectToStart")

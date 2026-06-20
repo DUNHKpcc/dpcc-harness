@@ -17,8 +17,12 @@ export function normalizeFileWatchPath(filePath?: string | null): string | undef
 export function shouldIgnoreFileWatchPath(filePath?: string | null): boolean {
   const normalized = normalizeFileWatchPath(filePath);
   if (!normalized) return false;
-  const firstSegment = normalized.split("/")[0];
-  return WATCH_SKIP_DIRS.has(firstSegment);
+  // Match ANY path segment, not just the first. A recursive watcher reports
+  // paths relative to the watched root, so nested directories (common in
+  // monorepos and git worktrees, e.g. "packages/web/node_modules/..." or a
+  // worktree's ".git/...") must be ignored too — otherwise an install/build
+  // writing into them floods the renderer with file-change events.
+  return normalized.split("/").some((segment) => WATCH_SKIP_DIRS.has(segment));
 }
 
 export function mergeFileWatchEvents(events: FileWatchEvent[]): FileWatchSummary {

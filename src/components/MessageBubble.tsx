@@ -163,6 +163,64 @@ function renderWithMentions(text: string): ReactNode[] {
   });
 }
 
+/**
+ * True if `text` ends with a still-open fenced code block. Walks lines tracking
+ * the open fence marker (``` or ~~~, length ≥ 3, ≤ 3 leading spaces). A fence
+ * closes only on a line with the SAME char and a marker at least as long, so a
+ * `~~~` line inside a ``` block (or vice-versa) is correctly treated as content.
+ */
+function hasOpenCodeFence(text: string): boolean {
+  const FENCE_RE = /^[ \t]{0,3}(`{3,}|~{3,})/;
+  let openChar = "";
+  let openLen = 0;
+  let pos = 0;
+  while (pos <= text.length) {
+    const nl = text.indexOf("\n", pos);
+    const line = text.slice(pos, nl === -1 ? text.length : nl);
+    const m = FENCE_RE.exec(line);
+    if (m) {
+      const marker = m[1];
+      if (!openChar) {
+        openChar = marker[0];
+        openLen = marker.length;
+      } else if (marker[0] === openChar && marker.length >= openLen) {
+        openChar = "";
+        openLen = 0;
+      }
+    }
+    if (nl === -1) break;
+    pos = nl + 1;
+  }
+  return openChar !== "";
+}
+
+/**
+ * Split streaming markdown into a stable `prefix` (completed blocks) and an
+ * in-progress `tail`. The prefix is memoized by the caller so ReactMarkdown
+ * only re-parses the whole accumulated history when a block actually completes
+ * — not on every streamed token. The tail is one small block, cheap to
+ * re-parse each frame.
+ *
+ * Splits at the last blank line only when that line is NOT inside an open code
+ * fence, so a fenced block (which can contain blank lines) is never cut in half.
+ * When no safe split exists, the whole string is returned as the tail (= the
+ * full-parse behavior for that frame).
+ *
+ * Note: this is a streaming-only optimization. The final, completed render
+ * always parses the whole document at once (caller passes the full content as
+ * the prefix once streaming ends), so any boundary-sensitive constructs (e.g. a
+ * reference-style link definition `[id]: url` placed after its usage) resolve
+ * correctly in the finished message — only an intermediate frame could show
+ * them unresolved.
+ */
+function splitStreamingMarkdown(content: string): { prefix: string; tail: string } {
+  const lastBreak = content.lastIndexOf("\n\n");
+  if (lastBreak <= 0) return { prefix: "", tail: content };
+  const prefix = content.slice(0, lastBreak);
+  if (hasOpenCodeFence(prefix)) return { prefix: "", tail: content };
+  return { prefix, tail: content.slice(lastBreak) };
+}
+
 interface MessageBubbleProps {
   message: UIMessage;
   showThinking?: boolean;
@@ -204,6 +262,28 @@ export const MessageBubble = memo(function MessageBubble({
   const proseRef = useStreamingTextReveal(
     message.role === "assistant" ? message.isStreaming : undefined,
     message.role === "assistant" ? message.content : "",
+  );
+
+  // Streaming assistant prose: re-parse only the in-progress tail each frame and
+  // reuse a memoized render of the completed-block prefix. Non-streaming → the
+  // whole content is the prefix, so markdown is parsed once and reused across
+  // unrelated re-renders (hover, tooltip) instead of every time.
+  const isStreamingAssistant = message.role === "assistant" && !!message.isStreaming;
+  const { prefix: mdPrefix, tail: mdTail } = useMemo(
+    () =>
+      isStreamingAssistant
+        ? splitStreamingMarkdown(message.content)
+        : { prefix: message.content, tail: "" },
+    [isStreamingAssistant, message.content],
+  );
+  const renderedMarkdownPrefix = useMemo(
+    () =>
+      mdPrefix ? (
+        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={MD_COMPONENTS}>
+          {mdPrefix}
+        </ReactMarkdown>
+      ) : null,
+    [mdPrefix],
   );
 
   if (message.role === "system") {
@@ -373,12 +453,15 @@ export const MessageBubble = memo(function MessageBubble({
                     )}
                   >
                     <IsStreamingMarkdownContext.Provider value={!!message.isStreaming}>
-                      <ReactMarkdown
-                        remarkPlugins={REMARK_PLUGINS}
-                        components={MD_COMPONENTS}
-                      >
-                        {message.content}
-                      </ReactMarkdown>
+                      {renderedMarkdownPrefix}
+                      {mdTail ? (
+                        <ReactMarkdown
+                          remarkPlugins={REMARK_PLUGINS}
+                          components={MD_COMPONENTS}
+                        >
+                          {mdTail}
+                        </ReactMarkdown>
+                      ) : null}
                     </IsStreamingMarkdownContext.Provider>
                   </div>
                 ) : null}

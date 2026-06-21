@@ -14,7 +14,7 @@ import { getDataDir } from "./data-dir";
 import type { AppSettings, NotificationSettings } from "@shared/types/settings";
 
 // Re-export shared types so existing `import from "./app-settings"` consumers still work
-export type { AppSettings, MacBackgroundEffect, PreferredEditor, VoiceDictationMode, NotificationTrigger, NotificationEventSettings, NotificationSettings, CodexBinarySource, ClaudeBinarySource, ClaudeGatewaySettings, CodexGatewaySettings } from "@shared/types/settings";
+export type { AppSettings, MacBackgroundEffect, PreferredEditor, VoiceDictationMode, NotificationTrigger, NotificationEventSettings, NotificationSettings, CodexBinarySource, ClaudeBinarySource, ClaudeGatewaySettings, CodexGatewaySettings, UpdateSource } from "@shared/types/settings";
 
 const NOTIFICATION_DEFAULTS: NotificationSettings = {
   exitPlanMode: { osNotification: "unfocused", sound: "always" },
@@ -25,6 +25,7 @@ const NOTIFICATION_DEFAULTS: NotificationSettings = {
 
 const DEFAULTS: AppSettings = {
   allowPrereleaseUpdates: false,
+  updateSource: "github",
   defaultChatLimit: 10,
   preferredEditor: "auto",
   voiceDictation: "native",

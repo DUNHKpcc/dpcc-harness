@@ -8,9 +8,58 @@ import * as fs from "fs";
 import { log } from "./logger";
 import { reportError } from "./error-utils";
 import { getAppSetting } from "./app-settings";
+import type { UpdateSource } from "@shared/types/settings";
 import { onSettingsChanged } from "../ipc/settings";
 
 const execFileAsync = promisify(execFile);
+
+// ── Update feed sources ──
+// The official GitHub source (mirrors electron-builder.config.js `publish`).
+const GITHUB_OWNER = "DUNHKpcc";
+const GITHUB_REPO = "dpcc-harness";
+// Self-hosted domestic mirror (dpccgaming.xyz). A directory served over HTTPS
+// containing the channel files (latest.yml / latest-mac.yml) and the installer
+// artifacts, laid out like a GitHub release's assets. Mirrors only the mainstream
+// builds (Windows x64, macOS arm64) for the latest version; users on other arches
+// should keep the GitHub source.
+const UPDATE_MIRROR_URL = "https://dpccgaming.xyz/harnss/updates/";
+
+// The raw source the user requested, and the source actually applied (after the
+// mirror-URL fallback). Tracked separately so a "mirror" request that falls back
+// to github doesn't read as "unchanged" on the next request.
+let requestedFeedSource: UpdateSource | null = null;
+let currentFeedSource: UpdateSource | null = null;
+
+/**
+ * Point electron-updater at the chosen feed. Falls back to GitHub if the mirror
+ * is requested but its URL is still a placeholder/empty. No-op when the requested
+ * source hasn't changed since the last call.
+ */
+function applyFeedSource(source: UpdateSource): void {
+  if (source === requestedFeedSource) return;
+  requestedFeedSource = source;
+
+  const useMirror = source === "mirror" && /^https?:\/\//.test(UPDATE_MIRROR_URL);
+  const resolved: UpdateSource = useMirror ? "mirror" : "github";
+  if (resolved === currentFeedSource) return;
+
+  if (useMirror) {
+    autoUpdater.setFeedURL({ provider: "generic", url: UPDATE_MIRROR_URL });
+    log("UPDATER", `Feed source set to mirror: ${UPDATE_MIRROR_URL}`);
+  } else {
+    autoUpdater.setFeedURL({ provider: "github", owner: GITHUB_OWNER, repo: GITHUB_REPO });
+    log("UPDATER", `Feed source set to github (${GITHUB_OWNER}/${GITHUB_REPO})`);
+  }
+  currentFeedSource = resolved;
+}
+
+/** Best-effort manual-download page for the active feed source. */
+function manualDownloadUrl(): string {
+  if (currentFeedSource === "mirror") return UPDATE_MIRROR_URL;
+  return lastDownloadedVersion
+    ? `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/tag/v${lastDownloadedVersion}`
+    : `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing internal MacUpdater state for diagnostics
 type MacUpdaterInternal = { squirrelDownloadedUpdate?: boolean };
@@ -98,8 +147,9 @@ export function initAutoUpdater(
 
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
-  // Read persisted preference (defaults to false)
+  // Read persisted preferences (defaults: stable channel, github feed)
   syncUpdateChannelPreferences(getAppSetting("allowPrereleaseUpdates"));
+  applyFeedSource(getAppSetting("updateSource"));
 
   // React to setting changes at runtime (e.g. user toggles in Settings UI)
   onSettingsChanged((settings) => {
@@ -109,7 +159,14 @@ export function initAutoUpdater(
       `allowPrerelease changed to ${settings.allowPrereleaseUpdates}; allowDowngrade=${autoUpdater.allowDowngrade}`,
     );
 
-    if (!settings.allowPrereleaseUpdates && isCurrentVersionPreRelease()) {
+    // Switching the feed source invalidates any in-flight/staged download — re-check
+    // against the new source so the user sees the right version immediately.
+    const sourceChanged = requestedFeedSource !== settings.updateSource;
+    applyFeedSource(settings.updateSource);
+
+    if (sourceChanged) {
+      void checkForUpdates("switch-feed-source");
+    } else if (!settings.allowPrereleaseUpdates && isCurrentVersionPreRelease()) {
       void checkForUpdates("switch-to-stable");
     }
   });
@@ -167,16 +224,16 @@ export function initAutoUpdater(
           await manualMacInstall();
         } catch (err) {
           reportError("UPDATER_ERR", err, { context: "manual-mac-install" });
-          // Last resort: open the GitHub release page for manual download
-          const releaseUrl = lastDownloadedVersion
-            ? `https://github.com/DUNHKpcc/dpcc-harness/releases/tag/v${lastDownloadedVersion}`
-            : "https://github.com/DUNHKpcc/dpcc-harness/releases/latest";
-          shell.openExternal(releaseUrl);
+          // Last resort: open the active source's download page for manual install
+          shell.openExternal(manualDownloadUrl());
           sendInstallError(
             getMainWindow,
             "manual-install-failed",
             "Automatic install failed. The download page has been opened — please install manually.",
           );
+          // Drop the cached download — it failed to install, so free the disk and
+          // force a clean re-download on the next attempt.
+          deleteDownloadedUpdate();
         }
         return;
       }
@@ -271,6 +328,29 @@ export function findUpdateZip(): string | null {
 }
 
 /**
+ * Delete the downloaded update artifact from electron-updater's cache after a
+ * failed install. Without this the ~100–200 MB download lingers in
+ * ~/Library/Caches/pcc-agent-updater/pending/ until the next update overwrites
+ * it. Also resets lastDownloadedVersion so a retry re-downloads cleanly.
+ */
+function deleteDownloadedUpdate(): void {
+  try {
+    const zipPath = findUpdateZip();
+    if (zipPath && fs.existsSync(zipPath)) {
+      fs.rmSync(zipPath, { force: true });
+      log("UPDATER", `Deleted cached update after failed install: ${path.basename(zipPath)}`);
+      // Remove the .blockmap sidecar electron-updater writes alongside the download.
+      const blockmap = `${zipPath}.blockmap`;
+      if (fs.existsSync(blockmap)) fs.rmSync(blockmap, { force: true });
+    }
+  } catch (err) {
+    reportError("UPDATER_ERR", err, { context: "delete-downloaded-update" });
+  } finally {
+    lastDownloadedVersion = null;
+  }
+}
+
+/**
  * @internal Exported for testing — resets module-level state between test runs.
  * Not needed in production since the module is loaded once per process.
  */
@@ -279,6 +359,8 @@ export function __resetForTesting(): void {
   installingUpdate = false;
   updateCheckInFlight = false;
   lastUpdateCheckAt = 0;
+  requestedFeedSource = null;
+  currentFeedSource = null;
 }
 
 async function manualMacInstall(): Promise<void> {

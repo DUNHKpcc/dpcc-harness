@@ -52,12 +52,17 @@ const {
     checkForUpdates: vi.fn().mockResolvedValue({}),
     downloadUpdate: vi.fn().mockResolvedValue(null),
     quitAndInstall: vi.fn(),
+    setFeedURL: vi.fn(),
     // macOS-only internal property on MacUpdater
     squirrelDownloadedUpdate: undefined as boolean | undefined,
   });
 
   // Wrap in object so the callback reference can be mutated from inside vi.mock
-  const cbRef = { current: null as ((s: { allowPrereleaseUpdates: boolean }) => void) | null };
+  const cbRef = {
+    current: null as
+      | ((s: { allowPrereleaseUpdates: boolean; updateSource: "github" | "mirror" }) => void)
+      | null,
+  };
 
   return {
     mockApp: app,
@@ -107,13 +112,16 @@ vi.mock("../logger", () => ({
 }));
 
 vi.mock("../app-settings", () => ({
-  getAppSetting: vi.fn(() => true),
+  // Key-aware: updateSource needs a real UpdateSource value, others default to true.
+  getAppSetting: vi.fn((key: string) => (key === "updateSource" ? "github" : true)),
 }));
 
 vi.mock("../../ipc/settings", () => ({
-  onSettingsChanged: vi.fn((cb: (settings: { allowPrereleaseUpdates: boolean }) => void) => {
-    settingsChangedCbRef.current = cb;
-  }),
+  onSettingsChanged: vi.fn(
+    (cb: (settings: { allowPrereleaseUpdates: boolean; updateSource: "github" | "mirror" }) => void) => {
+      settingsChangedCbRef.current = cb;
+    },
+  ),
 }));
 
 // ---------------------------------------------------------------------------
@@ -205,6 +213,7 @@ beforeEach(() => {
   mockAutoUpdater.checkForUpdates.mockReset().mockResolvedValue({});
   mockAutoUpdater.downloadUpdate.mockReset().mockResolvedValue(null);
   mockAutoUpdater.quitAndInstall.mockReset();
+  mockAutoUpdater.setFeedURL.mockReset();
   mockWindow.destroy.mockReset();
   mockWebContents.send.mockReset();
   mockApp.getVersion.mockReturnValue("0.12.0");
@@ -215,7 +224,9 @@ beforeEach(() => {
   (fs.existsSync as Mock).mockReturnValue(false);
   (fs.readdirSync as Mock).mockReturnValue([]);
   (log as Mock).mockReset();
-  (getAppSetting as Mock).mockReturnValue(true);
+  (getAppSetting as Mock).mockImplementation((key: string) =>
+    key === "updateSource" ? "github" : true,
+  );
   settingsChangedCbRef.current = null;
 });
 
@@ -429,7 +440,7 @@ describe("initAutoUpdater", () => {
       expect(settingsChangedCbRef.current).not.toBeNull();
 
       // Simulate a settings change
-      settingsChangedCbRef.current!({ allowPrereleaseUpdates: false });
+      settingsChangedCbRef.current!({ allowPrereleaseUpdates: false, updateSource: "github" });
       expect(mockAutoUpdater.allowPrerelease).toBe(false);
       expect(mockAutoUpdater.allowDowngrade).toBe(false);
     });
@@ -442,7 +453,7 @@ describe("initAutoUpdater", () => {
       expect(mockAutoUpdater.allowPrerelease).toBe(true);
       expect(mockAutoUpdater.allowDowngrade).toBe(false);
 
-      settingsChangedCbRef.current!({ allowPrereleaseUpdates: false });
+      settingsChangedCbRef.current!({ allowPrereleaseUpdates: false, updateSource: "github" });
 
       expect(mockAutoUpdater.allowPrerelease).toBe(false);
       expect(mockAutoUpdater.allowDowngrade).toBe(true);
@@ -844,6 +855,26 @@ describe("initAutoUpdater", () => {
         }),
       );
     });
+
+    it("deletes the cached download when the install fails", async () => {
+      const zipPath =
+        "/mock/Library/Caches/pcc-agent-updater/pending/PccAgent-0.12.1-arm64-mac.zip";
+
+      // Everything exists (cache dir, zip, blockmap) so findUpdateZip resolves...
+      (fs.existsSync as Mock).mockReturnValue(true);
+      (fs.readdirSync as Mock).mockReturnValue(["PccAgent-0.12.1-arm64-mac.zip"]);
+      (fs.statSync as Mock).mockReturnValue({ mtimeMs: 1000 });
+      // ...but the install fails (no write permission) → triggers cleanup.
+      (fs.accessSync as Mock).mockImplementation(() => {
+        throw new Error("EACCES");
+      });
+
+      mockAutoUpdater.emit("update-downloaded", { version: "0.12.1" });
+      await getHandler("updater:install")();
+
+      expect(fs.rmSync).toHaveBeenCalledWith(zipPath, { force: true });
+      expect(fs.rmSync).toHaveBeenCalledWith(`${zipPath}.blockmap`, { force: true });
+    });
   });
 
   describe("getIsInstallingUpdate", () => {
@@ -875,6 +906,38 @@ describe("initAutoUpdater", () => {
       init();
       await getHandler("updater:check")();
       expect(mockAutoUpdater.checkForUpdates).toHaveBeenCalled();
+    });
+  });
+
+  describe("feed source selection", () => {
+    it("applies the GitHub feed on startup by default", () => {
+      init();
+      expect(mockAutoUpdater.setFeedURL).toHaveBeenCalledWith(
+        expect.objectContaining({ provider: "github", owner: "DUNHKpcc", repo: "dpcc-harness" }),
+      );
+    });
+
+    it("switches to the generic mirror feed and re-checks when the source changes", async () => {
+      init();
+      mockAutoUpdater.setFeedURL.mockClear();
+      mockAutoUpdater.checkForUpdates.mockClear();
+
+      settingsChangedCbRef.current!({ allowPrereleaseUpdates: false, updateSource: "mirror" });
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(mockAutoUpdater.setFeedURL).toHaveBeenCalledWith(
+        expect.objectContaining({ provider: "generic", url: expect.stringMatching(/^https?:\/\//) }),
+      );
+      expect(mockAutoUpdater.checkForUpdates).toHaveBeenCalled();
+    });
+
+    it("does not re-apply the feed when the source is unchanged", () => {
+      init();
+      mockAutoUpdater.setFeedURL.mockClear();
+
+      settingsChangedCbRef.current!({ allowPrereleaseUpdates: true, updateSource: "github" });
+
+      expect(mockAutoUpdater.setFeedURL).not.toHaveBeenCalled();
     });
   });
 });

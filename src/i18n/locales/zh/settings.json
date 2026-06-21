@@ -173,6 +173,10 @@
     "description": "应用全局偏好设置",
     "updates": {
       "section": "更新",
+      "sourceLabel": "更新源",
+      "sourceDesc": "从哪里下载更新。GitHub 较慢或无法访问时，可改用国内镜像。",
+      "sourceGithub": "GitHub（官方）",
+      "sourceMirror": "国内镜像",
       "prereleaseLabel": "接收预发布更新",
       "prereleaseDesc": "获取包含最新功能的测试版本。关闭后仅接收稳定版更新。"
     },

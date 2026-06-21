@@ -173,6 +173,10 @@
     "description": "Application-wide preferences",
     "updates": {
       "section": "Updates",
+      "sourceLabel": "Update source",
+      "sourceDesc": "Where updates are downloaded from. Use the domestic mirror if GitHub is slow or unreachable.",
+      "sourceGithub": "GitHub (Official)",
+      "sourceMirror": "Domestic Mirror",
       "prereleaseLabel": "Include pre-release updates",
       "prereleaseDesc": "Receive beta versions with the latest features. Disable to only get stable releases."
     },

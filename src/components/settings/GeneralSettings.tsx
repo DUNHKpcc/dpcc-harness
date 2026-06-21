@@ -4,7 +4,7 @@ import { Download, MessageSquare, Code, Mic } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SettingRow, SettingsSelect, SettingsHeader, SettingsSection } from "@/components/settings/shared";
-import type { AppSettings, PreferredEditor, VoiceDictationMode } from "@/types";
+import type { AppSettings, PreferredEditor, VoiceDictationMode, UpdateSource } from "@/types";
 
 interface GeneralSettingsProps {
   appSettings: AppSettings | null;
@@ -20,6 +20,7 @@ export const GeneralSettings = memo(function GeneralSettings({
   const { t } = useTranslation("settings");
   // Local optimistic state — synced from props once loaded
   const [allowPrerelease, setAllowPrerelease] = useState(false);
+  const [updateSource, setUpdateSource] = useState<UpdateSource>("github");
   const [chatLimit, setChatLimit] = useState(10);
   const [preferredEditor, setPreferredEditor] = useState<PreferredEditor>("auto");
   const [voiceDictation, setVoiceDictation] = useState<VoiceDictationMode>("native");
@@ -27,6 +28,7 @@ export const GeneralSettings = memo(function GeneralSettings({
   useEffect(() => {
     if (appSettings) {
       setAllowPrerelease(appSettings.allowPrereleaseUpdates);
+      setUpdateSource(appSettings.updateSource || "github");
       setChatLimit(appSettings.defaultChatLimit || 10);
       setPreferredEditor(appSettings.preferredEditor || "auto");
       setVoiceDictation(appSettings.voiceDictation || "native");
@@ -37,6 +39,14 @@ export const GeneralSettings = memo(function GeneralSettings({
     async (checked: boolean) => {
       setAllowPrerelease(checked); // optimistic
       await onUpdateAppSettings({ allowPrereleaseUpdates: checked });
+    },
+    [onUpdateAppSettings],
+  );
+
+  const handleUpdateSourceChange = useCallback(
+    async (value: UpdateSource) => {
+      setUpdateSource(value); // optimistic
+      await onUpdateAppSettings({ updateSource: value });
     },
     [onUpdateAppSettings],
   );
@@ -74,6 +84,19 @@ export const GeneralSettings = memo(function GeneralSettings({
         <div className="px-6 py-2">
           {/* ── Updates section ── */}
           <SettingsSection icon={Download} label={t("general.updates.section")} first>
+            <SettingRow
+              label={t("general.updates.sourceLabel")}
+              description={t("general.updates.sourceDesc")}
+            >
+              <SettingsSelect
+                value={updateSource}
+                onValueChange={handleUpdateSourceChange}
+                options={[
+                  { value: "github", label: t("general.updates.sourceGithub") },
+                  { value: "mirror", label: t("general.updates.sourceMirror") },
+                ]}
+              />
+            </SettingRow>
             <SettingRow
               label={t("general.updates.prereleaseLabel")}
               description={t("general.updates.prereleaseDesc")}

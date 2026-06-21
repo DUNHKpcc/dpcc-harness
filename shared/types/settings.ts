@@ -14,6 +14,8 @@ export type LanguageOption = "system" | "en" | "zh";
 export type MacBackgroundEffect = "liquid-glass" | "vibrancy" | "off";
 export type CodexBinarySource = "auto" | "managed" | "custom";
 export type ClaudeBinarySource = "auto" | "managed" | "custom";
+/** Where the auto-updater fetches releases from. "github" = official source, "mirror" = self-hosted domestic mirror. */
+export type UpdateSource = "github" | "mirror";
 
 // ── Notification settings ──
 
@@ -65,6 +67,12 @@ export interface CodexGatewaySettings {
 export interface AppSettings {
   /** Include pre-release versions when checking for updates */
   allowPrereleaseUpdates: boolean;
+  /**
+   * Which feed the auto-updater pulls from. "github" is the official CI-published
+   * source; "mirror" points at the self-hosted domestic mirror (URL is a build-time
+   * constant in updater.ts). Default "github".
+   */
+  updateSource: UpdateSource;
   /** Number of recent chats to show per project in the sidebar (default: 10) */
   defaultChatLimit: number;
   /** Preferred code editor for "Open in Editor" actions (default: "auto") */

@@ -102,6 +102,7 @@ export type {
   MacBackgroundEffect,
   CodexBinarySource,
   ClaudeBinarySource,
+  UpdateSource,
   NotificationTrigger,
   NotificationEventSettings,
   NotificationSettings,

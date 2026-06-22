@@ -86,6 +86,22 @@ export const CurrentConfigSettings = memo(function CurrentConfigSettings({
 
   useEffect(() => {
     void refresh();
+
+    // The effective config derives from app settings AND external CLI config
+    // files (~/.claude, ~/.codex). Refetch on both triggers so the panel never
+    // shows stale values (B8): in-app settings changes push `settings.onChanged`,
+    // while out-of-band edits (or settings.json edited outside the app) are
+    // picked up when the window regains focus.
+    const unsubscribe = window.claude.settings.onChanged(() => {
+      void refresh();
+    });
+    const onFocus = () => void refresh();
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener("focus", onFocus);
+    };
   }, [refresh]);
 
   return (

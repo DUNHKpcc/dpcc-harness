@@ -48,16 +48,33 @@ const DEFAULTS: AppSettings = {
 // ── Internal state ──
 
 let cached: AppSettings | null = null;
+// mtime of settings.json when `cached` was populated. Lets getAppSettings()
+// detect out-of-band edits (the user editing settings.json while the app runs,
+// or another tool writing it) and reload — otherwise the first-read cache would
+// serve stale values forever (B9), which surfaced as the read-only "Current
+// Config" panel showing values that no longer match disk.
+let cachedMtimeMs = 0;
 
 function filePath(): string {
   return path.join(getDataDir(), "settings.json");
 }
 
+/** mtime of settings.json, or 0 when the file is missing/unreadable. */
+function readMtimeMs(): number {
+  try {
+    return fs.statSync(filePath()).mtimeMs;
+  } catch {
+    return 0;
+  }
+}
+
 // ── Public API ──
 
-/** Read the full settings object (cached after first read). */
+/** Read the full settings object (cached, with disk-change detection via mtime). */
 export function getAppSettings(): AppSettings {
-  if (cached) return cached;
+  const mtimeMs = readMtimeMs();
+  // Serve the cache only while the on-disk file hasn't changed since we read it.
+  if (cached && mtimeMs === cachedMtimeMs) return cached;
 
   try {
     const raw = fs.readFileSync(filePath(), "utf-8");
@@ -79,6 +96,7 @@ export function getAppSettings(): AppSettings {
   } catch {
     cached = { ...DEFAULTS };
   }
+  cachedMtimeMs = mtimeMs;
   return cached;
 }
 
@@ -95,6 +113,9 @@ export function setAppSettings(patch: Partial<AppSettings>): AppSettings {
 
   try {
     fs.writeFileSync(filePath(), JSON.stringify(next, null, 2), "utf-8");
+    // Keep the cache key in sync with the file we just wrote so the next read
+    // doesn't see our own write as an external change and reload needlessly.
+    cachedMtimeMs = readMtimeMs();
   } catch {
     // Non-fatal — setting is still cached in memory for this session
   }

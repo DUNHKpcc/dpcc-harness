@@ -47,10 +47,16 @@ export class WeChatBridge {
   private readonly adapters: Record<WeChatTool, CLIAdapter>;
   private readonly sink: WeChatSessionSink;
   private getMainWindow: () => BrowserWindow | null = () => null;
+  private credentialsLoaded = false;
 
   constructor() {
     this.config = loadWeChatConfig();
-    this.credentials = loadWeChatCredentials();
+    // Credentials are read lazily (see ensureInit), NOT here: the bridge is
+    // constructed during IPC registration, which runs before app `ready`. On
+    // Windows safeStorage (DPAPI) only decrypts after `ready`, so reading the
+    // encrypted credential file now would yield null and silently log the user
+    // out on every restart (B3).
+    this.credentials = null;
     this.adapters = { claude: new ClaudeAdapter(), codex: new CodexAdapter() };
     this.sink = new WeChatSessionSink({
       getMainWindow: () => this.getMainWindow(),
@@ -62,6 +68,17 @@ export class WeChatBridge {
   /** Supply the live BrowserWindow getter so the sink can stream events to the UI. */
   attachWindow(getMainWindow: () => BrowserWindow | null): void {
     this.getMainWindow = getMainWindow;
+  }
+
+  /**
+   * Load persisted credentials. Deferred out of the constructor so it runs after
+   * app `ready` (when safeStorage can decrypt). Idempotent; safe to call from
+   * any post-ready reader. The first such call recovers the stored login.
+   */
+  private ensureInit(): void {
+    if (this.credentialsLoaded) return;
+    this.credentialsLoaded = true;
+    this.credentials = loadWeChatCredentials();
   }
 
   // ─── Events / state ──────────────────────────────────────
@@ -86,6 +103,7 @@ export class WeChatBridge {
   }
 
   getState(): WeChatBridgeState {
+    this.ensureInit();
     return {
       status: this.status,
       running: this.isRunning(),
@@ -104,6 +122,7 @@ export class WeChatBridge {
   // ─── Config ──────────────────────────────────────────────
 
   setConfig(patch: Partial<WeChatBridgeConfig>): WeChatBridgeState {
+    this.ensureInit();
     const wasEnabled = this.config.enabled;
     this.config = saveWeChatConfig({ ...this.config, ...patch });
 
@@ -121,6 +140,7 @@ export class WeChatBridge {
   // ─── Login ───────────────────────────────────────────────
 
   async login(): Promise<{ ok: boolean; error?: string }> {
+    this.ensureInit();
     if (this.loginAbort) return { ok: false, error: "登录已在进行中" };
     this.loginAbort = new AbortController();
     this.setStatus("connecting");
@@ -163,6 +183,7 @@ export class WeChatBridge {
   }
 
   async logout(): Promise<WeChatBridgeState> {
+    this.ensureInit();
     this.cancelLogin();
     this.stop();
     clearWeChatCredentials();
@@ -177,6 +198,7 @@ export class WeChatBridge {
   // ─── Connection lifecycle ────────────────────────────────
 
   start(): { ok: boolean; error?: string } {
+    this.ensureInit();
     if (!this.credentials) return { ok: false, error: "未登录微信" };
     if (this.isRunning()) return { ok: true };
 
@@ -248,6 +270,7 @@ export class WeChatBridge {
 
   /** Auto-start at app launch when enabled and already logged in. */
   autoStart(): void {
+    this.ensureInit();
     if (this.config.enabled && this.credentials) {
       log("WECHAT_BRIDGE", "auto-start: enabled + credentials present");
       this.start();

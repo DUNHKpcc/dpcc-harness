@@ -70,8 +70,19 @@ export class JsonFileStore<T> {
     const filePath = this.getPath(key);
 
     try {
-      if (this.encrypt && safeStorage.isEncryptionAvailable()) {
-        return this.loadEncrypted(filePath, key);
+      if (this.encrypt) {
+        if (safeStorage.isEncryptionAvailable()) {
+          return this.loadEncrypted(filePath, key);
+        }
+        // Encryption isn't available yet. On Windows, safeStorage (DPAPI) only
+        // reports available AFTER app `ready` — reading an encrypted store
+        // before then would JSON.parse ciphertext (the "v10…" DPAPI prefix) and
+        // throw, spuriously discarding valid data (B3: WeChat login lost on
+        // restart). Read leniently: a genuine plaintext file (encryption never
+        // available on this OS) still parses, but a ciphertext-not-yet-decryptable
+        // read returns null without erroring so a deferred re-read after `ready`
+        // recovers it.
+        return this.loadPlaintextLenient(filePath, key);
       }
       return JSON.parse(fs.readFileSync(filePath, "utf-8")) as T;
     } catch (error: unknown) {
@@ -134,6 +145,23 @@ export class JsonFileStore<T> {
   // ---------------------------------------------------------------------------
   // Encrypted load with plaintext migration
   // ---------------------------------------------------------------------------
+
+  /**
+   * Read an encrypted store while safeStorage reports encryption unavailable.
+   * A real plaintext file (encryption genuinely unavailable on this platform)
+   * parses and is returned; anything else — most importantly ciphertext that
+   * simply can't be decrypted yet (Windows DPAPI before app `ready`) — returns
+   * null without erroring, so the caller can re-read once encryption is ready.
+   */
+  private loadPlaintextLenient(filePath: string, key: string): T | null {
+    try {
+      return JSON.parse(fs.readFileSync(filePath, "utf-8")) as T;
+    } catch (error: unknown) {
+      if (isEnoent(error)) return null;
+      log(`${this.label}_LOAD`, `deferred: encrypted store not readable yet for "${key}"`);
+      return null;
+    }
+  }
 
   /**
    * Attempt to decrypt the file. If decryption fails (file was written in

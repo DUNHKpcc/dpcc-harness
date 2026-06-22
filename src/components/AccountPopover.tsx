@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { CircleUser, RefreshCw, Settings, ChevronDown, CreditCard, Globe, ExternalLink } from "lucide-react";
@@ -16,8 +16,6 @@ import {
   type SaveAccountInput,
 } from "@/hooks/useAccount";
 import { DEFAULT_NEWAPI_BASE_URL } from "@shared/types/account";
-
-const ONBOARD_FLAG = "pcc-agent-account-onboarded";
 
 /** External quick links surfaced in the account panel footer. */
 const ACCOUNT_LINKS = {
@@ -413,19 +411,9 @@ export const AccountPopover = memo(function AccountPopover({
   const [open, setOpen] = useState(false);
   const account = useAccount(open);
 
-  // First launch: auto-open the setup card once if no upstream is configured.
-  useEffect(() => {
-    if (localStorage.getItem(ONBOARD_FLAG)) return;
-    let cancelled = false;
-    void window.claude.account.getConfig().then((cfg) => {
-      if (cancelled) return;
-      if (!shouldLoadAccountDetails(cfg)) setOpen(true);
-      localStorage.setItem(ONBOARD_FLAG, "1");
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // The account button is an optional login entry point — it never force-opens.
+  // (Auto-opening the setup card on first launch was removed: the product does
+  // not require connecting a DPCC API account, and the popup felt coercive.)
 
   const handleSettings = useCallback(() => {
     setOpen(false);

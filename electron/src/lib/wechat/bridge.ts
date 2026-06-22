@@ -246,6 +246,10 @@ export class WeChatBridge {
   reconnect(): { ok: boolean; error?: string } {
     this.ensureInit();
     if (!this.credentials) return { ok: false, error: "未登录微信，无法重新连接" };
+    // `enabled` is the live on/off switch — don't resurrect a bridge the user
+    // disabled (the UI only shows the button when enabled; this guards the race
+    // where the switch is toggled off before this IPC call lands).
+    if (!this.config.enabled) return { ok: false, error: "微信桥接未启用" };
 
     log("WECHAT_BRIDGE", "reconnect: re-establishing the live connection");
     resetClaudeBinaryCache();
@@ -292,6 +296,7 @@ export class WeChatBridge {
 
   /** Continue a WeChat conversation from the desktop (relays the reply back to WeChat). */
   async sendFromDesktop(opts: { sessionId: string; text: string }): Promise<{ ok: boolean; error?: string }> {
+    this.ensureInit();
     if (!this.router) return { ok: false, error: "微信桥接未运行，无法续聊" };
     return this.router.runFromDesktop(opts.sessionId, opts.text);
   }

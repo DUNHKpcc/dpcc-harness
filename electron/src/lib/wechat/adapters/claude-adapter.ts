@@ -3,6 +3,7 @@ import { reportError } from "../../error-utils";
 import { getSDK, clientAppEnv } from "../../sdk";
 import { getClaudeBinaryPath, isClaudeInstalled } from "../../claude-binary";
 import { loadLocalClaudeEnv } from "../../local-cli-config";
+import { claudeGatewayEnv, claudeGatewayModel } from "../../claude-gateway-env";
 import { isSessionError } from "./session-error";
 import type { CLIAdapter, AdapterExecOptions, AdapterExecResult } from "./types";
 
@@ -54,9 +55,16 @@ export class ClaudeAdapter implements CLIAdapter {
       // token-by-token, matching a normal session's feel.
       includePartialMessages: true,
       settingSources: ["user", "project", "local"],
-      env: { ...process.env, ...loadLocalClaudeEnv(), ...clientAppEnv() },
+      // Inject the in-app gateway auth so phone-initiated runs authenticate the
+      // same way interactive sessions do — without it the gateway returns
+      // "not login" for every WeChat message (B4).
+      env: { ...process.env, ...loadLocalClaudeEnv(), ...clientAppEnv(), ...claudeGatewayEnv() },
     };
     if (opts.model) sdkOpts.model = opts.model;
+    // Gateway custom model overrides the configured model when enabled — the
+    // gateway only serves its own model, mirroring interactive session behavior.
+    const gatewayModel = claudeGatewayModel();
+    if (gatewayModel) sdkOpts.model = gatewayModel;
     if (opts.resumeId) sdkOpts.resume = opts.resumeId;
 
     // In "safe" mode, gate every mutating tool. Read-only tools pass through so
@@ -75,7 +83,7 @@ export class ClaudeAdapter implements CLIAdapter {
 
     log(
       "WECHAT_CLAUDE",
-      `run mode=${opts.permissionMode} model=${opts.model || "default"} resume=${opts.resumeId ? opts.resumeId.slice(0, 8) : "none"}`,
+      `run mode=${opts.permissionMode} model=${(sdkOpts.model as string | undefined) || "default"} resume=${opts.resumeId ? opts.resumeId.slice(0, 8) : "none"}`,
     );
 
     let resultText = "";

@@ -5,6 +5,7 @@ import { reportError } from "../lib/error-utils";
 import { gitExec } from "../lib/git-exec";
 import { getClaudeBinaryPath } from "../lib/claude-binary";
 import { loadLocalClaudeEnv } from "../lib/local-cli-config";
+import { claudeGatewayEnv, claudeGatewayModel } from "../lib/claude-gateway-env";
 
 function firstNonEmptyLine(text: string): string | undefined {
   for (const line of text.split(/\r?\n/g)) {
@@ -28,7 +29,10 @@ async function oneShotSdkQuery(
   options?: OneShotSdkQueryOptions,
 ): Promise<{ result?: string; error?: string }> {
   const timeoutMs = options?.timeoutMs ?? 60000;
-  const model = options?.model?.trim() || "haiku";
+  // When the in-app gateway is enabled, its model is the only one the endpoint
+  // serves — "haiku" would 404. Let it override the caller's requested model so
+  // utility queries authenticate and resolve instead of returning "not login" (B5b).
+  const model = claudeGatewayModel() ?? (options?.model?.trim() || "haiku");
   const startedAt = Date.now();
   log(logLabel, `one-shot:start cwd=${cwd} model=${model} prompt_len=${prompt.length} timeout_ms=${timeoutMs}`);
 
@@ -50,6 +54,9 @@ async function oneShotSdkQuery(
     const q = query({
       prompt,
       options: {
+        // Honor the user's ~/.claude config by default so gateway env/model from
+        // settings.json applies (callers may override via extraOptions).
+        settingSources: ["user", "project", "local"],
         ...options?.extraOptions,
         cwd,
         model,
@@ -58,7 +65,7 @@ async function oneShotSdkQuery(
         allowDangerouslySkipPermissions: true,
         persistSession: false,
         pathToClaudeCodeExecutable: cliPath,
-        env: { ...process.env, ...loadLocalClaudeEnv(), ...clientAppEnv() },
+        env: { ...process.env, ...loadLocalClaudeEnv(), ...clientAppEnv(), ...claudeGatewayEnv() },
         stderr: (data: string) => {
           const trimmed = data.trim();
           if (!trimmed) return;

@@ -23,37 +23,9 @@ import {
   getClaudeBinaryStatus,
   getClaudeVersion,
 } from "../lib/claude-binary";
-import { getAppSetting } from "../lib/app-settings";
 import { captureEvent } from "../lib/posthog";
-import { loadLocalClaudeEnv, localClaudeGatewayTakesPriority, probeLocalClaudeGateway } from "../lib/local-cli-config";
-
-/**
- * Environment variables for the custom Claude gateway (ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN).
- * If the user has already configured these in ~/.claude/settings.json, the local config wins
- * and PccAgent injects nothing — letting `settingSources: ["user", ...]` apply the local values.
- */
-function claudeGatewayEnv(): Record<string, string> {
-  if (localClaudeGatewayTakesPriority()) {
-    log("CLAUDE_GATEWAY_DEFER", "local ~/.claude/settings.json env overrides PccAgent gateway");
-    return {};
-  }
-  const g = getAppSetting("claudeGateway");
-  if (!g?.enabled) return {};
-  const env: Record<string, string> = {};
-  if (g.baseUrl.trim()) env.ANTHROPIC_BASE_URL = g.baseUrl.trim();
-  if (g.authToken.trim()) env.ANTHROPIC_AUTH_TOKEN = g.authToken.trim();
-  return env;
-}
-
-/**
- * Custom model id from the Claude gateway, used as the session default when enabled.
- * If the user's local settings.json sets ANTHROPIC_MODEL, that wins.
- */
-function claudeGatewayModel(): string | undefined {
-  if (probeLocalClaudeGateway().hasModel) return undefined;
-  const g = getAppSetting("claudeGateway");
-  return g?.enabled && g.model.trim() ? g.model.trim() : undefined;
-}
+import { loadLocalClaudeEnv } from "../lib/local-cli-config";
+import { claudeGatewayEnv, claudeGatewayModel } from "../lib/claude-gateway-env";
 
 /** SDK options for file checkpointing — enables Write/Edit/NotebookEdit revert support.
  *  Env precedence: process.env → user's ~/.claude/settings.json env (overrides stale

@@ -57,6 +57,22 @@ import * as wechatIpc from "./ipc/wechat";
 import { onSettingsChanged } from "./ipc/settings";
 
 // --- Performance: Chromium/V8 flags (must be set before app.whenReady()) ---
+// --- Single-instance lock ---
+// Without this, any stray re-launch of the packaged binary boots a whole second
+// app instance whose own window flashes the welcome screen on top of the running
+// one. Claim the lock; if another instance already holds it, quit immediately and
+// focus the existing window instead. (getMainWindow is a hoisted declaration.)
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    const win = getMainWindow();
+    if (!win) return;
+    if (win.isMinimized()) win.restore();
+    win.focus();
+  });
+}
+
 app.commandLine.appendSwitch("enable-gpu-rasterization"); // force GPU raster for all content
 app.commandLine.appendSwitch("enable-zero-copy"); // avoid CPU→GPU memory copies for tiles
 app.commandLine.appendSwitch("ignore-gpu-blocklist"); // use GPU even on blocklisted hardware

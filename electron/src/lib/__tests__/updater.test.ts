@@ -366,11 +366,48 @@ describe("checkForUpdates", () => {
     expect(mockAutoUpdater.checkForUpdates).toHaveBeenCalledTimes(2);
   });
 
-  it("catches and logs errors without throwing", async () => {
-    mockAutoUpdater.checkForUpdates.mockRejectedValueOnce(new Error("network"));
+  it("logs an error without throwing when every feed is unreachable", async () => {
+    mockAutoUpdater.checkForUpdates.mockRejectedValue(new Error("network"));
     // Should not throw
     await checkForUpdates("failing");
+    // Tried both the github and mirror feeds before giving up.
+    expect(mockAutoUpdater.checkForUpdates).toHaveBeenCalledTimes(2);
     expect(log).toHaveBeenCalledWith("UPDATER_ERR", expect.stringContaining("network"));
+  });
+
+  it("falls back to the mirror feed when the primary github feed fails", async () => {
+    mockAutoUpdater.checkForUpdates
+      .mockRejectedValueOnce(new Error("net::ERR_SSL_PROTOCOL_ERROR")) // github
+      .mockResolvedValueOnce({}); // mirror
+
+    await checkForUpdates("startup");
+
+    expect(mockAutoUpdater.checkForUpdates).toHaveBeenCalledTimes(2);
+    // The live feed was switched to the generic mirror URL after github failed.
+    expect(mockAutoUpdater.setFeedURL).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: "generic", url: expect.stringMatching(/^https?:\/\//) }),
+    );
+    // A working feed was found → checks are NOT suspended; the next auto check runs.
+    mockAutoUpdater.checkForUpdates.mockClear().mockResolvedValue({});
+    await checkForUpdates("periodic");
+    expect(mockAutoUpdater.checkForUpdates).toHaveBeenCalled();
+  });
+
+  it("suspends automatic checks after every feed fails, and a manual check re-arms", async () => {
+    mockAutoUpdater.checkForUpdates.mockRejectedValue(new Error("network"));
+    await checkForUpdates("startup"); // both feeds fail → suspend
+    expect(mockAutoUpdater.checkForUpdates).toHaveBeenCalledTimes(2);
+
+    // A subsequent automatic check is skipped — no network hammering.
+    mockAutoUpdater.checkForUpdates.mockClear();
+    await checkForUpdates("periodic");
+    expect(mockAutoUpdater.checkForUpdates).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith("UPDATER_DEBUG", expect.stringContaining("suspended"));
+
+    // An explicit manual check re-arms and retries.
+    mockAutoUpdater.checkForUpdates.mockClear().mockResolvedValue({});
+    await checkForUpdates("manual");
+    expect(mockAutoUpdater.checkForUpdates).toHaveBeenCalled();
   });
 });
 

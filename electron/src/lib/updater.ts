@@ -24,33 +24,56 @@ const GITHUB_REPO = "dpcc-harness";
 // should keep the GitHub source.
 const UPDATE_MIRROR_URL = "https://dpccgaming.xyz/harnss/updates/";
 
-// The raw source the user requested, and the source actually applied (after the
-// mirror-URL fallback). Tracked separately so a "mirror" request that falls back
-// to github doesn't read as "unchanged" on the next request.
+// The user's requested source, the source the live feed URL currently points at,
+// and a session-only override set when the primary feed is unreachable and we
+// auto-fall back to the other one (so we stop re-probing the dead feed).
 let requestedFeedSource: UpdateSource | null = null;
 let currentFeedSource: UpdateSource | null = null;
+let sessionFeedOverride: UpdateSource | null = null;
+// Set once every feed has failed within a single check cycle. Stops the automatic
+// startup/periodic/focus/resume checks from hammering an unreachable network.
+// Re-armed by an explicit manual check or a feed-source/channel change.
+let updateChecksSuspended = false;
+
+const mirrorUsable = (): boolean => /^https?:\/\//.test(UPDATE_MIRROR_URL);
 
 /**
- * Point electron-updater at the chosen feed. Falls back to GitHub if the mirror
- * is requested but its URL is still a placeholder/empty. No-op when the requested
- * source hasn't changed since the last call.
+ * The ordered feed sources to try for one check: the preferred source first, then
+ * the other as an automatic fallback (e.g. GitHub blocked in CN → domestic
+ * mirror). Drops the mirror when its URL is still a placeholder.
+ */
+function feedCandidates(preferred: UpdateSource): UpdateSource[] {
+  if (!mirrorUsable()) return ["github"];
+  return preferred === "mirror" ? ["mirror", "github"] : ["github", "mirror"];
+}
+
+/** Point electron-updater at a specific source's URL. Returns the resolved source. */
+function setLiveFeed(source: UpdateSource): UpdateSource {
+  const useMirror = source === "mirror" && mirrorUsable();
+  if (useMirror) {
+    autoUpdater.setFeedURL({ provider: "generic", url: UPDATE_MIRROR_URL });
+  } else {
+    autoUpdater.setFeedURL({ provider: "github", owner: GITHUB_OWNER, repo: GITHUB_REPO });
+  }
+  currentFeedSource = useMirror ? "mirror" : "github";
+  return currentFeedSource;
+}
+
+/**
+ * Apply the user's chosen feed (from settings). No-op when unchanged. The actual
+ * per-check feed switching (including the unreachable-feed fallback) happens in
+ * checkForUpdates.
  */
 function applyFeedSource(source: UpdateSource): void {
   if (source === requestedFeedSource) return;
   requestedFeedSource = source;
-
-  const useMirror = source === "mirror" && /^https?:\/\//.test(UPDATE_MIRROR_URL);
-  const resolved: UpdateSource = useMirror ? "mirror" : "github";
-  if (resolved === currentFeedSource) return;
-
-  if (useMirror) {
-    autoUpdater.setFeedURL({ provider: "generic", url: UPDATE_MIRROR_URL });
-    log("UPDATER", `Feed source set to mirror: ${UPDATE_MIRROR_URL}`);
-  } else {
-    autoUpdater.setFeedURL({ provider: "github", owner: GITHUB_OWNER, repo: GITHUB_REPO });
-    log("UPDATER", `Feed source set to github (${GITHUB_OWNER}/${GITHUB_REPO})`);
-  }
-  currentFeedSource = resolved;
+  const resolved = setLiveFeed(source);
+  log(
+    "UPDATER",
+    resolved === "mirror"
+      ? `Feed source set to mirror: ${UPDATE_MIRROR_URL}`
+      : `Feed source set to github (${GITHUB_OWNER}/${GITHUB_REPO})`,
+  );
 }
 
 /** Best-effort manual-download page for the active feed source. */
@@ -106,6 +129,14 @@ export function getErrorMessage(err: unknown): string {
   return String(err);
 }
 
+/**
+ * Reasons that represent an explicit user intent to (re)check: they clear any
+ * session fallback and re-arm checks suspended after a total failure.
+ */
+function isExplicitCheck(reason: string): boolean {
+  return reason === "manual" || reason === "switch-feed-source" || reason === "switch-to-stable";
+}
+
 /** @internal Exported for testing. */
 export async function checkForUpdates(reason: string): Promise<void> {
   if (updateCheckInFlight) {
@@ -113,14 +144,50 @@ export async function checkForUpdates(reason: string): Promise<void> {
     return;
   }
 
+  if (isExplicitCheck(reason)) {
+    // The user explicitly asked — retry from their preferred feed.
+    updateChecksSuspended = false;
+    sessionFeedOverride = null;
+  } else if (updateChecksSuspended) {
+    log("UPDATER_DEBUG", `Skipping "${reason}" check; auto-updates suspended after every feed was unreachable`);
+    return;
+  }
+
   updateCheckInFlight = true;
   lastUpdateCheckAt = Date.now();
 
+  const preferred = sessionFeedOverride ?? requestedFeedSource ?? getAppSetting("updateSource");
+  const candidates = feedCandidates(preferred);
+
   try {
     log("UPDATER_DEBUG", `Running update check (${reason})`);
-    await autoUpdater.checkForUpdates();
-  } catch (err) {
-    reportError("UPDATER_ERR", err, { reason });
+    let lastErr: unknown = null;
+    for (const source of candidates) {
+      setLiveFeed(source);
+      try {
+        await autoUpdater.checkForUpdates();
+        if (source !== preferred) {
+          // The primary feed was unreachable. Stick to the working source for the
+          // rest of the session and leave the live feed pointed here so a
+          // follow-up downloadUpdate() hits the same source.
+          sessionFeedOverride = source;
+          log("UPDATER", `Primary feed unreachable; using fallback source "${source}" for this session`);
+        }
+        return;
+      } catch (err) {
+        lastErr = err;
+        log("UPDATER_WARN", `Update check failed on source "${source}": ${getErrorMessage(err)}`);
+      }
+    }
+
+    // Every candidate failed — record it once, then stop auto-retrying so we don't
+    // keep hammering an unreachable network on every focus/resume/interval.
+    reportError("UPDATER_ERR", lastErr, { reason, sources: candidates.join(",") });
+    if (candidates.length > 1) {
+      updateChecksSuspended = true;
+      log("UPDATER", "All update feeds unreachable — suspending automatic checks until a manual retry");
+    }
+    setLiveFeed(preferred);
   } finally {
     updateCheckInFlight = false;
   }
@@ -204,6 +271,13 @@ export function initAutoUpdater(
   });
 
   autoUpdater.on("error", (err: Error) => {
+    // Errors during a check cycle are expected when a feed is unreachable and are
+    // already handled (with fallback) by checkForUpdates — log only, don't spam
+    // exception capture. Errors outside a check (e.g. during download) are real.
+    if (updateCheckInFlight) {
+      log("UPDATER_WARN", `autoUpdater error during check: ${err.message}`);
+      return;
+    }
     reportError("UPDATER_ERR", err);
   });
 
@@ -361,6 +435,8 @@ export function __resetForTesting(): void {
   lastUpdateCheckAt = 0;
   requestedFeedSource = null;
   currentFeedSource = null;
+  sessionFeedOverride = null;
+  updateChecksSuspended = false;
 }
 
 async function manualMacInstall(): Promise<void> {

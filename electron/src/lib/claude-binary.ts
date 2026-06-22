@@ -7,7 +7,7 @@ import { extractErrorMessage, reportError } from "./error-utils";
 import { log } from "./logger";
 import { getCliPath } from "./sdk";
 
-export type ClaudeBinarySource = "auto" | "managed" | "custom";
+export type ClaudeBinarySource = "builtin" | "auto" | "managed" | "custom";
 export type ClaudeBinaryResolutionStrategy = "custom" | "env" | "known" | "path" | "sdk-fallback";
 
 interface ResolveClaudeBinaryOptions {
@@ -66,14 +66,22 @@ function isScriptExecutable(filePath: string): boolean {
   return [".js", ".mjs", ".cjs", ".ts", ".mts", ".cts"].includes(path.extname(filePath));
 }
 
-function resolveFromCustom(): ClaudeBinaryResolution {
+function resolveFromCustom(): ClaudeBinaryResolution | null {
   const customPath = getCustomPath();
   if (!customPath) {
-    throw new Error("Claude custom binary path is not set");
+    log(
+      "CLAUDE_BINARY_CUSTOM_UNSET",
+      "claudeBinarySource=custom but no path is set; falling back to the built-in cli.js",
+    );
+    return null;
   }
   const resolved = normalizeExecutablePath(customPath);
   if (!resolved) {
-    throw new Error(`Configured Claude binary path is not executable: ${customPath}`);
+    log(
+      "CLAUDE_BINARY_CUSTOM_INVALID",
+      `custom Claude binary path is not executable: ${customPath}; falling back to the built-in cli.js`,
+    );
+    return null;
   }
   return { strategy: "custom", path: resolved };
 }
@@ -115,8 +123,21 @@ function resolveClaudeBinarySync(options?: ResolveClaudeBinaryOptions): ClaudeBi
   const source = getSource();
   const allowSdkFallback = options?.allowSdkFallback ?? true;
 
+  if (source === "builtin") {
+    // Always the bundled SDK cli.js — deterministic, offline, no system probe and
+    // no install. The allowSdkFallback flag is intentionally ignored: with this
+    // source the built-in binary IS the install, so isClaudeInstalled() should
+    // report it as available.
+    return resolveSdkFallback();
+  }
+
   if (source === "custom") {
-    return resolveFromCustom();
+    // A misconfigured custom path (empty or not executable) must not hard-fail
+    // the session with a cryptic error (C1). Fall back to the bundled cli.js so
+    // chats still start; the user can fix the path or switch to "built-in".
+    const custom = resolveFromCustom();
+    if (custom) return custom;
+    return allowSdkFallback ? resolveSdkFallback() : null;
   }
 
   const resolution =
@@ -234,8 +255,14 @@ export async function getClaudeBinaryPath(options?: ResolveClaudeBinaryOptions):
     return resolution.path;
   }
 
-  if (!installIfMissing || source === "custom") {
-    throw new Error("Claude executable not found");
+  // "builtin" must never fall through to the native claude.ai installer — it is
+  // bundled-only by definition (and the installer is geo-blocked in some regions).
+  if (!installIfMissing || source === "custom" || source === "builtin") {
+    throw new Error(
+      source === "custom"
+        ? 'Claude binary not found. The custom path is unset or not executable — set a valid path in Settings → Engine, or switch the source to "built-in".'
+        : "Claude executable not found",
+    );
   }
 
   if (!installInFlight) {
@@ -286,12 +313,35 @@ export function getClaudeBinaryStatus(): { installed: boolean; installing: boole
   };
 }
 
+/**
+ * Drop the resolved-binary cache so the next resolution re-probes from scratch.
+ * Used by the WeChat bridge "reconnect" action so a just-fixed binary path/source
+ * takes effect without restarting the whole app. (A cached path that no longer
+ * exists already self-heals via the isExecutable() guard; this also forces a
+ * re-probe when the path changed but the old one is still executable.)
+ */
+export function resetClaudeBinaryCache(): void {
+  cachedPath = null;
+  cachedSource = null;
+}
+
 function readClaudeVersion(binaryPath: string): string | null {
-  const command = isScriptExecutable(binaryPath) ? process.execPath : binaryPath;
-  const args = isScriptExecutable(binaryPath) ? [binaryPath, "--version"] : ["--version"];
+  // When the resolved CLI is a script (the bundled SDK cli.js — the common case
+  // on Windows, where getKnownPaths() is empty and resolution falls to the SDK
+  // fallback), it must run via Node. We re-invoke process.execPath (the Electron
+  // binary) — but WITHOUT ELECTRON_RUN_AS_NODE the packaged .exe boots a whole
+  // second GUI app instead of executing cli.js: a window flashes the welcome
+  // screen and this synchronous call blocks the main process until the 10s
+  // timeout kills it. ELECTRON_RUN_AS_NODE=1 makes it run as plain Node;
+  // windowsHide suppresses a console flash on the native-binary branch too.
+  const isScript = isScriptExecutable(binaryPath);
+  const command = isScript ? process.execPath : binaryPath;
+  const args = isScript ? [binaryPath, "--version"] : ["--version"];
   const output = execFileSync(command, args, {
     encoding: "utf-8",
     timeout: 10000,
+    windowsHide: true,
+    ...(isScript ? { env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" } } : {}),
   }).trim();
   return output || null;
 }

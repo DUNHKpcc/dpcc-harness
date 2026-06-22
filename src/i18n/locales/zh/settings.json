@@ -92,9 +92,9 @@
     "claude": {
       "section": "Claude Code",
       "sourceLabel": "Claude SDK来源",
-      "sourceDesc": "选择 PccAgent 如何解析 Claude 可执行文件。",
+      "sourceDesc": "选择使用哪个 Claude Code。默认「内置」开箱即用、离线可用，无需安装。",
       "versionLabel": "Claude Code 版本",
-      "versionDesc": "{{version}} · {{origin}}。检查更新会运行 Claude Code 官方安装器以更新本机 claude。",
+      "versionDesc": "{{version}} · {{origin}}",
       "updated": "已更新至 {{version}}",
       "updateFailed": "更新失败：{{error}}",
       "customLabel": "自定义 Claude 路径",
@@ -126,9 +126,9 @@
     "codex": {
       "section": "Codex",
       "sourceLabel": "Codex SDK来源",
-      "sourceDesc": "选择 PccAgent 如何解析 Codex 可执行文件。",
+      "sourceDesc": "选择使用哪个 Codex。默认「内置」开箱即用、离线可用，无需安装。",
       "versionLabel": "Codex 版本",
-      "versionDesc": "{{version}} · {{origin}}。Codex 已内置并可离线使用——检查更新可从 npm 拉取最新版本。",
+      "versionDesc": "{{version}} · {{origin}}",
       "updated": "已更新至 {{version}}",
       "updateFailed": "更新失败：{{error}}",
       "customLabel": "自定义 Codex 路径",
@@ -162,8 +162,9 @@
       }
     },
     "source": {
-      "auto": "自动检测",
-      "managedInstall": "托管安装",
+      "builtin": "内置（推荐）",
+      "auto": "自动检测本机",
+      "managedInstall": "下载官方原生",
       "managedDownload": "托管下载",
       "custom": "自定义路径"
     }

@@ -91,6 +91,15 @@ function resolveCodexPathSync(): string {
     return customPath;
   }
 
+  if (source === "builtin") {
+    // Always the binary bundled into the packaged app — deterministic, offline,
+    // no system probe. Returns null only in dev (unpackaged); the async
+    // getCodexBinaryPath() then falls back to an npm download so dev still works.
+    const bundled = getBundledBinaryPath();
+    if (bundled) return bundled;
+    throw new Error("Bundled Codex binary not available (dev build)");
+  }
+
   if (source === "managed") {
     const managedOnly = getManagedBinaryPath();
     if (isExecutable(managedOnly)) return managedOnly;
@@ -133,7 +142,7 @@ function resolveCodexPathSync(): string {
 
 // Reset on each app launch so binary resolution picks up newly installed/updated binaries
 let cachedPath: string | null = null;
-let cachedSource: "auto" | "managed" | "custom" | null = null;
+let cachedSource: "builtin" | "auto" | "managed" | "custom" | null = null;
 let downloadInFlight: Promise<string> | null = null;
 const MANAGED_REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24h
 

@@ -92,9 +92,9 @@
     "claude": {
       "section": "Claude Code",
       "sourceLabel": "Claude binary source",
-      "sourceDesc": "Choose how PccAgent resolves the Claude executable.",
+      "sourceDesc": "Choose which Claude Code to use. The default (Built-in) works out of the box, offline, with no install.",
       "versionLabel": "Claude Code version",
-      "versionDesc": "{{version}} · {{origin}}. Check for updates runs the official Claude Code installer to update the local claude executable.",
+      "versionDesc": "{{version}} · {{origin}}",
       "updated": "Updated to {{version}}",
       "updateFailed": "Update failed: {{error}}",
       "customLabel": "Custom Claude path",
@@ -126,9 +126,9 @@
     "codex": {
       "section": "Codex",
       "sourceLabel": "Codex binary source",
-      "sourceDesc": "Choose how PccAgent resolves the Codex executable.",
+      "sourceDesc": "Choose which Codex to use. The default (Built-in) works out of the box, offline, with no install.",
       "versionLabel": "Codex version",
-      "versionDesc": "{{version}} · {{origin}}. Codex ships bundled and works offline — check for updates to pull the latest from npm.",
+      "versionDesc": "{{version}} · {{origin}}",
       "updated": "Updated to {{version}}",
       "updateFailed": "Update failed: {{error}}",
       "customLabel": "Custom Codex path",
@@ -162,8 +162,9 @@
       }
     },
     "source": {
-      "auto": "Auto detect",
-      "managedInstall": "Managed install",
+      "builtin": "Built-in (recommended)",
+      "auto": "Auto-detect local",
+      "managedInstall": "Download official native",
       "managedDownload": "Managed download",
       "custom": "Custom path"
     }

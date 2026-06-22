@@ -12,8 +12,8 @@ export type ThemeOption = "light" | "dark" | "system";
 /** UI language. "system" follows the OS locale (zh-* → Chinese, otherwise English). */
 export type LanguageOption = "system" | "en" | "zh";
 export type MacBackgroundEffect = "liquid-glass" | "vibrancy" | "off";
-export type CodexBinarySource = "auto" | "managed" | "custom";
-export type ClaudeBinarySource = "auto" | "managed" | "custom";
+export type CodexBinarySource = "builtin" | "auto" | "managed" | "custom";
+export type ClaudeBinarySource = "builtin" | "auto" | "managed" | "custom";
 /** Where the auto-updater fetches releases from. "github" = official source, "mirror" = self-hosted domestic mirror. */
 export type UpdateSource = "github" | "mirror";
 

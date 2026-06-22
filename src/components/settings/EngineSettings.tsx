@@ -61,13 +61,13 @@ export const EngineSettings = memo(function EngineSettings({
   onUpdateAppSettings,
 }: EngineSettingsProps) {
   const { t } = useTranslation("settings");
-  const [claudeBinarySource, setClaudeBinarySource] = useState<"auto" | "managed" | "custom">("auto");
+  const [claudeBinarySource, setClaudeBinarySource] = useState<"builtin" | "auto" | "managed" | "custom">("builtin");
   const [claudeCustomBinaryPath, setClaudeCustomBinaryPath] = useState("");
   const [claudeVersion, setClaudeVersion] = useState<string | null>(null);
   const [claudeOrigin, setClaudeOrigin] = useState<ClaudeOrigin>("none");
   const [claudeUpdating, setClaudeUpdating] = useState(false);
   const [claudeUpdateMsg, setClaudeUpdateMsg] = useState<string | null>(null);
-  const [codexBinarySource, setCodexBinarySource] = useState<"auto" | "managed" | "custom">("auto");
+  const [codexBinarySource, setCodexBinarySource] = useState<"builtin" | "auto" | "managed" | "custom">("builtin");
   const [codexCustomBinaryPath, setCodexCustomBinaryPath] = useState("");
   const [codexVersion, setCodexVersion] = useState<string | null>(null);
   const [codexOrigin, setCodexOrigin] = useState<CodexOrigin>("none");
@@ -80,9 +80,9 @@ export const EngineSettings = memo(function EngineSettings({
 
   useEffect(() => {
     if (appSettings) {
-      setClaudeBinarySource(appSettings.claudeBinarySource || "auto");
+      setClaudeBinarySource(appSettings.claudeBinarySource || "builtin");
       setClaudeCustomBinaryPath(appSettings.claudeCustomBinaryPath || "");
-      setCodexBinarySource(appSettings.codexBinarySource || "auto");
+      setCodexBinarySource(appSettings.codexBinarySource || "builtin");
       setCodexCustomBinaryPath(appSettings.codexCustomBinaryPath || "");
       setClaudeGateway(appSettings.claudeGateway ?? CLAUDE_GATEWAY_DEFAULT);
       setCodexGateway(appSettings.codexGateway ?? CODEX_GATEWAY_DEFAULT);
@@ -148,7 +148,7 @@ export const EngineSettings = memo(function EngineSettings({
   }, [refreshCodexInfo, t]);
 
   const handleClaudeBinarySourceChange = useCallback(
-    async (source: "auto" | "managed" | "custom") => {
+    async (source: "builtin" | "auto" | "managed" | "custom") => {
       setClaudeBinarySource(source);
       await onUpdateAppSettings({ claudeBinarySource: source });
     },
@@ -165,7 +165,7 @@ export const EngineSettings = memo(function EngineSettings({
   );
 
   const handleCodexBinarySourceChange = useCallback(
-    async (source: "auto" | "managed" | "custom") => {
+    async (source: "builtin" | "auto" | "managed" | "custom") => {
       setCodexBinarySource(source);
       await onUpdateAppSettings({ codexBinarySource: source });
     },
@@ -239,6 +239,7 @@ export const EngineSettings = memo(function EngineSettings({
                 value={claudeBinarySource}
                 onValueChange={handleClaudeBinarySourceChange}
                 options={[
+                  { value: "builtin", label: t("engines.source.builtin") },
                   { value: "auto", label: t("engines.source.auto") },
                   { value: "managed", label: t("engines.source.managedInstall") },
                   { value: "custom", label: t("engines.source.custom") },
@@ -258,20 +259,24 @@ export const EngineSettings = memo(function EngineSettings({
                   })
                 }
               >
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleClaudeCheckUpdate}
-                  disabled={claudeUpdating}
-                  className="gap-1.5"
-                >
-                  {claudeUpdating ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-3.5 w-3.5" />
-                  )}
-                  {claudeUpdating ? t("action.downloading", { ns: "common" }) : t("action.checkForUpdates", { ns: "common" })}
-                </Button>
+                {/* Only "managed" downloads a native Claude from claude.ai; for
+                    built-in/auto the binary is already present, so show status only. */}
+                {claudeBinarySource === "managed" ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleClaudeCheckUpdate}
+                    disabled={claudeUpdating}
+                    className="gap-1.5"
+                  >
+                    {claudeUpdating ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-3.5 w-3.5" />
+                    )}
+                    {claudeUpdating ? t("action.downloading", { ns: "common" }) : t("action.checkForUpdates", { ns: "common" })}
+                  </Button>
+                ) : null}
               </SettingRow>
             )}
 
@@ -350,6 +355,7 @@ export const EngineSettings = memo(function EngineSettings({
                 value={codexBinarySource}
                 onValueChange={handleCodexBinarySourceChange}
                 options={[
+                  { value: "builtin", label: t("engines.source.builtin") },
                   { value: "auto", label: t("engines.source.auto") },
                   { value: "managed", label: t("engines.source.managedDownload") },
                   { value: "custom", label: t("engines.source.custom") },
@@ -369,20 +375,24 @@ export const EngineSettings = memo(function EngineSettings({
                   })
                 }
               >
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleCodexCheckUpdate}
-                  disabled={codexUpdating}
-                  className="gap-1.5"
-                >
-                  {codexUpdating ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-3.5 w-3.5" />
-                  )}
-                  {codexUpdating ? t("action.downloading", { ns: "common" }) : t("action.checkForUpdates", { ns: "common" })}
-                </Button>
+                {/* Only "managed" downloads codex from npm; built-in/auto already
+                    have a binary, so show status only. */}
+                {codexBinarySource === "managed" ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCodexCheckUpdate}
+                    disabled={codexUpdating}
+                    className="gap-1.5"
+                  >
+                    {codexUpdating ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-3.5 w-3.5" />
+                    )}
+                    {codexUpdating ? t("action.downloading", { ns: "common" }) : t("action.checkForUpdates", { ns: "common" })}
+                  </Button>
+                ) : null}
               </SettingRow>
             )}
 

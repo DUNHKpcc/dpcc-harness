@@ -92,6 +92,78 @@ describe("claude binary resolution", () => {
     await expect(mod.getClaudeBinaryPath()).resolves.toBe("/opt/bin/claude");
   });
 
+  it("falls back to the bundled cli when the custom path is empty (C1)", async () => {
+    mockGetAppSetting.mockImplementation((key: string): string => {
+      if (key === "claudeBinarySource") return "custom";
+      if (key === "claudeCustomBinaryPath") return "";
+      return "PccAgent";
+    });
+    allowExecutable("/app.asar.unpacked/node_modules/@anthropic-ai/claude-agent-sdk/cli.js");
+
+    const mod = await loadModule();
+
+    // An unset custom path must not hard-fail the session — it falls back to cli.js.
+    await expect(mod.getClaudeBinaryPath({ installIfMissing: false })).resolves.toBe(
+      "/app.asar.unpacked/node_modules/@anthropic-ai/claude-agent-sdk/cli.js",
+    );
+    expect(mockLog).toHaveBeenCalledWith("CLAUDE_BINARY_CUSTOM_UNSET", expect.any(String));
+  });
+
+  it("falls back to the bundled cli when the custom path is not executable (C1)", async () => {
+    mockGetAppSetting.mockImplementation((key: string): string => {
+      if (key === "claudeBinarySource") return "custom";
+      if (key === "claudeCustomBinaryPath") return "/opt/bin/claude";
+      return "PccAgent";
+    });
+    // /opt/bin/claude is configured but missing; only the bundled cli is executable.
+    allowExecutable("/app.asar.unpacked/node_modules/@anthropic-ai/claude-agent-sdk/cli.js");
+
+    const mod = await loadModule();
+
+    await expect(mod.getClaudeBinaryPath({ installIfMissing: false })).resolves.toBe(
+      "/app.asar.unpacked/node_modules/@anthropic-ai/claude-agent-sdk/cli.js",
+    );
+    expect(mockLog).toHaveBeenCalledWith("CLAUDE_BINARY_CUSTOM_INVALID", expect.any(String));
+  });
+
+  it("always uses the bundled SDK cli in builtin mode, ignoring a system claude", async () => {
+    mockGetAppSetting.mockImplementation((key: string): string => {
+      if (key === "claudeBinarySource") return "builtin";
+      if (key === "claudeCustomBinaryPath") return "";
+      return "PccAgent";
+    });
+    // A system claude exists on PATH — builtin must deterministically ignore it.
+    mockExecFileSync.mockImplementation((command: string) => {
+      if (command === "which") return "/usr/local/bin/claude\n";
+      throw new Error("unexpected");
+    });
+    allowExecutable("/usr/local/bin/claude");
+
+    const mod = await loadModule();
+
+    await expect(mod.getClaudeBinaryPath({ installIfMissing: false })).resolves.toBe(
+      "/app.asar.unpacked/node_modules/@anthropic-ai/claude-agent-sdk/cli.js",
+    );
+  });
+
+  it("never runs the native installer in builtin mode, and reports installed", async () => {
+    mockGetAppSetting.mockImplementation((key: string): string => {
+      if (key === "claudeBinarySource") return "builtin";
+      if (key === "claudeCustomBinaryPath") return "";
+      return "PccAgent";
+    });
+    allowExecutable(); // nothing on disk
+
+    const mod = await loadModule();
+
+    // Built-in is always "installed" (it IS the bundle), even with allowSdkFallback:false.
+    expect(mod.getClaudeBinaryStatus()).toEqual({ installed: true, installing: false });
+    await expect(mod.getClaudeBinaryPath({ installIfMissing: true })).resolves.toBe(
+      "/app.asar.unpacked/node_modules/@anthropic-ai/claude-agent-sdk/cli.js",
+    );
+    expect(mockSpawn).not.toHaveBeenCalled();
+  });
+
   it("prefers the env override in auto mode", async () => {
     vi.stubEnv("CLAUDE_CODE_CLI_PATH", "/env/claude");
     allowExecutable("/env/claude");
@@ -148,14 +220,20 @@ describe("claude binary resolution", () => {
     });
   });
 
-  it("returns a version when the sdk fallback path is a script", async () => {
-    mockExecFileSync.mockImplementation((command: string, args: string[]) => {
-      if (command === process.execPath) {
-        expect(args).toEqual(["/app.asar.unpacked/node_modules/@anthropic-ai/claude-agent-sdk/cli.js", "--version"]);
-        return "2.1.70\n";
-      }
-      throw new Error("unexpected");
-    });
+  it("runs a script-path version probe as Node (ELECTRON_RUN_AS_NODE), never a second GUI app", async () => {
+    mockExecFileSync.mockImplementation(
+      (command: string, args: string[], opts: { windowsHide?: boolean; env?: Record<string, string> }) => {
+        if (command === process.execPath) {
+          expect(args).toEqual(["/app.asar.unpacked/node_modules/@anthropic-ai/claude-agent-sdk/cli.js", "--version"]);
+          // Without ELECTRON_RUN_AS_NODE the packaged .exe would boot a full GUI
+          // instance instead of executing cli.js (the Windows double-window bug).
+          expect(opts.env?.ELECTRON_RUN_AS_NODE).toBe("1");
+          expect(opts.windowsHide).toBe(true);
+          return "2.1.70\n";
+        }
+        throw new Error("unexpected");
+      },
+    );
     allowExecutable("/app.asar.unpacked/node_modules/@anthropic-ai/claude-agent-sdk/cli.js");
 
     const mod = await loadModule();
@@ -196,13 +274,17 @@ describe("claude binary resolution", () => {
   });
 
   it("reads a provided binary path version directly", async () => {
-    mockExecFileSync.mockImplementation((command: string, args: string[]) => {
-      if (command === "/Users/tester/.local/bin/claude") {
-        expect(args).toEqual(["--version"]);
-        return "1.2.3\n";
-      }
-      throw new Error("unexpected");
-    });
+    mockExecFileSync.mockImplementation(
+      (command: string, args: string[], opts: { env?: Record<string, string> }) => {
+        if (command === "/Users/tester/.local/bin/claude") {
+          expect(args).toEqual(["--version"]);
+          // A real binary is spawned directly — it must NOT be forced into Node mode.
+          expect(opts.env?.ELECTRON_RUN_AS_NODE).toBeUndefined();
+          return "1.2.3\n";
+        }
+        throw new Error("unexpected");
+      },
+    );
 
     const mod = await loadModule();
 

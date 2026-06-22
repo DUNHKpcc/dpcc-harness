@@ -472,6 +472,7 @@
     "requestingQr": "Requesting QR code…",
     "cancelLogin": "Cancel",
     "loggedIn": "WeChat connected",
+    "reconnect": "Reconnect",
     "logout": "Sign out",
     "enableLabel": "Enable bridge",
     "enableDesc": "Start the bridge now and on every app launch.",

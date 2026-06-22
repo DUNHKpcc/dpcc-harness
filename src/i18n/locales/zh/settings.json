@@ -472,6 +472,7 @@
     "requestingQr": "正在获取二维码…",
     "cancelLogin": "取消",
     "loggedIn": "微信已连接",
+    "reconnect": "重新连接",
     "logout": "退出登录",
     "enableLabel": "启用桥接",
     "enableDesc": "立即启动，并在每次启动应用时自动启动。",

@@ -381,6 +381,7 @@ contextBridge.exposeInMainWorld("claude", {
     logout: () => ipcRenderer.invoke("wechat:logout"),
     start: () => ipcRenderer.invoke("wechat:start"),
     stop: () => ipcRenderer.invoke("wechat:stop"),
+    reconnect: () => ipcRenderer.invoke("wechat:reconnect"),
     send: (args: { sessionId: string; text: string }) => ipcRenderer.invoke("wechat:send", args),
     onEvent: (callback: (data: unknown) => void) => {
       const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);

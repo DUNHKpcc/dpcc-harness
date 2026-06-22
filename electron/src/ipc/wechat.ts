@@ -45,6 +45,14 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     return { ok: true };
   });
 
+  ipcMain.handle("wechat:reconnect", () => {
+    try {
+      return bridge.reconnect();
+    } catch (err) {
+      return { ok: false, error: reportError("WECHAT_RECONNECT", err) };
+    }
+  });
+
   ipcMain.handle(
     "wechat:send",
     async (_event, args: { sessionId: string; text: string }) => {

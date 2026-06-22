@@ -1,7 +1,7 @@
 import { memo, useState, useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import QRCode from "qrcode";
-import { Smartphone, QrCode, LogOut, ShieldAlert, ScrollText } from "lucide-react";
+import { Smartphone, QrCode, LogOut, RefreshCw, ShieldAlert, ScrollText } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +33,7 @@ export const WeChatSettings = memo(function WeChatSettings() {
   const [activity, setActivity] = useState<ActivityLine[]>([]);
   const [allowedUsersText, setAllowedUsersText] = useState("");
   const [projects, setProjects] = useState<Project[]>([]);
+  const [reconnecting, setReconnecting] = useState(false);
   const activityIdRef = useRef(0);
 
   const pushActivity = useCallback((level: ActivityLine["level"], text: string) => {
@@ -135,6 +136,20 @@ export const WeChatSettings = memo(function WeChatSettings() {
     }
   }, [pushActivity]);
 
+  const handleReconnect = useCallback(async () => {
+    setReconnecting(true);
+    try {
+      // State updates (status/running) arrive via the onEvent "state" subscription;
+      // only surface an explicit failure here.
+      const result = await window.claude.wechat.reconnect();
+      if (!result.ok && result.error) pushActivity("error", result.error);
+    } catch (err) {
+      pushActivity("error", err instanceof Error ? err.message : String(err));
+    } finally {
+      setReconnecting(false);
+    }
+  }, [pushActivity]);
+
   const commitAllowedUsers = useCallback(() => {
     const list = allowedUsersText
       .split(/[\n,]/)
@@ -216,10 +231,26 @@ export const WeChatSettings = memo(function WeChatSettings() {
             ) : (
               <>
                 <SettingRow label={t("wechat.loggedIn")} description={botUserId ? `ID: ${botUserId}` : undefined}>
-                  <Button variant="ghost" size="sm" className="gap-1.5 text-destructive" onClick={handleLogout}>
-                    <LogOut className="h-4 w-4" />
-                    {t("wechat.logout")}
-                  </Button>
+                  <div className="flex items-center gap-1.5">
+                    {/* Shown whenever the bridge is enabled — it's the recovery path
+                        for both a flaky live connection and a failed/dropped start. */}
+                    {config.enabled && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={handleReconnect}
+                        disabled={reconnecting}
+                      >
+                        <RefreshCw className={`h-4 w-4 ${reconnecting ? "animate-spin" : ""}`} />
+                        {t("wechat.reconnect")}
+                      </Button>
+                    )}
+                    <Button variant="ghost" size="sm" className="gap-1.5 text-destructive" onClick={handleLogout}>
+                      <LogOut className="h-4 w-4" />
+                      {t("wechat.logout")}
+                    </Button>
+                  </div>
                 </SettingRow>
                 <SettingRow label={t("wechat.enableLabel")} description={t("wechat.enableDesc")}>
                   <Switch

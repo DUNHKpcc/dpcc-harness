@@ -7,6 +7,7 @@ import { ILinkClient } from "./ilink-client";
 import { WeChatRouter } from "./router";
 import { WeChatSessionSink } from "./session-sink";
 import { login, isLoginCancelled } from "./auth";
+import { resetClaudeBinaryCache } from "../claude-binary";
 import { ClaudeAdapter } from "./adapters/claude-adapter";
 import { CodexAdapter } from "./adapters/codex-adapter";
 import {
@@ -233,6 +234,33 @@ export class WeChatBridge {
     this.client = null;
     if (this.status !== "error") this.setStatus("disconnected");
     this.emit({ type: "activity", level: "info", message: "微信桥接已停止" });
+  }
+
+  /**
+   * Tear down and re-establish the live connection WITHOUT dropping credentials.
+   * Manual recovery for when the long-poll went stale or the user changed the
+   * engine / gateway / CLI-binary config and wants the running bridge to pick it
+   * up — far less disruptive than a full QR re-scan (B4). Also clears the resolved
+   * Claude binary cache so a just-fixed path/source takes effect immediately.
+   */
+  reconnect(): { ok: boolean; error?: string } {
+    this.ensureInit();
+    if (!this.credentials) return { ok: false, error: "未登录微信，无法重新连接" };
+
+    log("WECHAT_BRIDGE", "reconnect: re-establishing the live connection");
+    resetClaudeBinaryCache();
+
+    // Drop the current client/router; keep credentials + config untouched.
+    this.router?.stop();
+    this.client?.stop();
+    this.router = null;
+    this.client = null;
+
+    const result = this.start();
+    if (result.ok) {
+      this.emit({ type: "activity", level: "info", message: "微信桥接已重新连接" });
+    }
+    return result;
   }
 
   /**

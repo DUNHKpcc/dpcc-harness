@@ -437,6 +437,8 @@ declare global {
         logout: () => Promise<WeChatBridgeState>;
         start: () => Promise<{ ok: boolean; error?: string }>;
         stop: () => Promise<IpcResult>;
+        /** Tear down and re-establish the live connection without re-scanning the QR. */
+        reconnect: () => Promise<{ ok: boolean; error?: string }>;
         /** Continue a WeChat conversation from the desktop (relays the reply to WeChat). */
         send: (args: { sessionId: string; text: string }) => Promise<{ ok: boolean; error?: string }>;
         /** Subscribe to bridge events (qrcode, login status, state, activity, session-upsert). */

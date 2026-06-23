@@ -3,6 +3,7 @@ import { CodexRpcClient } from "./codex-rpc";
 import { getCodexBinaryPath } from "./codex-binary";
 import { log } from "./logger";
 import { reportError } from "./error-utils";
+import { codexUpstreamEnv, codexUpstreamThreadParams } from "./codex-upstream";
 import type {
   CodexInitializeResponse,
   CodexModel,
@@ -51,6 +52,7 @@ export async function codexUtilityPrompt(
       env: {
         ...process.env,
         RUST_LOG: process.env.RUST_LOG ?? "warn",
+        ...codexUpstreamEnv(),
       },
     });
 
@@ -173,6 +175,11 @@ export async function codexUtilityPrompt(
     if (selectedModel) {
       threadParams.model = selectedModel;
     }
+    const upstreamThreadParams = codexUpstreamThreadParams();
+    Object.assign(threadParams, upstreamThreadParams);
+    if (typeof upstreamThreadParams.model === "string") {
+      selectedModel = upstreamThreadParams.model;
+    }
     const thread = await rpc.request<CodexThreadStartResponse>("thread/start", threadParams);
 
     const turnParams: Record<string, unknown> = {
@@ -207,4 +214,3 @@ export async function codexUtilityPrompt(
     }
   }
 }
-

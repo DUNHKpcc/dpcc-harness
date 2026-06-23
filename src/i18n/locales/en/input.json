@@ -80,6 +80,7 @@
     "inputTokens": "Input tokens",
     "cacheRead": "Cache read",
     "cacheCreation": "Cache creation",
+    "cacheHitRate": "Cache hit rate",
     "outputTokens": "Output tokens",
     "totalWindow": "Total / Window",
     "clickToCompact": "Click to compact context"

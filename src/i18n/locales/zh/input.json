@@ -80,6 +80,7 @@
     "inputTokens": "输入 token",
     "cacheRead": "缓存读取",
     "cacheCreation": "缓存创建",
+    "cacheHitRate": "缓存命中率",
     "outputTokens": "输出 token",
     "totalWindow": "总计 / 窗口",
     "clickToCompact": "点击压缩上下文"

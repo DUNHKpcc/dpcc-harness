@@ -15,6 +15,19 @@ function formatTokenCount(count: number): string {
   return String(count);
 }
 
+function formatPercent(percent: number): string {
+  return `${percent.toFixed(1)}%`;
+}
+
+export function calculateCacheHitRate(contextUsage: ContextUsage): number {
+  const totalInput =
+    contextUsage.inputTokens +
+    contextUsage.cacheReadTokens +
+    contextUsage.cacheCreationTokens;
+  if (totalInput <= 0) return 0;
+  return (contextUsage.cacheReadTokens / totalInput) * 100;
+}
+
 function getContextColor(percent: number): string {
   if (percent >= 80) return "text-red-600 dark:text-red-400";
   if (percent >= 60) return "text-amber-600 dark:text-amber-400";
@@ -50,6 +63,7 @@ export const ContextGauge = memo(function ContextGauge({
     contextUsage.inputTokens +
     contextUsage.cacheReadTokens +
     contextUsage.cacheCreationTokens;
+  const cacheHitRate = calculateCacheHitRate(contextUsage);
   const percent = Math.min(100, (totalInput / contextUsage.contextWindow) * 100);
   const radius = 8;
   const circumference = 2 * Math.PI * radius;
@@ -117,6 +131,12 @@ export const ContextGauge = memo(function ContextGauge({
               <span>{t("context.cacheCreation")}</span>
               <span className="font-mono">
                 {formatTokenCount(contextUsage.cacheCreationTokens)}
+              </span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span>{t("context.cacheHitRate")}</span>
+              <span className="font-mono">
+                {formatPercent(cacheHitRate)}
               </span>
             </div>
             <div className="flex justify-between gap-4">

@@ -2,10 +2,10 @@
  * Account IPC — queries the user's upstream (new-api) gateway for balance and
  * available models.
  *
- * Credentials are resolved from the Claude gateway settings (the same
- * baseUrl + authToken that drive Claude sessions), falling back to the user's
- * local ~/.claude env when the in-app gateway isn't configured. Balance uses
- * the OpenAI-compatible billing endpoints that new-api exposes:
+ * Credentials are resolved from the DPCC default upstream settings (`dpccUpstream`
+ * — host + per-engine sk tokens), the same account the welcome wizard and
+ * Settings → Account configure. Balance uses the OpenAI-compatible billing
+ * endpoints that new-api exposes:
  *   GET {root}/v1/dashboard/billing/subscription  → hard_limit_usd (total)
  *   GET {root}/v1/dashboard/billing/usage         → total_usage   (cents)
  *   GET {root}/v1/models                          → { data: [{ id }] }
@@ -16,8 +16,8 @@ import fs from "fs";
 import path from "path";
 import { getAppSetting } from "../lib/app-settings";
 import { getDataDir } from "../lib/data-dir";
-import { loadLocalClaudeEnv } from "../lib/local-cli-config";
 import { extractErrorMessage } from "../lib/error-utils";
+import { fetchUpstreamModels } from "../lib/upstream-models";
 import type {
   AccountConfig,
   AccountBalance,
@@ -67,33 +67,18 @@ function pickHost(...candidates: string[]): string {
 }
 
 /**
- * Resolve the shared host + per-engine tokens. Each engine is independent:
- * Claude falls back to the local ~/.claude token even when the Codex gateway is
- * enabled, so adding a Codex key never knocks out Claude.
+ * Resolve the DPCC account: the host + per-engine sk tokens from the DPCC default
+ * upstream settings (`dpccUpstream`), plus the balance credentials. The account
+ * panel always reflects the DPCC account itself — independent of any custom
+ * third-party gateway, which is a separate, session-only override.
  */
 function resolveUpstream(): ResolvedUpstream {
-  const g = getAppSetting("claudeGateway");
-  const c = getAppSetting("codexGateway");
-  const env = loadLocalClaudeEnv();
-  const localBase = (env.ANTHROPIC_BASE_URL ?? "").trim();
-  const localToken = (env.ANTHROPIC_AUTH_TOKEN ?? env.ANTHROPIC_API_KEY ?? "").trim();
+  const dpcc = getAppSetting("dpccUpstream");
+  const claudeToken = dpcc.claudeToken.trim();
+  const codexToken = dpcc.codexToken.trim();
+  const host = pickHost(dpcc.baseUrl ?? "");
 
-  const gwClaudeOn = !!(g?.enabled && g.authToken.trim());
-  const gwCodexOn = !!(c?.enabled && c.apiKey.trim());
-
-  // Claude token: in-app gateway first, else local ~/.claude.
-  const claudeToken = gwClaudeOn ? g!.authToken.trim() : localToken;
-  // Codex token: in-app gateway only.
-  const codexToken = gwCodexOn ? c!.apiKey.trim() : "";
-
-  const host = pickHost(
-    gwClaudeOn ? (g!.baseUrl ?? "") : "",
-    gwCodexOn ? (c!.baseUrl ?? "") : "",
-    localBase,
-  );
-
-  const source: AccountConfig["source"] =
-    gwClaudeOn || gwCodexOn ? "gateway" : localBase && localToken ? "local" : "none";
+  const source: AccountConfig["source"] = claudeToken || codexToken ? "dpcc" : "none";
 
   return {
     host,
@@ -214,10 +199,7 @@ async function computeSelfBalance(
 
 /** List model ids available to a given token group via /v1/models. Empty on failure. */
 async function fetchModels(root: string, token: string): Promise<string[]> {
-  if (!token) return [];
-  const res = await upstreamGet<{ data?: Array<{ id?: string }> }>(root, token, "/v1/models");
-  if ("error" in res || !Array.isArray(res.data)) return [];
-  return res.data.map((m) => (typeof m?.id === "string" ? m.id : "")).filter(Boolean);
+  return (await fetchUpstreamModels(root, token)).models;
 }
 
 // ── Usage statistics (Token activity) ──

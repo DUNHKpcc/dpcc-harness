@@ -311,7 +311,7 @@ const AccountView = memo(function AccountView({
           </div>
           <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-            {cfg?.source === "local" ? t("account.connectedLocal") : t("account.connected")}
+            {t("account.connected")}
           </div>
         </div>
         <button

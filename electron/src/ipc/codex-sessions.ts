@@ -22,7 +22,7 @@ import {
 import { getAppSetting } from "../lib/app-settings";
 import { reportError } from "../lib/error-utils";
 import { captureEvent } from "../lib/posthog";
-import { localCodexGatewayTakesPriority } from "../lib/local-cli-config";
+import { codexUpstreamEnv, codexUpstreamThreadParams } from "../lib/codex-upstream";
 
 import type {
   CodexServerNotification,
@@ -75,52 +75,6 @@ function getAppServerClientInfo(): { name: string; title: string; version: strin
 }
 
 // pickModelId imported from @shared/lib/codex-helpers
-
-/** Fixed identifiers for the custom Codex gateway provider. */
-const CODEX_GATEWAY_PROVIDER_ID = "pcc-agent-gateway";
-const CODEX_GATEWAY_ENV_KEY = "PCCAGENT_GATEWAY_API_KEY";
-
-/**
- * Extra spawn env for the Codex gateway — injects the API key under the provider's env_key.
- * If the user's local ~/.codex/config.toml already configures a custom provider,
- * PccAgent defers entirely so it doesn't fight the user's CLI setup.
- */
-function codexGatewayEnv(): Record<string, string> {
-  if (localCodexGatewayTakesPriority()) return {};
-  const g = getAppSetting("codexGateway");
-  if (!g?.enabled || !g.apiKey.trim()) return {};
-  return { [CODEX_GATEWAY_ENV_KEY]: g.apiKey.trim() };
-}
-
-/**
- * thread/start params for the custom Codex gateway: a `model_providers.<id>`
- * override table (base_url / env_key / wire_api) plus provider + model selection.
- * Returns {} when the gateway is disabled, has no base URL, or when the user's
- * ~/.codex/config.toml already defines a custom provider (local takes priority).
- */
-function codexGatewayThreadParams(): Record<string, unknown> {
-  if (localCodexGatewayTakesPriority()) {
-    log("CODEX_GATEWAY_DEFER", "local ~/.codex/config.toml overrides PccAgent gateway");
-    return {};
-  }
-  const g = getAppSetting("codexGateway");
-  if (!g?.enabled || !g.baseUrl.trim()) return {};
-  const id = CODEX_GATEWAY_PROVIDER_ID;
-  const model = g.model.trim();
-  return {
-    modelProvider: id,
-    ...(model ? { model } : {}),
-    config: {
-      [`model_providers.${id}.name`]: g.name.trim() || "PccAgent Gateway",
-      [`model_providers.${id}.base_url`]: g.baseUrl.trim(),
-      [`model_providers.${id}.env_key`]: CODEX_GATEWAY_ENV_KEY,
-      [`model_providers.${id}.wire_api`]: "responses",
-      [`model_providers.${id}.requires_openai_auth`]: false,
-      model_provider: id,
-      ...(model ? { model } : {}),
-    },
-  };
-}
 
 function shortId(value: unknown, length = 8): string {
   return typeof value === "string" ? value.slice(0, length) : "n/a";
@@ -298,7 +252,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
           env: {
             ...process.env,
             RUST_LOG: process.env.RUST_LOG ?? "warn",
-            ...codexGatewayEnv(),
+            ...codexUpstreamEnv(),
           },
         });
 
@@ -335,11 +289,12 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         // ── Check auth status ──
         const authResult = await rpc.request<CodexAccountResponse>("account/read", { refreshToken: false });
 
-        // Custom gateway carries its own credentials (env_key) — skip the OpenAI auth gate.
-        // Either PccAgent gateway (when enabled) or the user's local config.toml provider counts.
-        const gatewayEnabled =
-          getAppSetting("codexGateway")?.enabled === true || localCodexGatewayTakesPriority();
-        const needsAuth = !gatewayEnabled && authResult.requiresOpenaiAuth && !authResult.account;
+        // The OpenAI/ChatGPT login gate is retired: Codex always routes through a
+        // custom model_providers entry — a custom gateway, the user's local ~/.codex
+        // provider, or the DPCC default upstream (requires_openai_auth=false for all
+        // three tiers). A missing DPCC Codex key fails at call time, not via a login
+        // prompt. authResult is still consulted below for the connected-account info.
+        const needsAuth: boolean = false;
         if (needsAuth) {
           // Notify renderer that auth is required — don't start thread yet
           safeSend(getMainWindow, "codex:event", {
@@ -385,7 +340,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         // collaborationMode is set per-turn via turn/start, not on thread/start
 
         // Custom gateway: override provider + model (takes priority over selectedModel).
-        const gatewayParams = codexGatewayThreadParams();
+        const gatewayParams = codexUpstreamThreadParams();
         if (Object.keys(gatewayParams).length > 0) {
           Object.assign(threadParams, gatewayParams);
           if (typeof gatewayParams.model === "string") {
@@ -451,7 +406,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
           if (session.approvalPolicy) threadParams.approvalPolicy = session.approvalPolicy;
           if (session.sandbox) threadParams.sandbox = session.sandbox;
           // Custom gateway: override provider + model (takes priority).
-          Object.assign(threadParams, codexGatewayThreadParams());
+          Object.assign(threadParams, codexUpstreamThreadParams());
           const threadResult = await session.rpc.request<CodexThreadStartResponse>("thread/start", threadParams);
           session.threadId = threadResult.thread.id;
           log(
@@ -679,7 +634,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         env: {
           ...process.env,
           RUST_LOG: process.env.RUST_LOG ?? "warn",
-          ...codexGatewayEnv(),
+          ...codexUpstreamEnv(),
         },
       });
       if (!proc.pid) {
@@ -769,7 +724,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
           env: {
             ...process.env,
             RUST_LOG: process.env.RUST_LOG ?? "warn",
-            ...codexGatewayEnv(),
+            ...codexUpstreamEnv(),
           },
         });
 
@@ -805,7 +760,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         if (data.approvalPolicy) threadParams.approvalPolicy = data.approvalPolicy;
         if (data.sandbox) threadParams.sandbox = data.sandbox;
         // Custom gateway: override provider + model (takes priority).
-        const gatewayResumeParams = codexGatewayThreadParams();
+        const gatewayResumeParams = codexUpstreamThreadParams();
         if (Object.keys(gatewayResumeParams).length > 0) {
           Object.assign(threadParams, gatewayResumeParams);
           if (typeof gatewayResumeParams.model === "string") {

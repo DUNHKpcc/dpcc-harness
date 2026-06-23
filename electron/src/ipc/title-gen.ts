@@ -1,11 +1,10 @@
 import { ipcMain } from "electron";
 import { log } from "../lib/logger";
-import { getSDK, clientAppEnv } from "../lib/sdk";
+import { getSDK } from "../lib/sdk";
 import { reportError } from "../lib/error-utils";
 import { gitExec } from "../lib/git-exec";
 import { getClaudeBinaryPath } from "../lib/claude-binary";
-import { loadLocalClaudeEnv } from "../lib/local-cli-config";
-import { claudeGatewayEnv, claudeGatewayModel } from "../lib/claude-gateway-env";
+import { claudeSpawnEnv, claudeGatewayModel } from "../lib/claude-gateway-env";
 
 function firstNonEmptyLine(text: string): string | undefined {
   for (const line of text.split(/\r?\n/g)) {
@@ -29,9 +28,9 @@ async function oneShotSdkQuery(
   options?: OneShotSdkQueryOptions,
 ): Promise<{ result?: string; error?: string }> {
   const timeoutMs = options?.timeoutMs ?? 60000;
-  // When the in-app gateway is enabled, its model is the only one the endpoint
-  // serves — "haiku" would 404. Let it override the caller's requested model so
-  // utility queries authenticate and resolve instead of returning "not login" (B5b).
+  // The effective upstream (gateway or DPCC default) serves its own models —
+  // "haiku" would 404. Use that model so utility queries authenticate and resolve
+  // instead of returning "not login" (B5b). undefined only on the local tier.
   const model = claudeGatewayModel() ?? (options?.model?.trim() || "haiku");
   const startedAt = Date.now();
   log(logLabel, `one-shot:start cwd=${cwd} model=${model} prompt_len=${prompt.length} timeout_ms=${timeoutMs}`);
@@ -54,8 +53,9 @@ async function oneShotSdkQuery(
     const q = query({
       prompt,
       options: {
-        // Honor the user's ~/.claude config by default so gateway env/model from
-        // settings.json applies (callers may override via extraOptions).
+        // Honor the user's ~/.claude config by default so a local tier applies
+        // via settingSources (callers may override via extraOptions). claudeSpawnEnv
+        // injects the gateway/DPCC-default override and purges stale local auth.
         settingSources: ["user", "project", "local"],
         ...options?.extraOptions,
         cwd,
@@ -65,7 +65,7 @@ async function oneShotSdkQuery(
         allowDangerouslySkipPermissions: true,
         persistSession: false,
         pathToClaudeCodeExecutable: cliPath,
-        env: { ...process.env, ...loadLocalClaudeEnv(), ...clientAppEnv(), ...claudeGatewayEnv() },
+        env: claudeSpawnEnv(),
         stderr: (data: string) => {
           const trimmed = data.trim();
           if (!trimmed) return;

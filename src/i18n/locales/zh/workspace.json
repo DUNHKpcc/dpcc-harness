@@ -17,7 +17,6 @@
   "account": {
     "loading": "加载中…",
     "connected": "已连接",
-    "connectedLocal": "通过本地配置连接",
     "refresh": "刷新",
     "balance": "余额",
     "used": "已用",

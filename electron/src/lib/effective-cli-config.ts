@@ -2,21 +2,19 @@
  * Resolves the config PccAgent actually applies when starting sessions — the
  * "effective" view shown read-only in Settings → Current Config.
  *
- * Precedence mirrors the session spawn logic:
- *  - Claude: local ~/.claude env wins (localClaudeGatewayTakesPriority) → in-app
- *    gateway when enabled → otherwise the engine default (login / cloud).
- *    A local ANTHROPIC_MODEL overrides the gateway model.
- *  - Codex: local ~/.codex provider wins (localCodexGatewayTakesPriority) →
- *    in-app gateway when enabled with a base URL → otherwise the engine default.
+ * Precedence mirrors the session spawn logic (see upstream-resolver):
+ *  - gateway: the in-app custom third-party gateway, when enabled (highest)
+ *  - local:   the user's local ~/.claude env / ~/.codex provider
+ *  - default: the DPCC official upstream (api.dpccgaming.xyz) + the DPCC account key
+ *
+ * The "default" tier is no longer the engine's own login — it routes to the DPCC
+ * upstream, so it carries a real base URL + (masked) token.
  */
 
-import { getAppSetting } from "./app-settings";
 import {
-  loadLocalClaudeEnv,
-  loadLocalCodexProvider,
-  localClaudeGatewayTakesPriority,
-  localCodexGatewayTakesPriority,
-} from "./local-cli-config";
+  resolveClaudeUpstream,
+  resolveCodexUpstream,
+} from "./upstream-resolver";
 import type {
   EffectiveCliConfig,
   EffectiveEngineConfig,
@@ -31,72 +29,24 @@ function maskSecret(value: string | null | undefined): string | null {
 }
 
 function resolveClaude(): EffectiveEngineConfig {
-  const env = loadLocalClaudeEnv();
-  const localBase = (env.ANTHROPIC_BASE_URL ?? "").trim();
-  const localToken = (env.ANTHROPIC_AUTH_TOKEN ?? env.ANTHROPIC_API_KEY ?? "").trim();
-  const localModel = (env.ANTHROPIC_MODEL ?? "").trim();
-  const g = getAppSetting("claudeGateway");
-
-  if (localClaudeGatewayTakesPriority()) {
-    return {
-      source: "local",
-      providerName: null,
-      baseUrl: localBase || null,
-      maskedToken: maskSecret(localToken),
-      model: localModel || null,
-    };
-  }
-
-  if (g?.enabled && (g.baseUrl.trim() || g.authToken.trim())) {
-    return {
-      source: "gateway",
-      providerName: null,
-      baseUrl: g.baseUrl.trim() || null,
-      maskedToken: maskSecret(g.authToken),
-      // A local ANTHROPIC_MODEL still wins over the gateway model (see claudeGatewayModel).
-      model: localModel || g.model.trim() || null,
-    };
-  }
-
+  const u = resolveClaudeUpstream();
   return {
-    source: "default",
+    source: u.tier,
     providerName: null,
-    baseUrl: null,
-    maskedToken: null,
-    model: localModel || null,
+    baseUrl: u.baseUrl || null,
+    maskedToken: maskSecret(u.token),
+    model: u.model || null,
   };
 }
 
 function resolveCodex(): EffectiveEngineConfig {
-  const c = getAppSetting("codexGateway");
-
-  if (localCodexGatewayTakesPriority()) {
-    const local = loadLocalCodexProvider();
-    return {
-      source: "local",
-      providerName: local.provider,
-      baseUrl: local.baseUrl,
-      maskedToken: null,
-      model: local.model,
-    };
-  }
-
-  if (c?.enabled && c.baseUrl.trim()) {
-    return {
-      source: "gateway",
-      providerName: c.name.trim() || "Custom",
-      baseUrl: c.baseUrl.trim(),
-      maskedToken: maskSecret(c.apiKey),
-      model: c.model.trim() || null,
-    };
-  }
-
+  const u = resolveCodexUpstream();
   return {
-    source: "default",
-    providerName: null,
-    baseUrl: null,
-    maskedToken: null,
-    model: null,
+    source: u.tier,
+    providerName: u.providerName || null,
+    baseUrl: u.baseUrl || null,
+    maskedToken: maskSecret(u.apiKey),
+    model: u.model || null,
   };
 }
 

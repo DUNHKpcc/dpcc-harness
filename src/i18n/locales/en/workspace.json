@@ -17,7 +17,6 @@
   "account": {
     "loading": "Loading…",
     "connected": "Connected",
-    "connectedLocal": "Connected via local config",
     "refresh": "Refresh",
     "balance": "Balance",
     "used": "Used",

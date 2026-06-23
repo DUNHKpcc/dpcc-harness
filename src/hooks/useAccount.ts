@@ -130,21 +130,18 @@ export function useAccount(active: boolean): UseAccountResult {
       const claudeToken = input.claudeToken.trim();
       const codexToken = input.codexToken.trim();
 
+      // The DPCC account is the lowest-priority "default" upstream — stored in
+      // dpccUpstream, separate from the custom third-party gateway (claudeGateway/
+      // codexGateway). The Codex /v1 suffix is applied by the resolver, so the bare
+      // host is stored here.
       const patch: Partial<AppSettings> = {
-        claudeGateway: {
-          ...settings.claudeGateway,
-          enabled: claudeToken.length > 0,
+        dpccUpstream: {
+          ...settings.dpccUpstream,
           baseUrl: host,
-          authToken: claudeToken,
-          ...(input.claudeModel !== undefined ? { model: input.claudeModel.trim() } : {}),
-        },
-        codexGateway: {
-          ...settings.codexGateway,
-          enabled: codexToken.length > 0,
-          name: settings.codexGateway.name || (status?.name ?? "DPCC API"),
-          baseUrl: codexToken.length > 0 ? `${host}/v1` : settings.codexGateway.baseUrl,
-          apiKey: codexToken,
-          ...(input.codexModel !== undefined ? { model: input.codexModel.trim() } : {}),
+          claudeToken,
+          codexToken,
+          ...(input.claudeModel !== undefined ? { claudeModel: input.claudeModel.trim() } : {}),
+          ...(input.codexModel !== undefined ? { codexModel: input.codexModel.trim() } : {}),
         },
       };
       if (input.accessToken !== undefined) patch.accountAccessToken = input.accessToken.trim();
@@ -153,7 +150,7 @@ export function useAccount(active: boolean): UseAccountResult {
       await window.claude.settings.set(patch);
       await load();
     },
-    [load, status],
+    [load],
   );
 
   const saveAccessToken = useCallback(

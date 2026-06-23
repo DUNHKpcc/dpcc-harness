@@ -219,13 +219,11 @@
     "configured": "已配置",
     "notConfigured": "未设置",
     "source": {
-      "gateway": "应用内网关",
-      "local": "本地 ~/.claude 配置",
+      "dpcc": "DPCC 账户",
       "none": "默认（DPCC API）"
     },
     "status": {
       "connected": "已连接",
-      "connectedLocal": "通过本地配置连接",
       "notConnected": "未连接"
     },
     "balanceLabel": "剩余",
@@ -315,26 +313,36 @@
   },
   "currentConfig": {
     "title": "当前配置",
-    "description": "PccAgent 实际用于运行会话的网关与模型配置。此处为只读 —— 如需修改，请前往「设置 → 引擎」或编辑本机 CLI 配置。",
+    "description": "PccAgent 实际用于运行会话的上游与模型配置。此处为只读 —— 如需修改，请前往「设置 → 引擎」（第三方网关）、「设置 → 账户」（DPCC 官方上游），或编辑本机 CLI 配置。",
     "refresh": "刷新",
+    "refreshing": "刷新中…",
     "claude": "Claude",
     "codex": "Codex",
-    "defaultHint": "当前没有启用自定义网关 —— PccAgent 使用该引擎自身的登录账号和默认接入点。",
     "source": {
-      "gateway": "应用内网关",
+      "gateway": "第三方网关",
       "local": "本机 CLI 配置",
-      "default": "引擎默认"
+      "default": "DPCC 官方上游"
     },
     "sourceDesc": {
-      "gateway": "通过「设置 → 引擎」中配置的自定义网关转发。",
-      "local": "你的本机 CLI 配置优先级更高，正按原样使用。",
-      "default": "未配置自定义接入点。"
+      "gateway": "通过「设置 → 引擎」中配置的自定义第三方网关转发（最高优先级）。",
+      "local": "你的本机 CLI 配置正在生效（高于 DPCC 默认上游）。",
+      "default": "通过 DPCC 官方上游 (api.dpccgaming.xyz) 转发。"
     },
     "fields": {
       "provider": "提供方",
       "baseUrl": "Base URL",
       "token": "Token",
-      "model": "模型"
+      "model": "默认模型"
+    },
+    "models": {
+      "title": "可用模型",
+      "count": "{{count}} 个",
+      "loading": "正在拉取模型…",
+      "empty": "上游未返回模型列表。",
+      "noToken": "未配置密钥 —— 在「设置 → 账户」填入 DPCC 密钥后即可拉取模型。",
+      "localProviderUnreadable": "模型列表由你的本机 Codex CLI 配置管理。",
+      "error": "无法拉取模型，请检查上游地址与密钥是否正确。",
+      "default": "默认"
     }
   },
   "advanced": {

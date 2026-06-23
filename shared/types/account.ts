@@ -6,8 +6,13 @@
  * that drives Claude sessions also powers balance and available-model queries.
  */
 
-/** Where the resolved upstream credentials came from. */
-export type AccountSource = "gateway" | "local" | "none";
+/**
+ * Where the account panel's credentials came from. The account panel always
+ * reflects the DPCC account (dpccUpstream), independent of any custom gateway or
+ * local CLI config (those are session-only upstream overrides, shown in Current
+ * Config). So this is binary: configured or not.
+ */
+export type AccountSource = "dpcc" | "none";
 
 /** Default upstream platform — DPCC API. Used when nothing else is configured. */
 export const DEFAULT_NEWAPI_BASE_URL = "https://api.dpccgaming.xyz";
@@ -24,7 +29,7 @@ export interface AccountConfig {
   hasCodexToken: boolean;
   /** Whether a system access token (+ user id) for /api/user/self balance is configured */
   hasAccessToken: boolean;
-  /** "gateway" = PccAgent settings, "local" = ~/.claude env, "none" = not set up */
+  /** "dpcc" = DPCC account configured (a token is set), "none" = not set up */
   source: AccountSource;
 }
 

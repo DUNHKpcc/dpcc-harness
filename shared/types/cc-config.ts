@@ -7,10 +7,10 @@
 // ── Effective ("what PccAgent is actually using") config ──
 
 /**
- * Where the config PccAgent applies to a session comes from:
- *  - "gateway": the in-app custom gateway (Settings → Engines) is enabled and winning
- *  - "local":   the user's local CLI config (~/.claude, ~/.codex) is set and takes priority
- *  - "default": no custom endpoint — the engine's own login / cloud default is used
+ * Where the config PccAgent applies to a session comes from (highest → lowest):
+ *  - "gateway": the in-app custom third-party gateway (Settings → Engines) is enabled and winning
+ *  - "local":   the user's local CLI config (~/.claude, ~/.codex) is set and applies
+ *  - "default": the DPCC official upstream (api.dpccgaming.xyz) + the DPCC account key
  */
 export type EffectiveConfigSource = "gateway" | "local" | "default";
 
@@ -31,4 +31,22 @@ export interface EffectiveEngineConfig {
 export interface EffectiveCliConfig {
   claude: EffectiveEngineConfig;
   codex: EffectiveEngineConfig;
+}
+
+// ── Upstream model lists (pulled live from /v1/models) ──
+
+/** All models available on a single engine's effective upstream. */
+export interface EffectiveModelList {
+  /** Which tier the models were pulled from (mirrors EffectiveConfigSource). */
+  source: EffectiveConfigSource;
+  /** Model ids available on the effective upstream (empty when none / unreachable). */
+  models: string[];
+  /** Non-null when the listing failed (e.g. unreachable, unauthorized, no token). */
+  error: string | null;
+}
+
+/** Live upstream model lists for both engines, used by the Current Config panel. */
+export interface EffectiveCliModels {
+  claude: EffectiveModelList;
+  codex: EffectiveModelList;
 }

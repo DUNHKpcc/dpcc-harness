@@ -1,45 +1,65 @@
 /**
- * Shared Claude gateway resolution.
+ * Shared Claude gateway / upstream resolution.
  *
  * Every code path that spawns Claude — interactive sessions, the WeChat bridge
  * adapter, and one-shot utility queries (chat-title + commit-message generation)
- * — must authenticate against the same gateway. When they don't, requests hit a
+ * — must authenticate against the same upstream. When they don't, requests hit a
  * bare endpoint and the gateway replies "not login" (B4: WeChat sends fail;
  * B5b: built-in title generation returns "not login" as the title).
  *
- * If the user already configured the gateway in their own ~/.claude/settings.json,
- * the local config wins and PccAgent injects nothing — letting
- * `settingSources: ["user", ...]` apply the local values.
+ * Precedence (see upstream-resolver): custom gateway > local ~/.claude > DPCC
+ * default upstream. Process env wins over ~/.claude/settings.json env, so the
+ * injected override always beats a local config when the gateway/default tier is
+ * active — claudeSpawnEnv additionally purges inherited ANTHROPIC_* so a stale
+ * local key can't leak through.
  */
 
-import { log } from "./logger";
-import { getAppSetting } from "./app-settings";
-import { localClaudeGatewayTakesPriority, probeLocalClaudeGateway } from "./local-cli-config";
+import { loadLocalClaudeEnv } from "./local-cli-config";
+import { clientAppEnv } from "./sdk";
+import { resolveClaudeUpstream } from "./upstream-resolver";
 
 /**
- * Env vars for the custom Claude gateway (ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN).
- * Returns `{}` when the gateway is disabled or the local config already sets these.
+ * Env vars for the effective Claude upstream (ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN).
+ * Returns `{}` for the local tier so the user's ~/.claude/settings.json applies
+ * unchanged via settingSources.
  */
 export function claudeGatewayEnv(): Record<string, string> {
-  if (localClaudeGatewayTakesPriority()) {
-    log("CLAUDE_GATEWAY_DEFER", "local ~/.claude/settings.json env overrides PccAgent gateway");
-    return {};
-  }
-  const g = getAppSetting("claudeGateway");
-  if (!g?.enabled) return {};
+  const u = resolveClaudeUpstream();
+  if (u.tier === "local") return {};
   const env: Record<string, string> = {};
-  if (g.baseUrl.trim()) env.ANTHROPIC_BASE_URL = g.baseUrl.trim();
-  if (g.authToken.trim()) env.ANTHROPIC_AUTH_TOKEN = g.authToken.trim();
+  if (u.baseUrl) env.ANTHROPIC_BASE_URL = u.baseUrl;
+  if (u.token) env.ANTHROPIC_AUTH_TOKEN = u.token;
   return env;
 }
 
 /**
- * Custom model id from the Claude gateway, used as the session default when enabled.
- * Returns undefined when the gateway is off or the user's local settings.json sets
- * ANTHROPIC_MODEL (which then wins).
+ * Full subprocess env for spawning Claude. When a gateway/default override wins,
+ * purge inherited ANTHROPIC_* (from process.env or ~/.claude) before applying the
+ * override so the resolved upstream fully controls auth.
+ */
+export function claudeSpawnEnv(): Record<string, string | undefined> {
+  const override = claudeGatewayEnv();
+  const base: Record<string, string | undefined> = {
+    ...process.env,
+    ...loadLocalClaudeEnv(),
+    ...clientAppEnv(),
+  };
+  if (Object.keys(override).length > 0) {
+    delete base.ANTHROPIC_API_KEY;
+    delete base.ANTHROPIC_AUTH_TOKEN;
+    delete base.ANTHROPIC_BASE_URL;
+    delete base.ANTHROPIC_MODEL;
+  }
+  return { ...base, ...override };
+}
+
+/**
+ * Configured upstream model. The gateway and DPCC-default tiers serve their own
+ * models, so the configured id overrides the in-app picker (and seeds one-shot
+ * utility queries that have no picker). undefined on the local tier — the picker
+ * / the caller's own fallback stays in charge, and a local ANTHROPIC_MODEL applies.
  */
 export function claudeGatewayModel(): string | undefined {
-  if (probeLocalClaudeGateway().hasModel) return undefined;
-  const g = getAppSetting("claudeGateway");
-  return g?.enabled && g.model.trim() ? g.model.trim() : undefined;
+  const u = resolveClaudeUpstream();
+  return u.tier === "local" ? undefined : u.model || undefined;
 }

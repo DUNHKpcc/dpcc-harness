@@ -72,7 +72,6 @@ const NAV_ITEMS: NavItem[] = [
 
 interface SettingsViewProps {
   onClose: () => void;
-  currentConfigModelFallbacks?: { claude?: string; codex?: string };
   glassSupported: boolean;
   macLiquidGlassSupported: boolean;
   sidebarOpen?: boolean;
@@ -87,7 +86,6 @@ interface SettingsViewProps {
 
 export const SettingsView = memo(function SettingsView({
   onClose,
-  currentConfigModelFallbacks,
   glassSupported,
   macLiquidGlassSupported,
   sidebarOpen = false,
@@ -182,11 +180,7 @@ export const SettingsView = memo(function SettingsView({
           />
         );
       case "current-config":
-        return (
-          <CurrentConfigSettings
-            modelFallbacks={currentConfigModelFallbacks}
-          />
-        );
+        return <CurrentConfigSettings />;
       case "advanced":
         return (
           <AdvancedSettings

@@ -82,7 +82,6 @@ import {
   isNearBottomDockZone,
 } from "@/lib/workspace/drag";
 import { AgentProvider, type AgentContextValue } from "./AgentContext";
-import { useSettingsStore, DEFAULT_ENGINE_MODELS } from "@/stores/settings-store";
 import { toastText } from "@/lib/toast-i18n";
 
 /**
@@ -126,9 +125,6 @@ export function AppLayout() {
   // closure snapshot.
   const managerRef = useRef(manager);
   managerRef.current = manager;
-  // Global last-selected model per engine — drives Current Config so it reflects
-  // each engine's model without first opening a session of that engine.
-  const lastModelByEngine = useSettingsStore((s) => s.lastModelByEngine);
   const {
     agents, selectedAgent, saveAgent, deleteAgent, handleAgentChange, lockedEngine, lockedAgentId,
   } = agentState;
@@ -1495,10 +1491,6 @@ export function AppLayout() {
         {showSettings && (
           <SettingsView
             onClose={() => setShowSettings(false)}
-            currentConfigModelFallbacks={{
-              claude: lastModelByEngine.claude || DEFAULT_ENGINE_MODELS.claude,
-              codex: lastModelByEngine.codex || DEFAULT_ENGINE_MODELS.codex,
-            }}
             glassSupported={glassSupported}
             macLiquidGlassSupported={macLiquidGlassSupported}
             sidebarOpen={sidebar.isOpen}

@@ -219,13 +219,11 @@
     "configured": "Configured",
     "notConfigured": "Not set",
     "source": {
-      "gateway": "In-app gateway",
-      "local": "Local ~/.claude config",
+      "dpcc": "DPCC account",
       "none": "Default (DPCC API)"
     },
     "status": {
       "connected": "Connected",
-      "connectedLocal": "Connected via local config",
       "notConnected": "Not connected"
     },
     "balanceLabel": "Remaining",
@@ -315,26 +313,36 @@
   },
   "currentConfig": {
     "title": "Current Config",
-    "description": "The gateway and model configuration PccAgent is actually using to run sessions. Read-only — change these in Settings → Engines, or in your local CLI config.",
+    "description": "The upstream and model configuration PccAgent is actually using to run sessions. Read-only — change these in Settings → Engines (third-party gateway), Settings → Account (DPCC default upstream), or in your local CLI config.",
     "refresh": "Refresh",
+    "refreshing": "Refreshing…",
     "claude": "Claude",
     "codex": "Codex",
-    "defaultHint": "No custom gateway in effect — PccAgent uses this engine's own login and default endpoint.",
     "source": {
-      "gateway": "In-app gateway",
+      "gateway": "Third-party gateway",
       "local": "Local CLI config",
-      "default": "Engine default"
+      "default": "DPCC default upstream"
     },
     "sourceDesc": {
-      "gateway": "Routed through the custom gateway set in Settings → Engines.",
-      "local": "Your local CLI config takes priority and is being used as-is.",
-      "default": "No custom endpoint configured."
+      "gateway": "Routed through the custom third-party gateway set in Settings → Engines (highest priority).",
+      "local": "Your local CLI config is in effect (above the DPCC default upstream).",
+      "default": "Routed through the DPCC default upstream (api.dpccgaming.xyz)."
     },
     "fields": {
       "provider": "Provider",
       "baseUrl": "Base URL",
       "token": "Token",
-      "model": "Model"
+      "model": "Default model"
+    },
+    "models": {
+      "title": "Available models",
+      "count": "{{count}}",
+      "loading": "Fetching models…",
+      "empty": "The upstream returned no models.",
+      "noToken": "No key configured — add your DPCC key in Settings → Account to list models.",
+      "localProviderUnreadable": "Model listing is managed by your local Codex CLI config.",
+      "error": "Couldn't fetch models. Check the upstream URL and key.",
+      "default": "Default"
     }
   },
   "advanced": {

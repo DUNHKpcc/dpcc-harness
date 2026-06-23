@@ -6,7 +6,7 @@ import type { ModelInfo, McpServerConfig, McpServerStatus } from "./mcp";
 import type { PermissionUpdate } from "./permissions";
 import type { GitRepoInfo, GitStatus, GitBranch, GitLogEntry } from "@shared/types/git";
 import type { InstalledAgent } from "@shared/types/registry";
-import type { EffectiveCliConfig } from "@shared/types/cc-config";
+import type { EffectiveCliConfig, EffectiveCliModels } from "@shared/types/cc-config";
 import type { AppSettings, MacBackgroundEffect, ThemeOption } from "@shared/types/settings";
 import type { WeChatBridgeState, WeChatBridgeConfig, WeChatBridgeEvent } from "@shared/types/wechat";
 import type { AccountConfig, AccountBalanceResult, AccountModelsResult, AccountStatus, UsageStats, UsageStatsResult } from "@shared/types/account";
@@ -242,6 +242,8 @@ declare global {
       ccConfig: {
         /** Resolve the effective gateway/provider config PccAgent applies to sessions. */
         effective: () => Promise<EffectiveCliConfig>;
+        /** List all models available on each engine's effective upstream (/v1/models). */
+        models: () => Promise<EffectiveCliModels>;
       };
       files: {
         list: (cwd: string) => Promise<{ files: string[]; dirs: string[] }>;

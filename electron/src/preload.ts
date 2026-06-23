@@ -201,6 +201,7 @@ contextBridge.exposeInMainWorld("claude", {
   },
   ccConfig: {
     effective: () => ipcRenderer.invoke("cc-config:effective"),
+    models: () => ipcRenderer.invoke("cc-config:models"),
   },
   files: {
     list: (cwd: string) => ipcRenderer.invoke("files:list", cwd),

@@ -1,9 +1,8 @@
 import { log } from "../../logger";
 import { reportError } from "../../error-utils";
-import { getSDK, clientAppEnv } from "../../sdk";
+import { getSDK } from "../../sdk";
 import { getClaudeBinaryPath, isClaudeInstalled } from "../../claude-binary";
-import { loadLocalClaudeEnv } from "../../local-cli-config";
-import { claudeGatewayEnv, claudeGatewayModel } from "../../claude-gateway-env";
+import { claudeSpawnEnv, claudeGatewayModel } from "../../claude-gateway-env";
 import { isSessionError } from "./session-error";
 import type { CLIAdapter, AdapterExecOptions, AdapterExecResult } from "./types";
 
@@ -55,10 +54,10 @@ export class ClaudeAdapter implements CLIAdapter {
       // token-by-token, matching a normal session's feel.
       includePartialMessages: true,
       settingSources: ["user", "project", "local"],
-      // Inject the in-app gateway auth so phone-initiated runs authenticate the
-      // same way interactive sessions do — without it the gateway returns
+      // Authenticate phone-initiated runs against the same upstream as interactive
+      // sessions (gateway > local > DPCC default) — without it the gateway returns
       // "not login" for every WeChat message (B4).
-      env: { ...process.env, ...loadLocalClaudeEnv(), ...clientAppEnv(), ...claudeGatewayEnv() },
+      env: claudeSpawnEnv(),
     };
     if (opts.model) sdkOpts.model = opts.model;
     // Gateway custom model overrides the configured model when enabled — the

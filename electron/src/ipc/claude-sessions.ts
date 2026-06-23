@@ -6,7 +6,7 @@ import path from "path";
 import { log } from "../lib/logger";
 import { safeSend } from "../lib/safe-send";
 import { AsyncChannel } from "../lib/async-channel";
-import { getSDK, clientAppEnv, getCliPath } from "../lib/sdk";
+import { getSDK, getCliPath } from "../lib/sdk";
 import type { QueryHandle } from "../lib/sdk";
 import { getMcpAuthHeaders } from "../lib/mcp-oauth-flow";
 import { getClaudeModelsCache, setClaudeModelsCache } from "../lib/claude-model-cache";
@@ -24,22 +24,17 @@ import {
   getClaudeVersion,
 } from "../lib/claude-binary";
 import { captureEvent } from "../lib/posthog";
-import { loadLocalClaudeEnv } from "../lib/local-cli-config";
-import { claudeGatewayEnv, claudeGatewayModel } from "../lib/claude-gateway-env";
+import { claudeSpawnEnv, claudeGatewayModel } from "../lib/claude-gateway-env";
 
 /** SDK options for file checkpointing — enables Write/Edit/NotebookEdit revert support.
- *  Env precedence: process.env → user's ~/.claude/settings.json env (overrides stale
- *  ANTHROPIC_* in process.env) → PccAgent client env → PccAgent gateway env → checkpointing flag.
- *  PccAgent gateway env is empty when local takes priority (see claudeGatewayEnv). */
+ *  Env is resolved by claudeSpawnEnv: gateway > local ~/.claude > DPCC default,
+ *  purging inherited ANTHROPIC_* when an override tier wins. */
 function fileCheckpointOptions(): Record<string, unknown> {
   return {
     enableFileCheckpointing: true,
     extraArgs: { "replay-user-messages": null }, // required to receive checkpoint UUIDs
     env: {
-      ...process.env,
-      ...loadLocalClaudeEnv(),
-      ...clientAppEnv(),
-      ...claudeGatewayEnv(),
+      ...claudeSpawnEnv(),
       CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING: "1",
     },
   };

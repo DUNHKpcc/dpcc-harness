@@ -30,23 +30,6 @@ function normalizeHost(raw: string): string {
   return n || DEFAULT_NEWAPI_BASE_URL;
 }
 
-/**
- * Pick the host to seed the form with. Mirrors resolveUpstream(): prefer the
- * base URL of a gateway that is actually active (enabled + has a token) so a
- * stale, disabled gateway's host can't get written back on save. Falls back to
- * any stored base URL when neither gateway is active.
- */
-function pickInitialHost(
-  cg: AppSettings["claudeGateway"] | undefined,
-  xg: AppSettings["codexGateway"] | undefined,
-): string {
-  const claudeOn = !!(cg?.enabled && cg.authToken.trim());
-  const codexOn = !!(xg?.enabled && xg.apiKey.trim());
-  const candidate =
-    (claudeOn && cg?.baseUrl) || (codexOn && xg?.baseUrl) || cg?.baseUrl || xg?.baseUrl || "";
-  return normalizeHost(candidate);
-}
-
 /** Small on/off credential pill. */
 const Chip = memo(function Chip({ label, on }: { label: string; on: boolean }) {
   return (
@@ -131,13 +114,14 @@ export const AccountSettings = memo(function AccountSettings({
 
   useEffect(() => {
     if (!appSettings) return;
-    const cg = appSettings.claudeGateway;
-    const xg = appSettings.codexGateway;
-    setHost(pickInitialHost(cg, xg));
-    setClaudeToken(cg?.authToken || "");
-    setCodexToken(xg?.apiKey || "");
-    setClaudeModel(cg?.model || "");
-    setCodexModel(xg?.model || "");
+    // The DPCC account lives in dpccUpstream now (the "default" upstream tier),
+    // separate from the custom third-party gateway in Settings → Engines.
+    const d = appSettings.dpccUpstream;
+    setHost(normalizeHost(d?.baseUrl || ""));
+    setClaudeToken(d?.claudeToken || "");
+    setCodexToken(d?.codexToken || "");
+    setClaudeModel(d?.claudeModel || "");
+    setCodexModel(d?.codexModel || "");
     setUserId(appSettings.accountUserId || "");
     setAccessToken(appSettings.accountAccessToken || "");
   }, [appSettings]);
@@ -147,23 +131,14 @@ export const AccountSettings = memo(function AccountSettings({
     setSaving(true);
     try {
       const h = normalizeHost(host);
-      const ct = claudeToken.trim();
-      const xt = codexToken.trim();
       await onUpdateAppSettings({
-        claudeGateway: {
-          ...appSettings.claudeGateway,
-          enabled: ct.length > 0,
+        dpccUpstream: {
+          ...appSettings.dpccUpstream,
           baseUrl: h,
-          authToken: ct,
-          model: claudeModel.trim(),
-        },
-        codexGateway: {
-          ...appSettings.codexGateway,
-          enabled: xt.length > 0,
-          name: appSettings.codexGateway.name || status?.name || "DPCC API",
-          baseUrl: xt.length > 0 ? `${h}/v1` : appSettings.codexGateway.baseUrl,
-          apiKey: xt,
-          model: codexModel.trim(),
+          claudeToken: claudeToken.trim(),
+          codexToken: codexToken.trim(),
+          claudeModel: claudeModel.trim(),
+          codexModel: codexModel.trim(),
         },
         accountAccessToken: accessToken.trim(),
         accountUserId: userId.trim(),
@@ -172,23 +147,19 @@ export const AccountSettings = memo(function AccountSettings({
     } finally {
       setSaving(false);
     }
-  }, [appSettings, host, claudeToken, codexToken, claudeModel, codexModel, accessToken, userId, status, onUpdateAppSettings, account]);
+  }, [appSettings, host, claudeToken, codexToken, claudeModel, codexModel, accessToken, userId, onUpdateAppSettings, account]);
 
   const connected = !!(config && config.hasToken && config.source !== "none");
   const sourceLabel = config
-    ? config.source === "gateway"
-      ? t("account.source.gateway")
-      : config.source === "local"
-        ? t("account.source.local")
-        : t("account.source.none")
+    ? config.source === "dpcc"
+      ? t("account.source.dpcc")
+      : t("account.source.none")
     : "—";
   const statusLabel = !config
     ? "—"
-    : !connected
-      ? t("account.status.notConnected")
-      : config.source === "local"
-        ? t("account.status.connectedLocal")
-        : t("account.status.connected");
+    : connected
+      ? t("account.status.connected")
+      : t("account.status.notConnected");
 
   const usedPct =
     balance && !balance.unlimited && balance.totalUsd > 0

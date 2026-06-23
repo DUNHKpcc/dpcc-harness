@@ -61,6 +61,26 @@ export interface CodexGatewaySettings {
   model: string;
 }
 
+/**
+ * DPCC official default upstream (api.dpccgaming.xyz). The lowest-priority tier:
+ * applied only when neither a custom third-party gateway nor a local CLI config
+ * is set. Credentials come from the DPCC API account entry (Settings → Account)
+ * and the welcome wizard. Unlike the gateway settings there is no `enabled`
+ * flag — this is always the fallback, gated only by whether a token is present.
+ */
+export interface DpccUpstreamSettings {
+  /** Host root (empty → DEFAULT_NEWAPI_BASE_URL). Claude uses as-is; Codex appends /v1. */
+  baseUrl: string;
+  /** Claude-group key (sk-…) → ANTHROPIC_AUTH_TOKEN against the DPCC upstream */
+  claudeToken: string;
+  /** Codex-group key (sk-…) → model_providers api key against the DPCC upstream */
+  codexToken: string;
+  /** Optional Claude default model id (empty = keep the picker) */
+  claudeModel: string;
+  /** Optional Codex default model id (empty = keep the picker) */
+  codexModel: string;
+}
+
 // ── Main AppSettings interface ──
 
 /** Main-process app settings (persisted to JSON file in data dir). */
@@ -103,10 +123,16 @@ export interface AppSettings {
   analyticsUserId?: string;
   /** Last date (YYYY-MM-DD) when daily_active_user was sent */
   analyticsLastDailyActiveDate?: string;
-  /** Custom third-party gateway config for the Claude engine */
+  /** Custom third-party gateway config for the Claude engine (highest-priority tier) */
   claudeGateway: ClaudeGatewaySettings;
-  /** Custom third-party gateway config for the Codex engine */
+  /** Custom third-party gateway config for the Codex engine (highest-priority tier) */
   codexGateway: CodexGatewaySettings;
+  /**
+   * DPCC official default upstream (api.dpccgaming.xyz) — the lowest-priority
+   * fallback used when no gateway and no local CLI config apply. Populated by the
+   * DPCC API account entry and the welcome wizard.
+   */
+  dpccUpstream: DpccUpstreamSettings;
   /**
    * new-api system access token (访问令牌) used to query real account balance
    * via /api/user/self. Distinct from the sk- relay token in claudeGateway.

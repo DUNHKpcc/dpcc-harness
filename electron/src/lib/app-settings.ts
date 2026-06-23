@@ -11,10 +11,16 @@
 import path from "path";
 import fs from "fs";
 import { getDataDir } from "./data-dir";
-import type { AppSettings, NotificationSettings } from "@shared/types/settings";
+import type {
+  AppSettings,
+  NotificationSettings,
+  ClaudeGatewaySettings,
+  CodexGatewaySettings,
+  DpccUpstreamSettings,
+} from "@shared/types/settings";
 
 // Re-export shared types so existing `import from "./app-settings"` consumers still work
-export type { AppSettings, MacBackgroundEffect, PreferredEditor, VoiceDictationMode, NotificationTrigger, NotificationEventSettings, NotificationSettings, CodexBinarySource, ClaudeBinarySource, ClaudeGatewaySettings, CodexGatewaySettings, UpdateSource } from "@shared/types/settings";
+export type { AppSettings, MacBackgroundEffect, PreferredEditor, VoiceDictationMode, NotificationTrigger, NotificationEventSettings, NotificationSettings, CodexBinarySource, ClaudeBinarySource, ClaudeGatewaySettings, CodexGatewaySettings, DpccUpstreamSettings, UpdateSource } from "@shared/types/settings";
 
 const NOTIFICATION_DEFAULTS: NotificationSettings = {
   exitPlanMode: { osNotification: "unfocused", sound: "always" },
@@ -41,9 +47,56 @@ const DEFAULTS: AppSettings = {
   analyticsEnabled: true,
   claudeGateway: { enabled: false, baseUrl: "", authToken: "", model: "" },
   codexGateway: { enabled: false, name: "", baseUrl: "", apiKey: "", model: "" },
+  dpccUpstream: { baseUrl: "", claudeToken: "", codexToken: "", claudeModel: "", codexModel: "" },
   accountAccessToken: "",
   accountUserId: "",
 };
+
+const DPCC_HOST_RE = /dpccgaming\.xyz/i;
+
+/** A gateway base URL is "DPCC-shaped" when it's empty or points at the DPCC host. */
+function looksLikeDpcc(baseUrl: string | undefined): boolean {
+  const u = (baseUrl ?? "").trim();
+  return u === "" || DPCC_HOST_RE.test(u);
+}
+
+/**
+ * One-time migration for settings written before `dpccUpstream` existed.
+ *
+ * Previously the DPCC API account entry stored its key in claudeGateway/
+ * codexGateway with `enabled=true`. Those gateways now mean "custom third-party
+ * gateway" only (the highest-priority tier), while the DPCC default upstream has
+ * its own field (the lowest tier). Move any DPCC-shaped gateway credentials into
+ * `dpccUpstream` and clear them from the gateway fields so a DPCC account isn't
+ * mistaken for a custom gateway. Custom (non-DPCC) gateways are left untouched.
+ */
+function migrateLegacyDpcc(parsed: Partial<AppSettings>): {
+  dpccUpstream: DpccUpstreamSettings;
+  claudeGateway: ClaudeGatewaySettings;
+  codexGateway: CodexGatewaySettings;
+} {
+  const cg: ClaudeGatewaySettings = { ...DEFAULTS.claudeGateway, ...parsed.claudeGateway };
+  const xg: CodexGatewaySettings = { ...DEFAULTS.codexGateway, ...parsed.codexGateway };
+  const claudeIsDpcc = !!(cg.enabled && cg.authToken.trim() && looksLikeDpcc(cg.baseUrl));
+  const codexIsDpcc = !!(xg.enabled && xg.apiKey.trim() && looksLikeDpcc(xg.baseUrl));
+
+  const dpccBaseUrl =
+    (claudeIsDpcc && cg.baseUrl.trim()) ||
+    (codexIsDpcc && xg.baseUrl.trim().replace(/\/v1$/, "")) ||
+    "";
+
+  return {
+    dpccUpstream: {
+      baseUrl: dpccBaseUrl,
+      claudeToken: claudeIsDpcc ? cg.authToken.trim() : "",
+      codexToken: codexIsDpcc ? xg.apiKey.trim() : "",
+      claudeModel: claudeIsDpcc ? cg.model.trim() : "",
+      codexModel: codexIsDpcc ? xg.model.trim() : "",
+    },
+    claudeGateway: claudeIsDpcc ? { ...DEFAULTS.claudeGateway } : cg,
+    codexGateway: codexIsDpcc ? { ...DEFAULTS.codexGateway } : xg,
+  };
+}
 
 // ── Internal state ──
 
@@ -79,6 +132,10 @@ export function getAppSettings(): AppSettings {
   try {
     const raw = fs.readFileSync(filePath(), "utf-8");
     const parsed = JSON.parse(raw) as Partial<AppSettings>;
+    // Settings predating the dpccUpstream field need a one-time migration that
+    // splits DPCC account creds out of the gateway fields (see migrateLegacyDpcc).
+    const needsDpccMigration = parsed.dpccUpstream === undefined;
+    const migrated = needsDpccMigration ? migrateLegacyDpcc(parsed) : null;
     // Merge with defaults so newly added keys are always present.
     // Deep-merge `notifications` so upgrading users get defaults for each event type
     // even if their settings.json has a partial or missing notifications object.
@@ -92,7 +149,23 @@ export function getAppSettings(): AppSettings {
         askUserQuestion: { ...NOTIFICATION_DEFAULTS.askUserQuestion, ...parsedNotif?.askUserQuestion },
         sessionComplete: { ...NOTIFICATION_DEFAULTS.sessionComplete, ...parsedNotif?.sessionComplete },
       },
+      // Deep-merge dpccUpstream so a hand-edited partial object can't leave string
+      // fields undefined — the resolver calls .trim() on them. (migrated, when set,
+      // already contains a complete object and overrides this below.)
+      dpccUpstream: { ...DEFAULTS.dpccUpstream, ...parsed.dpccUpstream },
+      ...(migrated ?? {}),
     };
+    if (migrated) {
+      // Persist the migration once so the legacy gateway creds are physically
+      // moved and this branch never runs again for this user.
+      try {
+        fs.writeFileSync(filePath(), JSON.stringify(cached, null, 2), "utf-8");
+        cachedMtimeMs = readMtimeMs();
+        return cached;
+      } catch {
+        // Write failed — keep the migrated values in memory for this session.
+      }
+    }
   } catch {
     cached = { ...DEFAULTS };
   }

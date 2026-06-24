@@ -6,7 +6,6 @@ import { app } from "electron";
 // This module is imported by IPC/background code during main-process startup, so
 // keep all filesystem/app-path work lazy and non-fatal.
 let logsDir: string | null = null;
-let logFile: string | null = null;
 let logStream: fs.WriteStream | null = null;
 let logStreamClosed = false;
 let readyInitScheduled = false;
@@ -101,8 +100,8 @@ function getLogStream(): fs.WriteStream | null {
     fs.mkdirSync(dir, { recursive: true });
     pruneOldLogs(dir);
 
-    logFile = path.join(dir, `main-${Date.now()}.log`);
-    logStream = fs.createWriteStream(logFile, { flags: "a" });
+    const nextLogFile = path.join(dir, `main-${Date.now()}.log`);
+    logStream = fs.createWriteStream(nextLogFile, { flags: "a" });
     // Swallow stream errors (EPIPE, write-after-end during shutdown) so they can
     // never crash the main process.
     logStream.on("error", () => {

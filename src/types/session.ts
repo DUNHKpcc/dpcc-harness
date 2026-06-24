@@ -2,6 +2,7 @@ import type { ToolUseResult } from "./protocol";
 import type { EngineId } from "./engine";
 import type { ImageAttachment } from "./attachments";
 import type { ContextUsage } from "./mcp";
+import type { PermissionMode } from "./permissions";
 
 // ── Effort ──
 
@@ -23,35 +24,103 @@ export interface SubagentToolStep {
   toolError?: boolean;
 }
 
-export interface UIMessage {
+interface UIMessageBase {
   id: string;
-  role: "user" | "assistant" | "tool_call" | "tool_result" | "system" | "summary";
   content: string;
+  timestamp: number;
+}
+
+interface ToolBackedMessageFields {
   toolName?: string;
   toolInput?: Record<string, unknown>;
   toolResult?: ToolUseResult;
+  toolError?: boolean;
+}
+
+interface NoToolBackedMessageFields {
+  toolName?: never;
+  toolInput?: never;
+  toolResult?: never;
+  toolError?: never;
+}
+
+interface AssistantMessageFields {
   thinking?: string;
   thinkingComplete?: boolean;
   isStreaming?: boolean;
-  timestamp: number;
   subagentId?: string;
   subagentSteps?: SubagentToolStep[];
   subagentStatus?: "running" | "completed";
   subagentDurationMs?: number;
   subagentTokens?: number;
-  toolError?: boolean;
-  images?: ImageAttachment[];
-  /** User-visible text (with @path refs but without <file> XML blocks). Falls back to regex stripping if absent (old sessions). */
-  displayContent?: string;
-  compactTrigger?: "manual" | "auto";
-  compactPreTokens?: number;
-  /** When true, system message is rendered with error styling (red text, alert icon) */
-  isError?: boolean;
   /** SDK checkpoint UUID -- when present, files can be reverted to the state before this message */
   checkpointId?: string;
-  /** When true, this user message is waiting in the queue -- not yet sent to the agent */
-  isQueued?: boolean;
 }
+
+interface NoAssistantMessageFields {
+  thinking?: never;
+  thinkingComplete?: never;
+  isStreaming?: never;
+  subagentId?: never;
+  subagentSteps?: never;
+  subagentStatus?: never;
+  subagentDurationMs?: never;
+  subagentTokens?: never;
+  checkpointId?: never;
+}
+
+export type UserUIMessage = UIMessageBase &
+  NoToolBackedMessageFields &
+  NoAssistantMessageFields & {
+    role: "user";
+    images?: ImageAttachment[];
+    /** User-visible text (with @path refs but without <file> XML blocks). Falls back to regex stripping if absent (old sessions). */
+    displayContent?: string;
+    /** When true, this user message is waiting in the queue -- not yet sent to the agent */
+    isQueued?: boolean;
+  };
+
+export type AssistantUIMessage = UIMessageBase &
+  NoToolBackedMessageFields &
+  AssistantMessageFields & {
+    role: "assistant";
+  };
+
+export type ToolCallUIMessage = UIMessageBase &
+  ToolBackedMessageFields &
+  NoAssistantMessageFields & {
+    role: "tool_call";
+  };
+
+export type ToolResultUIMessage = UIMessageBase &
+  ToolBackedMessageFields &
+  NoAssistantMessageFields & {
+    role: "tool_result";
+  };
+
+export type SystemUIMessage = UIMessageBase &
+  NoToolBackedMessageFields &
+  NoAssistantMessageFields & {
+    role: "system";
+    /** When true, system message is rendered with error styling (red text, alert icon) */
+    isError?: boolean;
+  };
+
+export type SummaryUIMessage = UIMessageBase &
+  NoToolBackedMessageFields &
+  NoAssistantMessageFields & {
+    role: "summary";
+    compactTrigger?: "manual" | "auto";
+    compactPreTokens?: number;
+  };
+
+export type UIMessage =
+  | UserUIMessage
+  | AssistantUIMessage
+  | ToolCallUIMessage
+  | ToolResultUIMessage
+  | SystemUIMessage
+  | SummaryUIMessage;
 
 // ── Session metadata ──
 
@@ -61,7 +130,7 @@ export interface SessionInfo {
   cwd: string;
   tools: string[];
   version: string;
-  permissionMode?: string;
+  permissionMode?: PermissionMode;
   agentName?: string;
 }
 
@@ -100,7 +169,7 @@ export interface SessionBase {
   createdAt: number;
   model?: string;
   effort?: ClaudeEffort;
-  permissionMode?: string;
+  permissionMode?: PermissionMode;
   planMode?: boolean;
   totalCost: number;
   engine?: EngineId;

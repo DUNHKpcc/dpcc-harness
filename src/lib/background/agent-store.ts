@@ -280,7 +280,8 @@ class BackgroundAgentStore {
 
 /** Extract text content of an XML-like tag from a string. */
 function extractXmlTag(text: string, tag: string): string | null {
-  const re = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`);
+  const escapedTag = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`<${escapedTag}>([\\s\\S]*?)</${escapedTag}>`);
   const match = re.exec(text);
   return match ? match[1].trim() : null;
 }

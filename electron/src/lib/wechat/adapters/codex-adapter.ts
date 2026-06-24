@@ -34,7 +34,8 @@ export class CodexAdapter implements CLIAdapter {
     }
 
     const args = buildArgs(opts);
-    log("WECHAT_CODEX", `run mode=${opts.permissionMode} resume=${opts.resumeId ? "last" : "none"} args=${args.join(" ")}`);
+    const isResumeRun = args.includes("resume");
+    log("WECHAT_CODEX", `run mode=${opts.permissionMode} resume=${isResumeRun ? "last" : "none"} args=${args.join(" ")}`);
 
     return new Promise<AdapterExecResult>((resolve) => {
       let proc: ChildProcessWithoutNullStreams;
@@ -121,7 +122,7 @@ export class CodexAdapter implements CLIAdapter {
 }
 
 function buildArgs(opts: AdapterExecOptions): string[] {
-  if (opts.resumeId) {
+  if (opts.resumeId === "last") {
     // Resume the most recent thread; sandbox/model flags are inherited from it.
     return ["exec", "resume", "--last"];
   }

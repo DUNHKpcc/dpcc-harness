@@ -13,7 +13,7 @@ interface UseInlineRenameReturn {
   inputProps: {
     value: string;
     onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-    onBlur: () => void;
+    onBlur: (e: React.FocusEvent<HTMLInputElement>) => void;
     onKeyDown: (e: React.KeyboardEvent) => void;
     autoFocus: boolean;
   };
@@ -39,11 +39,11 @@ export function useInlineRename({
   // a second time with stale state.
   const committedRef = useRef(false);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback((nextName = editName) => {
     if (committedRef.current) return;
     committedRef.current = true;
 
-    const trimmed = editName.trim();
+    const trimmed = nextName.trim();
     if (trimmed && trimmed !== initialName) {
       onRename(trimmed);
     }
@@ -68,7 +68,10 @@ export function useInlineRename({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === "Enter") handleSave();
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleSave(e.currentTarget.value);
+      }
       if (e.key === "Escape") handleCancel();
     },
     [handleSave, handleCancel],
@@ -82,7 +85,7 @@ export function useInlineRename({
     inputProps: {
       value: editName,
       onChange: handleChange,
-      onBlur: handleSave,
+      onBlur: (e) => handleSave(e.currentTarget.value),
       onKeyDown: handleKeyDown,
       autoFocus: true,
     },

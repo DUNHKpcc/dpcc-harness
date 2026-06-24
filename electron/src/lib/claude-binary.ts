@@ -1,7 +1,8 @@
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { execFileSync, spawn } from "child_process";
+import { execFile, execFileSync, spawn } from "child_process";
+import { promisify } from "util";
 import { getAppSetting } from "./app-settings";
 import { extractErrorMessage, reportError } from "./error-utils";
 import { log } from "./logger";
@@ -23,6 +24,7 @@ interface ClaudeBinaryResolution {
 let cachedPath: string | null = null;
 let cachedSource: ClaudeBinarySource | null = null;
 let installInFlight: Promise<string> | null = null;
+const execFileAsync = promisify(execFile);
 
 const CLAUDE_INSTALL_SH = "https://claude.ai/install.sh";
 const CLAUDE_INSTALL_PS1 = "https://claude.ai/install.ps1";
@@ -99,10 +101,14 @@ function resolveFromKnownPaths(): ClaudeBinaryResolution | null {
   return null;
 }
 
-function resolveFromPathLookup(): ClaudeBinaryResolution | null {
+async function resolveFromPathLookup(): Promise<ClaudeBinaryResolution | null> {
   try {
     const cmd = process.platform === "win32" ? "where" : "which";
-    const output = execFileSync(cmd, ["claude"], { encoding: "utf-8", timeout: 5000 });
+    const result = await execFileAsync(cmd, ["claude"], { encoding: "utf-8", timeout: 5000 }) as unknown;
+    const stdout = typeof result === "object" && result !== null && "stdout" in result
+      ? (result as { stdout: string | Buffer }).stdout
+      : result;
+    const output = typeof stdout === "string" ? stdout : Buffer.isBuffer(stdout) ? stdout.toString("utf-8") : "";
     const candidates = output
       .split(/\r?\n/g)
       .map((line) => normalizeExecutablePath(line))
@@ -142,10 +148,30 @@ function resolveClaudeBinarySync(options?: ResolveClaudeBinaryOptions): ClaudeBi
 
   const resolution =
     resolveFromEnv() ??
-    resolveFromKnownPaths() ??
-    resolveFromPathLookup();
+    resolveFromKnownPaths();
 
   if (resolution) return resolution;
+  if (allowSdkFallback && source === "auto") {
+    return resolveSdkFallback();
+  }
+  return null;
+}
+
+async function resolveClaudeBinary(options?: ResolveClaudeBinaryOptions): Promise<ClaudeBinaryResolution | null> {
+  const source = getSource();
+  const allowSdkFallback = options?.allowSdkFallback ?? true;
+
+  if (source === "builtin" || source === "custom") {
+    return resolveClaudeBinarySync(options);
+  }
+
+  const resolution =
+    resolveFromEnv() ??
+    resolveFromKnownPaths();
+
+  if (resolution) return resolution;
+  const pathLookup = await resolveFromPathLookup();
+  if (pathLookup) return pathLookup;
   if (allowSdkFallback && source === "auto") {
     return resolveSdkFallback();
   }
@@ -218,7 +244,7 @@ async function installClaudeBinary(): Promise<string> {
       );
     }
 
-    const resolution = resolveClaudeBinarySync({ allowSdkFallback: false });
+    const resolution = await resolveClaudeBinary({ allowSdkFallback: false });
     if (!resolution) {
       throw new Error("Claude install completed but no executable was found on the system");
     }
@@ -247,7 +273,7 @@ export async function getClaudeBinaryPath(options?: ResolveClaudeBinaryOptions):
   const installIfMissing = options?.installIfMissing ?? true;
   const allowSdkFallback = options?.allowSdkFallback ?? true;
 
-  const resolution = resolveClaudeBinarySync({ installIfMissing, allowSdkFallback });
+  const resolution = await resolveClaudeBinary({ installIfMissing, allowSdkFallback });
   if (resolution) {
     cachedPath = resolution.path;
     cachedSource = source;
@@ -367,12 +393,12 @@ export async function getClaudeBinaryInfo(): Promise<{
   source: ClaudeBinarySource;
   version: string | null;
 }> {
-  const metadata = getClaudeBinaryMetadata({ installIfMissing: false, allowSdkFallback: true });
+  const resolution = await resolveClaudeBinary({ installIfMissing: false, allowSdkFallback: true });
   return {
-    path: metadata?.path ?? null,
-    origin: metadata?.strategy ?? "none",
+    path: resolution?.path ?? null,
+    origin: resolution?.strategy ?? "none",
     source: getSource(),
-    version: metadata ? await getClaudeVersion(metadata.path) : null,
+    version: resolution ? await getClaudeVersion(resolution.path) : null,
   };
 }
 
@@ -395,7 +421,7 @@ export async function downloadClaudeUpdate(): Promise<{ version: string | null }
 export async function getClaudeVersion(binaryPath?: string): Promise<string | null> {
   try {
     if (binaryPath) return readClaudeVersion(binaryPath);
-    const resolution = resolveClaudeBinarySync({ installIfMissing: false, allowSdkFallback: true });
+    const resolution = await resolveClaudeBinary({ installIfMissing: false, allowSdkFallback: true });
     if (!resolution) return null;
     return readClaudeVersion(resolution.path);
   } catch {

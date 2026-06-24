@@ -97,8 +97,7 @@ function extractSessionPreview(filePath: string): SessionPreview | null {
   }
 }
 
-export function parseJsonlToUIMessages(filePath: string): UIMessage[] {
-  const content = fs.readFileSync(filePath, "utf-8");
+function parseJsonlContentToUIMessages(content: string): UIMessage[] {
   const lines = content.split("\n").filter((l) => l.trim());
   const parsed: Array<Record<string, unknown>> = [];
 
@@ -222,6 +221,16 @@ export function parseJsonlToUIMessages(filePath: string): UIMessage[] {
   return uiMessages;
 }
 
+export function parseJsonlToUIMessages(filePath: string): UIMessage[] {
+  const content = fs.readFileSync(filePath, "utf-8");
+  return parseJsonlContentToUIMessages(content);
+}
+
+export async function parseJsonlToUIMessagesAsync(filePath: string): Promise<UIMessage[]> {
+  const content = await fs.promises.readFile(filePath, "utf-8");
+  return parseJsonlContentToUIMessages(content);
+}
+
 export function register(): void {
   ipcMain.handle("cc-sessions:list", async (_event, projectPath: string) => {
     try {
@@ -270,7 +279,7 @@ export function register(): void {
         return { error: "Session file not found" };
       }
 
-      const messages = parseJsonlToUIMessages(filePath);
+      const messages = await parseJsonlToUIMessagesAsync(filePath);
       return { messages, ccSessionId };
     } catch (err) {
       const errMsg = reportError("CC_SESSIONS:IMPORT_ERR", err);

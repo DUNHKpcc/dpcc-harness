@@ -6,6 +6,7 @@ import {
   getResizeHandleWidth,
 } from "@/lib/layout/constants";
 import { getChatPaneMinWidthPx } from "@/lib/layout/workspace-constraints";
+import { useDocumentMouseDrag } from "./useDocumentMouseDrag";
 
 // ── Layout constants ──
 const MIN_PANEL_WIDTH = MIN_RIGHT_PANEL_WIDTH;
@@ -27,6 +28,7 @@ export function usePanelResize({
   activeProjectId,
 }: UsePanelResizeOptions) {
   const [isResizing, setIsResizing] = useState(false);
+  const bindDocumentMouseDrag = useDocumentMouseDrag();
   const minChatWidth = activeSessionId ? getChatPaneMinWidthPx("single") : getMinChatWidth(isIsland);
 
   const handleW = getResizeHandleWidth(isIsland);
@@ -65,15 +67,12 @@ export function usePanelResize({
 
       const onMouseUp = () => {
         setIsResizing(false);
-        document.removeEventListener("mousemove", onMouseMove);
-        document.removeEventListener("mouseup", onMouseUp);
         settings.saveRightPanelWidth();
       };
 
-      document.addEventListener("mousemove", onMouseMove);
-      document.addEventListener("mouseup", onMouseUp);
+      bindDocumentMouseDrag(onMouseMove, onMouseUp);
     },
-    [settings, minChatWidth, handleW],
+    [settings, minChatWidth, handleW, bindDocumentMouseDrag],
   );
 
   // ── Reactive right panel clamping on window resize / project switch ──
@@ -114,11 +113,11 @@ export function usePanelResize({
   const handleRightSplitStart = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
-      setIsResizing(true);
       const startY = e.clientY;
       const startRatio = settings.rightSplitRatio;
       const panelEl = rightPanelRef.current;
       if (!panelEl) return;
+      setIsResizing(true);
       const panelHeight = panelEl.getBoundingClientRect().height;
 
       const onMouseMove = (ev: MouseEvent) => {
@@ -129,15 +128,12 @@ export function usePanelResize({
 
       const onMouseUp = () => {
         setIsResizing(false);
-        document.removeEventListener("mousemove", onMouseMove);
-        document.removeEventListener("mouseup", onMouseUp);
         settings.saveRightSplitRatio();
       };
 
-      document.addEventListener("mousemove", onMouseMove);
-      document.addEventListener("mouseup", onMouseUp);
+      bindDocumentMouseDrag(onMouseMove, onMouseUp);
     },
-    [settings],
+    [settings, bindDocumentMouseDrag],
   );
 
   return {

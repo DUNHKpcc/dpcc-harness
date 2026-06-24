@@ -11,6 +11,7 @@ import {
   equalWidthFractions,
 } from "@/lib/layout/constants";
 import { solveAdjacentResize } from "@/lib/layout/workspace-constraints";
+import { useDocumentMouseDrag } from "./useDocumentMouseDrag";
 
 interface UsePaneResizeOptions {
   /** Width fractions for all panes (length = pane count). */
@@ -37,6 +38,7 @@ export function usePaneResize({
   const startFractionsRef = useRef<number[]>([]);
   const containerWidthRef = useRef(0);
   const handleIndexRef = useRef(0);
+  const bindDocumentMouseDrag = useDocumentMouseDrag();
 
   /**
    * Start resizing at a specific handle index.
@@ -107,14 +109,11 @@ export function usePaneResize({
 
       const handleUp = () => {
         setIsResizing(false);
-        document.removeEventListener("mousemove", handleMove);
-        document.removeEventListener("mouseup", handleUp);
       };
 
-      document.addEventListener("mousemove", handleMove);
-      document.addEventListener("mouseup", handleUp);
+      bindDocumentMouseDrag(handleMove, handleUp);
     },
-    [containerRef, handleWidthPx, minWidthsPx, setWidthFractions, widthFractions],
+    [containerRef, handleWidthPx, minWidthsPx, setWidthFractions, widthFractions, bindDocumentMouseDrag],
   );
 
   /** Reset all panes to equal widths. */

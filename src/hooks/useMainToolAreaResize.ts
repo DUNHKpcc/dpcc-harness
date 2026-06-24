@@ -10,6 +10,7 @@
 import { useCallback, useState } from "react";
 import type { MainToolWorkspaceState } from "@/hooks/useMainToolWorkspace";
 import { resolveMainToolAreaLeadingColumnResize } from "@/lib/workspace/main-tool-widths";
+import { useDocumentMouseDrag } from "./useDocumentMouseDrag";
 
 export interface UseMainToolAreaResizeInput {
   mainToolWorkspace: MainToolWorkspaceState;
@@ -40,6 +41,7 @@ export function useMainToolAreaResize(
   } = input;
 
   const [isResizing, setIsResizing] = useState(false);
+  const bindDocumentMouseDrag = useDocumentMouseDrag();
 
   const handleResizeStart = useCallback(
     (event: React.MouseEvent) => {
@@ -66,14 +68,12 @@ export function useMainToolAreaResize(
 
       const handleUp = () => {
         setIsResizing(false);
-        document.removeEventListener("mousemove", handleMove);
-        document.removeEventListener("mouseup", handleUp);
       };
 
-      document.addEventListener("mousemove", handleMove);
-      document.addEventListener("mouseup", handleUp);
+      bindDocumentMouseDrag(handleMove, handleUp);
     },
     [
+      bindDocumentMouseDrag,
       mainCombinedWorkspaceWidth,
       mainToolRelativeFractions,
       mainToolAreaWidth,

@@ -44,6 +44,12 @@ export interface InternalState extends BackgroundSessionState {
 /** Callback fired when a background session receives a permission request */
 type PermissionRequestCallback = (sessionId: string, permission: PermissionRequest) => void;
 
+function cloneValue<T>(value: T): T {
+  if (value === null || value === undefined) return value;
+  if (typeof structuredClone === "function") return structuredClone(value);
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
 /**
  * Accumulates UIMessages for sessions not currently active in useClaude.
  * Prevents event loss when switching between sessions with ongoing responses.
@@ -148,16 +154,16 @@ export class BackgroundSessionStore {
     if (!state) return undefined;
     // Clone messages to prevent external mutation of internal state
     return {
-      messages: state.messages.map(m => ({ ...m })),
+      messages: cloneValue(state.messages),
       isProcessing: state.isProcessing,
       isConnected: state.isConnected,
       isCompacting: state.isCompacting,
-      sessionInfo: state.sessionInfo ? { ...state.sessionInfo } : null,
+      sessionInfo: cloneValue(state.sessionInfo),
       totalCost: state.totalCost,
-      contextUsage: state.contextUsage ? { ...state.contextUsage } : null,
-      pendingPermission: state.pendingPermission ? { ...state.pendingPermission } : null,
-      rawAcpPermission: state.rawAcpPermission,
-      slashCommands: state.slashCommands ?? [],
+      contextUsage: cloneValue(state.contextUsage),
+      pendingPermission: cloneValue(state.pendingPermission),
+      rawAcpPermission: cloneValue(state.rawAcpPermission),
+      slashCommands: cloneValue(state.slashCommands ?? []),
     };
   }
 

@@ -310,6 +310,13 @@ export function useSessionLifecycle({
       if (activeSessionEngine === "acp") {
         // ACP sessions: send through ACP hook if live
         if (refs.liveSessionIdsRef.current.has(activeId)) {
+          if (acp.authRequired) {
+            acp.setMessages((prev) => [
+              ...prev,
+              createSystemMessage("ACP authentication is required before sending another message.", true),
+            ]);
+            return;
+          }
           trackMessageSent(activeId);
           await acp.send(text, images, displayText);
           return;
@@ -361,6 +368,7 @@ export function useSessionLifecycle({
       acp.send,
       acp.setMessages,
       acp.setIsProcessing,
+      acp.authRequired,
       codex.send,
       codex.setMessages,
       codex.setIsProcessing,

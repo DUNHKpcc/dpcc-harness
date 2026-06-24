@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   mockAccessSync,
+  mockExecFile,
   mockExecFileSync,
   mockGetAppSetting,
   mockGetCliPath,
@@ -9,6 +10,7 @@ const {
   mockSpawn,
 } = vi.hoisted(() => ({
   mockAccessSync: vi.fn(),
+  mockExecFile: vi.fn(),
   mockExecFileSync: vi.fn(),
   mockGetAppSetting: vi.fn<(key: string) => string>((key: string) => {
     if (key === "claudeBinarySource") return "auto";
@@ -34,6 +36,7 @@ vi.mock("os", () => ({
 }));
 
 vi.mock("child_process", () => ({
+  execFile: mockExecFile,
   execFileSync: mockExecFileSync,
   spawn: mockSpawn,
 }));
@@ -66,6 +69,10 @@ describe("claude binary resolution", () => {
   beforeEach(() => {
     vi.unstubAllEnvs();
     mockAccessSync.mockReset();
+    mockExecFile.mockReset();
+    mockExecFile.mockImplementation((_command: string, _args: string[], _opts: unknown, cb: (err: Error) => void) => {
+      cb(new Error("missing"));
+    });
     mockExecFileSync.mockReset();
     mockGetAppSetting.mockReset();
     mockGetAppSetting.mockImplementation((key: string): string => {
@@ -171,6 +178,7 @@ describe("claude binary resolution", () => {
     const mod = await loadModule();
 
     await expect(mod.getClaudeBinaryPath({ installIfMissing: false })).resolves.toBe("/env/claude");
+    expect(mockExecFile).not.toHaveBeenCalled();
   });
 
   it("finds the native shim in the user local bin directory", async () => {
@@ -179,18 +187,25 @@ describe("claude binary resolution", () => {
     const mod = await loadModule();
 
     await expect(mod.getClaudeBinaryPath({ installIfMissing: false })).resolves.toBe("/Users/tester/.local/bin/claude");
+    expect(mockExecFile).not.toHaveBeenCalled();
   });
 
   it("falls back to PATH lookup when the shim is missing", async () => {
-    mockExecFileSync.mockImplementation((command: string) => {
-      if (command === "which") return "/usr/local/bin/claude\n";
-      throw new Error("unexpected");
+    mockExecFile.mockImplementation((_command: string, _args: string[], _opts: unknown, cb: (err: Error | null, stdout: string) => void) => {
+      cb(null, "/usr/local/bin/claude\n");
     });
     allowExecutable("/usr/local/bin/claude");
 
     const mod = await loadModule();
 
     await expect(mod.getClaudeBinaryPath({ installIfMissing: false })).resolves.toBe("/usr/local/bin/claude");
+    expect(mockExecFile).toHaveBeenCalledWith(
+      "which",
+      ["claude"],
+      expect.objectContaining({ encoding: "utf-8", timeout: 5000 }),
+      expect.any(Function),
+    );
+    expect(mockExecFileSync).not.toHaveBeenCalled();
   });
 
   it("uses the sdk cli fallback in auto mode when native resolution fails", async () => {

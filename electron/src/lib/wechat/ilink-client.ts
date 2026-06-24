@@ -16,6 +16,7 @@ const REGULAR_RETRY_DELAYS_MS = [0, 30_000, 60_000, 120_000] as const;
 const BASE_RATE_LIMIT_COOLDOWN_MS = 150_000; // ~2.5 min
 const MAX_RATE_LIMIT_COOLDOWN_MS = 420_000; // ~7 min
 const MAX_CONTEXT_TOKENS = 500; // bound the per-user reply-token cache (persisted)
+const SEND_QUEUE_STALL_TIMEOUT_MS = 15 * 60_000;
 
 /** Pluggable persistence so the bridge can survive restarts without re-running old commands. */
 export interface ILinkPersistence {
@@ -269,7 +270,10 @@ export class ILinkClient {
 
   private enqueueSend(userId: string, task: () => Promise<void>): Promise<void> {
     const prev = this.sendQueues.get(userId) || Promise.resolve();
-    const run = prev.then(task, task);
+    const run = prev.then(
+      () => withTimeout(task(), SEND_QUEUE_STALL_TIMEOUT_MS, "send queue task"),
+      () => withTimeout(task(), SEND_QUEUE_STALL_TIMEOUT_MS, "send queue task"),
+    );
     const tracked = run.catch(() => {});
     this.sendQueues.set(userId, tracked);
     return run.finally(() => {
@@ -502,6 +506,19 @@ function chunkText(text: string, maxLen: number): string[] {
     remaining = remaining.substring(idx).trimStart();
   }
   return chunks;
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timer: NodeJS.Timeout | null = null;
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)}s`)),
+      timeoutMs,
+    );
+  });
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
 }
 
 function sleep(ms: number): Promise<void> {

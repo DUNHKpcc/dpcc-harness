@@ -71,6 +71,25 @@ describe("resolveModelValue", () => {
       ]),
     ).toBe("claude-opus-4-6[1m]");
   });
+
+  it("infers the default alias family from model metadata instead of treating it as Opus", () => {
+    const sonnetDefaultModels: ModelInfo[] = [
+      {
+        value: "default",
+        displayName: "Default (recommended)",
+        description: "Sonnet 4.6 with 1M context",
+        supportsEffort: true,
+        supportedEffortLevels: ["low", "medium", "high"],
+      },
+      {
+        value: "claude-opus-4-6[1m]",
+        displayName: "Opus 4.6 (1M)",
+        description: "Opus",
+      },
+    ];
+
+    expect(resolveModelValue("claude-sonnet-4-6[1m]", sonnetDefaultModels)).toBe("default");
+  });
 });
 
 describe("findEquivalentModel", () => {
@@ -101,5 +120,9 @@ describe("canonicalizeModelValue", () => {
 describe("areModelsEquivalent", () => {
   it("still distinguishes different non-default variants", () => {
     expect(areModelsEquivalent("sonnet", "sonnet[1m]")).toBe(false);
+  });
+
+  it("does not hard-code default as equivalent to Opus without metadata", () => {
+    expect(areModelsEquivalent("default", "claude-opus-4-6")).toBe(false);
   });
 });

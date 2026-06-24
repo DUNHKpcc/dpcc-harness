@@ -5,7 +5,6 @@ function normalizeModelId(model: string | null | undefined): string {
 }
 
 function modelFamily(model: string): "haiku" | "sonnet" | "opus" | "other" {
-  if (model.includes("default")) return "opus";
   if (model.includes("haiku")) return "haiku";
   if (model.includes("sonnet")) return "sonnet";
   if (model.includes("opus")) return "opus";
@@ -24,6 +23,22 @@ function modelValue(model: ModelInfo): string {
   return model.value.trim().toLowerCase();
 }
 
+function modelSearchText(model: ModelInfo): string {
+  return [
+    model.value,
+    model.displayName,
+    model.description,
+  ].filter(Boolean).join(" ").trim().toLowerCase();
+}
+
+function modelFamilyForEntry(model: ModelInfo): "haiku" | "sonnet" | "opus" | "other" {
+  return modelFamily(modelSearchText(model));
+}
+
+function modelVariantForEntry(model: ModelInfo): "1m" | "base" {
+  return modelSearchText(model).includes("1m") ? "1m" : "base";
+}
+
 function getEquivalentModels(
   model: string | null | undefined,
   supportedModels: ModelInfo[],
@@ -38,7 +53,10 @@ function getFamilyMatches(
   const target = normalizeModelId(model);
   const family = modelFamily(target);
   if (!target || family === "other") return [];
-  return supportedModels.filter((entry) => modelFamily(modelValue(entry)) === family);
+  const variant = modelVariant(target);
+  const familyMatches = supportedModels.filter((entry) => modelFamilyForEntry(entry) === family);
+  const variantMatches = familyMatches.filter((entry) => modelVariantForEntry(entry) === variant);
+  return variantMatches.length > 0 ? variantMatches : familyMatches;
 }
 
 function modelPreferenceScore(candidate: ModelInfo, target: string): number {

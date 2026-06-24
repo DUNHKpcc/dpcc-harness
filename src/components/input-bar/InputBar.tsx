@@ -183,14 +183,22 @@ export const InputBar = memo(function InputBar({
   } | null>(null);
   const pendingSendRef = useRef<(() => Promise<void>) | null>(null);
 
-  // Voice dictation
-  const speech = useSpeechRecognition({
-    onResult: (text) => insertTextAtCursor(editableRef.current, text),
-  });
-
   const editableRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const hasContentRef = useRef(false);
+  const setComposerHasContent = useCallback((nextHasContent: boolean) => {
+    if (hasContentRef.current === nextHasContent) return;
+    hasContentRef.current = nextHasContent;
+    setHasContent(nextHasContent);
+  }, []);
+
+  // Voice dictation
+  const speech = useSpeechRecognition({
+    onResult: (text) => {
+      insertTextAtCursor(editableRef.current, text);
+      if (hasMeaningfulText(text)) setComposerHasContent(true);
+    },
+  });
 
   // ── Derived engine state ──
   const isACPAgent = selectedAgent != null && selectedAgent.engine === "acp";
@@ -262,14 +270,13 @@ export const InputBar = memo(function InputBar({
   const clearComposer = useCallback(
     (el: HTMLDivElement) => {
       el.innerHTML = "";
-      hasContentRef.current = false;
-      setHasContent(false);
+      setComposerHasContent(false);
       setAttachments([]);
       setFileAttachments([]);
       mention.closeMentions();
       command.setShowCommands(false);
     },
-    [mention.closeMentions, command.setShowCommands],
+    [mention.closeMentions, command.setShowCommands, setComposerHasContent],
   );
 
   // ── Image attachments ──
@@ -579,8 +586,7 @@ export const InputBar = memo(function InputBar({
           command.cmdResults[command.commandIndex],
         );
         if (didInsert) {
-          hasContentRef.current = true;
-          setHasContent(true);
+          setComposerHasContent(true);
         }
         return;
       }
@@ -614,8 +620,7 @@ export const InputBar = memo(function InputBar({
           mention.results[mention.mentionIndex],
         );
         if (didInsert) {
-          hasContentRef.current = true;
-          setHasContent(true);
+          setComposerHasContent(true);
         }
         return;
       }
@@ -676,13 +681,9 @@ export const InputBar = memo(function InputBar({
       if (shouldRecomputeHasContent) {
         const hasText = hasMeaningfulText(sanitizedText);
         const nextHasContent = hasText || hasMentionChip;
-        if (nextHasContent !== hasContentRef.current) {
-          hasContentRef.current = nextHasContent;
-          setHasContent(nextHasContent);
-        }
+        setComposerHasContent(nextHasContent);
       } else if (!hasContentRef.current) {
-        hasContentRef.current = true;
-        setHasContent(true);
+        setComposerHasContent(true);
       }
 
       // Detect @ and / triggers
@@ -702,7 +703,7 @@ export const InputBar = memo(function InputBar({
       // Slash command detection
       command.detectCommandTrigger(sanitizedText);
     },
-    [mention, command],
+    [mention, command, setComposerHasContent],
   );
 
   // ── Paste / drag-drop handlers ──
@@ -727,12 +728,11 @@ export const InputBar = memo(function InputBar({
       e.preventDefault();
       const text = e.clipboardData.getData("text/plain");
       if (!hasContentRef.current && text.length > 0) {
-        hasContentRef.current = true;
-        setHasContent(true);
+        setComposerHasContent(true);
       }
       insertTextAtCursor(editableRef.current, text);
     },
-    [addImageFiles],
+    [addImageFiles, setComposerHasContent],
   );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -774,6 +774,7 @@ export const InputBar = memo(function InputBar({
         );
         if (urls.length > 0) {
           insertTextAtCursor(editableRef.current, urls.join(" "));
+          setComposerHasContent(true);
         }
         return;
       }
@@ -793,7 +794,7 @@ export const InputBar = memo(function InputBar({
       if (images.length > 0) addImageFiles(images);
       if (others.length > 0) addFileAttachments(others);
     },
-    [addImageFiles, addFileAttachments],
+    [addImageFiles, addFileAttachments, setComposerHasContent],
   );
 
   const handleFileInputChange = useCallback(
@@ -859,8 +860,7 @@ export const InputBar = memo(function InputBar({
             onSelect={(entry) => {
               const didInsert = mention.selectMention(entry);
               if (didInsert) {
-                hasContentRef.current = true;
-                setHasContent(true);
+                setComposerHasContent(true);
               }
             }}
             onHover={mention.setMentionIndex}
@@ -876,8 +876,7 @@ export const InputBar = memo(function InputBar({
             onSelect={(cmd) => {
               const didInsert = command.selectCommand(cmd);
               if (didInsert) {
-                hasContentRef.current = true;
-                setHasContent(true);
+                setComposerHasContent(true);
               }
             }}
             onHover={command.setCommandIndex}

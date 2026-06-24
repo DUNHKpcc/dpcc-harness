@@ -3,6 +3,7 @@ import {
   MAX_BOTTOM_TOOLS_HEIGHT,
   MIN_BOTTOM_TOOLS_HEIGHT,
 } from "@/lib/layout/constants";
+import { useDocumentMouseDrag } from "./useDocumentMouseDrag";
 
 /**
  * Manages the vertical resize handle for the bottom tool dock.
@@ -19,6 +20,7 @@ export function useBottomHeightResize(
   handleResizeStart: (event: React.MouseEvent) => void;
 } {
   const [isResizing, setIsResizing] = useState(false);
+  const bindDocumentMouseDrag = useDocumentMouseDrag();
 
   const handleResizeStart = useCallback((event: React.MouseEvent) => {
     event.preventDefault();
@@ -34,13 +36,10 @@ export function useBottomHeightResize(
 
     const handleUp = () => {
       setIsResizing(false);
-      document.removeEventListener("mousemove", handleMove);
-      document.removeEventListener("mouseup", handleUp);
     };
 
-    document.addEventListener("mousemove", handleMove);
-    document.addEventListener("mouseup", handleUp);
-  }, [bottomHeight, setBottomHeight]);
+    bindDocumentMouseDrag(handleMove, handleUp);
+  }, [bottomHeight, setBottomHeight, bindDocumentMouseDrag]);
 
   return { isResizing, handleResizeStart };
 }

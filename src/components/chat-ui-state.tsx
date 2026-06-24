@@ -61,36 +61,35 @@ export function useChatPersistedState<T>(
   initialValue: T | (() => T),
 ): [T, Dispatch<SetStateAction<T>>, boolean] {
   const store = useContext(ChatUiStateContext);
-  const [value, setValue] = useState<T>(() => {
+  const readInitialForKey = useCallback((): T => {
     if (store?.hasValue(key)) {
       const stored = store.getValue<T>(key);
       if (stored !== undefined) return stored;
     }
     return resolveInitialValue(initialValue);
-  });
-  const lastKeyRef = useRef(key);
+  }, [initialValue, key, store]);
+  const [state, setState] = useState<{ key: string; value: T }>(() => ({
+    key,
+    value: readInitialForKey(),
+  }));
   const hasStoredValue = store?.hasValue(key) ?? false;
+  const value = state.key === key ? state.value : readInitialForKey();
+  const valueRef = useRef(value);
+  valueRef.current = value;
 
   useEffect(() => {
-    if (lastKeyRef.current === key) return;
-    lastKeyRef.current = key;
-    if (store?.hasValue(key)) {
-      const stored = store.getValue<T>(key);
-      if (stored !== undefined) {
-        setValue(stored);
-        return;
-      }
-    }
-    setValue(resolveInitialValue(initialValue));
-  }, [initialValue, key, store]);
+    if (state.key === key) return;
+    setState({ key, value: readInitialForKey() });
+  }, [key, readInitialForKey, state.key]);
 
   const setPersistedValue = useCallback<Dispatch<SetStateAction<T>>>((nextValue) => {
-    setValue((previousValue) => {
+    setState((previousState) => {
+      const previousValue = previousState.key === key ? previousState.value : valueRef.current;
       const resolvedValue = typeof nextValue === "function"
         ? (nextValue as (prevState: T) => T)(previousValue)
         : nextValue;
       store?.setValue(key, resolvedValue);
-      return resolvedValue;
+      return { key, value: resolvedValue };
     });
   }, [key, store]);
 

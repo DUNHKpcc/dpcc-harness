@@ -4,6 +4,7 @@ import {
   MAX_APP_SIDEBAR_WIDTH,
   MIN_APP_SIDEBAR_WIDTH,
 } from "@/lib/layout/constants";
+import { useDocumentMouseDrag } from "./useDocumentMouseDrag";
 
 const WIDTH_STORAGE_KEY = "sidebar-width";
 
@@ -21,6 +22,7 @@ export function useSidebar() {
   });
   const [width, setWidth] = useState<number>(readStoredWidth);
   const [isResizing, setIsResizing] = useState(false);
+  const bindDocumentMouseDrag = useDocumentMouseDrag();
 
   const toggle = useCallback(() => {
     setIsOpen((prev) => {
@@ -50,14 +52,11 @@ export function useSidebar() {
 
     const onMouseUp = () => {
       setIsResizing(false);
-      document.removeEventListener("mousemove", onMouseMove);
-      document.removeEventListener("mouseup", onMouseUp);
       localStorage.setItem(WIDTH_STORAGE_KEY, String(widthRef.current));
     };
 
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
-  }, []);
+    bindDocumentMouseDrag(onMouseMove, onMouseUp);
+  }, [bindDocumentMouseDrag]);
 
   return { isOpen, toggle, setIsOpen, width, isResizing, handleResizeStart };
 }

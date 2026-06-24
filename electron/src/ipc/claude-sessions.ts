@@ -64,6 +64,19 @@ interface SessionEntry {
 
 export const sessions = new Map<string, SessionEntry>();
 
+function closeSessionTransport(sessionId: string, session: SessionEntry, context: string): void {
+  try {
+    session.channel.close();
+  } catch (err) {
+    reportError("CLAUDE_SESSION_CLOSE_ERR", err, { sessionId, context, target: "channel" });
+  }
+  try {
+    session.queryHandle?.close();
+  } catch (err) {
+    reportError("CLAUDE_SESSION_CLOSE_ERR", err, { sessionId, context, target: "queryHandle" });
+  }
+}
+
 function toSdkModelOverride(model?: string | null): string | undefined {
   const normalized = model?.trim();
   if (!normalized) return undefined;
@@ -553,8 +566,7 @@ async function restartSession(
 
   // Mark old session so its event loop doesn't send claude:exit
   session.restarting = true;
-  session.channel.close();
-  session.queryHandle.close();
+  closeSessionTransport(sessionId, session, "restart");
 
   // Deny all pending permissions
   for (const [reqId, pending] of session.pendingPermissions) {
@@ -989,8 +1001,13 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       session.pendingPermissions.delete(requestId);
     }
 
+    const queryHandle = session.queryHandle;
+    if (!queryHandle) {
+      return { error: "Session is not ready to interrupt" };
+    }
+
     try {
-      await session.queryHandle!.interrupt();
+      await queryHandle.interrupt();
       log("INTERRUPT", `session=${sessionId.slice(0, 8)} acknowledged`);
     } catch (err) {
       const errMsg = reportError("INTERRUPT_ERR", err, { engine: "claude", sessionId });
@@ -1173,15 +1190,22 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
 /** Stop all Claude sessions (called on app quit). Idempotent. */
 export function stopAll(): void {
   for (const [sessionId, session] of sessions) {
-    log("CLEANUP", `Closing Claude session ${sessionId.slice(0, 8)}`);
-    session.stopping = true;
-    session.stopReason = "app-quit";
-    for (const [, pending] of session.pendingPermissions) {
-      pending.resolve({ behavior: "deny", message: "App closing" });
+    try {
+      log("CLEANUP", `Closing Claude session ${sessionId.slice(0, 8)}`);
+      session.stopping = true;
+      session.stopReason = "app-quit";
+      for (const [, pending] of session.pendingPermissions) {
+        try {
+          pending.resolve({ behavior: "deny", message: "App closing" });
+        } catch (err) {
+          reportError("CLAUDE_PERMISSION_DENY_ERR", err, { sessionId, context: "stopAll" });
+        }
+      }
+      session.pendingPermissions.clear();
+      closeSessionTransport(sessionId, session, "stopAll");
+    } catch (err) {
+      reportError("CLAUDE_STOP_ALL_ERR", err, { sessionId });
     }
-    session.pendingPermissions.clear();
-    session.channel.close();
-    session.queryHandle?.close();
   }
   sessions.clear();
 }

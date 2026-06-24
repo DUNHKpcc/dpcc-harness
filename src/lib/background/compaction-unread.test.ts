@@ -121,4 +121,30 @@ describe("compaction-only unread suppression across session switch", () => {
 
     expect(captured).toBeFalsy();
   });
+
+  it("returns a deep clone from get() so callers cannot mutate nested message data", () => {
+    const store = new BackgroundSessionStore();
+    store.initFromState(
+      "session-1",
+      seedState({
+        messages: [
+          {
+            id: "tool-1",
+            role: "tool_call",
+            content: "",
+            timestamp: 1,
+            toolName: "Edit",
+            toolInput: { nested: { path: "before.ts" } },
+          },
+        ],
+      }),
+    );
+
+    const firstRead = store.get("session-1");
+    const toolInput = firstRead?.messages[0]?.toolInput as { nested: { path: string } };
+    toolInput.nested.path = "after.ts";
+
+    const secondRead = store.get("session-1");
+    expect(secondRead?.messages[0]?.toolInput).toEqual({ nested: { path: "before.ts" } });
+  });
 });

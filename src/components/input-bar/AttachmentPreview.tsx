@@ -21,7 +21,7 @@ function formatBytes(size: number): string {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-/** Image attachment thumbnails, dropped file chips, and grabbed DOM element
+/** Image attachment thumbnails, selected/dropped file chips, and grabbed DOM element
  *  context chips above the toolbar. */
 export const AttachmentPreview = memo(function AttachmentPreview({
   attachments,
@@ -75,7 +75,7 @@ export const AttachmentPreview = memo(function AttachmentPreview({
         </div>
       )}
 
-      {/* Non-image file chips (dropped from Finder / Explorer) */}
+      {/* Non-image file chips (selected or dropped from Finder / Explorer) */}
       {hasFileAttachments && (
         <div className="flex flex-wrap gap-2.5 px-5 pb-2.5">
           {fileAttachments.map((fa) => (
@@ -133,8 +133,8 @@ export const AttachmentPreview = memo(function AttachmentPreview({
                   )}
                 </span>
                 {ge.textContent && (
-                  <span className="max-w-48 truncate text-[10px] text-muted-foreground">
-                    {ge.textContent.slice(0, 60)}
+                  <span className="max-w-64 truncate text-[10px] text-muted-foreground/70">
+                    {ge.textContent.trim().replace(/\s+/g, " ")}
                   </span>
                 )}
               </div>

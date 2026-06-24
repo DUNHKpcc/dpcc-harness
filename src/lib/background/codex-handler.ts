@@ -1,16 +1,18 @@
-import type { CodexSessionEvent } from "@/types";
+import type {
+  CodexAgentMessageDeltaNotification,
+  CodexCommandOutputDeltaNotification,
+  CodexItemCompletedNotification,
+  CodexItemStartedNotification,
+  CodexPlanDeltaNotification,
+  CodexReasoningTextDeltaNotification,
+  CodexSessionEvent,
+  CodexTokenUsageNotification,
+  CodexTurnPlanUpdatedNotification,
+  PermissionRequest,
+} from "@/types";
 import type { InternalState } from "./session-store";
 import { codexItemToToolName, codexItemToToolInput, codexItemToToolResult, codexPlanToTodos } from "@/lib/engine/codex-adapter";
 import { ensureACPStreamingMsg, finalizeACPStreamingMsg } from "./acp-handler";
-import type { PermissionRequest } from "@/types";
-import type { ItemStartedNotification } from "../../types/codex-protocol/v2/ItemStartedNotification";
-import type { ItemCompletedNotification } from "../../types/codex-protocol/v2/ItemCompletedNotification";
-import type { AgentMessageDeltaNotification } from "../../types/codex-protocol/v2/AgentMessageDeltaNotification";
-import type { ReasoningTextDeltaNotification } from "../../types/codex-protocol/v2/ReasoningTextDeltaNotification";
-import type { CommandExecutionOutputDeltaNotification } from "../../types/codex-protocol/v2/CommandExecutionOutputDeltaNotification";
-import type { PlanDeltaNotification } from "../../types/codex-protocol/v2/PlanDeltaNotification";
-import type { TurnPlanUpdatedNotification } from "../../types/codex-protocol/v2/TurnPlanUpdatedNotification";
-import type { CodexTokenUsageNotification } from "@/types";
 import { nextId } from "@/lib/message-factory";
 
 /**
@@ -50,7 +52,7 @@ export function handleCodexEvent(
     }
 
     case "item/started": {
-      const { item } = params as ItemStartedNotification;
+      const { item } = params as CodexItemStartedNotification;
       if (item.type === "agentMessage" || item.type === "reasoning") {
         if (item.type === "agentMessage") state.turnSawOutput = true;
         ensureACPStreamingMsg(state);
@@ -77,7 +79,7 @@ export function handleCodexEvent(
     }
 
     case "item/completed": {
-      const { item } = params as ItemCompletedNotification;
+      const { item } = params as CodexItemCompletedNotification;
       if (item.type === "agentMessage") {
         state.turnSawOutput = true;
         const text = item.text || undefined;
@@ -160,7 +162,7 @@ export function handleCodexEvent(
     }
 
     case "item/agentMessage/delta": {
-      const { delta } = params as AgentMessageDeltaNotification;
+      const { delta } = params as CodexAgentMessageDeltaNotification;
       if (delta) {
         state.turnSawOutput = true;
         ensureACPStreamingMsg(state);
@@ -175,7 +177,7 @@ export function handleCodexEvent(
 
     case "item/reasoning/summaryTextDelta":
     case "item/reasoning/textDelta": {
-      const { delta } = params as ReasoningTextDeltaNotification;
+      const { delta } = params as CodexReasoningTextDeltaNotification;
       if (delta) {
         ensureACPStreamingMsg(state);
         const target = state.messages.find(m => m.id === state.currentStreamingMsgId);
@@ -185,7 +187,7 @@ export function handleCodexEvent(
     }
 
     case "item/commandExecution/outputDelta": {
-      const { itemId, delta } = params as CommandExecutionOutputDeltaNotification;
+      const { itemId, delta } = params as CodexCommandOutputDeltaNotification;
       if (!delta) break;
 
       // Deterministic fallback for tools created by the active hook before switch-away
@@ -211,7 +213,7 @@ export function handleCodexEvent(
     }
 
     case "item/plan/delta": {
-      const { delta } = params as PlanDeltaNotification;
+      const { delta } = params as CodexPlanDeltaNotification;
       if (!delta) break;
       state.codexPlanText += delta;
       const planText = state.codexPlanText;
@@ -235,7 +237,7 @@ export function handleCodexEvent(
     }
 
     case "turn/plan/updated": {
-      const { plan, explanation } = params as TurnPlanUpdatedNotification;
+      const { plan, explanation } = params as CodexTurnPlanUpdatedNotification;
       const todos = codexPlanToTodos(plan);
       const planMsgId = `codex-plan-update-${state.codexPlanTurnCounter}`;
       const toolInput = { todos, ...(explanation ? { explanation } : {}) };

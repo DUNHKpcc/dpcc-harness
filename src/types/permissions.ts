@@ -1,18 +1,15 @@
 // ── Permission types ──
 
-export type PermissionUpdateDestination = "userSettings" | "projectSettings" | "localSettings" | "session";
+import type { PermissionMode, PermissionUpdate as SDKPermissionUpdate } from "@anthropic-ai/claude-agent-sdk";
 
-export interface PermissionRuleValue {
-  toolName: string;
-  ruleContent?: string;
-}
+export type { PermissionMode };
+export type PermissionUpdate = SDKPermissionUpdate;
 
-export interface PermissionUpdate {
-  type: string;
-  rules?: PermissionRuleValue[];
-  behavior?: string;
-  destination: PermissionUpdateDestination;
-}
+type PermissionUpdateWithDestination = Extract<SDKPermissionUpdate, { destination?: unknown }>;
+type AddRulesPermissionUpdate = Extract<SDKPermissionUpdate, { type: "addRules" }>;
+
+export type PermissionUpdateDestination = NonNullable<PermissionUpdateWithDestination["destination"]>;
+export type PermissionRuleValue = NonNullable<AddRulesPermissionUpdate["rules"]>[number];
 
 export interface PermissionRequest {
   requestId: string;

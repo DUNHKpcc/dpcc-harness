@@ -179,10 +179,10 @@ module.exports = {
     icon: "build/icon.icns",
     background: "build/background.png",
     contents: [
-      { x: 200, y: 310 },
-      { x: 600, y: 310, type: "link", path: "/Applications" },
+      { x: 160, y: 245 },
+      { x: 440, y: 245, type: "link", path: "/Applications" },
     ],
-    window: { width: 803, height: 531 },
+    window: { width: 600, height: 400 },
   },
 
   // --- Windows ---

@@ -71,6 +71,13 @@ function isExecutable(filePath: string): boolean {
   }
 }
 
+function normalizeExecutablePath(candidate: string): string | null {
+  const trimmed = candidate.trim();
+  if (!trimmed) return null;
+  const normalized = path.normalize(trimmed);
+  return isExecutable(normalized) ? normalized : null;
+}
+
 /** Quick sync check — does a codex binary exist anywhere? */
 export function isCodexInstalled(): boolean {
   try {
@@ -125,8 +132,12 @@ function resolveCodexPathSync(): string {
   // 4. System PATH (fallback)
   try {
     const cmd = process.platform === "win32" ? "where" : "which";
-    const resolved = execFileSync(cmd, ["codex"], { encoding: "utf-8", timeout: 5000 }).trim();
-    if (resolved && isExecutable(resolved)) return resolved;
+    const output = execFileSync(cmd, ["codex"], { encoding: "utf-8", timeout: 5000 });
+    const candidates = output
+      .split(/\r?\n/g)
+      .map((line) => normalizeExecutablePath(line))
+      .filter((candidate): candidate is string => !!candidate);
+    if (candidates[0]) return candidates[0];
   } catch {
     /* not in PATH */
   }

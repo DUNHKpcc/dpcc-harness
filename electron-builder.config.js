@@ -177,11 +177,12 @@ module.exports = {
   dmg: {
     artifactName: "${productName}-${version}-mac-${arch}.${ext}",
     icon: "build/icon.icns",
+    background: "build/background.png",
     contents: [
-      { x: 130, y: 220 },
-      { x: 410, y: 220, type: "link", path: "/Applications" },
+      { x: 200, y: 310 },
+      { x: 600, y: 310, type: "link", path: "/Applications" },
     ],
-    window: { width: 540, height: 380 },
+    window: { width: 803, height: 531 },
   },
 
   // --- Windows ---

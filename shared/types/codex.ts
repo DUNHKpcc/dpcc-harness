@@ -46,6 +46,7 @@ export type { ItemCompletedNotification as CodexItemCompletedNotification } from
 export type { AgentMessageDeltaNotification as CodexAgentMessageDeltaNotification } from "./codex-protocol/v2/AgentMessageDeltaNotification";
 export type { CommandExecutionOutputDeltaNotification as CodexCommandOutputDeltaNotification } from "./codex-protocol/v2/CommandExecutionOutputDeltaNotification";
 export type { FileChangeOutputDeltaNotification as CodexFileChangeDeltaNotification } from "./codex-protocol/v2/FileChangeOutputDeltaNotification";
+export type { PlanDeltaNotification as CodexPlanDeltaNotification } from "./codex-protocol/v2/PlanDeltaNotification";
 export type { TurnStartedNotification as CodexTurnStartedNotification } from "./codex-protocol/v2/TurnStartedNotification";
 export type { TurnCompletedNotification as CodexTurnCompletedNotification } from "./codex-protocol/v2/TurnCompletedNotification";
 export type { TurnDiffUpdatedNotification as CodexTurnDiffUpdatedNotification } from "./codex-protocol/v2/TurnDiffUpdatedNotification";
@@ -71,6 +72,9 @@ export type { Account as CodexAccount } from "./codex-protocol/v2/Account";
 
 // Item sub-types
 export type { FileUpdateChange as CodexFileUpdateChange } from "./codex-protocol/v2/FileUpdateChange";
+export type { PatchChangeKind as CodexPatchChangeKind } from "./codex-protocol/v2/PatchChangeKind";
+export type { TurnPlanStep as CodexTurnPlanStep } from "./codex-protocol/v2/TurnPlanStep";
+export type { WebSearchAction as CodexWebSearchAction } from "./codex-protocol/v2/WebSearchAction";
 export type { CommandExecutionStatus as CodexCommandExecutionStatus } from "./codex-protocol/v2/CommandExecutionStatus";
 export type { PatchApplyStatus as CodexPatchApplyStatus } from "./codex-protocol/v2/PatchApplyStatus";
 export type { McpToolCallStatus as CodexMcpToolCallStatus } from "./codex-protocol/v2/McpToolCallStatus";

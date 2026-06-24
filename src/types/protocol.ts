@@ -1,5 +1,7 @@
 // Claude CLI stream-json wire format types
 
+import type { PermissionMode } from "./permissions";
+
 export interface SystemInitEvent {
   type: "system";
   subtype: "init";
@@ -7,7 +9,7 @@ export interface SystemInitEvent {
   cwd: string;
   tools: string[];
   model: string;
-  permissionMode: string;
+  permissionMode: PermissionMode;
   claude_code_version: string;
   agents: string[];
   mcp_servers?: Array<{ name: string; status: string }>;
@@ -154,32 +156,44 @@ export interface ModelUsageEntry {
   maxOutputTokens?: number;
 }
 
-export interface ResultEvent {
+interface ResultEventBase {
   type: "result";
-  subtype:
-    | "success"
-    | "error"
-    | "error_during_execution"
-    | "error_max_turns"
-    | "error_max_budget_usd"
-    | "error_max_structured_output_retries";
-  is_error: boolean;
   duration_ms: number;
   num_turns: number;
   result: string;
   total_cost_usd: number;
   session_id: string;
   modelUsage?: Record<string, ModelUsageEntry>;
+}
+
+export interface ResultSuccessEvent extends ResultEventBase {
+  subtype: "success";
+  is_error: false;
+  errors?: never;
+}
+
+export type ResultErrorSubtype =
+  | "error"
+  | "error_during_execution"
+  | "error_max_turns"
+  | "error_max_budget_usd"
+  | "error_max_structured_output_retries";
+
+export interface ResultErrorEvent extends ResultEventBase {
+  subtype: ResultErrorSubtype;
+  is_error: true;
   /** Error details from SDK — only present on error result subtypes */
   errors?: string[];
 }
+
+export type ResultEvent = ResultSuccessEvent | ResultErrorEvent;
 
 export interface SystemStatusEvent {
   type: "system";
   subtype: "status";
   session_id?: string;
   status?: string;
-  permissionMode?: string;
+  permissionMode?: PermissionMode;
 }
 
 export interface SystemCompactBoundaryEvent {

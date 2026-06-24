@@ -2,7 +2,6 @@ import type { ToolUseResult } from "./protocol";
 import type { EngineId } from "./engine";
 import type { ImageAttachment } from "./attachments";
 import type { ContextUsage } from "./mcp";
-import type { PermissionMode } from "./permissions";
 
 // ── Effort ──
 
@@ -28,23 +27,10 @@ interface UIMessageBase {
   id: string;
   content: string;
   timestamp: number;
-}
-
-interface ToolBackedMessageFields {
   toolName?: string;
   toolInput?: Record<string, unknown>;
   toolResult?: ToolUseResult;
   toolError?: boolean;
-}
-
-interface NoToolBackedMessageFields {
-  toolName?: never;
-  toolInput?: never;
-  toolResult?: never;
-  toolError?: never;
-}
-
-interface AssistantMessageFields {
   thinking?: string;
   thinkingComplete?: boolean;
   isStreaming?: boolean;
@@ -55,63 +41,39 @@ interface AssistantMessageFields {
   subagentTokens?: number;
   /** SDK checkpoint UUID -- when present, files can be reverted to the state before this message */
   checkpointId?: string;
+  images?: ImageAttachment[];
+  /** User-visible text (with @path refs but without <file> XML blocks). Falls back to regex stripping if absent (old sessions). */
+  displayContent?: string;
+  /** When true, this user message is waiting in the queue -- not yet sent to the agent */
+  isQueued?: boolean;
+  /** When true, system message is rendered with error styling (red text, alert icon) */
+  isError?: boolean;
+  compactTrigger?: "manual" | "auto";
+  compactPreTokens?: number;
 }
 
-interface NoAssistantMessageFields {
-  thinking?: never;
-  thinkingComplete?: never;
-  isStreaming?: never;
-  subagentId?: never;
-  subagentSteps?: never;
-  subagentStatus?: never;
-  subagentDurationMs?: never;
-  subagentTokens?: never;
-  checkpointId?: never;
-}
-
-export type UserUIMessage = UIMessageBase &
-  NoToolBackedMessageFields &
-  NoAssistantMessageFields & {
+export type UserUIMessage = UIMessageBase & {
     role: "user";
-    images?: ImageAttachment[];
-    /** User-visible text (with @path refs but without <file> XML blocks). Falls back to regex stripping if absent (old sessions). */
-    displayContent?: string;
-    /** When true, this user message is waiting in the queue -- not yet sent to the agent */
-    isQueued?: boolean;
   };
 
-export type AssistantUIMessage = UIMessageBase &
-  NoToolBackedMessageFields &
-  AssistantMessageFields & {
+export type AssistantUIMessage = UIMessageBase & {
     role: "assistant";
   };
 
-export type ToolCallUIMessage = UIMessageBase &
-  ToolBackedMessageFields &
-  NoAssistantMessageFields & {
+export type ToolCallUIMessage = UIMessageBase & {
     role: "tool_call";
   };
 
-export type ToolResultUIMessage = UIMessageBase &
-  ToolBackedMessageFields &
-  NoAssistantMessageFields & {
+export type ToolResultUIMessage = UIMessageBase & {
     role: "tool_result";
   };
 
-export type SystemUIMessage = UIMessageBase &
-  NoToolBackedMessageFields &
-  NoAssistantMessageFields & {
+export type SystemUIMessage = UIMessageBase & {
     role: "system";
-    /** When true, system message is rendered with error styling (red text, alert icon) */
-    isError?: boolean;
   };
 
-export type SummaryUIMessage = UIMessageBase &
-  NoToolBackedMessageFields &
-  NoAssistantMessageFields & {
+export type SummaryUIMessage = UIMessageBase & {
     role: "summary";
-    compactTrigger?: "manual" | "auto";
-    compactPreTokens?: number;
   };
 
 export type UIMessage =
@@ -130,7 +92,7 @@ export interface SessionInfo {
   cwd: string;
   tools: string[];
   version: string;
-  permissionMode?: PermissionMode;
+  permissionMode?: string;
   agentName?: string;
 }
 
@@ -169,7 +131,7 @@ export interface SessionBase {
   createdAt: number;
   model?: string;
   effort?: ClaudeEffort;
-  permissionMode?: PermissionMode;
+  permissionMode?: string;
   planMode?: boolean;
   totalCost: number;
   engine?: EngineId;

@@ -5,11 +5,13 @@ import type { PermissionMode, PermissionUpdate as SDKPermissionUpdate } from "@a
 export type { PermissionMode };
 export type PermissionUpdate = SDKPermissionUpdate;
 
-export type PermissionUpdateDestination = SDKPermissionUpdate extends infer Update
+type SDKPermissionUpdateDestination = SDKPermissionUpdate extends infer Update
   ? Update extends { destination?: infer Destination }
     ? NonNullable<Destination>
     : never
   : never;
+
+export type PermissionUpdateDestination = Exclude<SDKPermissionUpdateDestination, "cliArg">;
 
 export type PermissionRuleValue = SDKPermissionUpdate extends infer Update
   ? Update extends { type: "addRules"; rules?: infer Rules }

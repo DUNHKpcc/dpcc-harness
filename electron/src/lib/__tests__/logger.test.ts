@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   mockApp,
@@ -6,6 +6,8 @@ const {
 } = vi.hoisted(() => ({
   mockApp: {
     isPackaged: true,
+    isReady: vi.fn(() => true),
+    whenReady: vi.fn(() => Promise.resolve()),
     getPath: vi.fn(() => "/mock"),
   },
   mockWrite: vi.fn(),
@@ -31,6 +33,13 @@ vi.mock("fs", async () => {
 import { formatLogData, log } from "../logger";
 
 describe("logger redaction", () => {
+  beforeEach(() => {
+    mockApp.isReady.mockReturnValue(true);
+    mockApp.whenReady.mockResolvedValue(undefined);
+    mockApp.getPath.mockClear();
+    mockWrite.mockClear();
+  });
+
   it("redacts sensitive object fields recursively", () => {
     const line = formatLogData({
       headers: {
@@ -59,6 +68,29 @@ describe("logger redaction", () => {
     expect(line).not.toContain("super-secret");
     expect(line).not.toContain("user:pass");
     expect(line).not.toContain("abc123");
+  });
+
+  it("defers packaged log path resolution until Electron is ready", async () => {
+    let resolveReady: (() => void) | undefined;
+    mockApp.isReady.mockReturnValue(false);
+    mockApp.whenReady.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveReady = resolve;
+      }),
+    );
+
+    log("EARLY", "queued-before-ready");
+
+    expect(mockApp.getPath).not.toHaveBeenCalled();
+    expect(mockWrite).not.toHaveBeenCalled();
+
+    mockApp.isReady.mockReturnValue(true);
+    resolveReady?.();
+    await Promise.resolve();
+
+    expect(mockApp.getPath).toHaveBeenCalledWith("userData");
+    expect(mockWrite).toHaveBeenCalledTimes(1);
+    expect(mockWrite.mock.calls[0][0]).toContain("queued-before-ready");
   });
 
   it("sanitizes logged errors", () => {

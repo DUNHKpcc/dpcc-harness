@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/tooltip";
 import type {
   ImageAttachment,
+  FileAttachment,
   GrabbedElement,
   ContextUsage,
   InstalledAgent,
@@ -58,6 +59,7 @@ import {
   extractEditableContent,
   getAvailableSlashCommands,
   isClearCommandText,
+  parseDroppedUrls,
 } from "./input-bar-utils";
 import { ContextGauge } from "./ContextGauge";
 import { AttachmentPreview } from "./AttachmentPreview";
@@ -167,6 +169,7 @@ export const InputBar = memo(function InputBar({
   const [hasContent, setHasContent] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [attachments, setAttachments] = useState<ImageAttachment[]>([]);
+  const [fileAttachments, setFileAttachments] = useState<FileAttachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [editingAttachment, setEditingAttachment] = useState<ImageAttachment | null>(null);
 
@@ -262,6 +265,7 @@ export const InputBar = memo(function InputBar({
       hasContentRef.current = false;
       setHasContent(false);
       setAttachments([]);
+      setFileAttachments([]);
       mention.closeMentions();
       command.setShowCommands(false);
     },
@@ -289,6 +293,29 @@ export const InputBar = memo(function InputBar({
 
   const removeAttachment = useCallback((id: string) => {
     setAttachments((prev) => prev.filter((a) => a.id !== id));
+  }, []);
+
+  // ── File attachments (non-image files dropped onto the input) ──
+
+  const addFileAttachments = useCallback((files: globalThis.File[]) => {
+    if (files.length === 0) return;
+    const newOnes: FileAttachment[] = files.map((f) => ({
+      id: `file-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      // webUtils.getPathForFile exposed via preload; returns "" if the File
+      // wasn't sourced from a real disk path (e.g. clipboard-synthesised File).
+      path: window.claude.getDroppedFilePath(f),
+      fileName: f.name,
+      size: f.size,
+    }));
+    // Drop entries we couldn't resolve a path for -- without an absolute path
+    // we can't read the file at send-time.
+    const valid = newOnes.filter((f) => f.path);
+    if (valid.length === 0) return;
+    setFileAttachments((prev) => [...prev, ...valid]);
+  }, []);
+
+  const removeFileAttachment = useCallback((id: string) => {
+    setFileAttachments((prev) => prev.filter((a) => a.id !== id));
   }, []);
 
   // ── Send flow ──
@@ -329,6 +356,37 @@ export const InputBar = memo(function InputBar({
             } else if (!result.isDir && result.content !== undefined) {
               contextParts.push(
                 `<file path="${result.path}">\n${result.content}\n</file>`,
+              );
+            }
+          }
+          hasContext = true;
+        } finally {
+          setIsSending(false);
+        }
+      }
+
+      // Dropped non-image files -> <file> context blocks (mirrors mention
+      // shape). Read at send-time using the absolute path captured at drop.
+      // Binary files will surface as a read error and get a placeholder so
+      // the agent at least knows the file was attached.
+      if (fileAttachments.length > 0) {
+        setIsSending(true);
+        try {
+          const reads = await Promise.all(
+            fileAttachments.map(async (att) => ({
+              path: att.path,
+              fileName: att.fileName,
+              ...(await window.claude.readFile(att.path)),
+            })),
+          );
+          for (const r of reads) {
+            if (r.content !== undefined) {
+              contextParts.push(
+                `<file path="${r.path}">\n${r.content}\n</file>`,
+              );
+            } else {
+              contextParts.push(
+                `<file path="${r.path}">\n[Attached binary or unreadable file: ${r.fileName}${r.error ? ` (${r.error})` : ""}]\n</file>`,
               );
             }
           }
@@ -399,7 +457,7 @@ export const InputBar = memo(function InputBar({
 
       clearComposer(el);
     },
-    [attachments, projectPath, onSend, clearComposer, grabbedElements],
+    [attachments, fileAttachments, projectPath, onSend, clearComposer, grabbedElements],
   );
 
   const handleSend = useCallback(async () => {
@@ -412,7 +470,7 @@ export const InputBar = memo(function InputBar({
     const hasGrabs = (grabbedElements?.length ?? 0) > 0;
     if (
       isAwaitingAcpOptions ||
-      (!trimmed && attachments.length === 0 && !hasGrabs) ||
+      (!trimmed && attachments.length === 0 && fileAttachments.length === 0 && !hasGrabs) ||
       isSending
     )
       return;
@@ -456,6 +514,7 @@ export const InputBar = memo(function InputBar({
     await performSend(el, fullText, mentionPaths, deepMentionPaths, hasGrabs);
   }, [
     attachments,
+    fileAttachments,
     isAwaitingAcpOptions,
     isSending,
     projectPath,
@@ -698,11 +757,43 @@ export const InputBar = memo(function InputBar({
       e.preventDefault();
       e.stopPropagation();
       setIsDragging(false);
-      if (e.dataTransfer?.files) {
-        addImageFiles(e.dataTransfer.files);
+
+      const dt = e.dataTransfer;
+      if (!dt) return;
+
+      const droppedFiles = dt.files && dt.files.length > 0
+        ? Array.from(dt.files)
+        : [];
+
+      // 1. URLs / hyperlinks (with no accompanying files) → insert as plain
+      //    text at the cursor. The agent can WebFetch them as needed.
+      if (droppedFiles.length === 0) {
+        const urls = parseDroppedUrls(
+          dt.getData("text/uri-list"),
+          dt.getData("text/plain"),
+        );
+        if (urls.length > 0) {
+          insertTextAtCursor(editableRef.current, urls.join(" "));
+        }
+        return;
       }
+
+      // 2. Files: split into images (inlined as base64 attachments for the
+      //    SDK) vs. other files (read at send-time and injected as <file>
+      //    context blocks).
+      const images: globalThis.File[] = [];
+      const others: globalThis.File[] = [];
+      for (const f of droppedFiles) {
+        if (isAcceptedImage(f)) {
+          images.push(f);
+        } else {
+          others.push(f);
+        }
+      }
+      if (images.length > 0) addImageFiles(images);
+      if (others.length > 0) addFileAttachments(others);
     },
-    [addImageFiles],
+    [addImageFiles, addFileAttachments],
   );
 
   const handleFileInputChange = useCallback(
@@ -733,6 +824,7 @@ export const InputBar = memo(function InputBar({
     isAwaitingAcpOptions ||
     ((!hasContent &&
       attachments.length === 0 &&
+      fileAttachments.length === 0 &&
       (!grabbedElements || grabbedElements.length === 0)) ||
       isSending);
 
@@ -829,6 +921,8 @@ export const InputBar = memo(function InputBar({
           attachments={attachments}
           onRemoveAttachment={removeAttachment}
           onEditAttachment={setEditingAttachment}
+          fileAttachments={fileAttachments}
+          onRemoveFileAttachment={removeFileAttachment}
           grabbedElements={grabbedElements ?? []}
           onRemoveGrabbedElement={onRemoveGrabbedElement ?? (() => {})}
         />

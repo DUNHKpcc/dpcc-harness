@@ -116,6 +116,7 @@ declare global {
       revertFiles: (sessionId: string, checkpointId: string) => Promise<IpcResult>;
       restartSession: (sessionId: string, mcpServers?: McpServerConfig[], cwd?: string, effort?: ClaudeEffort, model?: string, claudeCodexBridgeEnabled?: boolean) => Promise<IpcResult & { restarted?: boolean }>;
       readFile: (filePath: string) => Promise<{ content?: string; error?: string }>;
+      getDroppedFilePath: (file: File) => string;
       renameFile: (oldPath: string, newPath: string) => Promise<IpcResult>;
       trashItem: (filePath: string) => Promise<IpcResult>;
       newFile: (filePath: string) => Promise<IpcResult>;

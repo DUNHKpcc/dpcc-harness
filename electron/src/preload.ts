@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, IpcRendererEvent } from "electron";
+import { contextBridge, ipcRenderer, IpcRendererEvent, webUtils } from "electron";
 
 interface PreloadDocument {
   documentElement: {
@@ -146,6 +146,11 @@ contextBridge.exposeInMainWorld("claude", {
   restartSession: (sessionId: string, mcpServers?: unknown[], cwd?: string, effort?: string, model?: string, claudeCodexBridgeEnabled?: boolean) =>
     ipcRenderer.invoke("claude:restart-session", { sessionId, mcpServers, cwd, effort, model, claudeCodexBridgeEnabled }),
   readFile: (filePath: string) => ipcRenderer.invoke("file:read", filePath),
+  // Synchronously resolve the absolute disk path of a File object (e.g. one
+  // obtained from a drag-and-drop DataTransfer.files entry). Electron 32+
+  // removed File.path; webUtils.getPathForFile is the supported replacement
+  // and runs in the preload context so no IPC round-trip is needed.
+  getDroppedFilePath: (file: File) => webUtils.getPathForFile(file),
   renameFile: (oldPath: string, newPath: string) => ipcRenderer.invoke("file:rename", { oldPath, newPath }),
   trashItem: (filePath: string) => ipcRenderer.invoke("file:trash", filePath),
   newFile: (filePath: string) => ipcRenderer.invoke("file:new-file", filePath),

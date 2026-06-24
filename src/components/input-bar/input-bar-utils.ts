@@ -25,6 +25,38 @@ export function isAcceptedImage(file: globalThis.File): boolean {
   return (ACCEPTED_IMAGE_TYPES as readonly string[]).includes(file.type);
 }
 
+/** Parse dragged URL-like payloads into a deduped list of valid URLs.
+ *
+ *  Browsers expose dragged links via two MIME types:
+ *    - "text/uri-list" — newline-separated URLs (lines starting with `#` are
+ *      RFC 2483 comments and must be ignored)
+ *    - "text/plain"    — typically the same URL again, or arbitrary text
+ *
+ *  We prefer uri-list because it disambiguates "dragged a hyperlink" from
+ *  "dragged a text selection that happens to look like a URL". When uri-list
+ *  is empty we accept text/plain only if it parses cleanly as an http/https/
+ *  file URL — we deliberately do NOT promote arbitrary dragged text. */
+export function parseDroppedUrls(uriList: string, plain: string): string[] {
+  const fromUriList = uriList
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith("#"))
+    .filter(isHttpOrFileUrl);
+  if (fromUriList.length > 0) return [...new Set(fromUriList)];
+
+  const trimmed = plain.trim();
+  return trimmed && isHttpOrFileUrl(trimmed) ? [trimmed] : [];
+}
+
+function isHttpOrFileUrl(s: string): boolean {
+  try {
+    const u = new URL(s);
+    return u.protocol === "http:" || u.protocol === "https:" || u.protocol === "file:";
+  } catch {
+    return false;
+  }
+}
+
 /** Insert text at the current cursor position in a contentEditable element. */
 export function insertTextAtCursor(
   el: HTMLElement | null,

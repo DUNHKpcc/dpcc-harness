@@ -7,6 +7,20 @@ export interface ImageAttachment {
   fileName?: string;
 }
 
+/** Non-image file dropped onto the input bar. Carries the absolute path
+ *  (resolved via Electron's webUtils.getPathForFile in preload) so we can
+ *  read the content at send-time and inline it into the prompt as a `<file>`
+ *  context block — same shape used for @mention file references. */
+export interface FileAttachment {
+  id: string;
+  /** Absolute path on disk. */
+  path: string;
+  /** Basename used for the chip label. */
+  fileName: string;
+  /** File size in bytes — shown next to the filename in the chip. */
+  size: number;
+}
+
 /** Element data captured by the browser inspector (Element Grab feature). */
 export interface GrabbedElement {
   id: string;

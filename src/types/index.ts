@@ -60,6 +60,7 @@ export type {
 
 export type {
   ImageAttachment,
+  FileAttachment,
   GrabbedElement,
 } from "./attachments";
 

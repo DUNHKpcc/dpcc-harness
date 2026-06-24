@@ -10,7 +10,7 @@ export type { GitFileStatus, GitFileGroup, GitFileChange, GitBranch, GitRepoInfo
 export type { ClaudeEffort, TodoItem, SubagentToolStep, UIMessage, SessionInfo, Project, ChatFolder, SessionBase, ChatSession, PersistedSession, CCSessionInfo } from "./session";
 export type { SpaceColor, Space } from "./spaces";
 export type { SearchMessageResult, SearchSessionResult } from "./search";
-export type { ImageAttachment, GrabbedElement } from "./attachments";
+export type { ImageAttachment, FileAttachment, GrabbedElement } from "./attachments";
 export type { PermissionUpdateDestination, PermissionRuleValue, PermissionUpdate, PermissionRequest, AcpPermissionBehavior } from "./permissions";
 export type { BackgroundAgentUsage, BackgroundAgent, BackgroundAgentActivity } from "./agents";
 export type { ContextUsage, ModelInfo, McpTransport, McpServerConfig, McpServerStatusState, McpServerStatus } from "./mcp";

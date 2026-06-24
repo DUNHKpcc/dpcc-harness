@@ -1,3 +1,5 @@
+import type { PermissionMode, PermissionUpdate } from "@anthropic-ai/claude-agent-sdk";
+
 /** Unified slash command representation — normalized from each engine's native format. */
 export interface SlashCommand {
   /** The command string without leading slash (e.g., "compact", "help"). */
@@ -37,6 +39,6 @@ export type AppPermissionBehavior = "allow" | "deny" | "allowForSession";
 export type RespondPermissionFn = (
   behavior: AppPermissionBehavior,
   updatedInput?: Record<string, unknown>,
-  newPermissionMode?: string,
-  updatedPermissions?: unknown[],
+  newPermissionMode?: PermissionMode,
+  updatedPermissions?: PermissionUpdate[],
 ) => Promise<void>;

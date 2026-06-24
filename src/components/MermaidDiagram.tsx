@@ -6,13 +6,13 @@ import { useResolvedTheme } from "@/hooks/useTheme";
 import { CopyButton } from "./CopyButton";
 
 /** Bump when mermaid config changes to invalidate cached SVGs. */
-const MERMAID_RENDER_VERSION = "7";
+const MERMAID_RENDER_VERSION = "8";
 const MAX_CACHE_ENTRIES = 80;
 const mermaidSvgCache = new Map<string, string>();
 /** Cache parse errors so failed diagrams don't retry on virtualizer remount. */
 const mermaidErrorCache = new Map<string, string>();
 
-// ── Shared theme variables (identical in both light & dark) ─────────────
+// ── Theme variables ─────────────────────────────────────────────────────────
 
 const SHARED_THEME_VARIABLES = {
   lineColor: "#6b7280",
@@ -33,16 +33,12 @@ const SHARED_THEME_VARIABLES = {
   pie8: "#818cf8",
 } as const;
 
-// ── Light theme ─────────────────────────────────────────────────────────
-
 const LIGHT_THEME_VARIABLES = {
   ...SHARED_THEME_VARIABLES,
-  // Global text
   primaryTextColor: "#1a1a1a",
   secondaryTextColor: "#374151",
   tertiaryTextColor: "#4b5563",
   textColor: "#1a1a1a",
-  // Backgrounds
   primaryColor: "#dbeafe",
   primaryBorderColor: "#93c5fd",
   secondaryColor: "#f3e8ff",
@@ -51,23 +47,19 @@ const LIGHT_THEME_VARIABLES = {
   tertiaryBorderColor: "#9ca3af",
   mainBkg: "#dbeafe",
   nodeBorder: "#93c5fd",
-  // Notes
   noteBkgColor: "#fef9c3",
   noteTextColor: "#1a1a1a",
   noteBorderColor: "#d4aa3c",
-  // Labels
   signalColor: "#1a1a1a",
   signalTextColor: "#1a1a1a",
   labelTextColor: "#1a1a1a",
   loopTextColor: "#1a1a1a",
-  // Sequence diagram
   actorBkg: "#dbeafe",
   actorBorder: "#93c5fd",
   actorTextColor: "#1a1a1a",
   activationBorderColor: "#93c5fd",
   activationBkgColor: "#eff6ff",
   sequenceNumberColor: "#ffffff",
-  // Pie chart
   pieTitleTextColor: "#1a1a1a",
   pieLegendTextColor: "#374151",
   pieStrokeColor: "#ffffff",
@@ -79,7 +71,6 @@ const LIGHT_THEME_VARIABLES = {
   pie10: "#d1d5db",
   pie11: "#a5b4fc",
   pie12: "#7c3aed",
-  // Git graph
   commitLabelColor: "#1a1a1a",
   commitLabelBackground: "#e5e7eb",
   tagLabelColor: "#1a1a1a",
@@ -102,28 +93,21 @@ const LIGHT_THEME_VARIABLES = {
   gitInv5: "#ffffff",
   gitInv6: "#ffffff",
   gitInv7: "#ffffff",
-  // Flowchart / state
   nodeBkg: "#dbeafe",
   clusterBkg: "#f1f5f9",
   clusterBorder: "#cbd5e1",
   edgeLabelBackground: "#ffffff",
-  // Class diagram
   classText: "#1a1a1a",
-  // State diagram
   labelColor: "#1a1a1a",
   altBackground: "#f1f5f9",
 } as const;
 
-// ── Dark theme ──────────────────────────────────────────────────────────
-
 const DARK_THEME_VARIABLES = {
   ...SHARED_THEME_VARIABLES,
-  // Global text
   primaryTextColor: "#e5e7eb",
   secondaryTextColor: "#d1d5db",
   tertiaryTextColor: "#9ca3af",
   textColor: "#e5e7eb",
-  // Backgrounds
   primaryColor: "#312e81",
   primaryBorderColor: "#4338ca",
   secondaryColor: "#3b1f5e",
@@ -132,23 +116,19 @@ const DARK_THEME_VARIABLES = {
   tertiaryBorderColor: "#4b5563",
   mainBkg: "#312e81",
   nodeBorder: "#4338ca",
-  // Notes
   noteBkgColor: "#422006",
   noteTextColor: "#e5e7eb",
   noteBorderColor: "#92400e",
-  // Labels
   signalColor: "#e5e7eb",
   signalTextColor: "#e5e7eb",
   labelTextColor: "#e5e7eb",
   loopTextColor: "#d1d5db",
-  // Sequence diagram
   actorBkg: "#1e1b4b",
   actorBorder: "#4338ca",
   actorTextColor: "#e5e7eb",
   activationBorderColor: "#4338ca",
   activationBkgColor: "#312e81",
   sequenceNumberColor: "#e5e7eb",
-  // Pie chart
   pieTitleTextColor: "#e5e7eb",
   pieLegendTextColor: "#d1d5db",
   pieStrokeColor: "#111827",
@@ -160,7 +140,6 @@ const DARK_THEME_VARIABLES = {
   pie10: "#374151",
   pie11: "#4f46e5",
   pie12: "#5b21b6",
-  // Git graph
   commitLabelColor: "#e5e7eb",
   commitLabelBackground: "#374151",
   tagLabelColor: "#e5e7eb",
@@ -183,17 +162,13 @@ const DARK_THEME_VARIABLES = {
   gitInv5: "#111827",
   gitInv6: "#111827",
   gitInv7: "#111827",
-  // Flowchart / state
   nodeBkg: "#1e1b4b",
   clusterBkg: "#111827",
   clusterBorder: "#374151",
   edgeLabelBackground: "#1f2937",
-  // Class diagram
   classText: "#e5e7eb",
-  // State diagram
   labelColor: "#e5e7eb",
   altBackground: "#111827",
-  // Canvas
   background: "#1b1b1f",
 } as const;
 
@@ -231,7 +206,6 @@ function getColorLuminance(color: string): number | null {
     }
     return null;
   }
-  // Browser normalizes inline styles to rgb(r, g, b)
   const rgbMatch = color.match(/^rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/);
   if (rgbMatch) {
     const r = parseInt(rgbMatch[1], 10);
@@ -252,7 +226,6 @@ function fixNodeTextContrast(container: HTMLElement): void {
     const shape = node.querySelector("rect, polygon, circle, ellipse");
     if (!shape) continue;
 
-    // Only fix nodes with inline fill styles (mermaid `style X fill:...` directives).
     const inlineFill = (shape as HTMLElement).style?.fill;
     if (!inlineFill) continue;
 
@@ -260,13 +233,17 @@ function fixNodeTextContrast(container: HTMLElement): void {
     if (lum === null) continue;
 
     const textColor = lum > 0.5 ? "#1a1a1a" : "#f5f5f5";
-
-    // foreignObject text (flowchart/graph nodes)
     const labels = node.querySelectorAll(".nodeLabel");
     for (const label of labels) {
       (label as HTMLElement).style.color = textColor;
     }
   }
+}
+
+function dispatchContentResized(): void {
+  requestAnimationFrame(() => {
+    window.dispatchEvent(new Event(CHAT_CONTENT_RESIZED_EVENT));
+  });
 }
 
 // ── Shared wrapper ──────────────────────────────────────────────────────
@@ -296,6 +273,10 @@ export function MermaidDiagram({ code, isStreaming }: MermaidDiagramProps) {
   const [error, setError] = useState<string | null>(null);
   const resolvedTheme = useResolvedTheme();
   const cacheKey = getMermaidCacheKey(code, resolvedTheme);
+  const cachedError = !isStreaming && code.trim()
+    ? mermaidErrorCache.get(cacheKey) ?? null
+    : null;
+  const renderError = cachedError ?? error;
 
   // Single merged effect: initialize mermaid with the current theme, then render.
   // Merging prevents a race where the render effect fires before initialization.
@@ -305,7 +286,6 @@ export function MermaidDiagram({ code, isStreaming }: MermaidDiagramProps) {
 
     const requestId = ++renderRequestRef.current;
 
-    // Re-initialize mermaid for the current theme
     const isDark = resolvedTheme === "dark";
     mermaid.initialize({
       startOnLoad: false,
@@ -322,23 +302,19 @@ export function MermaidDiagram({ code, isStreaming }: MermaidDiagramProps) {
       return;
     }
 
-    // Check caches — success cache first, then error cache to avoid
-    // retrying failed renders on virtualizer remount (which causes an
-    // infinite unmount/remount loop from height changes between states).
     const cached = mermaidSvgCache.get(cacheKey);
     if (cached) {
       container.innerHTML = cached;
       setError(null);
-      requestAnimationFrame(() => {
-        window.dispatchEvent(new Event(CHAT_CONTENT_RESIZED_EVENT));
-      });
+      dispatchContentResized();
       return;
     }
 
-    const cachedError = mermaidErrorCache.get(cacheKey);
+    // This is intentionally a render-time derived value, not state. Calling
+    // setError(cachedError) from here made virtualizer remounts repeatedly
+    // schedule state updates for known-bad diagrams.
     if (cachedError) {
       container.innerHTML = "";
-      setError(cachedError);
       return;
     }
 
@@ -349,21 +325,12 @@ export function MermaidDiagram({ code, isStreaming }: MermaidDiagramProps) {
         setError(null);
 
         const id = `mermaid-${requestId}-${Math.random().toString(36).slice(2, 9)}`;
-        // Don't pass our container to mermaid.render() — mermaid uses the
-        // container for DOM measurements (getBBox, getBoundingClientRect).
-        // The virtualizer can unmount this component mid-render, detaching
-        // the container and crashing mermaid. Without a container arg,
-        // mermaid creates its own temp element in document.body.
         const { svg: renderedSvg } = await mermaid.render(id, code);
 
         if (renderRequestRef.current !== requestId) return;
 
         container!.innerHTML = renderedSvg;
 
-        // Fix SVG dimensions: mermaid sets width="100%" + max-width style,
-        // which forces all diagrams to stretch to container width. Convert to
-        // pixel width so diagrams use their natural size (small ones stay small,
-        // wide ones extend and the container scrolls horizontally).
         const svg = container!.querySelector("svg");
         if (svg) {
           const maxW = svg.style.maxWidth;
@@ -373,18 +340,11 @@ export function MermaidDiagram({ code, isStreaming }: MermaidDiagramProps) {
           }
         }
 
-        // Fix text contrast for nodes with custom inline fills (e.g. `style DEV fill:#e1f5ff`).
-        // Mermaid doesn't adjust text color to match custom fills, so light fills
-        // get light text in dark mode (invisible). Runs before caching.
         fixNodeTextContrast(container!);
 
         mermaidSvgCache.set(cacheKey, container!.innerHTML);
         evictCache();
-
-        // Notify virtualizer that content height changed after async render
-        requestAnimationFrame(() => {
-          window.dispatchEvent(new Event(CHAT_CONTENT_RESIZED_EVENT));
-        });
+        dispatchContentResized();
       } catch (err) {
         if (renderRequestRef.current !== requestId) return;
 
@@ -402,13 +362,13 @@ export function MermaidDiagram({ code, isStreaming }: MermaidDiagramProps) {
         container.innerHTML = "";
       }
     };
-  }, [cacheKey, isStreaming]);
+  }, [cacheKey, cachedError, code, isStreaming, resolvedTheme]);
 
-  if (error) {
+  if (renderError) {
     return (
       <MermaidCard label="mermaid (error)" code={code}>
         <div className="wrap-break-word whitespace-pre-wrap p-3 text-xs text-destructive">
-          Failed to render diagram: {error}
+          Failed to render diagram: {renderError}
         </div>
         <pre className="overflow-x-auto p-3 text-xs font-mono text-muted-foreground border-t border-foreground/[0.06]">
           <code>{code}</code>

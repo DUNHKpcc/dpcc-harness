@@ -109,10 +109,9 @@ function remapSuggestions(
   suggestions: PermissionUpdate[],
   destination: PermissionUpdateDestination,
 ): PermissionUpdate[] {
-  return suggestions.map((s) => ({
-    ...s,
-    destination: s.type === "setMode" ? s.destination : destination,
-  }));
+  return suggestions.map((s) => (
+    s.type === "setMode" ? s : { ...s, destination }
+  )) as PermissionUpdate[];
 }
 
 interface ToolDetail {
@@ -302,8 +301,21 @@ function AskUserQuestionPrompt({ request, onRespond }: PermissionPromptProps) {
   );
   const [freeText, setFreeText] = useState<Record<string, string>>({});
 
-  const isMulti = questions.length > 1;
   const q = questions[currentIndex];
+  if (!q) {
+    return (
+      <div className={`mx-auto w-full px-4 pb-4 ${BOTTOM_CHAT_MAX_WIDTH_CLASS}`}>
+        <div className="pointer-events-auto rounded-2xl border border-border/60 bg-background/55 px-4 py-3 shadow-lg backdrop-blur-lg">
+          <Button size="sm" variant="ghost" onClick={() => onRespond("deny")}>
+            <X className="h-3.5 w-3.5" />
+            {t("permission.question.skip")}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const isMulti = questions.length > 1;
   const questionKey = getAskUserQuestionKey(q, currentIndex);
   const options = q.options ?? [];
   const hasOptions = options.length > 0;
@@ -370,7 +382,6 @@ function AskUserQuestionPrompt({ request, onRespond }: PermissionPromptProps) {
     if (currentIndex > 0) setCurrentIndex((i) => i - 1);
   };
 
-  // Collapsed: minimal bar with question count + expand button
   if (collapsed) {
     return (
       <div
@@ -399,9 +410,7 @@ function AskUserQuestionPrompt({ request, onRespond }: PermissionPromptProps) {
   return (
     <div className={`mx-auto w-full px-4 pb-4 ${BOTTOM_CHAT_MAX_WIDTH_CLASS}`}>
       <div className="pointer-events-auto rounded-2xl border border-border/60 bg-background/55 shadow-lg backdrop-blur-lg">
-        {/* Current question content */}
         <div className="flex flex-col gap-2 px-3.5 py-3">
-          {/* Question text with step indicator */}
           <div className="flex items-baseline gap-2">
             {isMulti && (
               <span className="shrink-0 text-[10px] font-medium tabular-nums text-muted-foreground/50">
@@ -413,7 +422,6 @@ function AskUserQuestionPrompt({ request, onRespond }: PermissionPromptProps) {
             </p>
           </div>
 
-          {/* Option cards — compact 2-col grid with descriptions */}
           {hasOptions && (
             <div className="grid grid-cols-2 gap-1">
               {options.map((opt) => {
@@ -456,7 +464,6 @@ function AskUserQuestionPrompt({ request, onRespond }: PermissionPromptProps) {
             </div>
           )}
 
-          {/* Free-text input */}
           <input
             type={q.isSecret ? "password" : "text"}
             placeholder={hasOptions ? t("permission.question.orTypeYourOwn") : t("permission.question.typeYourAnswer")}
@@ -482,7 +489,6 @@ function AskUserQuestionPrompt({ request, onRespond }: PermissionPromptProps) {
           />
         </div>
 
-        {/* Action bar */}
         <div className="flex items-center gap-1.5 border-t border-border/40 px-3 py-2">
           <Button
             size="sm"
@@ -494,7 +500,6 @@ function AskUserQuestionPrompt({ request, onRespond }: PermissionPromptProps) {
             {t("permission.question.skip")}
           </Button>
 
-          {/* Back button for multi-question sets */}
           {isMulti && currentIndex > 0 && (
             <Button
               size="sm"
@@ -507,10 +512,8 @@ function AskUserQuestionPrompt({ request, onRespond }: PermissionPromptProps) {
             </Button>
           )}
 
-          {/* Spacer */}
           <div className="flex-1" />
 
-          {/* Collapse button */}
           <button
             type="button"
             onClick={() => setCollapsed(true)}
@@ -519,7 +522,6 @@ function AskUserQuestionPrompt({ request, onRespond }: PermissionPromptProps) {
             <ChevronsDownUp className="h-3 w-3" />
           </button>
 
-          {/* Primary action: Next (when more questions remain) or Answer (when all done) */}
           {isMulti && !isLast ? (
             <Button
               size="sm"
@@ -580,6 +582,12 @@ export function PermissionPrompt({
   const isSubmitting = submittingAction !== null;
   const scopeOptions = buildScopeOptions(t, request.suggestions);
 
+  const resetSubmittedRequest = (submittedRequestId: string) => {
+    if (submittingRequestIdRef.current !== submittedRequestId) return;
+    submittingRequestIdRef.current = null;
+    setSubmittingAction(null);
+  };
+
   const submit = async (behavior: "allow" | "deny" | "allowForSession") => {
     if (isSubmitting) return;
     if (submittingRequestIdRef.current === request.requestId) return;
@@ -588,11 +596,8 @@ export function PermissionPrompt({
     setSubmittingAction(behavior);
     try {
       await onRespond(behavior);
-    } catch {
-      if (submittingRequestIdRef.current === submittedRequestId) {
-        submittingRequestIdRef.current = null;
-        setSubmittingAction(null);
-      }
+    } finally {
+      resetSubmittedRequest(submittedRequestId);
     }
   };
 
@@ -606,11 +611,8 @@ export function PermissionPrompt({
     try {
       const remapped = remapSuggestions(request.suggestions, dest);
       await onRespond("allow", undefined, undefined, remapped);
-    } catch {
-      if (submittingRequestIdRef.current === submittedRequestId) {
-        submittingRequestIdRef.current = null;
-        setSubmittingAction(null);
-      }
+    } finally {
+      resetSubmittedRequest(submittedRequestId);
     }
   };
 
@@ -669,7 +671,6 @@ export function PermissionPrompt({
             </Button>
           )}
 
-          {/* Split button: Allow (once) + chevron dropdown for scoped "always allow" */}
           <div className="flex items-center">
             <Button
               size="sm"

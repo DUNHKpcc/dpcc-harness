@@ -58,15 +58,38 @@ export const ImageAnnotationEditor = React.memo(function ImageAnnotationEditor({
   const transformerRef = useRef<Konva.Transformer>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isDrawing = useRef(false);
+  const loadedImageRef = useRef<HTMLImageElement | null>(null);
 
   const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
+
+    let disposed = false;
     const img = new window.Image();
+
+    img.onload = () => {
+      if (disposed) return;
+      loadedImageRef.current = img;
+      setLoadedImage(img);
+    };
+    img.onerror = () => {
+      if (disposed) return;
+      if (loadedImageRef.current === img) loadedImageRef.current = null;
+      setLoadedImage(null);
+    };
     img.src = `data:${image.mediaType};base64,${image.data}`;
-    img.onload = () => setLoadedImage(img);
-    return () => { img.onload = null; };
+
+    return () => {
+      disposed = true;
+      img.onload = null;
+      img.onerror = null;
+      img.removeAttribute("src");
+      if (loadedImageRef.current === img) {
+        loadedImageRef.current = null;
+        setLoadedImage(null);
+      }
+    };
   }, [image.data, image.mediaType, open]);
 
   // Fit image to container preserving aspect ratio
@@ -96,12 +119,23 @@ export const ImageAnnotationEditor = React.memo(function ImageAnnotationEditor({
 
   const { annotations, pushState, undo, redo, canUndo, canRedo, clear } =
     useAnnotationHistory(containerRef);
+  const annotationsRef = useRef<Annotation[]>([]);
+
+  useEffect(() => {
+    annotationsRef.current = annotations;
+  }, [annotations]);
 
   const [activeTool, setActiveTool] = useState<AnnotationTool>("freehand");
   const [strokeColor, setStrokeColor] = useState(DEFAULT_STROKE_COLOR);
   const [strokeWidth, setStrokeWidth] = useState(DEFAULT_STROKE_WIDTH);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [drawingAnnotation, setDrawingAnnotation] = useState<Annotation | null>(null);
+  const drawingAnnotationRef = useRef<Annotation | null>(null);
+
+  const setCurrentDrawingAnnotation = useCallback((ann: Annotation | null) => {
+    drawingAnnotationRef.current = ann;
+    setDrawingAnnotation(ann);
+  }, []);
 
   const [textEditing, setTextEditing] = useState<{
     x: number;
@@ -121,13 +155,15 @@ export const ImageAnnotationEditor = React.memo(function ImageAnnotationEditor({
   useEffect(() => {
     if (!open) {
       clear();
-      setDrawingAnnotation(null);
+      isDrawing.current = false;
+      setCurrentDrawingAnnotation(null);
       setSelectedId(null);
       setTextEditing(null);
       setActiveTool("freehand");
+      loadedImageRef.current = null;
       setLoadedImage(null);
     }
-  }, [open, clear]);
+  }, [open, clear, setCurrentDrawingAnnotation]);
 
   useEffect(() => {
     setSelectedId(null);
@@ -147,13 +183,14 @@ export const ImageAnnotationEditor = React.memo(function ImageAnnotationEditor({
     (e: KonvaEventObject<MouseEvent>) => {
       const pos = e.target.getStage()?.getPointerPosition();
       if (!pos) return;
+      const latestAnnotations = annotationsRef.current;
 
       // Eraser: remove the clicked annotation
       if (activeTool === "eraser") {
         const target = e.target;
         const id = target.id();
-        if (id && annotations.some((a) => a.id === id)) {
-          pushState(annotations.filter((a) => a.id !== id));
+        if (id && latestAnnotations.some((a) => a.id === id)) {
+          pushState(latestAnnotations.filter((a) => a.id !== id));
         }
         return;
       }
@@ -161,7 +198,7 @@ export const ImageAnnotationEditor = React.memo(function ImageAnnotationEditor({
       // Select: handle click on shapes for transformer
       if (activeTool === "select") {
         const id = e.target.id();
-        if (id && annotations.some((a) => a.id === id)) {
+        if (id && latestAnnotations.some((a) => a.id === id)) {
           setSelectedId(id);
         } else {
           setSelectedId(null);
@@ -201,7 +238,7 @@ export const ImageAnnotationEditor = React.memo(function ImageAnnotationEditor({
             type: "freehand",
             points: [pos.x, pos.y],
           };
-          setDrawingAnnotation(ann);
+          setCurrentDrawingAnnotation(ann);
           break;
         }
         case "rectangle":
@@ -215,7 +252,7 @@ export const ImageAnnotationEditor = React.memo(function ImageAnnotationEditor({
             height: 0,
             ...(activeTool === "highlight" ? { fill: HIGHLIGHT_COLOR, strokeWidth: 0, opacity: 1 } : {}),
           };
-          setDrawingAnnotation(ann);
+          setCurrentDrawingAnnotation(ann);
           break;
         }
         case "circle": {
@@ -227,7 +264,7 @@ export const ImageAnnotationEditor = React.memo(function ImageAnnotationEditor({
             radiusX: 0,
             radiusY: 0,
           };
-          setDrawingAnnotation(ann);
+          setCurrentDrawingAnnotation(ann);
           break;
         }
         case "arrow": {
@@ -236,62 +273,68 @@ export const ImageAnnotationEditor = React.memo(function ImageAnnotationEditor({
             type: "arrow",
             points: [pos.x, pos.y, pos.x, pos.y],
           };
-          setDrawingAnnotation(ann);
+          setCurrentDrawingAnnotation(ann);
           break;
         }
       }
     },
-    [activeTool, strokeColor, strokeWidth, annotations, pushState],
+    [activeTool, strokeColor, strokeWidth, pushState, setCurrentDrawingAnnotation],
   );
 
   const handleMouseMove = useCallback(
     (e: KonvaEventObject<MouseEvent>) => {
-      if (!isDrawing.current || !drawingAnnotation) return;
+      const current = drawingAnnotationRef.current;
+      if (!isDrawing.current || !current) return;
       const pos = e.target.getStage()?.getPointerPosition();
       if (!pos) return;
 
-      switch (drawingAnnotation.type) {
+      let next: Annotation;
+      switch (current.type) {
         case "freehand":
-          setDrawingAnnotation({
-            ...drawingAnnotation,
-            points: [...drawingAnnotation.points, pos.x, pos.y],
-          });
+          next = {
+            ...current,
+            points: [...current.points, pos.x, pos.y],
+          };
           break;
         case "rectangle":
         case "highlight":
-          setDrawingAnnotation({
-            ...drawingAnnotation,
-            width: pos.x - drawingAnnotation.x,
-            height: pos.y - drawingAnnotation.y,
-          });
+          next = {
+            ...current,
+            width: pos.x - current.x,
+            height: pos.y - current.y,
+          };
           break;
         case "circle":
-          setDrawingAnnotation({
-            ...drawingAnnotation,
-            radiusX: Math.abs(pos.x - drawingAnnotation.x),
-            radiusY: Math.abs(pos.y - drawingAnnotation.y),
-          });
+          next = {
+            ...current,
+            radiusX: Math.abs(pos.x - current.x),
+            radiusY: Math.abs(pos.y - current.y),
+          };
           break;
         case "arrow":
-          setDrawingAnnotation({
-            ...drawingAnnotation,
-            points: [drawingAnnotation.points[0], drawingAnnotation.points[1], pos.x, pos.y],
-          });
+          next = {
+            ...current,
+            points: [current.points[0], current.points[1], pos.x, pos.y],
+          };
           break;
+        case "text":
+          return;
       }
+      setCurrentDrawingAnnotation(next);
     },
-    [drawingAnnotation],
+    [setCurrentDrawingAnnotation],
   );
 
   const handleMouseUp = useCallback(() => {
-    if (!isDrawing.current || !drawingAnnotation) return;
+    const current = drawingAnnotationRef.current;
+    if (!isDrawing.current || !current) return;
     isDrawing.current = false;
 
-    if (hasVisibleSize(drawingAnnotation)) {
-      pushState([...annotations, drawingAnnotation]);
+    if (hasVisibleSize(current)) {
+      pushState([...annotationsRef.current, current]);
     }
-    setDrawingAnnotation(null);
-  }, [drawingAnnotation, annotations, pushState]);
+    setCurrentDrawingAnnotation(null);
+  }, [pushState, setCurrentDrawingAnnotation]);
 
   const handleTextSubmit = useCallback(
     (value: string) => {
@@ -311,10 +354,10 @@ export const ImageAnnotationEditor = React.memo(function ImageAnnotationEditor({
         fontSize: DEFAULT_FONT_SIZE,
         fill: strokeColor,
       };
-      pushState([...annotations, ann]);
+      pushState([...annotationsRef.current, ann]);
       setTextEditing(null);
     },
-    [textEditing, strokeColor, annotations, pushState],
+    [textEditing, strokeColor, pushState],
   );
 
   const handleSave = useCallback(() => {

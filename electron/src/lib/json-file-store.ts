@@ -106,16 +106,14 @@ export class JsonFileStore<T> {
       if (this.encrypt) {
         if (safeStorage.isEncryptionAvailable()) {
           const encrypted = safeStorage.encryptString(json);
-          fs.writeFileSync(filePath, encrypted, { mode: 0o600 });
+          writeFileAtomic(filePath, encrypted, 0o600);
         } else {
           // Encryption unavailable -- fall back to restrictive plaintext.
-          fs.writeFileSync(filePath, json, { mode: 0o600 });
+          writeFileAtomic(filePath, json, 0o600);
         }
       } else {
         // Non-sensitive data: atomic write via temp + rename.
-        const tempPath = `${filePath}.tmp`;
-        fs.writeFileSync(tempPath, json);
-        fs.renameSync(tempPath, filePath);
+        writeFileAtomic(filePath, json);
       }
     } catch (error: unknown) {
       reportError(`${this.label}_SAVE`, error, { key });
@@ -187,6 +185,37 @@ export class JsonFileStore<T> {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+function writeFileAtomic(
+  filePath: string,
+  data: string | NodeJS.ArrayBufferView,
+  mode?: number,
+): void {
+  const dir = path.dirname(filePath);
+  const tempPath = path.join(
+    dir,
+    `.${path.basename(filePath)}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`,
+  );
+
+  try {
+    fs.writeFileSync(tempPath, data, mode === undefined ? undefined : { mode });
+    fs.renameSync(tempPath, filePath);
+    if (mode !== undefined) {
+      try {
+        fs.chmodSync(filePath, mode);
+      } catch {
+        /* chmod is best-effort on some platforms/filesystems */
+      }
+    }
+  } catch (error) {
+    try {
+      fs.unlinkSync(tempPath);
+    } catch {
+      /* temp file may not exist */
+    }
+    throw error;
+  }
+}
 
 function isEnoent(error: unknown): boolean {
   return (error as NodeJS.ErrnoException).code === "ENOENT";

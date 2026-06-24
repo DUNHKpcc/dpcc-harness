@@ -11,7 +11,7 @@
     "loading": "正在加载模型…"
   },
   "voice": {
-    "attachImage": "添加图片",
+    "attachImage": "添加文件",
     "loadingSpeechModel": "正在加载语音模型… {{percent}}%",
     "transcribing": "正在转写…",
     "stopDictation": "停止听写",

@@ -17,6 +17,9 @@ export type {
   ToolResultEvent,
   ToolUseResult,
   ResultEvent,
+  ResultSuccessEvent,
+  ResultErrorEvent,
+  ResultErrorSubtype,
   ModelUsageEntry,
   TaskStartedEvent,
   TaskProgressEvent,
@@ -32,6 +35,12 @@ export type {
   ClaudeEffort,
   TodoItem,
   SubagentToolStep,
+  UserUIMessage,
+  AssistantUIMessage,
+  ToolCallUIMessage,
+  ToolResultUIMessage,
+  SystemUIMessage,
+  SummaryUIMessage,
   UIMessage,
   SessionInfo,
   Project,
@@ -67,6 +76,7 @@ export type {
 // ── Permission types ──
 
 export type {
+  PermissionMode,
   PermissionUpdateDestination,
   PermissionRuleValue,
   PermissionUpdate,
@@ -198,6 +208,17 @@ export type {
   CodexAuthRequiredNotification,
   CodexTokenUsageNotification,
   CodexThreadItem,
+  CodexItemStartedNotification,
+  CodexItemCompletedNotification,
+  CodexAgentMessageDeltaNotification,
+  CodexCommandOutputDeltaNotification,
+  CodexPlanDeltaNotification,
+  CodexTurnPlanUpdatedNotification,
+  CodexReasoningTextDeltaNotification,
+  CodexFileUpdateChange,
+  CodexPatchChangeKind,
+  CodexTurnPlanStep,
+  CodexWebSearchAction,
 } from "./codex";
 
 // ── Tool types ──

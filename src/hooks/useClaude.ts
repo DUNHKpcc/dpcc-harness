@@ -691,19 +691,15 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
 
           // Surface SDK error results to the user.
           // Respect is_error flag — when false, the SDK considers it a non-fatal result
-          // (e.g. interrupt teardown with LSP cleanup errors). Only show genuine errors,
-          // or user-relevant limit subtypes (max_turns, max_budget) regardless of is_error.
+          // (e.g. interrupt teardown with LSP cleanup errors). The ResultEvent type
+          // models all error subtypes as is_error=true.
           // Skip error display for user-initiated interrupts — the SDK emits an
           // ede_diagnostic error_during_execution result when the request is aborted,
           // which is expected and not actionable.
           const resultEvent = event as ResultEvent;
           const wasInterrupted = interruptedRef.current;
           interruptedRef.current = false;
-          const isUserRelevantError = !wasInterrupted
-            && (resultEvent.is_error
-              || resultEvent.subtype === "error_max_turns"
-              || resultEvent.subtype === "error_max_budget_usd"
-              || resultEvent.subtype === "error_max_structured_output_retries");
+          const isUserRelevantError = !wasInterrupted && resultEvent.is_error;
           if (isUserRelevantError) {
             const errorMsg = resultEvent.errors?.join("\n")
               || resultEvent.result

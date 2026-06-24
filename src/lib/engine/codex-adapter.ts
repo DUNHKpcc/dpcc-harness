@@ -5,18 +5,23 @@
  * Each item type maps to a UIMessage role + toolName for the existing ToolCall UI.
  */
 
-import type { TodoItem, ImageAttachment, ToolUseResult, CodexThreadItem } from "@/types";
-import type { FileUpdateChange } from "@/types/codex-protocol/v2/FileUpdateChange";
-import type { PatchChangeKind } from "@/types/codex-protocol/v2/PatchChangeKind";
-import type { TurnPlanStep } from "@/types/codex-protocol/v2/TurnPlanStep";
-import type { WebSearchAction } from "@/types/codex-protocol/v2/WebSearchAction";
+import type {
+  CodexFileUpdateChange,
+  CodexPatchChangeKind,
+  CodexThreadItem,
+  CodexTurnPlanStep,
+  CodexWebSearchAction,
+  ImageAttachment,
+  TodoItem,
+  ToolUseResult,
+} from "@/types";
 import { parseUnifiedDiff } from "@/lib/diff/unified-diff";
 
 export { SimpleStreamingBuffer as CodexStreamingBuffer } from "@/lib/engine/streaming-buffer";
 
 interface CodexWebSearchToolPayload extends Record<string, unknown> {
   query: string;
-  actionType: WebSearchAction["type"];
+  actionType: CodexWebSearchAction["type"];
   actionQuery?: string;
   queries?: string[];
   url?: string;
@@ -55,7 +60,7 @@ function inferFileChangeTool(item: Extract<CodexThreadItem, { type: "fileChange"
 }
 
 /** Extract the simple kind label from a generated PatchChangeKind discriminant. */
-function getPatchChangeKind(kind: PatchChangeKind): "add" | "delete" | "update" {
+function getPatchChangeKind(kind: CodexPatchChangeKind): "add" | "delete" | "update" {
   return kind.type;
 }
 
@@ -130,7 +135,7 @@ export function codexItemToToolResult(item: CodexThreadItem): ToolUseResult | un
       };
     }
     case "fileChange": {
-      const parsedChanges = (item.changes ?? []).map((change: FileUpdateChange) => {
+      const parsedChanges = (item.changes ?? []).map((change: CodexFileUpdateChange) => {
         const kind = getPatchChangeKind(change.kind);
         return {
           filePath: change.path,
@@ -313,7 +318,7 @@ export function permissionModeToCodexSandbox(mode: string): "workspace-write" | 
 
 /** Convert Codex turn/plan/updated steps to TodoItem[] for the TodoPanel. */
 export function codexPlanToTodos(
-  planSteps: Array<TurnPlanStep | { step: string; status: string }>,
+  planSteps: Array<CodexTurnPlanStep | { step: string; status: string }>,
 ): TodoItem[] {
   return planSteps.map((s) => ({
     content: s.step,

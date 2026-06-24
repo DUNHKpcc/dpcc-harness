@@ -2,10 +2,16 @@ import path from "path";
 import fs from "fs";
 import { app } from "electron";
 
-const logsDir = app.isPackaged
-  ? path.join(app.getPath("userData"), "logs")
-  : path.join(__dirname, "..", "..", "logs");
-fs.mkdirSync(logsDir, { recursive: true });
+// `app.getPath("userData")` is only guaranteed after Electron emits `ready`.
+// This module is imported by IPC/background code during main-process startup, so
+// keep all filesystem/app-path work lazy and non-fatal.
+let logsDir: string | null = null;
+let logStream: fs.WriteStream | null = null;
+let logStreamClosed = false;
+let readyInitScheduled = false;
+
+const PENDING_LOG_LIMIT = 100;
+const pendingLogLines: string[] = [];
 
 // --- Retention ---
 // One log file is created per launch (main-<timestamp>.log). Without cleanup
@@ -20,14 +26,27 @@ const LOG_FILE_RE = /^main-\d+\.log$/;
 // output) can be hundreds of KB. Truncate so one event can't balloon the file.
 const MAX_LOG_LINE_CHARS = 20_000;
 
-function pruneOldLogs(): void {
+function resolveLogsDir(): string | null {
+  if (logsDir) return logsDir;
+
+  if (app.isPackaged) {
+    if (!app.isReady()) return null;
+    logsDir = path.join(app.getPath("userData"), "logs");
+  } else {
+    logsDir = path.join(__dirname, "..", "..", "logs");
+  }
+
+  return logsDir;
+}
+
+function pruneOldLogs(dir: string): void {
   try {
     const now = Date.now();
     const entries = fs
-      .readdirSync(logsDir)
+      .readdirSync(dir)
       .filter((name) => LOG_FILE_RE.test(name))
       .map((name) => {
-        const full = path.join(logsDir, name);
+        const full = path.join(dir, name);
         let mtimeMs = 0;
         try {
           mtimeMs = fs.statSync(full).mtimeMs;
@@ -55,15 +74,45 @@ function pruneOldLogs(): void {
   }
 }
 
-pruneOldLogs();
+function scheduleReadyInit(): void {
+  if (readyInitScheduled || !app.isPackaged || app.isReady()) return;
+  readyInitScheduled = true;
+  void app.whenReady().then(() => {
+    readyInitScheduled = false;
+    const stream = getLogStream();
+    if (!stream) return;
+    for (const line of pendingLogLines.splice(0)) {
+      stream.write(line);
+    }
+  });
+}
 
-const logFile = path.join(logsDir, `main-${Date.now()}.log`);
-const logStream = fs.createWriteStream(logFile, { flags: "a" });
-// Swallow stream errors (EPIPE, write-after-end during shutdown) so they can
-// never crash the main process.
-logStream.on("error", () => {
-  /* logging must never be fatal */
-});
+function getLogStream(): fs.WriteStream | null {
+  if (logStream || logStreamClosed) return logStream;
+
+  const dir = resolveLogsDir();
+  if (!dir) {
+    scheduleReadyInit();
+    return null;
+  }
+
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    pruneOldLogs(dir);
+
+    const nextLogFile = path.join(dir, `main-${Date.now()}.log`);
+    logStream = fs.createWriteStream(nextLogFile, { flags: "a" });
+    // Swallow stream errors (EPIPE, write-after-end during shutdown) so they can
+    // never crash the main process.
+    logStream.on("error", () => {
+      /* logging must never be fatal */
+    });
+    return logStream;
+  } catch {
+    // Logging must never prevent Electron startup.
+    return null;
+  }
+}
 
 const REDACTED = "[REDACTED]";
 const SENSITIVE_KEY_RE =
@@ -127,15 +176,26 @@ function truncateLine(line: string): string {
 
 export function log(label: string, data: unknown): void {
   const ts = new Date().toISOString();
-  const line = truncateLine(formatLogData(data));
-  logStream.write(`[${ts}] [${label}] ${line}\n`);
+  const line = `[${ts}] [${label}] ${truncateLine(formatLogData(data))}\n`;
+  const stream = getLogStream();
+  if (stream) {
+    stream.write(line);
+    return;
+  }
+
+  pendingLogLines.push(line);
+  if (pendingLogLines.length > PENDING_LOG_LIMIT) pendingLogLines.shift();
 }
 
 /** Flush and close the log stream on app shutdown. Safe to call more than once. */
 export function closeLogStream(): void {
+  logStreamClosed = true;
+  pendingLogLines.length = 0;
   try {
-    logStream.end();
+    logStream?.end();
   } catch {
     /* already closed */
+  } finally {
+    logStream = null;
   }
 }

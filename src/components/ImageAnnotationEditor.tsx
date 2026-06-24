@@ -15,6 +15,7 @@ import { useAnnotationHistory } from "@/hooks/useAnnotationHistory";
 import type { ImageAttachment } from "@/types";
 import type { Annotation, AnnotationTool, FreehandAnnotation, RectAnnotation, CircleAnnotation, ArrowAnnotation, TextAnnotation } from "@/lib/chat/annotation-types";
 import { DEFAULT_STROKE_COLOR, DEFAULT_STROKE_WIDTH, DEFAULT_FONT_SIZE, HIGHLIGHT_COLOR } from "@/lib/chat/annotation-types";
+import { isImeComposing } from "@/lib/utils";
 
 interface ImageAnnotationEditorProps {
   image: ImageAttachment;
@@ -505,6 +506,11 @@ export const ImageAnnotationEditor = React.memo(function ImageAnnotationEditor({
               style={{ left: textEditing.x, top: textEditing.y }}
               placeholder="Type here..."
               onKeyDown={(e) => {
+                if (isImeComposing(e)) {
+                  // Don't let undo/redo handlers fire while IME is composing.
+                  e.stopPropagation();
+                  return;
+                }
                 if (e.key === "Enter") {
                   handleTextSubmit(e.currentTarget.value);
                 } else if (e.key === "Escape") {

@@ -39,7 +39,7 @@ import {
   type FileTreeNode,
 } from "@/lib/file-tree";
 import { copyToClipboard } from "@/lib/clipboard";
-import { isMac } from "@/lib/utils";
+import { isMac, isImeComposing } from "@/lib/utils";
 
 // ── File icon by extension ──
 
@@ -325,6 +325,7 @@ function InlineCreateInput({
   }, [value, onCommit, onCancel]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (isImeComposing(e)) return;
     if (e.key === "Enter") {
       e.preventDefault();
       if (value.trim()) {
@@ -536,6 +537,7 @@ const FileTreeRow = memo(function FileTreeRow({
           onChange={(e) => setRenameName(e.target.value)}
           onBlur={() => void handleCommitRename()}
           onKeyDown={(e) => {
+            if (isImeComposing(e)) return;
             if (e.key === "Enter") {
               e.preventDefault();
               void handleCommitRename();

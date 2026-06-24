@@ -4,6 +4,7 @@ import { Server } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SettingRow, SettingsHeader, SettingsSection } from "@/components/settings/shared";
+import { isImeComposing } from "@/lib/utils";
 import type { AppSettings } from "@/types";
 
 interface AdvancedSettingsProps {
@@ -81,6 +82,7 @@ export const AdvancedSettings = memo(function AdvancedSettings({
                 onChange={(e) => setCodexClientName(e.target.value)}
                 onBlur={(e) => handleClientNameChange(e.target.value)}
                 onKeyDown={(e) => {
+                  if (isImeComposing(e)) return;
                   if (e.key === "Enter") handleClientNameChange(e.currentTarget.value);
                 }}
                 spellCheck={false}

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback, memo } from "react";
 import { useTranslation } from "react-i18next";
 import { Search, ChevronUp, ChevronDown, X } from "lucide-react";
+import { isImeComposing } from "@/lib/utils";
 import type { UIMessage } from "@/types";
 
 interface ChatSearchBarProps {
@@ -87,6 +88,7 @@ export const ChatSearchBar = memo(function ChatSearchBar({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      if (isImeComposing(e)) return;
       if (e.key === "Escape") {
         e.preventDefault();
         onClose();

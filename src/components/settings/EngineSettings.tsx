@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { SettingRow, SettingsSelect, SettingsHeader, SettingsSection } from "@/components/settings/shared";
+import { isImeComposing } from "@/lib/utils";
 import type { AppSettings, ClaudeGatewaySettings, CodexGatewaySettings } from "@/types";
 
 interface EngineSettingsProps {
@@ -40,6 +41,7 @@ const GatewayTextField = memo(function GatewayTextField({
       onChange={(e) => setLocal(e.target.value)}
       onBlur={(e) => onSave(e.target.value)}
       onKeyDown={(e) => {
+        if (isImeComposing(e)) return;
         if (e.key === "Enter") onSave(e.currentTarget.value);
       }}
       spellCheck={false}
@@ -291,6 +293,7 @@ export const EngineSettings = memo(function EngineSettings({
                   onChange={(e) => setClaudeCustomBinaryPath(e.target.value)}
                   onBlur={(e) => handleClaudeCustomPathSave(e.target.value)}
                   onKeyDown={(e) => {
+                    if (isImeComposing(e)) return;
                     if (e.key === "Enter") handleClaudeCustomPathSave(e.currentTarget.value);
                   }}
                   spellCheck={false}
@@ -407,6 +410,7 @@ export const EngineSettings = memo(function EngineSettings({
                   onChange={(e) => setCodexCustomBinaryPath(e.target.value)}
                   onBlur={(e) => handleCodexCustomPathSave(e.target.value)}
                   onKeyDown={(e) => {
+                    if (isImeComposing(e)) return;
                     if (e.key === "Enter") handleCodexCustomPathSave(e.currentTarget.value);
                   }}
                   spellCheck={false}

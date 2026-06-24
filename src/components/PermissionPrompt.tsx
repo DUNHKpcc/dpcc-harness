@@ -22,6 +22,7 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import { BOTTOM_CHAT_MAX_WIDTH_CLASS } from "@/lib/layout/constants";
+import { isImeComposing } from "@/lib/utils";
 import {
   buildAskUserQuestionResult,
   getAskUserQuestionKey,
@@ -248,6 +249,7 @@ function ExitPlanModePrompt({ request, onRespond }: PermissionPromptProps) {
             value={feedback}
             onChange={(e) => setFeedback(e.target.value)}
             onKeyDown={(e) => {
+              if (isImeComposing(e)) return;
               if (e.key === "Enter") submitFeedback();
               if (e.key === "Escape") setFeedback("");
             }}
@@ -470,6 +472,7 @@ function AskUserQuestionPrompt({ request, onRespond }: PermissionPromptProps) {
               }
             }}
             onKeyDown={(e) => {
+              if (isImeComposing(e)) return;
               if (e.key === "Enter") {
                 if (isMulti && !isLast && hasCurrentAnswer) goNext();
                 else if (hasAllAnswers) handleSubmit();

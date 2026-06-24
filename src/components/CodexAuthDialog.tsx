@@ -13,6 +13,7 @@ import { AuthDialogShell } from "@/components/AuthDialogShell";
 import type { CodexSessionEvent } from "@/types";
 import type { AccountLoginCompletedNotification } from "@/types/codex-protocol/v2/AccountLoginCompletedNotification";
 import { reportError } from "@/lib/analytics/analytics";
+import { isImeComposing } from "@/lib/utils";
 
 /** Typed result from `codex.login` — either a chatgpt OAuth redirect or an error. */
 interface CodexLoginSuccess {
@@ -228,7 +229,7 @@ export const CodexAuthDialog = memo(function CodexAuthDialog({
             placeholder="sk-..."
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleApiKeySubmit()}
+            onKeyDown={(e) => e.key === "Enter" && !isImeComposing(e) && handleApiKeySubmit()}
             className="h-10 w-full rounded-lg border bg-transparent px-3 text-sm outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
             autoFocus
           />

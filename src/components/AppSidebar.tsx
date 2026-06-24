@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback, memo, type DragEvent
 import { useTranslation } from "react-i18next";
 import { motion } from "motion/react";
 import { Bug, PanelLeft, Plus, Paintbrush } from "lucide-react";
-import { isMac } from "@/lib/utils";
+import { isMac, isImeComposing } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -559,6 +559,7 @@ export const AppSidebar = memo(function AppSidebar({
                     if (draftSpaceId) onUpdateSpace(draftSpaceId, { name: e.target.value });
                   }}
                   onKeyDown={(e) => {
+                    if (isImeComposing(e)) return;
                     if (e.key === "Enter" && draftSpace.name.trim()) onConfirmCreateSpace();
                     if (e.key === "Escape") onCancelCreateSpace();
                   }}

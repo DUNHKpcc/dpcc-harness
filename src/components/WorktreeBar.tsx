@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useWorktreeChips, WORKTREE_SETUP_PATH } from "@/hooks/useWorktreeChips";
 import { BOTTOM_CHAT_MAX_WIDTH_CLASS } from "@/lib/layout/constants";
+import { isImeComposing } from "@/lib/utils";
 
 const SETUP_PROMPT = `Analyze this project and generate a worktree setup configuration.
 
@@ -265,6 +266,7 @@ export const WorktreeBar = memo(function WorktreeBar({
                       if (error) setError(null);
                     }}
                     onKeyDown={(e) => {
+                      if (isImeComposing(e)) return;
                       if (e.key === "Enter") handleCreate();
                       if (e.key === "Escape") {
                         setShowCreate(false);

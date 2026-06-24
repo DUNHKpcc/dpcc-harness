@@ -9,6 +9,7 @@ import {
   Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { isImeComposing } from "@/lib/utils";
 import type { GitBranch } from "@/types";
 
 function BranchItem({ branch, onSelect }: { branch: GitBranch; onSelect: (name: string) => void }) {
@@ -135,6 +136,7 @@ export function BranchPicker({
                 value={newBranchName}
                 onChange={(e) => setNewBranchName(e.target.value)}
                 onKeyDown={(e) => {
+                  if (isImeComposing(e)) return;
                   if (e.key === "Enter") handleCreateBranch();
                   if (e.key === "Escape") { setShowNewBranch(false); setNewBranchName(""); }
                 }}

@@ -39,6 +39,7 @@ import type {
 import { BOTTOM_CHAT_MAX_WIDTH_CLASS } from "@/lib/layout/constants";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { resolveModelValue, formatClaudeModelLabel } from "@/lib/model-utils";
+import { isImeComposing } from "@/lib/utils";
 // Lazy-loaded: the annotation editor pulls in konva/react-konva (~10MB) and is
 // only needed when the user edits an attached screenshot. Keep it out of the
 // startup path since InputBar is permanently mounted at the bottom of the chat.
@@ -476,6 +477,15 @@ export const InputBar = memo(function InputBar({
   // ── Keyboard handling ──
 
   const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    // IME composition guard: while the user is composing a non-Latin character
+    // (Chinese / Japanese / Korean), Enter/Space/etc. are commit keys for the
+    // IME candidate window, not application shortcuts. Let the browser handle
+    // them and bail out so we don't send the message or trigger picker actions
+    // before the composition has been committed to the input.
+    if (isImeComposing(e)) {
+      return;
+    }
+
     // Slash command picker keyboard navigation
     if (command.showCommands && command.cmdResults.length > 0) {
       if (e.key === "ArrowDown") {

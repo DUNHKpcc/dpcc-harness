@@ -5,11 +5,19 @@ import type { PermissionMode, PermissionUpdate as SDKPermissionUpdate } from "@a
 export type { PermissionMode };
 export type PermissionUpdate = SDKPermissionUpdate;
 
-type PermissionUpdateWithDestination = Extract<SDKPermissionUpdate, { destination?: unknown }>;
-type AddRulesPermissionUpdate = Extract<SDKPermissionUpdate, { type: "addRules" }>;
+export type PermissionUpdateDestination = SDKPermissionUpdate extends infer Update
+  ? Update extends { destination?: infer Destination }
+    ? NonNullable<Destination>
+    : never
+  : never;
 
-export type PermissionUpdateDestination = NonNullable<PermissionUpdateWithDestination["destination"]>;
-export type PermissionRuleValue = NonNullable<AddRulesPermissionUpdate["rules"]>[number];
+export type PermissionRuleValue = SDKPermissionUpdate extends infer Update
+  ? Update extends { type: "addRules"; rules?: infer Rules }
+    ? Rules extends ReadonlyArray<infer Rule>
+      ? Rule
+      : never
+    : never
+  : never;
 
 export interface PermissionRequest {
   requestId: string;

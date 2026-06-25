@@ -236,6 +236,8 @@ describe("claude binary resolution", () => {
   });
 
   it("runs a script-path version probe as Node (ELECTRON_RUN_AS_NODE), never a second GUI app", async () => {
+    vi.stubEnv("npm_node_execpath", "");
+    vi.stubEnv("NODE", "");
     mockExecFileSync.mockImplementation(
       (command: string, args: string[], opts: { windowsHide?: boolean; env?: Record<string, string> }) => {
         if (command === process.execPath) {
@@ -256,7 +258,44 @@ describe("claude binary resolution", () => {
     await expect(mod.getClaudeVersion()).resolves.toBe("2.1.70");
   });
 
-  it("runs SDK cli.js queries through the Electron binary in Node mode", async () => {
+  it("runs a script-path version probe through the real Node runtime when available", async () => {
+    vi.stubEnv("npm_node_execpath", "/usr/local/bin/node");
+    allowExecutable("/app.asar.unpacked/node_modules/@anthropic-ai/claude-agent-sdk/cli.js", "/usr/local/bin/node");
+    mockExecFileSync.mockImplementation(
+      (command: string, args: string[], opts: { windowsHide?: boolean; env?: Record<string, string> }) => {
+        if (command === "/usr/local/bin/node") {
+          expect(args).toEqual(["/app.asar.unpacked/node_modules/@anthropic-ai/claude-agent-sdk/cli.js", "--version"]);
+          expect(opts.env?.ELECTRON_RUN_AS_NODE).toBeUndefined();
+          expect(opts.windowsHide).toBe(true);
+          return "2.1.70\n";
+        }
+        throw new Error("unexpected");
+      },
+    );
+
+    const mod = await loadModule();
+
+    await expect(mod.getClaudeVersion()).resolves.toBe("2.1.70");
+  });
+
+  it("runs SDK cli.js queries through the real Node runtime when available", async () => {
+    vi.stubEnv("npm_node_execpath", "/usr/local/bin/node");
+    allowExecutable("/usr/local/bin/node");
+
+    const mod = await loadModule();
+    const cliPath = "/app.asar.unpacked/node_modules/@anthropic-ai/claude-agent-sdk/cli.js";
+
+    expect(mod.getClaudeSdkProcessOptions(cliPath)).toEqual({
+      pathToClaudeCodeExecutable: cliPath,
+      executable: "/usr/local/bin/node",
+      env: {},
+    });
+  });
+
+  it("falls back to the Electron binary in Node mode when no Node runtime is available", async () => {
+    vi.stubEnv("npm_node_execpath", "");
+    vi.stubEnv("NODE", "");
+
     const mod = await loadModule();
     const cliPath = "/app.asar.unpacked/node_modules/@anthropic-ai/claude-agent-sdk/cli.js";
 

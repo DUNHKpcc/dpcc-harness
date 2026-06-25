@@ -68,6 +68,19 @@ function isScriptExecutable(filePath: string): boolean {
   return [".js", ".mjs", ".cjs", ".ts", ".mts", ".cts"].includes(path.extname(filePath));
 }
 
+function getNodeRuntimeExecutable(): string | null {
+  const candidates = [
+    process.env.npm_node_execpath,
+    process.env.NODE,
+  ];
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const normalized = normalizeExecutablePath(candidate);
+    if (normalized) return normalized;
+  }
+  return null;
+}
+
 function resolveFromCustom(): ClaudeBinaryResolution | null {
   const customPath = getCustomPath();
   if (!customPath) {
@@ -360,8 +373,11 @@ export function getClaudeSdkProcessOptions(cliPath: string | undefined): Record<
   if (cliPath) {
     options.pathToClaudeCodeExecutable = cliPath;
     if (isScriptExecutable(cliPath)) {
-      options.executable = process.execPath;
-      options.env.ELECTRON_RUN_AS_NODE = "1";
+      const nodeRuntime = getNodeRuntimeExecutable();
+      options.executable = nodeRuntime ?? process.execPath;
+      if (!nodeRuntime) {
+        options.env.ELECTRON_RUN_AS_NODE = "1";
+      }
     }
   }
   return options;
@@ -377,13 +393,14 @@ function readClaudeVersion(binaryPath: string): string | null {
   // timeout kills it. ELECTRON_RUN_AS_NODE=1 makes it run as plain Node;
   // windowsHide suppresses a console flash on the native-binary branch too.
   const isScript = isScriptExecutable(binaryPath);
-  const command = isScript ? process.execPath : binaryPath;
+  const nodeRuntime = isScript ? getNodeRuntimeExecutable() : null;
+  const command = isScript ? nodeRuntime ?? process.execPath : binaryPath;
   const args = isScript ? [binaryPath, "--version"] : ["--version"];
   const output = execFileSync(command, args, {
     encoding: "utf-8",
     timeout: 10000,
     windowsHide: true,
-    ...(isScript ? { env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" } } : {}),
+    ...(isScript && !nodeRuntime ? { env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" } } : {}),
   }).trim();
   return output || null;
 }

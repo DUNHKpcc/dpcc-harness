@@ -35,6 +35,7 @@ import type {
   CodexInitializeResponse,
   CodexItemStartedNotification,
   CodexItemCompletedNotification,
+  CodexUserInput,
 } from "@shared/types/codex";
 import type { SkillsListResponse } from "@shared/types/codex-protocol/v2/SkillsListResponse";
 import type { AppsListResponse } from "@shared/types/codex-protocol/v2/AppsListResponse";
@@ -57,6 +58,9 @@ interface CodexSession {
 }
 
 import { SUPPORTED_SERVER_REQUESTS, isSupportedServerRequestMethod, pickModelId } from "@shared/lib/codex-helpers";
+
+type CodexImageInput = Extract<CodexUserInput, { type: "image" | "localImage" }>;
+type CodexMentionInput = Extract<CodexUserInput, { type: "mention" }>;
 
 const codexSessions = new Map<string, CodexSession>();
 
@@ -385,7 +389,8 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       data: {
         sessionId: string;
         text: string;
-        images?: Array<{ type: "image"; url: string } | { type: "localImage"; path: string }>;
+        images?: CodexImageInput[];
+        mentions?: CodexMentionInput[];
         effort?: string;
         collaborationMode?: { mode: string; settings: { model: string; reasoning_effort: string | null; developer_instructions: string | null } };
       },
@@ -421,13 +426,16 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
 
       log(
         "codex",
-        ` Send requested: session=${shortId(data.sessionId, 12)} thread=${shortId(session.threadId, 12)} text_len=${data.text.length} images=${data.images?.length ?? 0} effort=${data.effort ?? "default"} collab=${data.collaborationMode?.mode ?? "none"} approval=${session.approvalPolicy ?? "default"} activeTurn=${session.activeTurnId ? shortId(session.activeTurnId, 12) : "none"}`,
+        ` Send requested: session=${shortId(data.sessionId, 12)} thread=${shortId(session.threadId, 12)} text_len=${data.text.length} images=${data.images?.length ?? 0} mentions=${data.mentions?.length ?? 0} effort=${data.effort ?? "default"} collab=${data.collaborationMode?.mode ?? "none"} approval=${session.approvalPolicy ?? "default"} activeTurn=${session.activeTurnId ? shortId(session.activeTurnId, 12) : "none"}`,
       );
 
       try {
-        const input: unknown[] = [{ type: "text", text: data.text }];
+        const input: CodexUserInput[] = [{ type: "text", text: data.text, text_elements: [] }];
         if (data.images) {
           input.push(...data.images);
+        }
+        if (data.mentions) {
+          input.push(...data.mentions);
         }
 
         // TurnStartParams: only threadId and input are required; all other fields are optional.

@@ -16,7 +16,7 @@
   "main": "electron/dist/main.js",
   "scripts": {
     "build:electron": "tsup --config tsup.electron.config.ts",
-    "dev": "concurrently \"vite\" \"pnpm build:electron --watch\" \"node scripts/delay.js http://localhost:5173/ && cross-env ELECTRON_ENABLE_LOGGING=1 electron .\"",
+    "dev": "concurrently \"vite\" \"pnpm build:electron --watch\" \"node scripts/delay.js http://localhost:5173/ electron/dist/main.js && cross-env ELECTRON_ENABLE_LOGGING=1 electron .\"",
     "build": "pnpm build:electron && vite build",
     "start": "electron .",
     "bundle:codex": "node scripts/bundle-codex.js",

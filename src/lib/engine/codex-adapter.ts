@@ -10,7 +10,9 @@ import type {
   CodexPatchChangeKind,
   CodexThreadItem,
   CodexTurnPlanStep,
+  CodexUserInput,
   CodexWebSearchAction,
+  FileReference,
   ImageAttachment,
   TodoItem,
   ToolUseResult,
@@ -337,6 +339,8 @@ export type CodexImageInput =
   | { type: "image"; url: string }
   | { type: "localImage"; path: string };
 
+export type CodexMentionInput = Extract<CodexUserInput, { type: "mention" }>;
+
 /** Convert UI image attachments to Codex turn/start image inputs. */
 export function imageAttachmentsToCodexInputs(
   images?: ImageAttachment[],
@@ -346,4 +350,27 @@ export function imageAttachmentsToCodexInputs(
     type: "image",
     url: `data:${img.mediaType};base64,${img.data}`,
   }));
+}
+
+export function fileReferencesToCodexMentions(
+  fileReferences?: FileReference[],
+): CodexMentionInput[] | undefined {
+  if (!fileReferences || fileReferences.length === 0) return undefined;
+  return fileReferences.map((ref) => ({
+    type: "mention",
+    name: ref.name,
+    path: ref.path,
+  }));
+}
+
+export function buildCodexUserInput(
+  text: string,
+  images?: ImageAttachment[],
+  fileReferences?: FileReference[],
+): CodexUserInput[] {
+  return [
+    { type: "text", text, text_elements: [] },
+    ...(imageAttachmentsToCodexInputs(images) ?? []),
+    ...(fileReferencesToCodexMentions(fileReferences) ?? []),
+  ];
 }

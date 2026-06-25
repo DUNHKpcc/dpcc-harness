@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildFileReferenceMessage,
   hasMeaningfulText,
   parseDroppedUrls,
   stripVoicePlaceholderText,
@@ -59,5 +60,27 @@ describe("parseDroppedUrls", () => {
   it("rejects non-http(s)/file protocols (e.g. javascript:)", () => {
     expect(parseDroppedUrls("javascript:alert(1)", "")).toEqual([]);
     expect(parseDroppedUrls("", "javascript:alert(1)")).toEqual([]);
+  });
+});
+
+describe("buildFileReferenceMessage", () => {
+  const refs = [
+    { name: "large.txt", path: "/tmp/large.txt" },
+    { name: "notes.md", path: "/Users/me/notes.md" },
+  ];
+
+  it("appends local file paths without file contents when text is present", () => {
+    const result = buildFileReferenceMessage("Please inspect these", refs);
+
+    expect(result).toBe(
+      "Please inspect these\n\nAttached local file references:\n- /tmp/large.txt\n- /Users/me/notes.md",
+    );
+    expect(result).not.toContain("<file");
+  });
+
+  it("uses a default prompt when only files were attached", () => {
+    expect(buildFileReferenceMessage("", refs)).toBe(
+      "Please use these local file references as needed:\n- /tmp/large.txt\n- /Users/me/notes.md",
+    );
   });
 });

@@ -68,6 +68,7 @@ export type {
 // ── Attachment types ──
 
 export type {
+  FileReference,
   ImageAttachment,
   FileAttachment,
   GrabbedElement,
@@ -218,6 +219,7 @@ export type {
   CodexFileUpdateChange,
   CodexPatchChangeKind,
   CodexTurnPlanStep,
+  CodexUserInput,
   CodexWebSearchAction,
 } from "./codex";
 

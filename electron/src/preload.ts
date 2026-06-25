@@ -311,8 +311,8 @@ contextBridge.exposeInMainWorld("claude", {
     log: (label: string, data: unknown) => ipcRenderer.send("codex:log", label, data),
     start: (options: { cwd: string; model?: string; approvalPolicy?: string; sandbox?: "read-only" | "workspace-write" | "danger-full-access"; personality?: string; collaborationMode?: { mode: string; settings: { model: string; reasoning_effort: string | null; developer_instructions: string | null } } }) =>
       ipcRenderer.invoke("codex:start", options),
-    send: (sessionId: string, text: string, images?: Array<{ type: "image"; url: string } | { type: "localImage"; path: string }>, effort?: string, collaborationMode?: { mode: string; settings: { model: string; reasoning_effort: string | null; developer_instructions: string | null } }) =>
-      ipcRenderer.invoke("codex:send", { sessionId, text, images, effort, collaborationMode }),
+    send: (sessionId: string, text: string, images?: Array<{ type: "image"; url: string } | { type: "localImage"; path: string }>, effort?: string, collaborationMode?: { mode: string; settings: { model: string; reasoning_effort: string | null; developer_instructions: string | null } }, mentions?: Array<{ type: "mention"; name: string; path: string }>) =>
+      ipcRenderer.invoke("codex:send", { sessionId, text, images, effort, collaborationMode, mentions }),
     stop: (sessionId: string) => ipcRenderer.invoke("codex:stop", sessionId),
     interrupt: (sessionId: string) => ipcRenderer.invoke("codex:interrupt", sessionId),
     respondApproval: (sessionId: string, rpcId: string | number, decision: string, acceptSettings?: unknown) =>

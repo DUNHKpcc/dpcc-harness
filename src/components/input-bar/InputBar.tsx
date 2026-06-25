@@ -27,6 +27,7 @@ import {
 import type {
   ImageAttachment,
   FileAttachment,
+  FileReference,
   GrabbedElement,
   ContextUsage,
   InstalledAgent,
@@ -60,6 +61,7 @@ import {
   getAvailableSlashCommands,
   isClearCommandText,
   parseDroppedUrls,
+  buildFileReferenceMessage,
 } from "./input-bar-utils";
 import { ContextGauge } from "./ContextGauge";
 import { AttachmentPreview } from "./AttachmentPreview";
@@ -71,7 +73,7 @@ import { CommandPicker } from "./CommandPicker";
 import { useCommandAutocomplete } from "./CommandPicker";
 
 export interface InputBarProps {
-  onSend: (text: string, images?: ImageAttachment[], displayText?: string) => void;
+  onSend: (text: string, images?: ImageAttachment[], displayText?: string, fileReferences?: FileReference[]) => void;
   onClear?: () => void | Promise<void>;
   onStop: () => void;
   isProcessing: boolean;
@@ -337,6 +339,10 @@ export const InputBar = memo(function InputBar({
     ) => {
       const trimmed = fullText.trim();
       const currentImages = attachments.length > 0 ? [...attachments] : undefined;
+      const fileReferences: FileReference[] = fileAttachments.map((att) => ({
+        name: att.fileName,
+        path: att.path,
+      }));
       const contextParts: string[] = [];
       const grabbedElementDisplayTokens: string[] = [];
       let hasContext = false;
@@ -363,37 +369,6 @@ export const InputBar = memo(function InputBar({
             } else if (!result.isDir && result.content !== undefined) {
               contextParts.push(
                 `<file path="${result.path}">\n${result.content}\n</file>`,
-              );
-            }
-          }
-          hasContext = true;
-        } finally {
-          setIsSending(false);
-        }
-      }
-
-      // Dropped non-image files -> <file> context blocks (mirrors mention
-      // shape). Read at send-time using the absolute path captured at drop.
-      // Binary files will surface as a read error and get a placeholder so
-      // the agent at least knows the file was attached.
-      if (fileAttachments.length > 0) {
-        setIsSending(true);
-        try {
-          const reads = await Promise.all(
-            fileAttachments.map(async (att) => ({
-              path: att.path,
-              fileName: att.fileName,
-              ...(await window.claude.readFile(att.path)),
-            })),
-          );
-          for (const r of reads) {
-            if (r.content !== undefined) {
-              contextParts.push(
-                `<file path="${r.path}">\n${r.content}\n</file>`,
-              );
-            } else {
-              contextParts.push(
-                `<file path="${r.path}">\n[Attached binary or unreadable file: ${r.fileName}${r.error ? ` (${r.error})` : ""}]\n</file>`,
               );
             }
           }
@@ -448,18 +423,26 @@ export const InputBar = memo(function InputBar({
         hasContext = true;
       }
 
+      const messageText = fileReferences.length > 0
+        ? buildFileReferenceMessage(trimmed, fileReferences)
+        : trimmed;
+      const displayBase = fileReferences.length > 0
+        ? buildFileReferenceMessage(trimmed, fileReferences)
+        : trimmed;
+      const displayText =
+        grabbedElementDisplayTokens.length > 0
+          ? `${displayBase}${displayBase ? "\n\n" : ""}${grabbedElementDisplayTokens.join(" ")}`
+          : displayBase;
+      const refsForSend = fileReferences.length > 0 ? fileReferences : undefined;
+
       if (hasContext) {
         const contextBlock = contextParts.join("\n\n");
         const fullMessage = contextBlock
-          ? `${contextBlock}\n\n${trimmed}`
-          : trimmed;
-        const displayText =
-          grabbedElementDisplayTokens.length > 0
-            ? `${trimmed}${trimmed ? "\n\n" : ""}${grabbedElementDisplayTokens.join(" ")}`
-            : trimmed;
-        onSend(fullMessage, currentImages, displayText);
+          ? `${contextBlock}\n\n${messageText}`
+          : messageText;
+        onSend(fullMessage, currentImages, displayText, refsForSend);
       } else {
-        onSend(trimmed, currentImages);
+        onSend(messageText, currentImages, refsForSend ? displayText : undefined, refsForSend);
       }
 
       clearComposer(el);
@@ -780,8 +763,7 @@ export const InputBar = memo(function InputBar({
       }
 
       // 2. Files: split into images (inlined as base64 attachments for the
-      //    SDK) vs. other files (read at send-time and injected as <file>
-      //    context blocks).
+      //    SDK) vs. other files (sent as local path references).
       const images: globalThis.File[] = [];
       const others: globalThis.File[] = [];
       for (const f of droppedFiles) {

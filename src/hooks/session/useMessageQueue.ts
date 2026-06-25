@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ImageAttachment, UIMessage } from "../../types";
+import type { FileReference, ImageAttachment, UIMessage } from "../../types";
 import type { CollaborationMode } from "../../types/codex-protocol/CollaborationMode";
-import { imageAttachmentsToCodexInputs } from "../../lib/engine/codex-adapter";
+import { fileReferencesToCodexMentions, imageAttachmentsToCodexInputs } from "../../lib/engine/codex-adapter";
 import { suppressNextSessionCompletion } from "../../lib/notification-utils";
 import { buildSdkContent } from "../../lib/engine/protocol";
 import { createSystemMessage } from "../../lib/message-factory";
@@ -149,13 +149,13 @@ export function useMessageQueue({ refs, setters, engines, activeSessionId }: Use
   ]);
 
   /** Add a message to the queue and show it in chat immediately with isQueued styling */
-  const enqueueMessage = useCallback((text: string, images?: ImageAttachment[], displayText?: string) => {
+  const enqueueMessage = useCallback((text: string, images?: ImageAttachment[], displayText?: string, fileReferences?: FileReference[]) => {
     const activeId = activeSessionIdRef.current;
     if (!activeId || activeId === DRAFT_ID) return;
 
     const msgId = `user-queued-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const queue = getQueueForSession(activeId);
-    queue.push({ text, images, displayText, messageId: msgId });
+    queue.push({ text, images, displayText, fileReferences, messageId: msgId });
     setQueuedCount(queue.length);
     engine.setMessages((prev) => [
       ...prev,
@@ -273,6 +273,7 @@ export function useMessageQueue({ refs, setters, engines, activeSessionId }: Use
           imageAttachmentsToCodexInputs(next.images),
           codexEffortRef.current,
           codexCollabMode,
+          fileReferencesToCodexMentions(next.fileReferences),
         );
         if (result?.error) handleSendError("Failed to send queued message.");
       } else {

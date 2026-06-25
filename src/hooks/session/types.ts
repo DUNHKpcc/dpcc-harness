@@ -1,4 +1,4 @@
-import type { ChatSession, UIMessage, SessionInfo, PermissionRequest, ImageAttachment, McpServerStatus, ModelInfo, AcpPermissionBehavior, EngineId, Project, SlashCommand, ClaudeEffort, ContextUsage, ACPConfigOption, ACPPermissionEvent } from "@/types";
+import type { ChatSession, UIMessage, SessionInfo, PermissionRequest, FileReference, ImageAttachment, McpServerStatus, ModelInfo, AcpPermissionBehavior, EngineId, Project, SlashCommand, ClaudeEffort, ContextUsage, ACPConfigOption, ACPPermissionEvent } from "@/types";
 import type { BackgroundSessionStore } from "../../lib/background/session-store";
 import { permissionModeToCodexPolicy, permissionModeToCodexSandbox } from "../../lib/engine/codex-adapter";
 import type { CollaborationMode } from "../../types/codex-protocol/CollaborationMode";
@@ -43,6 +43,7 @@ export interface QueuedMessage {
   text: string;
   images?: ImageAttachment[];
   displayText?: string;
+  fileReferences?: FileReference[];
   /** ID of the UIMessage already shown in chat with isQueued: true */
   messageId: string;
 }
@@ -51,6 +52,7 @@ export interface PendingAcpDraftPrompt {
   text: string;
   images?: ImageAttachment[];
   displayText?: string;
+  fileReferences?: FileReference[];
 }
 
 export interface SessionPaneBootstrap {

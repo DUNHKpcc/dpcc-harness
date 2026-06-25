@@ -58,6 +58,7 @@ interface FileWatchChangeEvent {
 }
 
 type CodexImageInput = { type: "image"; url: string } | { type: "localImage"; path: string };
+type CodexMentionInput = { type: "mention"; name: string; path: string };
 
 declare global {
   /** Result of the GitHub pre-release check for the running version. */
@@ -359,7 +360,7 @@ declare global {
             needsAuth?: boolean;
             error?: string;
           }>;
-        send: (sessionId: string, text: string, images?: CodexImageInput[], effort?: string, collaborationMode?: CollaborationMode) =>
+        send: (sessionId: string, text: string, images?: CodexImageInput[], effort?: string, collaborationMode?: CollaborationMode, mentions?: CodexMentionInput[]) =>
           Promise<{ turnId?: string; error?: string }>;
         stop: (sessionId: string) => Promise<void>;
         interrupt: (sessionId: string) => Promise<{ error?: string }>;

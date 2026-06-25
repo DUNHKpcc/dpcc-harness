@@ -1,7 +1,7 @@
 import { useCallback } from "react";
-import type { ImageAttachment, McpServerConfig, Project } from "@/types";
+import type { FileReference, ImageAttachment, McpServerConfig, Project } from "@/types";
 import type { CollaborationMode } from "../../types/codex-protocol/CollaborationMode";
-import { imageAttachmentsToCodexInputs } from "../../lib/engine/codex-adapter";
+import { fileReferencesToCodexMentions, imageAttachmentsToCodexInputs } from "../../lib/engine/codex-adapter";
 import { createSystemMessage, createUserMessage } from "../../lib/message-factory";
 import { continueWeChatSession } from "../../lib/session/wechat-continue";
 import { buildSdkContent } from "../../lib/engine/protocol";
@@ -36,9 +36,9 @@ interface UseSessionLifecycleParams {
   // From revival
   reviveSession: (text: string, images?: ImageAttachment[], displayText?: string) => Promise<void>;
   reviveAcpSession: (text: string, images?: ImageAttachment[], displayText?: string) => Promise<void>;
-  reviveCodexSession: (text: string, images?: ImageAttachment[]) => Promise<void>;
+  reviveCodexSession: (text: string, images?: ImageAttachment[], fileReferences?: FileReference[]) => Promise<void>;
   // From message queue
-  enqueueMessage: (text: string, images?: ImageAttachment[], displayText?: string) => void;
+  enqueueMessage: (text: string, images?: ImageAttachment[], displayText?: string, fileReferences?: FileReference[]) => void;
   clearQueue: () => void;
   // Codex effort helpers
   resetCodexEffortToModelDefault: (effort: string | undefined) => void;
@@ -155,7 +155,7 @@ export function useSessionLifecycle({
   // ── Send: the main message-sending function (kept here — most intertwined) ──
 
   const send = useCallback(
-    async (text: string, images?: ImageAttachment[], displayText?: string) => {
+    async (text: string, images?: ImageAttachment[], displayText?: string, fileReferences?: FileReference[]) => {
       const activeId = refs.activeSessionIdRef.current;
       const sendEngine = refs.activeSessionIdRef.current === DRAFT_ID
         ? (refs.startOptionsRef.current.engine ?? "claude")
@@ -173,7 +173,7 @@ export function useSessionLifecycle({
         const draftEngine = refs.startOptionsRef.current.engine ?? "claude";
 
         if (draftEngine === "acp") {
-          refs.pendingAcpDraftPromptRef.current = { text, images, displayText };
+          refs.pendingAcpDraftPromptRef.current = { text, images, displayText, fileReferences };
           // Show user message + spinner immediately, before the potentially slow materializeDraft
           const userMsg = createUserMessage(text, images, displayText);
           acp.setMessages((prev) => [...prev, userMsg]);
@@ -237,6 +237,7 @@ export function useSessionLifecycle({
             imageAttachmentsToCodexInputs(images),
             refs.codexEffortRef.current,
             codexCollabMode,
+            fileReferencesToCodexMentions(fileReferences),
           );
           if (sendResult?.error) {
             refs.liveSessionIdsRef.current.delete(sessionId);
@@ -303,7 +304,7 @@ export function useSessionLifecycle({
       const activeSessionEngine = refs.sessionsRef.current.find(s => s.id === activeId)?.engine ?? "claude";
       if (refs.isProcessingRef.current && refs.liveSessionIdsRef.current.has(activeId)) {
         trackMessageSent(activeSessionEngine === "acp" ? activeId : undefined);
-        enqueueMessage(text, images, displayText);
+        enqueueMessage(text, images, displayText, fileReferences);
         return;
       }
 
@@ -342,11 +343,11 @@ export function useSessionLifecycle({
             ]);
             return;
           }
-          await codex.send(text, images, displayText, codexCollabMode);
+          await codex.send(text, images, displayText, codexCollabMode, fileReferences);
           return;
         }
         // Codex session dead — attempt revival via thread/resume
-        await reviveCodexSession(text, images);
+        await reviveCodexSession(text, images, fileReferences);
         return;
       }
 

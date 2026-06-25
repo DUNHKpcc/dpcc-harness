@@ -6,7 +6,7 @@
  * the single-chat view and each split-view pane.
  */
 
-import type { ACPConfigOption, ClaudeEffort, ImageAttachment, SlashCommand, EngineId, InstalledAgent, McpServerConfig, McpServerStatus, ModelInfo, GrabbedElement } from "@/types";
+import type { ACPConfigOption, ClaudeEffort, FileReference, ImageAttachment, SlashCommand, EngineId, InstalledAgent, McpServerConfig, McpServerStatus, ModelInfo, GrabbedElement } from "@/types";
 import type { TerminalTab } from "@/lib/terminal-tabs";
 import type { ResolvedTheme } from "@/hooks/useTheme";
 
@@ -31,7 +31,7 @@ export interface PaneController {
   handlePaneCodexEffortChange: (effort: string) => void;
   handlePaneAgentChange: (agent: InstalledAgent | null) => Promise<void>;
   handlePaneClear: () => Promise<void>;
-  handlePaneSend: (text: string, images?: ImageAttachment[], displayText?: string) => Promise<void>;
+  handlePaneSend: (text: string, images?: ImageAttachment[], displayText?: string, fileReferences?: FileReference[]) => Promise<void>;
   handlePaneStop: () => Promise<void>;
   handlePaneAcpConfigChange: (key: string, value: string) => void;
 }

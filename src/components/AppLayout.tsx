@@ -19,7 +19,7 @@ import {
   RESIZE_HANDLE_WIDTH_ISLAND,
   equalWidthFractions,
 } from "@/lib/layout/constants";
-import type { InstalledAgent, UIMessage } from "@/types";
+import type { FileReference, InstalledAgent, UIMessage } from "@/types";
 import {
   buildCodexDelegationCompletion,
   resolveCodexDelegationRuntime,
@@ -197,6 +197,7 @@ export function AppLayout() {
     text: string;
     images?: Parameters<typeof handleSend>[1];
     displayText?: string;
+    fileReferences?: FileReference[];
   } | null>(null);
 
 
@@ -398,7 +399,7 @@ export function AppLayout() {
     const nextSend = pendingSplitPaneSend;
     setPendingSplitPaneSend(null);
 
-    void manager.send(nextSend.text, nextSend.images, nextSend.displayText);
+    void manager.send(nextSend.text, nextSend.images, nextSend.displayText, nextSend.fileReferences);
   }, [manager.activeSessionId, manager.send, pendingSplitPaneSend]);
 
   const isIsland = settings.islandLayout;
@@ -489,8 +490,8 @@ export function AppLayout() {
   const previousActiveSplitSessionIdRef = useRef<string | null>(manager.activeSessionId);
 
   const queueSplitPaneSendAfterSwitch = useCallback(
-    async (sessionId: string, text: string, images?: Parameters<typeof handleSend>[1], displayText?: string) => {
-      setPendingSplitPaneSend({ sessionId, text, images, displayText });
+    async (sessionId: string, text: string, images?: Parameters<typeof handleSend>[1], displayText?: string, fileReferences?: FileReference[]) => {
+      setPendingSplitPaneSend({ sessionId, text, images, displayText, fileReferences });
       await manager.switchSession(sessionId);
     },
     [manager.switchSession],

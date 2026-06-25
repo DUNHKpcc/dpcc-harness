@@ -8,7 +8,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
-import type { TodoItem, AppPermissionBehavior, ModelInfo, ImageAttachment, SessionInfo, BackgroundSessionSnapshot, SlashCommand, CodexSessionEvent, CodexServerRequest, CodexExitEvent, CodexTokenUsageNotification } from "@/types";
+import type { TodoItem, AppPermissionBehavior, ModelInfo, FileReference, ImageAttachment, SessionInfo, BackgroundSessionSnapshot, SlashCommand, CodexSessionEvent, CodexServerRequest, CodexExitEvent, CodexTokenUsageNotification } from "@/types";
 import type { CollaborationMode } from "@/types/codex-protocol/CollaborationMode";
 import type { ItemStartedNotification } from "@/types/codex-protocol/v2/ItemStartedNotification";
 import type { ItemCompletedNotification } from "@/types/codex-protocol/v2/ItemCompletedNotification";
@@ -27,6 +27,7 @@ import {
   codexItemToToolInput,
   codexItemToToolResult,
   codexPlanToTodos,
+  fileReferencesToCodexMentions,
   imageAttachmentsToCodexInputs,
 } from "@/lib/engine/codex-adapter";
 import { suppressNextSessionCompletion } from "@/lib/notification-utils";
@@ -899,7 +900,7 @@ export function useCodex({
 
   // ── Actions ──
   const sendRaw = useCallback(
-    async (text: string, images?: ImageAttachment[], collaborationMode?: CollaborationMode): Promise<boolean> => {
+    async (text: string, images?: ImageAttachment[], collaborationMode?: CollaborationMode, fileReferences?: FileReference[]): Promise<boolean> => {
       if (!sessionId) return false;
       setIsProcessing(true);
       try {
@@ -909,6 +910,7 @@ export function useCodex({
           imageAttachmentsToCodexInputs(images),
           codexEffort,
           collaborationMode,
+          fileReferencesToCodexMentions(fileReferences),
         );
         if (result?.error) {
           setIsProcessing(false);
@@ -925,14 +927,14 @@ export function useCodex({
   );
 
   const send = useCallback(
-    async (text: string, images?: ImageAttachment[], displayText?: string, collaborationMode?: CollaborationMode): Promise<boolean> => {
+    async (text: string, images?: ImageAttachment[], displayText?: string, collaborationMode?: CollaborationMode, fileReferences?: FileReference[]): Promise<boolean> => {
       if (!sessionId) return false;
       // Add user message to UI immediately
       setMessages((prev) => [
         ...prev,
         createUserMessage(text, images, displayText),
       ]);
-      const ok = await sendRaw(text, images, collaborationMode);
+      const ok = await sendRaw(text, images, collaborationMode, fileReferences);
       if (!ok) {
         setMessages((prev) => [
           ...prev,

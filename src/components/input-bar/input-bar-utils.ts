@@ -1,4 +1,4 @@
-import type { SlashCommand } from "@/types";
+import type { FileReference, SlashCommand } from "@/types";
 import type { AcceptedMediaType } from "./constants";
 import { ACCEPTED_IMAGE_TYPES } from "./constants";
 
@@ -110,6 +110,21 @@ export function hasMeaningfulText(text: string): boolean {
 /** Remove placeholder text inserted by native dictation when no speech was captured. */
 export function stripVoicePlaceholderText(text: string): string {
   return text.replace(BLANK_AUDIO_PLACEHOLDER_RE, "");
+}
+
+export function buildFileReferenceMessage(
+  text: string,
+  references: FileReference[],
+): string {
+  const lines = references.map((ref) => `- ${ref.path}`);
+  if (lines.length === 0) return text.trim();
+
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return `Please use these local file references as needed:\n${lines.join("\n")}`;
+  }
+
+  return `${trimmed}\n\nAttached local file references:\n${lines.join("\n")}`;
 }
 
 /** Extract full text + mention paths from a contentEditable element. */

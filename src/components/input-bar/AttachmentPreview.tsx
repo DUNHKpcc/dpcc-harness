@@ -82,7 +82,7 @@ export const AttachmentPreview = memo(function AttachmentPreview({
             <div
               key={fa.id}
               className="group/file relative flex items-center gap-2.5 rounded-xl border border-border/30 bg-foreground/[0.04] px-3 py-2 shadow-sm transition-all duration-150 hover:border-border/50 hover:bg-foreground/[0.06]"
-              title={fa.path}
+              title={`Path reference. The agent will read this file on demand: ${fa.path}`}
             >
               <FileTypeIcon
                 fileName={fa.fileName}
@@ -93,7 +93,7 @@ export const AttachmentPreview = memo(function AttachmentPreview({
                   {fa.fileName}
                 </span>
                 <span className="text-[10px] text-muted-foreground">
-                  {formatBytes(fa.size)}
+                  {formatBytes(fa.size)} · path reference
                 </span>
               </div>
               <Button

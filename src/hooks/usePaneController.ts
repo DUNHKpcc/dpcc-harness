@@ -9,7 +9,7 @@
 
 import { useMemo } from "react";
 import { toast } from "sonner";
-import type { ACPConfigOption, ChatSession, ClaudeEffort, EngineId, ImageAttachment, InstalledAgent, ModelInfo } from "@/types";
+import type { ACPConfigOption, ChatSession, ClaudeEffort, EngineId, FileReference, ImageAttachment, InstalledAgent, ModelInfo } from "@/types";
 import type { SessionPaneState } from "@/hooks/session/useSessionPane";
 import type { CodexModelSummary } from "@/hooks/session/types";
 import { buildCodexCollabMode, DEFAULT_PERMISSION_MODE } from "@/hooks/session/types";
@@ -68,7 +68,7 @@ export interface PaneControllerContext {
   handleAgentChange: (agent: InstalledAgent | null) => void;
   handleStop: () => Promise<void>;
   handleComposerClear: () => Promise<void>;
-  wrappedHandleSend: (text: string, images?: ImageAttachment[], displayText?: string) => Promise<void>;
+  wrappedHandleSend: (text: string, images?: ImageAttachment[], displayText?: string, fileReferences?: FileReference[]) => Promise<void>;
   // Manager session-level mutations (for non-active panes)
   manager: {
     setSessionModel: (sessionId: string, model: string) => void;
@@ -89,7 +89,7 @@ export interface PaneControllerContext {
     setFocusedSession: (sessionId: string | null) => void;
   };
   createSplitPaneDraftSession?: (replacedSessionId: string, projectId: string, agent: InstalledAgent | null) => Promise<void>;
-  queueSplitPaneSendAfterSwitch?: (sessionId: string, text: string, images?: ImageAttachment[], displayText?: string) => Promise<void>;
+  queueSplitPaneSendAfterSwitch?: (sessionId: string, text: string, images?: ImageAttachment[], displayText?: string, fileReferences?: FileReference[]) => Promise<void>;
 }
 
 export function usePaneController(
@@ -225,11 +225,11 @@ export function usePaneController(
       await ctx.createSplitPaneDraftSession?.(sessionId, session.projectId, selectedPaneAgent);
     };
 
-    const handlePaneSend = async (text: string, images?: ImageAttachment[], displayText?: string) => {
+    const handlePaneSend = async (text: string, images?: ImageAttachment[], displayText?: string, fileReferences?: FileReference[]) => {
       ctx.splitView?.setFocusedSession(sessionId);
 
       if (isActiveSessionPane) {
-        await ctx.wrappedHandleSend(text, images, displayText);
+        await ctx.wrappedHandleSend(text, images, displayText, fileReferences);
         return;
       }
 
@@ -251,7 +251,7 @@ export function usePaneController(
       }
 
       if (!paneState.isConnected) {
-        await ctx.queueSplitPaneSendAfterSwitch?.(sessionId, text, images, displayText);
+        await ctx.queueSplitPaneSendAfterSwitch?.(sessionId, text, images, displayText, fileReferences);
         return;
       }
 
@@ -263,9 +263,9 @@ export function usePaneController(
       if (paneEngine === "codex") {
         try {
           const collaborationMode = buildCodexCollabMode(panePlanMode, paneModel);
-          const sent = await paneState.codex.send(text, images, displayText, collaborationMode);
+          const sent = await paneState.codex.send(text, images, displayText, collaborationMode, fileReferences);
           if (!sent) {
-            await ctx.queueSplitPaneSendAfterSwitch?.(sessionId, text, images, displayText);
+            await ctx.queueSplitPaneSendAfterSwitch?.(sessionId, text, images, displayText, fileReferences);
           }
         } catch (err) {
           toast.error(toastText("session.sendMessageFailed"), {
@@ -277,7 +277,7 @@ export function usePaneController(
 
       const sent = await paneState.claude.send(text, images, displayText);
       if (!sent) {
-        await ctx.queueSplitPaneSendAfterSwitch?.(sessionId, text, images, displayText);
+        await ctx.queueSplitPaneSendAfterSwitch?.(sessionId, text, images, displayText, fileReferences);
       }
     };
 

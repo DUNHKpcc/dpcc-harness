@@ -1,8 +1,8 @@
 import { useCallback } from "react";
-import type { ImageAttachment, Project } from "../../types";
+import type { FileReference, ImageAttachment, Project } from "../../types";
 import type { CollaborationMode } from "../../types/codex-protocol/CollaborationMode";
 import { toMcpStatusState } from "../../lib/mcp-utils";
-import { imageAttachmentsToCodexInputs } from "../../lib/engine/codex-adapter";
+import { fileReferencesToCodexMentions, imageAttachmentsToCodexInputs } from "../../lib/engine/codex-adapter";
 import { buildSdkContent } from "../../lib/engine/protocol";
 import { capture } from "../../lib/analytics/analytics";
 import { createSystemMessage, createUserMessage } from "../../lib/message-factory";
@@ -123,7 +123,7 @@ export function useSessionRevival({
 
   /** Revive a dead Codex session — spawn new app-server + thread/resume */
   const reviveCodexSession = useCallback(
-    async (text: string, images?: ImageAttachment[]) => {
+    async (text: string, images?: ImageAttachment[], fileReferences?: FileReference[]) => {
       const oldId = activeSessionIdRef.current;
       if (!oldId || oldId === DRAFT_ID) return;
       const session = sessionsRef.current.find((s) => s.id === oldId);
@@ -192,6 +192,7 @@ export function useSessionRevival({
         imageAttachmentsToCodexInputs(images),
         codexEffortRef.current,
         codexCollabMode,
+        fileReferencesToCodexMentions(fileReferences),
       );
       if (sendResult?.error) {
         codex.setMessages((prev) => [...prev, createSystemMessage(`Unable to send message: ${sendResult.error}`, true)]);

@@ -2,7 +2,7 @@ import { useCallback, useEffect } from "react";
 import { useProjectManager } from "@/hooks/useProjectManager";
 import { useSessionManager } from "@/hooks/useSessionManager";
 import { useSettingsCompat } from "@/hooks/useSettingsCompat";
-import type { ImageAttachment, InstalledAgent, ClaudeEffort, EngineId } from "@/types";
+import type { FileReference, ImageAttachment, InstalledAgent, ClaudeEffort, EngineId } from "@/types";
 import type { SettingsSection } from "@/components/SettingsView";
 import { buildSessionOptions } from "./session-utils";
 
@@ -106,7 +106,7 @@ export function useAppSessionActions(input: UseAppSessionActionsInput) {
     await input.manager.createSession(projectId, options);
   }, [getClaudeEffortForModel, input.manager, input.selectedAgent, input.setShowSettings, input.settings]);
 
-  const handleSend = useCallback(async (text: string, images?: ImageAttachment[], displayText?: string) => {
+  const handleSend = useCallback(async (text: string, images?: ImageAttachment[], displayText?: string, fileReferences?: FileReference[]) => {
     const currentEngine = input.manager.activeSession?.engine ?? "claude";
     const wantedEngine = input.selectedAgent?.engine ?? "claude";
     const needsNewSession = !input.manager.isDraft && input.manager.activeSession && (
@@ -126,7 +126,7 @@ export function useAppSessionActions(input: UseAppSessionActionsInput) {
       );
       await input.manager.createSession(input.manager.activeSession!.projectId, options);
     }
-    await input.manager.send(text, images, displayText);
+    await input.manager.send(text, images, displayText, fileReferences);
   }, [getClaudeEffortForModel, input.manager, input.selectedAgent, input.settings]);
 
   const handleModelChange = useCallback((nextModel: string) => {

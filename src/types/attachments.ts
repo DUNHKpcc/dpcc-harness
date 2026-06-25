@@ -7,10 +7,17 @@ export interface ImageAttachment {
   fileName?: string;
 }
 
+/** Local file reference sent to agents so they can read the file on demand. */
+export interface FileReference {
+  /** Basename shown to the model/user. */
+  name: string;
+  /** Absolute path on disk. */
+  path: string;
+}
+
 /** Non-image file dropped onto the input bar. Carries the absolute path
- *  (resolved via Electron's webUtils.getPathForFile in preload) so we can
- *  read the content at send-time and inline it into the prompt as a `<file>`
- *  context block — same shape used for @mention file references. */
+ *  (resolved via Electron's webUtils.getPathForFile in preload) so agents can
+ *  read the file on demand instead of the renderer inlining file contents. */
 export interface FileAttachment {
   id: string;
   /** Absolute path on disk. */

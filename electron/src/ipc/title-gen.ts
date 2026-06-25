@@ -3,7 +3,7 @@ import { log } from "../lib/logger";
 import { getSDK } from "../lib/sdk";
 import { reportError } from "../lib/error-utils";
 import { gitExec } from "../lib/git-exec";
-import { getClaudeBinaryPath } from "../lib/claude-binary";
+import { getClaudeBinaryPath, getClaudeSdkProcessOptions } from "../lib/claude-binary";
 import { claudeSpawnEnv, claudeGatewayModel } from "../lib/claude-gateway-env";
 
 function firstNonEmptyLine(text: string): string | undefined {
@@ -49,6 +49,7 @@ async function oneShotSdkQuery(
     let assistantText = "";
     let lastStderr = "";
     let timedOut = false;
+    const sdkProcessOptions = getClaudeSdkProcessOptions(cliPath);
 
     const q = query({
       prompt,
@@ -64,8 +65,11 @@ async function oneShotSdkQuery(
         permissionMode: "bypassPermissions",
         allowDangerouslySkipPermissions: true,
         persistSession: false,
-        pathToClaudeCodeExecutable: cliPath,
-        env: claudeSpawnEnv(),
+        ...sdkProcessOptions,
+        env: {
+          ...claudeSpawnEnv(),
+          ...sdkProcessOptions.env,
+        },
         stderr: (data: string) => {
           const trimmed = data.trim();
           if (!trimmed) return;

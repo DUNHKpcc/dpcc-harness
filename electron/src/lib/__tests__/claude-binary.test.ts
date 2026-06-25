@@ -256,6 +256,27 @@ describe("claude binary resolution", () => {
     await expect(mod.getClaudeVersion()).resolves.toBe("2.1.70");
   });
 
+  it("runs SDK cli.js queries through the Electron binary in Node mode", async () => {
+    const mod = await loadModule();
+    const cliPath = "/app.asar.unpacked/node_modules/@anthropic-ai/claude-agent-sdk/cli.js";
+
+    expect(mod.getClaudeSdkProcessOptions(cliPath)).toEqual({
+      pathToClaudeCodeExecutable: cliPath,
+      executable: process.execPath,
+      env: { ELECTRON_RUN_AS_NODE: "1" },
+    });
+  });
+
+  it("does not override the SDK executable for native Claude binaries", async () => {
+    const mod = await loadModule();
+    const nativePath = "/Users/tester/.local/bin/claude";
+
+    expect(mod.getClaudeSdkProcessOptions(nativePath)).toEqual({
+      pathToClaudeCodeExecutable: nativePath,
+      env: {},
+    });
+  });
+
   it("exposes binary metadata for auto-detected paths", async () => {
     allowExecutable("/Users/tester/.local/bin/claude");
 

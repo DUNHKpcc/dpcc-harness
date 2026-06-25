@@ -1,11 +1,10 @@
 import { ipcMain, shell } from "electron";
 import type { BrowserWindow } from "electron";
-import { execFile } from "child_process";
 import path from "path";
 import fs from "fs";
 import { promises as fsPromises } from "fs";
 import { log } from "../lib/logger";
-import { ALWAYS_SKIP } from "../lib/git-exec";
+import { ALWAYS_SKIP, gitExec, isGitNotFoundError, isNotGitRepositoryError } from "../lib/git-exec";
 import { getAppSetting } from "../lib/app-settings";
 import { captureEvent } from "../lib/posthog";
 import { reportError } from "../lib/error-utils";
@@ -19,17 +18,8 @@ import {
 } from "@shared/lib/file-watch-events";
 
 function listFilesGit(cwd: string): Promise<string[]> {
-  return new Promise((resolve, reject) => {
-    execFile(
-      "git",
-      ["ls-files", "--cached", "--others", "--exclude-standard"],
-      { cwd, maxBuffer: 10 * 1024 * 1024 },
-      (err, stdout) => {
-        if (err) return reject(err);
-        resolve(stdout.split("\n").filter((f) => f.trim()).sort());
-      },
-    );
-  });
+  return gitExec(["ls-files", "--cached", "--others", "--exclude-standard"], cwd)
+    .then((stdout) => stdout.split("\n").filter((f) => f.trim()).sort());
 }
 
 function parseGitignore(gitignorePath: string): string[] {
@@ -104,8 +94,14 @@ async function listFilesWalk(cwd: string, maxFiles = 10000): Promise<string[]> {
 async function listProjectFiles(cwd: string): Promise<string[]> {
   try {
     return await listFilesGit(cwd);
-  } catch {
-    log("FILES:LIST", "Not a git repo, falling back to filesystem walk");
+  } catch (err) {
+    if (isGitNotFoundError(err)) {
+      log("FILES:LIST", "Git not found; falling back to filesystem walk");
+    } else if (isNotGitRepositoryError(err)) {
+      log("FILES:LIST", "Not a git repo; falling back to filesystem walk");
+    } else {
+      log("FILES:LIST", "Git file listing failed; falling back to filesystem walk");
+    }
     return await listFilesWalk(cwd);
   }
 }

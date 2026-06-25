@@ -2,9 +2,9 @@ import { ipcMain } from "electron";
 import path from "path";
 import fs from "fs";
 import { execFile } from "child_process";
-import { gitExec, ALWAYS_SKIP } from "../lib/git-exec";
+import { gitExec, ALWAYS_SKIP, isGitExecError } from "../lib/git-exec";
 import { captureEvent } from "../lib/posthog";
-import { reportError } from "../lib/error-utils";
+import { extractErrorMessage, reportError } from "../lib/error-utils";
 import { log } from "../lib/logger";
 import type { GitRepoInfo } from "@shared/types/git";
 
@@ -58,6 +58,8 @@ async function readRepoMetadata(cwd: string): Promise<RepoMetadata | null> {
 }
 
 const WORKTREE_SETUP_FILE = ".pcc-agent/worktree.json";
+const GIT_ERROR_LOG_THROTTLE_MS = 60_000;
+const gitErrorLogTimes = new Map<string, number>();
 
 /** Run a shell command in a given cwd, returning stdout. */
 function shellExec(command: string, cwd: string): Promise<string> {
@@ -117,6 +119,24 @@ function validateRef(ref: string): void {
   if (ref.startsWith("-")) {
     throw new Error(`Invalid ref: "${ref}" — must not start with a dash`);
   }
+}
+
+function reportGitIpcError(label: string, err: unknown, cwd?: string): { error: string; kind?: string } {
+  const message = extractErrorMessage(err);
+  const kind = isGitExecError(err) ? err.kind : undefined;
+  const throttleKey = `${label}:${cwd ?? ""}:${kind ?? "unknown"}:${message}`;
+  const now = Date.now();
+  const lastLoggedAt = gitErrorLogTimes.get(throttleKey) ?? 0;
+
+  if (now - lastLoggedAt >= GIT_ERROR_LOG_THROTTLE_MS) {
+    gitErrorLogTimes.set(throttleKey, now);
+    return {
+      error: reportError(label, err, { cwd, gitErrorKind: kind }),
+      kind,
+    };
+  }
+
+  return { error: message, kind };
 }
 
 export function register(): void {
@@ -267,7 +287,7 @@ export function register(): void {
 
       return { branch, upstream, ahead, behind, files };
     } catch (err) {
-      return { error: reportError("GIT_STATUS_ERR", err) };
+      return reportGitIpcError("GIT_STATUS_ERR", err, cwd);
     }
   });
 

@@ -1,7 +1,7 @@
 import { log } from "../../logger";
 import { reportError } from "../../error-utils";
 import { getSDK } from "../../sdk";
-import { getClaudeBinaryPath, isClaudeInstalled } from "../../claude-binary";
+import { getClaudeBinaryPath, getClaudeSdkProcessOptions, isClaudeInstalled } from "../../claude-binary";
 import { claudeSpawnEnv, claudeGatewayModel } from "../../claude-gateway-env";
 import { isSessionError } from "./session-error";
 import type { CLIAdapter, AdapterExecOptions, AdapterExecResult } from "./types";
@@ -48,7 +48,6 @@ export class ClaudeAdapter implements CLIAdapter {
       cwd: opts.workDir,
       maxTurns: opts.maxTurns,
       permissionMode,
-      pathToClaudeCodeExecutable: cliPath,
       persistSession: true,
       // Emit partial streaming events so the desktop UI renders WeChat runs
       // token-by-token, matching a normal session's feel.
@@ -59,6 +58,13 @@ export class ClaudeAdapter implements CLIAdapter {
       // "not login" for every WeChat message (B4).
       env: claudeSpawnEnv(),
     };
+    const sdkProcessOptions = getClaudeSdkProcessOptions(cliPath);
+    Object.assign(sdkOpts, sdkProcessOptions, {
+      env: {
+        ...(sdkOpts.env as Record<string, string | undefined>),
+        ...sdkProcessOptions.env,
+      },
+    });
     if (opts.model) sdkOpts.model = opts.model;
     // Gateway custom model overrides the configured model when enabled — the
     // gateway only serves its own model, mirroring interactive session behavior.

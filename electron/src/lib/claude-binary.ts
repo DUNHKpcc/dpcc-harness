@@ -351,6 +351,22 @@ export function resetClaudeBinaryCache(): void {
   cachedSource = null;
 }
 
+export function getClaudeSdkProcessOptions(cliPath: string | undefined): Record<string, unknown> & {
+  env: Record<string, string>;
+} {
+  const options: Record<string, unknown> & { env: Record<string, string> } = {
+    env: {},
+  };
+  if (cliPath) {
+    options.pathToClaudeCodeExecutable = cliPath;
+    if (isScriptExecutable(cliPath)) {
+      options.executable = process.execPath;
+      options.env.ELECTRON_RUN_AS_NODE = "1";
+    }
+  }
+  return options;
+}
+
 function readClaudeVersion(binaryPath: string): string | null {
   // When the resolved CLI is a script (the bundled SDK cli.js — the common case
   // on Windows, where getKnownPaths() is empty and resolution falls to the SDK

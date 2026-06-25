@@ -20,6 +20,7 @@ import {
   getClaudeBinaryInfo,
   getClaudeBinaryMetadata,
   getClaudeBinaryPath,
+  getClaudeSdkProcessOptions,
   getClaudeBinaryStatus,
   getClaudeVersion,
 } from "../lib/claude-binary";
@@ -38,6 +39,20 @@ function fileCheckpointOptions(): Record<string, unknown> {
       CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING: "1",
     },
   };
+}
+
+function applyClaudeSdkProcessOptions(queryOptions: Record<string, unknown>, cliPath: string | undefined): void {
+  const sdkProcessOptions = getClaudeSdkProcessOptions(cliPath);
+  const sdkEnv = sdkProcessOptions.env;
+  for (const [key, value] of Object.entries(sdkProcessOptions)) {
+    if (key !== "env") queryOptions[key] = value;
+  }
+  if (Object.keys(sdkEnv).length > 0) {
+    queryOptions.env = {
+      ...((queryOptions.env as Record<string, string | undefined> | undefined) ?? {}),
+      ...sdkEnv,
+    };
+  }
 }
 
 type PermissionResult =
@@ -462,7 +477,6 @@ async function revalidateClaudeModelsCache(cwd?: string): Promise<{ models: Arra
           includePartialMessages: true,
           thinking: buildThinkingConfig(),
           settingSources: ["user", "project", "local"],
-          pathToClaudeCodeExecutable: attempt.cliPath,
           ...fileCheckpointOptions(),
           stderr: (data: string) => {
             const trimmed = data.trim();
@@ -470,6 +484,7 @@ async function revalidateClaudeModelsCache(cwd?: string): Promise<{ models: Arra
             log("MODELS_CACHE_STDERR", `attempt=${index + 1} ${attempt.label} ${trimmed}`);
           },
         };
+        applyClaudeSdkProcessOptions(queryOptions, attempt.cliPath);
 
         queryHandle = query({ prompt: channel, options: queryOptions });
         if (!queryHandle.supportedModels) {
@@ -620,7 +635,6 @@ async function restartSession(
     thinking: buildThinkingConfig(),
     canUseTool,
     settingSources: ["user", "project", "local"],
-    pathToClaudeCodeExecutable: cliPath,
     agentProgressSummaries: true,
     ...fileCheckpointOptions(),
     resume: sessionId,
@@ -630,6 +644,7 @@ async function restartSession(
       safeSend(getMainWindow,"claude:stderr", { data, _sessionId: sessionId });
     },
   };
+  applyClaudeSdkProcessOptions(queryOptions, cliPath);
 
   applyPermissionModeOptions(queryOptions, opts.permissionMode);
   const restartModel = toSdkModelOverride(modelOverride ?? opts.model);
@@ -744,7 +759,6 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         thinking: buildThinkingConfig(),
         canUseTool,
         settingSources: ["user", "project", "local"],
-        pathToClaudeCodeExecutable: cliPath,
         agentProgressSummaries: true,
         ...fileCheckpointOptions(),
         stderr: (data: string) => {
@@ -753,6 +767,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
           safeSend(getMainWindow,"claude:stderr", { data, _sessionId: sessionId });
         },
       };
+      applyClaudeSdkProcessOptions(queryOptions, cliPath);
 
       if (options.resume) {
         queryOptions.resume = options.resume;

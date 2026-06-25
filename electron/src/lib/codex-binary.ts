@@ -5,8 +5,8 @@
  * 1. CODEX_CLI_PATH env var (explicit override)
  * 2. App data dir ({userData}/pcc-agent-data/bin/codex) — our managed copy
  * 3. Known install locations (Homebrew, Codex Desktop app bundle)
- * 4. System PATH (which codex)
- * 5. Bundled binary shipped in the packaged app ({resourcesPath}/codex-vendor)
+ * 4. Bundled binary shipped in the packaged app ({resourcesPath}/codex-vendor)
+ * 5. System PATH (which codex)
  *
  * If not found anywhere (e.g. dev build without a bundle), downloads via
  * `npm pack @openai/codex` and extracts the platform binary to the app data dir.
@@ -75,6 +75,9 @@ function normalizeExecutablePath(candidate: string): string | null {
   const trimmed = candidate.trim();
   if (!trimmed) return null;
   const normalized = path.normalize(trimmed);
+  if (process.platform === "win32" && path.extname(normalized).toLowerCase() !== ".exe") {
+    return null;
+  }
   return isExecutable(normalized) ? normalized : null;
 }
 
@@ -129,7 +132,13 @@ function resolveCodexPathSync(): string {
     if (isExecutable(known)) return known;
   }
 
-  // 4. System PATH (fallback)
+  // 4. Bundled binary (shipped in the packaged app). On Windows this must come
+  //    before PATH: npm shims such as %APPDATA%\npm\codex are not native
+  //    executables and fail when spawned as `codex app-server`.
+  const bundled = getBundledBinaryPath();
+  if (bundled) return bundled;
+
+  // 5. System PATH (fallback)
   try {
     const cmd = process.platform === "win32" ? "where" : "which";
     const output = execFileSync(cmd, ["codex"], { encoding: "utf-8", timeout: 5000 });
@@ -141,12 +150,6 @@ function resolveCodexPathSync(): string {
   } catch {
     /* not in PATH */
   }
-
-  // 5. Bundled binary (shipped in the packaged app). Last resort before the
-  //    npm auto-download — guarantees Codex works offline on a fresh machine
-  //    while still preferring a newer system install (Desktop app, Homebrew).
-  const bundled = getBundledBinaryPath();
-  if (bundled) return bundled;
 
   throw new Error("Codex binary not found");
 }

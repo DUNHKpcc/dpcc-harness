@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { isMac } from "@/lib/utils";
+import { isMac, isWindows } from "@/lib/utils";
 import { toastText } from "@/lib/toast-i18n";
 import type { MacBackgroundEffect, ThemeOption } from "@/types";
 
@@ -25,6 +25,16 @@ interface GlassOrchestratorState {
   liveMacBackgroundEffect: MacNativeBackgroundEffect;
 }
 
+export function getInitialGlassSupported({
+  isWindowsPlatform,
+}: {
+  isWindowsPlatform: boolean;
+}): boolean {
+  // Windows Mica support is deterministic in the main process. Seed this before
+  // the async IPC check so preload's glass-enabled class is not removed for a frame.
+  return isWindowsPlatform;
+}
+
 /**
  * Manages glass/transparency effects across macOS and Windows:
  * - Detects glass and liquid glass support
@@ -40,7 +50,9 @@ export function useGlassOrchestrator({
   transparency,
   theme,
 }: UseGlassOrchestratorOptions): GlassOrchestratorState {
-  const [glassSupported, setGlassSupported] = useState(false);
+  const [glassSupported, setGlassSupported] = useState(() =>
+    getInitialGlassSupported({ isWindowsPlatform: isWindows }),
+  );
   const [macLiquidGlassSupported, setMacLiquidGlassSupported] = useState<boolean | null>(null);
 
   // The effect the main process is *actually* rendering right now.

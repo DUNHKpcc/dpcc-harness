@@ -51,6 +51,10 @@ const NARROW_CHAT_MESSAGE_WIDTH_THRESHOLD_PX = 900;
 const INITIAL_RENDER_ROWS = 20;
 const HYDRATION_BATCH_SIZE = 40;
 
+export function shouldRenderChatContentImmediately(messageCount: number): boolean {
+  return messageCount > 0;
+}
+
 // ── Module-level pure functions (rerender-no-inline-components, rendering-hoist-jsx) ──
 
 function buildRows(
@@ -372,13 +376,16 @@ function ChatViewContent({
 
   // ── Deferred mount: show spinner for one frame, then render content ──
   // Prevents UI freeze on session/space switch by deferring heavy work.
-  const [contentReady, setContentReady] = useState(false);
+  const [contentReady, setContentReady] = useState(() =>
+    shouldRenderChatContentImmediately(messages.length),
+  );
   useEffect(() => {
+    if (contentReady) return;
     const frame = requestAnimationFrame(() => {
       startTransition(() => setContentReady(true));
     });
     return () => cancelAnimationFrame(frame);
-  }, []);
+  }, [contentReady]);
 
   const userScrollIntentRef = useRef(0);
   const scrollRafPending = useRef(false);

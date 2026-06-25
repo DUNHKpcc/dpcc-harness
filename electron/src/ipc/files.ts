@@ -10,6 +10,7 @@ import { getAppSetting } from "../lib/app-settings";
 import { captureEvent } from "../lib/posthog";
 import { reportError } from "../lib/error-utils";
 import { safeSend } from "../lib/safe-send";
+import { checkPromptTextFile, readPromptTextFile } from "../lib/prompt-file-read";
 import {
   mergeFileWatchEvents,
   normalizeFileWatchPath,
@@ -477,7 +478,9 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
             // Add tree first
             results.push({ path: relPath, isDir: true, tree });
 
-            // Calculate total size first to check limit
+            // Calculate prompt-readable text size first to check limit.
+            // Binary/unsupported files are reported individually but do not
+            // count toward the prompt text budget.
             let folderContentSize = 0;
             const filesToRead: string[] = [];
             for (const file of matchingFiles) {
@@ -488,13 +491,15 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
                 continue;
               }
               try {
-                const fileStat = await fsPromises.stat(fileAbsPath);
-                if (!fileStat.isDirectory() && fileStat.size <= 500_000) {
-                  folderContentSize += fileStat.size;
+                const check = await checkPromptTextFile(fileAbsPath);
+                if (check.ok) {
+                  folderContentSize += check.size ?? 0;
                   filesToRead.push(file);
+                } else {
+                  results.push({ path: file, error: check.error ?? "Unable to read file" });
                 }
-              } catch {
-                // Skip files that can't be statted
+              } catch (fileErr) {
+                results.push({ path: file, error: fileErr instanceof Error ? fileErr.message : String(fileErr) });
               }
             }
 
@@ -523,9 +528,13 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
                       results.push({ path: file, error: "File too large" });
                       return;
                     }
-                    const content = await fsPromises.readFile(fileAbsPath, "utf-8");
-                    results.push({ path: file, content });
-                    totalContentSize += content.length;
+                    const readResult = await readPromptTextFile(fileAbsPath);
+                    if (readResult.content !== undefined) {
+                      results.push({ path: file, content: readResult.content });
+                      totalContentSize += readResult.content.length;
+                    } else {
+                      results.push({ path: file, error: readResult.error ?? "Unable to read file" });
+                    }
                   } catch (fileErr) {
                     results.push({ path: file, error: fileErr instanceof Error ? fileErr.message : String(fileErr) });
                   }
@@ -546,9 +555,13 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
             results.push({ path: relPath, error: "File too large" });
             continue;
           }
-          const content = await fsPromises.readFile(absPath, "utf-8");
-          results.push({ path: relPath, content });
-          totalContentSize += content.length;
+          const readResult = await readPromptTextFile(absPath);
+          if (readResult.content !== undefined) {
+            results.push({ path: relPath, content: readResult.content });
+            totalContentSize += readResult.content.length;
+          } else {
+            results.push({ path: relPath, error: readResult.error ?? "Unable to read file" });
+          }
         }
       } catch (err) {
         results.push({ path: relPath, error: err instanceof Error ? err.message : String(err) });
@@ -564,9 +577,12 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       if (!absPath || absPath === path.sep) {
         return { error: "Invalid file path" };
       }
-      const content = fs.readFileSync(absPath, "utf-8");
+      const content = await fsPromises.readFile(absPath, "utf-8");
       return { content };
     } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+        return { error: "File not found" };
+      }
       const errMsg = reportError("FILE:READ_ERR", err, { filePath });
       return { error: errMsg };
     }

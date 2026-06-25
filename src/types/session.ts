@@ -36,7 +36,7 @@ interface UIMessageBase {
   isStreaming?: boolean;
   subagentId?: string;
   subagentSteps?: SubagentToolStep[];
-  subagentStatus?: "running" | "completed";
+  subagentStatus?: "running" | "completed" | "failed";
   subagentDurationMs?: number;
   subagentTokens?: number;
   /** SDK checkpoint UUID -- when present, files can be reverted to the state before this message */

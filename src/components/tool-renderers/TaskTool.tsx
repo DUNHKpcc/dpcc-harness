@@ -53,6 +53,7 @@ export function TaskTool({ message }: { message: UIMessage }) {
   const [expanded, setExpanded] = useChatPersistedState(`task:${message.id}`, false);
   const isRunning = message.subagentStatus === "running";
   const isCompleted = message.subagentStatus === "completed";
+  const isFailed = message.subagentStatus === "failed" || !!message.toolError;
   const hasSteps = message.subagentSteps && message.subagentSteps.length > 0;
   const stepCount = message.subagentSteps?.length ?? 0;
   const showCard = isRunning || expanded;
@@ -80,13 +81,20 @@ export function TaskTool({ message }: { message: UIMessage }) {
             <div className={`flex items-center justify-center shrink-0 size-5 rounded-md ${
               isRunning
                 ? "bg-foreground/[0.08] text-foreground/50"
+                : isFailed
+                  ? "bg-red-500/10 text-red-400/70"
                 : "bg-foreground/[0.05] text-foreground/35"
             }`}>
-              <Bot className="h-3 w-3" />
+              {isFailed ? <AlertCircle className="h-3 w-3" /> : <Bot className="h-3 w-3" />}
             </div>
 
             {/* Title */}
-            {isCompleted && !expanded ? (
+            {isFailed ? (
+              <>
+                <span className="shrink-0 font-medium text-red-400/75">{t("task.failedAgent")}</span>
+                <span className="truncate text-foreground/40">{formatTaskSummary(message, t)}</span>
+              </>
+            ) : isCompleted && !expanded ? (
               <>
                 <span className="shrink-0 font-medium text-foreground/75">{t("task.usedAgent")}</span>
                 <span className="truncate text-foreground/40">{formatTaskSummary(message, t)}</span>
@@ -171,7 +179,7 @@ function TaskExpandedContent({ message }: { message: UIMessage }) {
       )}
 
       {/* Result */}
-      {message.subagentStatus === "completed" && message.toolResult?.content && (
+      {(message.subagentStatus === "completed" || message.subagentStatus === "failed") && message.toolResult?.content && (
         <TaskResultBlock
           content={message.toolResult.content}
           storageKey={`task-result:${message.id}`}

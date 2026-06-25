@@ -82,6 +82,7 @@
     "summaryFallback": "任务",
     "summaryAgentTo": "{{agent}}：{{desc}}",
     "usedAgent": "使用了 agent",
+    "failedAgent": "agent 已停止",
     "stepCount_other": "{{count}} 步",
     "prompt": "提示词",
     "steps": "步骤",

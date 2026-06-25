@@ -34,6 +34,7 @@ import { suppressNextSessionCompletion } from "@/lib/notification-utils";
 import { captureException } from "@/lib/analytics/analytics";
 import { createSystemMessage, createUserMessage, nextId } from "@/lib/message-factory";
 import { toastText } from "@/lib/toast-i18n";
+import { markInFlightToolCallsFailed } from "@/lib/chat/in-flight-tools";
 import { useEngineBase } from "./useEngineBase";
 
 interface UseCodexOptions {
@@ -307,6 +308,10 @@ export function useCodex({
     activeAssistantItemIdRef.current = null;
   }, [cancelPendingFlush, setMessages]);
 
+  const finalizeInFlightToolCalls = useCallback((reason: string) => {
+    setMessages((prev) => markInFlightToolCallsFailed(prev, reason));
+  }, [setMessages]);
+
   // ── Notification handler ──
   const handleNotification = useCallback((event: CodexSessionEvent) => {
     if (event._sessionId !== sessionIdRef.current) return;
@@ -372,6 +377,7 @@ export function useCodex({
         // Auth required — UI will handle this
         setAuthRequired(true);
         setIsProcessing(false);
+        finalizeInFlightToolCalls("Codex authentication is required before this tool can complete.");
         break;
 
       case "account/login/completed": {
@@ -402,10 +408,11 @@ export function useCodex({
           ...prev,
           createSystemMessage(errorText, true),
         ]);
+        finalizeInFlightToolCalls(errorText);
         break;
       }
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [finalizeInFlightToolCalls]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Item started: create UIMessage for tool calls, start streaming for agentMessage ──
   const handleItemStarted = useCallback((params: ItemStartedNotification) => {
@@ -697,12 +704,13 @@ export function useCodex({
     const { turn } = params;
     if (turn.status === "failed") {
       const msg = turn.error?.message || "Turn failed";
+      finalizeInFlightToolCalls(msg);
       setMessages((prev) => [
         ...prev,
         createSystemMessage(msg, true),
       ]);
     }
-  }, [finalizeStreamingAssistant]);
+  }, [finalizeStreamingAssistant, finalizeInFlightToolCalls]);
 
   // ── Token usage ──
   const handleTokenUsage = useCallback((params: CodexTokenUsageNotification) => {
@@ -849,7 +857,13 @@ export function useCodex({
     setIsConnected(false);
     setIsProcessing(false);
     setIsCompacting(false);
-  }, []);
+    if ((data.code !== 0 && data.code !== null) || data.signal) {
+      const detail = data.code !== null
+        ? `Codex process exited with code ${data.code}`
+        : `Codex process exited with signal ${data.signal}`;
+      finalizeInFlightToolCalls(detail);
+    }
+  }, [finalizeInFlightToolCalls]);
 
   // ── Subscribe to events ──
   useEffect(() => {
@@ -951,14 +965,18 @@ export function useCodex({
     setIsCompacting(false);
     suppressNextSessionCompletion(sessionId);
     await window.claude.codex.stop(sessionId);
-  }, [sessionId]);
+    setIsProcessing(false);
+    finalizeInFlightToolCalls("Codex session stopped.");
+  }, [sessionId, finalizeInFlightToolCalls]);
 
   const interrupt = useCallback(async () => {
     if (!sessionId) return;
     setIsCompacting(false);
     suppressNextSessionCompletion(sessionId);
     await window.claude.codex.interrupt(sessionId);
-  }, [sessionId]);
+    setIsProcessing(false);
+    finalizeInFlightToolCalls("Codex turn interrupted.");
+  }, [sessionId, finalizeInFlightToolCalls]);
 
   const compact = useCallback(async () => {
     if (!sessionId) return;

@@ -89,6 +89,7 @@
     "summaryFallback": "task",
     "summaryAgentTo": "{{agent}} to {{desc}}",
     "usedAgent": "Used agent",
+    "failedAgent": "Agent stopped",
     "stepCount_one": "{{count}} step",
     "stepCount_other": "{{count}} steps",
     "prompt": "Prompt",

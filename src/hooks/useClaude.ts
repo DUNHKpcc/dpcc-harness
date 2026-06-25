@@ -38,6 +38,7 @@ import { bgAgentStore } from "../lib/background/agent-store";
 import { suppressNextSessionCompletion } from "../lib/notification-utils";
 import { advancePermissionQueue, enqueuePermissionRequest } from "../lib/engine/permission-queue";
 import { normalizeTodoToolInput } from "../lib/chat/todo-utils";
+import { markInFlightToolCallsFailed } from "../lib/chat/in-flight-tools";
 import { capture } from "../lib/analytics/analytics";
 import { toastText } from "../lib/toast-i18n";
 import { useEngineBase } from "./useEngineBase";
@@ -194,6 +195,10 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
       thinkingThrottleRef.current = null;
     }
   }, [cancelPendingFlush]);
+
+  const finalizeInFlightToolCalls = useCallback((reason = "已被用户停止") => {
+    setMessages((prev) => markInFlightToolCallsFailed(prev, reason));
+  }, [setMessages]);
 
   const handleSubagentEvent = useCallback((event: ClaudeEvent, parentId: string) => {
     const taskMsgId = parentToolMap.current.get(parentId);
@@ -704,6 +709,7 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
             const errorMsg = resultEvent.errors?.join("\n")
               || resultEvent.result
               || "An error occurred";
+            finalizeInFlightToolCalls(errorMsg);
             setMessages((prev) => [
               ...prev,
               createSystemMessage(formatResultError(resultEvent.subtype, errorMsg), true),
@@ -763,7 +769,7 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
         }
       }
     },
-    [resetStreaming, scheduleFlush, flushNow, handleSubagentEvent],
+    [resetStreaming, scheduleFlush, flushNow, handleSubagentEvent, finalizeInFlightToolCalls],
   );
 
   const send = useCallback(
@@ -808,23 +814,6 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
     [],
   );
 
-  // Stamp a synthetic "stopped" result on every tool_call still in flight.
-  // ToolCall.tsx treats `!toolResult` as running, so a blocking MCP tool that
-  // never returns (e.g. the `codex_delegate` bridge) would otherwise spin on
-  // "正在调用 …" forever after the user stops the turn. toolError renders the
-  // localized failure label; if the SDK later delivers a real tool_result it
-  // overwrites this stamp, so only genuinely orphaned calls stay "stopped".
-  const finalizeInFlightToolCalls = useCallback(() => {
-    setMessages((prev) => {
-      if (!prev.some((m) => m.role === "tool_call" && !m.toolResult)) return prev;
-      return prev.map((m) =>
-        m.role === "tool_call" && !m.toolResult
-          ? { ...m, toolError: true, toolResult: { content: "已被用户停止" } }
-          : m,
-      );
-    });
-  }, [setMessages]);
-
   const stop = useCallback(async () => {
     if (!sessionIdRef.current) return;
     suppressNextSessionCompletion(sessionIdRef.current);
@@ -832,7 +821,7 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
     setIsConnected(false);
     setIsProcessing(false);
     setIsCompacting(false);
-    finalizeInFlightToolCalls();
+    finalizeInFlightToolCalls("已被用户停止");
     resetStreaming();
   }, [resetStreaming, finalizeInFlightToolCalls]);
 
@@ -873,7 +862,7 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
 
     // Reset streaming buffer for next turn
     resetStreaming();
-    finalizeInFlightToolCalls();
+    finalizeInFlightToolCalls("已被用户停止");
   }, [flushNow, resetStreaming, finalizeInFlightToolCalls]);
 
   const respondPermission = useCallback(
@@ -977,6 +966,7 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
       setPendingPermission(null);
       if (data.code !== 0 && data.code !== null) {
         const errorDetail = data.error || `Process exited with code ${data.code}`;
+        finalizeInFlightToolCalls(errorDetail);
         setMessages((prev) => [
           ...prev,
           createSystemMessage(errorDetail, true),
@@ -989,7 +979,7 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
       unsubExit();
       cancelPendingFlush();
     };
-  }, [handleEvent]);
+  }, [handleEvent, finalizeInFlightToolCalls, cancelPendingFlush]);
 
   const setPermissionMode = useCallback(async (mode: string) => {
     if (!sessionIdRef.current) return;

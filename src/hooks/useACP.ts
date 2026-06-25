@@ -19,6 +19,7 @@ import { suppressNextSessionCompletion } from "@/lib/notification-utils";
 import { captureException } from "@/lib/analytics/analytics";
 import { createSystemMessage, createUserMessage, nextId } from "@/lib/message-factory";
 import { toastText } from "@/lib/toast-i18n";
+import { markInFlightToolCallsFailed } from "@/lib/chat/in-flight-tools";
 import { useEngineBase } from "./useEngineBase";
 
 interface UseACPOptions {
@@ -163,6 +164,10 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
       });
     });
   }, []);
+
+  const failPendingTools = useCallback((reason: string) => {
+    setMessages((prev) => markInFlightToolCallsFailed(prev, reason));
+  }, [setMessages]);
 
   const handleSessionUpdate = useCallback((event: ACPSessionEvent) => {
     if (event._sessionId !== sessionIdRef.current) return;
@@ -489,6 +494,7 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
       // Show error message in UI if session exited with error
       if (data.code !== 0 && data.code !== null) {
         const errorDetail = data.error || `Agent process exited with code ${data.code}`;
+        failPendingTools(errorDetail);
         setMessages((prev) => [
           ...prev,
           createSystemMessage(errorDetail, true),
@@ -500,7 +506,7 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
       unsubEvent(); unsubPermission(); unsubTurnComplete(); unsubExit();
       cancelPendingFlush();
     };
-  }, [closePendingTools, finalizeStreamingMessage, handleSessionUpdate, initialConfigOptions, sessionId]);
+  }, [closePendingTools, failPendingTools, finalizeStreamingMessage, handleSessionUpdate, initialConfigOptions, sessionId]);
 
   const send = useCallback(async (text: string, images?: ImageAttachment[], displayText?: string) => {
     if (!sessionId) return;
@@ -549,14 +555,16 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
     acpLog("STOP", { session: sessionId.slice(0, 8) });
     suppressNextSessionCompletion(sessionId);
     await window.claude.acp.stop(sessionId);
-  }, [sessionId]);
+    setIsProcessing(false);
+    failPendingTools("Agent session stopped.");
+  }, [sessionId, failPendingTools]);
 
   const interrupt = useCallback(async () => {
     if (!sessionId) return;
     acpLog("INTERRUPT", { session: sessionId.slice(0, 8) });
     suppressNextSessionCompletion(sessionId);
     finalizeStreamingMessage();
-    closePendingTools();
+    failPendingTools("Agent turn interrupted.");
     setPendingPermission(null);
     setIsProcessing(false);
     try {
@@ -571,7 +579,7 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
       captureException(err instanceof Error ? err : new Error(msg), { label: "ACP_INTERRUPT_ERR" });
       pushSystemError(`ACP cancel error: ${msg}`);
     }
-  }, [sessionId, finalizeStreamingMessage, closePendingTools, pushSystemError]);
+  }, [sessionId, finalizeStreamingMessage, failPendingTools, pushSystemError]);
 
   const respondPermission = useCallback(async (
     behavior: AppPermissionBehavior,

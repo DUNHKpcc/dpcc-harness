@@ -121,4 +121,12 @@ describe("codex binary resolution", () => {
     await expect(mod.getCodexBinaryPath()).resolves.toBe(bundledPath);
     expect(mockExecFileSync).not.toHaveBeenCalledWith("where", ["codex"], expect.anything());
   });
+
+  it("maps Windows arm64 runtime fallback to the Windows x64 Codex package", async () => {
+    mockOsArch.mockReturnValue("arm64");
+    const mod = await loadModule();
+
+    expect(mod.__test.getPlatformTag()).toBe("win32-x64");
+    expect(mod.__test.getVendorTargetTriple()).toBe("x86_64-pc-windows-msvc");
+  });
 });

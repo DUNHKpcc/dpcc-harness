@@ -33,7 +33,6 @@ function codexTripleForBuild(platformName, archEnum) {
     "darwin-arm64": "aarch64-apple-darwin",
     "darwin-x64": "x86_64-apple-darwin",
     "win32-x64": "x86_64-pc-windows-msvc",
-    "win32-arm64": "aarch64-pc-windows-msvc",
     "linux-x64": "x86_64-unknown-linux-gnu",
     "linux-arm64": "aarch64-unknown-linux-gnu",
   };
@@ -102,6 +101,14 @@ async function afterPackHook(context) {
   console.log(`  \u2022 afterPack: asar cleaned \u2014 ${mb} MB`);
 }
 
+function isWindowsBuildTarget(argv = process.argv) {
+  return argv.some((arg) => arg === "--win" || arg === "--windows" || arg === "-w");
+}
+
+function shouldRebuildNativeDeps(argv = process.argv, hostPlatform = process.platform) {
+  return !(hostPlatform !== "win32" && isWindowsBuildTarget(argv));
+}
+
 /** @type {import('electron-builder').Configuration} */
 module.exports = {
   appId: "com.pccagent.app",
@@ -135,7 +142,7 @@ module.exports = {
     "node_modules/@anthropic-ai/claude-agent-sdk/manifest*.json",
   ],
 
-  npmRebuild: true,
+  npmRebuild: shouldRebuildNativeDeps(),
   nodeGypRebuild: false,
   includePdb: false,
 
@@ -187,7 +194,7 @@ module.exports = {
 
   // --- Windows ---
   win: {
-    target: [{ target: "nsis", arch: ["x64", "arm64"] }],
+    target: [{ target: "nsis", arch: ["x64"] }],
     icon: "build/icon.ico",
     files: [
       "!node_modules/electron-liquid-glass/**",
@@ -242,3 +249,13 @@ module.exports = {
 
   afterSign: "scripts/notarize.js",
 };
+
+if (process.env.NODE_ENV === "test" || process.env.VITEST) {
+  Object.defineProperty(module.exports, "__test", {
+    value: {
+      codexTripleForBuild,
+      stripForeignCodexTriples,
+      shouldRebuildNativeDeps,
+    },
+  });
+}

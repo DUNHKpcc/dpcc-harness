@@ -15,7 +15,7 @@
 import fs from "fs";
 import path from "path";
 import os from "os";
-import { execFileSync } from "child_process";
+import { execFileSync, type ExecFileSyncOptionsWithStringEncoding } from "child_process";
 import { app } from "electron";
 import { log } from "./logger";
 import { reportError } from "./error-utils";
@@ -354,11 +354,12 @@ export async function getCodexVersion(): Promise<string | null> {
 /**
  * Platform dist-tag for @openai/codex npm package.
  * The package publishes platform-specific binaries under dist-tags like:
- *   darwin-arm64, darwin-x64, linux-arm64, linux-x64, win32-x64, win32-arm64
+ *   darwin-arm64, darwin-x64, linux-arm64, linux-x64, win32-x64
  */
 function getPlatformTag(): string {
   const platform = process.platform; // darwin, linux, win32
   const arch = os.arch(); // arm64, x64
+  if (platform === "win32" && arch === "arm64") return "win32-x64";
   return `${platform}-${arch}`;
 }
 
@@ -369,11 +370,11 @@ function getNpmCommand(): string {
 
 function runNpmPack(packageSpec: string, cwd: string): void {
   const args = ["pack", packageSpec, "--pack-destination", "."];
-  const options = {
+  const options: ExecFileSyncOptionsWithStringEncoding = {
     cwd,
-    encoding: "utf-8" as const,
+    encoding: "utf-8",
     timeout: 120000,
-    stdio: ["ignore", "pipe", "pipe"] as const,
+    stdio: ["ignore", "pipe", "pipe"],
   };
 
   try {
@@ -414,7 +415,7 @@ function getVendorTargetTriple(): string | null {
   const key = `${process.platform}-${os.arch()}`;
   switch (key) {
     case "win32-arm64":
-      return "aarch64-pc-windows-msvc";
+      return "x86_64-pc-windows-msvc";
     case "win32-x64":
       return "x86_64-pc-windows-msvc";
     case "darwin-arm64":
@@ -429,6 +430,11 @@ function getVendorTargetTriple(): string | null {
       return null;
   }
 }
+
+export const __test = {
+  getPlatformTag,
+  getVendorTargetTriple,
+};
 
 function resolveBinaryFromPackageJson(packageRoot: string): string | null {
   try {

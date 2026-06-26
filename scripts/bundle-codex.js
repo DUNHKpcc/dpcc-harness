@@ -17,8 +17,12 @@
 //   node scripts/bundle-codex.js --triples <a>,<b>     # explicit triples
 //   TARGET_TRIPLES=<a>,<b> node scripts/bundle-codex.js
 //
+// Each run prunes stale output triples that were not requested. This keeps
+// build/codex-vendor aligned with the current packaging target and avoids
+// copying old platform binaries into electron-builder's staging area.
+//
 // Triples: aarch64-apple-darwin, x86_64-apple-darwin,
-//          x86_64-pc-windows-msvc, aarch64-pc-windows-msvc,
+//          x86_64-pc-windows-msvc,
 //          x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu
 
 const fs = require("fs");
@@ -33,7 +37,6 @@ const TRIPLE_TO_TAG = {
   "aarch64-apple-darwin": "darwin-arm64",
   "x86_64-apple-darwin": "darwin-x64",
   "x86_64-pc-windows-msvc": "win32-x64",
-  "aarch64-pc-windows-msvc": "win32-arm64",
   "x86_64-unknown-linux-gnu": "linux-x64",
   "aarch64-unknown-linux-gnu": "linux-arm64",
 };
@@ -44,7 +47,6 @@ function currentTriple() {
     "darwin-arm64": "aarch64-apple-darwin",
     "darwin-x64": "x86_64-apple-darwin",
     "win32-x64": "x86_64-pc-windows-msvc",
-    "win32-arm64": "aarch64-pc-windows-msvc",
     "linux-x64": "x86_64-unknown-linux-gnu",
     "linux-arm64": "aarch64-unknown-linux-gnu",
   };
@@ -66,12 +68,23 @@ function resolveTriples() {
   return triples.length > 0 ? triples : [currentTriple()];
 }
 
+function pruneForeignTriples(outputDir, requestedTriples) {
+  if (!fs.existsSync(outputDir)) return;
+
+  const keep = new Set(requestedTriples);
+  for (const entry of fs.readdirSync(outputDir, { withFileTypes: true })) {
+    if (!entry.isDirectory() || keep.has(entry.name)) continue;
+    console.log(`  • ${entry.name}: removing stale bundled triple`);
+    fs.rmSync(path.join(outputDir, entry.name), { recursive: true, force: true });
+  }
+}
+
 function npmCommand() {
   return process.platform === "win32" ? "npm.cmd" : "npm";
 }
 
 function bundleTriple(triple) {
-  const tag = TRIPLE_TO_TAG[triple];
+  const tag = codexTagForTriple(triple);
   if (!tag) throw new Error(`Unknown Codex target triple: ${triple}`);
 
   const destDir = path.join(OUTPUT_DIR, triple);
@@ -157,13 +170,25 @@ function dirSizeMb(dir) {
   return (total / 1024 / 1024).toFixed(1);
 }
 
+function codexTagForTriple(triple) {
+  return TRIPLE_TO_TAG[triple];
+}
+
 function main() {
   const triples = resolveTriples();
   console.log(`Bundling Codex for: ${triples.join(", ")}`);
+  pruneForeignTriples(OUTPUT_DIR, triples);
   for (const triple of triples) {
     bundleTriple(triple);
   }
   console.log(`Done. Output: ${OUTPUT_DIR}`);
 }
 
-main();
+if (require.main === module) {
+  main();
+}
+
+module.exports = {
+  codexTagForTriple,
+  pruneForeignTriples,
+};

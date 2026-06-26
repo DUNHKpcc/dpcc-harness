@@ -21,11 +21,11 @@ afterEach(() => {
 });
 
 describe("bundle-codex script", () => {
-  it("does not expose a Windows arm64 Codex download target", async () => {
+  it("maps Windows Codex download targets", async () => {
     const { codexTagForTriple } = await import("../../../../scripts/bundle-codex.js");
 
     expect(codexTagForTriple("x86_64-pc-windows-msvc")).toBe("win32-x64");
-    expect(codexTagForTriple("aarch64-pc-windows-msvc")).toBeUndefined();
+    expect(codexTagForTriple("aarch64-pc-windows-msvc")).toBe("win32-arm64");
   });
 
   it("removes stale vendor triples that were not requested for this build", async () => {

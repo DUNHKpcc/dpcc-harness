@@ -22,7 +22,7 @@
 // copying old platform binaries into electron-builder's staging area.
 //
 // Triples: aarch64-apple-darwin, x86_64-apple-darwin,
-//          x86_64-pc-windows-msvc,
+//          x86_64-pc-windows-msvc, aarch64-pc-windows-msvc,
 //          x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu
 
 const fs = require("fs");
@@ -37,6 +37,7 @@ const TRIPLE_TO_TAG = {
   "aarch64-apple-darwin": "darwin-arm64",
   "x86_64-apple-darwin": "darwin-x64",
   "x86_64-pc-windows-msvc": "win32-x64",
+  "aarch64-pc-windows-msvc": "win32-arm64",
   "x86_64-unknown-linux-gnu": "linux-x64",
   "aarch64-unknown-linux-gnu": "linux-arm64",
 };
@@ -47,6 +48,7 @@ function currentTriple() {
     "darwin-arm64": "aarch64-apple-darwin",
     "darwin-x64": "x86_64-apple-darwin",
     "win32-x64": "x86_64-pc-windows-msvc",
+    "win32-arm64": "aarch64-pc-windows-msvc",
     "linux-x64": "x86_64-unknown-linux-gnu",
     "linux-arm64": "aarch64-unknown-linux-gnu",
   };

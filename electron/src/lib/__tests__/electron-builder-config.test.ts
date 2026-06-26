@@ -37,10 +37,10 @@ describe("electron-builder config", () => {
     }).trim()).toBe("clean");
   });
 
-  it("does not map Windows arm64 builds to a bundled Codex vendor triple", async () => {
+  it("maps Windows arm64 builds to a bundled Codex vendor triple", async () => {
     const config = await import("../../../../electron-builder.config.js");
 
-    expect(config.__test.codexTripleForBuild("win32", 3)).toBeNull();
+    expect(config.__test.codexTripleForBuild("win32", 3)).toBe("aarch64-pc-windows-msvc");
   });
 
   it("keeps only the Windows x64 Codex vendor triple during win32 x64 packaging", async () => {
@@ -58,6 +58,24 @@ describe("electron-builder config", () => {
 
     expect(fs.readdirSync(path.join(resourcesDir, "codex-vendor")).sort()).toEqual([
       "x86_64-pc-windows-msvc",
+    ]);
+  });
+
+  it("keeps only the Windows arm64 Codex vendor triple during win32 arm64 packaging", async () => {
+    const config = await import("../../../../electron-builder.config.js");
+    const resourcesDir = makeResourcesDir(
+      "aarch64-apple-darwin",
+      "x86_64-pc-windows-msvc",
+      "aarch64-pc-windows-msvc",
+    );
+
+    config.__test.stripForeignCodexTriples(resourcesDir, {
+      electronPlatformName: "win32",
+      arch: 3,
+    });
+
+    expect(fs.readdirSync(path.join(resourcesDir, "codex-vendor")).sort()).toEqual([
+      "aarch64-pc-windows-msvc",
     ]);
   });
 

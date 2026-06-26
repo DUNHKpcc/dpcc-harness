@@ -71,12 +71,12 @@ jobs:
           ## Changes
 
           ### Bug Fixes
-          - Fixed the About page PccAgent logo path so it loads correctly in packaged builds.
-          - Localized top-right app notifications, including split-pane width warnings, permission errors, ACP updates, Jira moves, and restart prompts.
-          - Localized updater install failures and added structured install error codes for renderer-side translation.
+          - Fixed Windows release builds by bundling the Codex arm64 binary target.
+          - Preserved the correct bundled Codex vendor directory for Windows arm64 packages.
+          - Kept the composer file picker attachment fix from the current master build.
 
           ### Tests
-          - Added regression coverage for the About logo asset path, update install error localization, split warning localization, and toast i18n coverage.
+          - Added regression coverage for Windows arm64 Codex bundle target mapping and packaging cleanup.
           EOF
 
           if [ -n "$PREV_TAG" ]; then
@@ -90,7 +90,7 @@ jobs:
 
           gh release create "$TAG" \
             --repo "$GITHUB_REPOSITORY" \
-            --title "$TAG — Localization & Update Fixes" \
+            --title "$TAG — Codex Windows Bundle Fixes" \
             --notes-file release-notes.md
 
   # macOS: build both arm64 + x64 in one job so electron-builder writes a single

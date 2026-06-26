@@ -14,7 +14,7 @@ interface UseInlineRenameReturn {
     value: string;
     onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
     onBlur: (e: React.FocusEvent<HTMLInputElement>) => void;
-    onKeyDown: (e: React.KeyboardEvent) => void;
+    onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
     autoFocus: boolean;
   };
 }
@@ -67,7 +67,7 @@ export function useInlineRename({
   );
 
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key === "Enter") {
         e.preventDefault();
         handleSave(e.currentTarget.value);

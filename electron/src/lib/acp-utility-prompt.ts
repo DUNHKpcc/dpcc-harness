@@ -18,14 +18,14 @@ export async function acpUtilityPrompt(
     throw new Error("ACP session not found");
   }
 
-  const conn = entry.connection as {
-    newSession: (params: { cwd: string }) => Promise<{ sessionId: string }>;
+  const conn = entry.connection as unknown as {
+    newSession: (params: { cwd: string; mcpServers: [] }) => Promise<{ sessionId: string }>;
     prompt: (params: { sessionId: string; prompt: Array<{ type: string; text: string }> }) => Promise<{ stopReason: string }>;
     cancel: (params: { sessionId: string }) => Promise<unknown>;
   };
 
   // Create ephemeral utility session on the same connection (no extra process spawn)
-  const utilitySession = await conn.newSession({ cwd: entry.cwd });
+  const utilitySession = await conn.newSession({ cwd: entry.cwd, mcpServers: [] });
   const utilitySessionId = utilitySession.sessionId;
   log("ACP_UTILITY", `Created utility session ${utilitySessionId.slice(0, 12)} on connection ${internalId.slice(0, 8)}`);
 

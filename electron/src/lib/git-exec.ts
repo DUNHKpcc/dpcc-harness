@@ -1,4 +1,4 @@
-import { execFile } from "child_process";
+import { execFile, type ExecFileException } from "child_process";
 
 export const ALWAYS_SKIP = new Set([
   "node_modules", ".git", ".hg", ".svn", "dist", "build", ".next", ".nuxt",
@@ -31,14 +31,15 @@ export class GitExecError extends Error {
   }
 }
 
-function gitErrorFromExec(args: string[], err: Error & { code?: string }, stderr = ""): GitExecError {
+function gitErrorFromExec(args: string[], err: ExecFileException, stderr = ""): GitExecError {
   const trimmedStderr = stderr.trim();
-  if (err.code === "ENOENT") {
+  const code = typeof err.code === "string" ? err.code : undefined;
+  if (code === "ENOENT") {
     return new GitExecError(
       "git-not-found",
       "Git executable not found. Install Git or add it to PATH.",
       args,
-      { stderr: trimmedStderr, code: err.code },
+      { stderr: trimmedStderr, code },
     );
   }
   if (trimmedStderr.includes("fatal: not a git repository")) {
@@ -46,14 +47,14 @@ function gitErrorFromExec(args: string[], err: Error & { code?: string }, stderr
       "not-git-repository",
       trimmedStderr,
       args,
-      { stderr: trimmedStderr, code: err.code },
+      { stderr: trimmedStderr, code },
     );
   }
   return new GitExecError(
     "git-command-failed",
     trimmedStderr || err.message,
     args,
-    { stderr: trimmedStderr, code: err.code },
+    { stderr: trimmedStderr, code },
   );
 }
 

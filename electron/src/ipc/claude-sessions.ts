@@ -7,6 +7,7 @@ import { log } from "../lib/logger";
 import { safeSend } from "../lib/safe-send";
 import { AsyncChannel } from "../lib/async-channel";
 import { getSDK, getCliPath } from "../lib/sdk";
+import type { PermissionMode, SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { QueryHandle } from "../lib/sdk";
 import { getMcpAuthHeaders } from "../lib/mcp-oauth-flow";
 import { getClaudeModelsCache, setClaudeModelsCache } from "../lib/claude-model-cache";
@@ -59,12 +60,14 @@ type PermissionResult =
   | { behavior: "allow"; updatedInput?: Record<string, unknown>; updatedPermissions?: unknown[] }
   | { behavior: "deny"; message: string };
 
+type ClaudeUserMessageContent = SDKUserMessage["message"]["content"];
+
 interface PendingPermission {
   resolve: (result: PermissionResult) => void;
 }
 
 interface SessionEntry {
-  channel: AsyncChannel<unknown>;
+  channel: AsyncChannel<SDKUserMessage>;
   queryHandle: QueryHandle | null;
   eventCounter: number;
   pendingPermissions: Map<string, PendingPermission>;
@@ -100,7 +103,7 @@ function toSdkModelOverride(model?: string | null): string | undefined {
 
 function applyPermissionModeOptions(
   queryOptions: Record<string, unknown>,
-  permissionMode?: string,
+  permissionMode?: PermissionMode,
 ): void {
   if (permissionMode) {
     queryOptions.permissionMode = permissionMode;
@@ -113,7 +116,7 @@ function applyPermissionModeOptions(
 async function setSessionPermissionMode(
   sessionId: string,
   session: SessionEntry,
-  permissionMode: string,
+  permissionMode: PermissionMode,
   logLabel: string,
 ): Promise<void> {
   if (!session.queryHandle) {
@@ -135,7 +138,7 @@ async function setSessionPermissionMode(
 async function enforcePermissionMode(
   sessionId: string,
   queryHandle: QueryHandle,
-  permissionMode: string | undefined,
+  permissionMode: PermissionMode | undefined,
   context: string,
 ): Promise<void> {
   if (!permissionMode || permissionMode === "default") return;
@@ -399,7 +402,7 @@ function parseStopRequest(
 interface StartOptions {
   cwd?: string;
   model?: string;
-  permissionMode?: string;
+  permissionMode?: PermissionMode;
   thinkingEnabled?: boolean;
   effort?: "low" | "medium" | "high" | "max";
   resume?: string;
@@ -424,9 +427,11 @@ function logSdkCliPath(context: string, cliPath?: string): void {
   log("SDK_CLI_PATH", `${context} unresolved; relying on SDK fallback`);
 }
 
-let modelsRevalidationPromise: Promise<{ models: Array<Record<string, unknown>>; updatedAt?: number; error?: string }> | null = null;
+type ClaudeModelsCacheResult = ReturnType<typeof getClaudeModelsCache> & { error?: string };
 
-async function revalidateClaudeModelsCache(cwd?: string): Promise<{ models: Array<Record<string, unknown>>; updatedAt?: number; error?: string }> {
+let modelsRevalidationPromise: Promise<ClaudeModelsCacheResult> | null = null;
+
+async function revalidateClaudeModelsCache(cwd?: string): Promise<ClaudeModelsCacheResult> {
   if (modelsRevalidationPromise) return modelsRevalidationPromise;
 
   modelsRevalidationPromise = (async () => {
@@ -463,7 +468,7 @@ async function revalidateClaudeModelsCache(cwd?: string): Promise<{ models: Arra
     let lastError = "";
     for (const [index, attempt] of attempts.entries()) {
       let queryHandle: QueryHandle | null = null;
-      const channel = new AsyncChannel<unknown>();
+      const channel = new AsyncChannel<SDKUserMessage>();
 
       try {
         logSdkCliPath(`models-revalidate attempt=${index + 1} ${attempt.label}`, attempt.cliPath);
@@ -594,7 +599,7 @@ async function restartSession(
   const bridgeEnabled = bridgeEnabledOverride ?? opts.claudeCodexBridgeEnabled === true;
   const cwd = cwdOverride || opts.cwd || process.cwd();
   const query = await getSDK();
-  const newChannel = new AsyncChannel<unknown>();
+  const newChannel = new AsyncChannel<SDKUserMessage>();
   const cliPath = await getClaudeBinaryPath();
   logSdkCliPath(`restart session=${sessionId.slice(0, 8)}`, cliPath);
 
@@ -717,7 +722,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         stale.queryHandle?.close();
       }
 
-      const channel = new AsyncChannel<unknown>();
+      const channel = new AsyncChannel<SDKUserMessage>();
       const session: SessionEntry = {
         channel,
         queryHandle: null,
@@ -832,7 +837,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     }
   });
 
-  ipcMain.handle("claude:send", (_event, { sessionId, message }: { sessionId: string; message: { message: { content: unknown } } }) => {
+  ipcMain.handle("claude:send", (_event, { sessionId, message }: { sessionId: string; message: { message: { content: ClaudeUserMessageContent } } }) => {
     const session = sessions.get(sessionId);
     if (!session) {
       log("SEND", `ERROR: session ${sessionId?.slice(0, 8)} not found`);
@@ -856,7 +861,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     behavior: string;
     toolUseId: string;
     toolInput: Record<string, unknown> | undefined;
-    newPermissionMode?: string;
+    newPermissionMode?: PermissionMode;
     updatedPermissions?: unknown[];
   }) => {
     const session = sessions.get(sessionId);
@@ -905,7 +910,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     return { ok: true };
   });
 
-  ipcMain.handle("claude:set-permission-mode", async (_event, { sessionId, permissionMode }: { sessionId: string; permissionMode: string }) => {
+  ipcMain.handle("claude:set-permission-mode", async (_event, { sessionId, permissionMode }: { sessionId: string; permissionMode: PermissionMode }) => {
     const session = sessions.get(sessionId);
     if (!session) {
       log("SET_PERM_MODE", `ERROR: session ${sessionId?.slice(0, 8)} not found`);

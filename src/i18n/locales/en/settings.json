@@ -313,7 +313,7 @@
   },
   "currentConfig": {
     "title": "Current Config",
-    "description": "The upstream and model configuration PccAgent is actually using to run sessions. Read-only — change these in Settings → Engines (third-party gateway), Settings → Account (DPCC default upstream), or in your local CLI config.",
+    "description": "The upstream and model configuration PccAgent is actually using to run sessions. Read-only — change these in Settings → Engines (third-party gateway) or Settings → Account (DPCC default upstream).",
     "refresh": "Refresh",
     "refreshing": "Refreshing…",
     "claude": "Claude",
@@ -325,7 +325,7 @@
     },
     "sourceDesc": {
       "gateway": "Routed through the custom third-party gateway set in Settings → Engines (highest priority).",
-      "local": "Your local CLI config is in effect (above the DPCC default upstream).",
+      "local": "Legacy local CLI config source. Current sessions use DPCC unless a third-party gateway is enabled.",
       "default": "Routed through the DPCC default upstream (api.dpccgaming.xyz)."
     },
     "fields": {

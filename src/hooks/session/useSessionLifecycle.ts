@@ -19,7 +19,6 @@ interface UseSessionLifecycleParams {
   engines: EngineHooks;
   projects: Project[];
   activeSessionId: string | null;
-  activeEngine: string;
   findProject: (projectId: string) => Project | null;
   getProjectCwd: (project: Project) => string;
   // From persistence
@@ -28,7 +27,6 @@ interface UseSessionLifecycleParams {
   // From draft materialization
   eagerStartSession: (projectId: string, options?: StartOptions) => Promise<void>;
   eagerStartAcpSession: (projectId: string, options?: StartOptions, overrideServers?: McpServerConfig[]) => Promise<void>;
-  prefetchCodexModels: (preferredModel?: string) => Promise<void>;
   probeMcpServers: (projectId: string, overrideServers?: McpServerConfig[]) => Promise<void>;
   abandonEagerSession: (reason?: string) => void;
   abandonDraftAcpSession: (reason?: string) => void;
@@ -50,14 +48,12 @@ export function useSessionLifecycle({
   engines,
   projects,
   activeSessionId,
-  activeEngine,
   findProject,
   getProjectCwd,
   saveCurrentSession,
   seedBackgroundStore,
   eagerStartSession,
   eagerStartAcpSession,
-  prefetchCodexModels,
   probeMcpServers,
   abandonEagerSession,
   abandonDraftAcpSession,
@@ -80,12 +76,9 @@ export function useSessionLifecycle({
   } = useSessionCache({
     refs,
     setters,
-    engines,
     projects,
     activeSessionId,
-    activeEngine,
     getProjectCwd,
-    prefetchCodexModels,
   });
 
   // ── Session CRUD: create, switch, delete, rename, deselect, import, draft agent ──
@@ -107,7 +100,6 @@ export function useSessionLifecycle({
     seedBackgroundStore,
     eagerStartSession,
     eagerStartAcpSession,
-    prefetchCodexModels,
     probeMcpServers,
     abandonEagerSession,
     abandonDraftAcpSession,

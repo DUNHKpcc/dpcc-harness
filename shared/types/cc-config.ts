@@ -9,8 +9,10 @@
 /**
  * Where the config PccAgent applies to a session comes from (highest → lowest):
  *  - "gateway": the in-app custom third-party gateway (Settings → Engines) is enabled and winning
- *  - "local":   the user's local CLI config (~/.claude, ~/.codex) is set and applies
  *  - "default": the DPCC official upstream (api.dpccgaming.xyz) + the DPCC account key
+ *
+ * "local" is retained for older diagnostics/model-list responses, but current
+ * session routing does not let local CLI config override the DPCC upstream.
  */
 export type EffectiveConfigSource = "gateway" | "local" | "default";
 

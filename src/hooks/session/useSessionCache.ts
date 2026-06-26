@@ -4,32 +4,25 @@ import type { PersistedSession, Project } from "../../types";
 import { toChatSession } from "../../lib/session/records";
 import { toastText } from "../../lib/toast-i18n";
 import { DRAFT_ID } from "./types";
-import type { SharedSessionRefs, SharedSessionSetters, EngineHooks } from "./types";
+import type { SharedSessionRefs, SharedSessionSetters } from "./types";
 
 const MAX_SESSION_PAYLOAD_CACHE = 6;
 
 interface UseSessionCacheParams {
   refs: SharedSessionRefs;
   setters: SharedSessionSetters;
-  engines: EngineHooks;
   projects: Project[];
   activeSessionId: string | null;
-  activeEngine: string;
   getProjectCwd: (project: Project) => string;
-  prefetchCodexModels: (preferredModel?: string) => Promise<void>;
 }
 
 export function useSessionCache({
   refs,
   setters,
-  engines,
   projects,
   activeSessionId,
-  activeEngine,
   getProjectCwd,
-  prefetchCodexModels,
 }: UseSessionCacheParams) {
-  const { codex } = engines;
   const {
     setSessions,
     setStartOptions,
@@ -45,7 +38,6 @@ export function useSessionCache({
     activeSessionIdRef,
     sessionsRef,
     backgroundStoreRef,
-    startOptionsRef,
   } = refs;
 
   const sessionPayloadCacheRef = useRef<Map<string, PersistedSession>>(new Map());
@@ -196,24 +188,6 @@ export function useSessionCache({
       clearTimeout(revalidateTimer);
     };
   }, [getProjectCwd]);
-
-  // Ensure Codex model metadata is available even before first turn.
-  useEffect(() => {
-    if (activeEngine !== "codex") return;
-    if (codex.codexModels.length > 0) return;
-    const preferredModel = activeSessionId === DRAFT_ID
-      ? startOptionsRef.current.model
-      : sessionsRef.current.find((s) => s.id === activeSessionId)?.model;
-    prefetchCodexModels(preferredModel);
-  }, [
-    activeEngine,
-    activeSessionId,
-    // Must re-run when sessions list changes (startOptions.model could resolve to session model)
-    projects,
-    startOptionsRef.current.model,
-    codex.codexModels.length,
-    prefetchCodexModels,
-  ]);
 
   // Idle-time prefetch of recent session payloads.
   useEffect(() => {

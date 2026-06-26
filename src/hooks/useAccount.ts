@@ -130,10 +130,9 @@ export function useAccount(active: boolean): UseAccountResult {
       const claudeToken = input.claudeToken.trim();
       const codexToken = input.codexToken.trim();
 
-      // The DPCC account is the lowest-priority "default" upstream — stored in
-      // dpccUpstream, separate from the custom third-party gateway (claudeGateway/
-      // codexGateway). The Codex /v1 suffix is applied by the resolver, so the bare
-      // host is stored here.
+      // The DPCC account is the default upstream — stored in dpccUpstream, separate
+      // from the explicit third-party gateway settings (claudeGateway/codexGateway).
+      // The Codex /v1 suffix is applied by the resolver, so the bare host is stored here.
       const patch: Partial<AppSettings> = {
         dpccUpstream: {
           ...settings.dpccUpstream,

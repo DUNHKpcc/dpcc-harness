@@ -4,11 +4,10 @@
  *
  * Precedence mirrors the session spawn logic (see upstream-resolver):
  *  - gateway: the in-app custom third-party gateway, when enabled (highest)
- *  - local:   the user's local ~/.claude env / ~/.codex provider
  *  - default: the DPCC official upstream (api.dpccgaming.xyz) + the DPCC account key
  *
- * The "default" tier is no longer the engine's own login — it routes to the DPCC
- * upstream, so it carries a real base URL + (masked) token.
+ * The "default" tier routes to the DPCC upstream, so it carries a real base URL
+ * + (masked) token. Local CLI config is intentionally not a higher-priority tier.
  */
 
 import {

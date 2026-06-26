@@ -28,9 +28,9 @@ async function oneShotSdkQuery(
   options?: OneShotSdkQueryOptions,
 ): Promise<{ result?: string; error?: string }> {
   const timeoutMs = options?.timeoutMs ?? 60000;
-  // The effective upstream (gateway or DPCC default) serves its own models —
-  // "haiku" would 404. Use that model so utility queries authenticate and resolve
-  // instead of returning "not login" (B5b). undefined only on the local tier.
+  // The effective upstream (gateway or DPCC default) may serve its own models.
+  // Use that configured model so utility queries authenticate and resolve instead
+  // of returning "not login" (B5b).
   const model = claudeGatewayModel() ?? (options?.model?.trim() || "haiku");
   const startedAt = Date.now();
   log(logLabel, `one-shot:start cwd=${cwd} model=${model} prompt_len=${prompt.length} timeout_ms=${timeoutMs}`);
@@ -54,8 +54,7 @@ async function oneShotSdkQuery(
     const q = query({
       prompt,
       options: {
-        // Honor the user's ~/.claude config by default so a local tier applies
-        // via settingSources (callers may override via extraOptions). claudeSpawnEnv
+        // Keep Claude's normal setting sources for non-auth preferences. claudeSpawnEnv
         // injects the gateway/DPCC-default override and purges stale local auth.
         settingSources: ["user", "project", "local"],
         ...options?.extraOptions,

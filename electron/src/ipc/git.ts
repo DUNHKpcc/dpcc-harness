@@ -59,7 +59,9 @@ async function readRepoMetadata(cwd: string): Promise<RepoMetadata | null> {
 
 const WORKTREE_SETUP_FILE = ".pcc-agent/worktree.json";
 const GIT_ERROR_LOG_THROTTLE_MS = 60_000;
+export const NON_GIT_REPOSITORY_STATUS_CACHE_TTL_MS = 30_000;
 const gitErrorLogTimes = new Map<string, number>();
+const nonGitStatusCache = new Map<string, { error: string; expiresAt: number }>();
 
 /** Run a shell command in a given cwd, returning stdout. */
 function shellExec(command: string, cwd: string): Promise<string> {
@@ -222,8 +224,18 @@ export function register(): void {
   });
 
   ipcMain.handle("git:status", async (_event, cwd: string) => {
+    const cacheKey = normalizePath(cwd);
+    const cachedNonRepo = nonGitStatusCache.get(cacheKey);
+    if (cachedNonRepo) {
+      if (cachedNonRepo.expiresAt > Date.now()) {
+        return { error: cachedNonRepo.error, kind: "not-git-repository" };
+      }
+      nonGitStatusCache.delete(cacheKey);
+    }
+
     try {
       const raw = await gitExec(["status", "--porcelain=v2", "--branch"], cwd);
+      nonGitStatusCache.delete(cacheKey);
       const lines = raw.split("\n");
       let branch = "HEAD";
       let upstream: string | undefined;
@@ -287,7 +299,14 @@ export function register(): void {
 
       return { branch, upstream, ahead, behind, files };
     } catch (err) {
-      return reportGitIpcError("GIT_STATUS_ERR", err, cwd);
+      const result = reportGitIpcError("GIT_STATUS_ERR", err, cwd);
+      if (result.kind === "not-git-repository") {
+        nonGitStatusCache.set(cacheKey, {
+          error: result.error,
+          expiresAt: Date.now() + NON_GIT_REPOSITORY_STATUS_CACHE_TTL_MS,
+        });
+      }
+      return result;
     }
   });
 

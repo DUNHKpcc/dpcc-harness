@@ -313,7 +313,7 @@
   },
   "currentConfig": {
     "title": "当前配置",
-    "description": "PccAgent 实际用于运行会话的上游与模型配置。此处为只读 —— 如需修改，请前往「设置 → 引擎」（第三方网关）、「设置 → 账户」（DPCC 官方上游），或编辑本机 CLI 配置。",
+    "description": "PccAgent 实际用于运行会话的上游与模型配置。此处为只读 —— 如需修改，请前往「设置 → 引擎」（第三方网关）或「设置 → 账户」（DPCC 官方上游）。",
     "refresh": "刷新",
     "refreshing": "刷新中…",
     "claude": "Claude",
@@ -325,7 +325,7 @@
     },
     "sourceDesc": {
       "gateway": "通过「设置 → 引擎」中配置的自定义第三方网关转发（最高优先级）。",
-      "local": "你的本机 CLI 配置正在生效（高于 DPCC 默认上游）。",
+      "local": "保留的本机 CLI 配置来源。当前会话默认使用 DPCC，除非启用第三方网关。",
       "default": "通过 DPCC 官方上游 (api.dpccgaming.xyz) 转发。"
     },
     "fields": {

@@ -42,8 +42,8 @@ export function register(): void {
     }
   });
 
-  // All models PccAgent can pull from each engine's effective upstream (gateway,
-  // local, or DPCC default) — drives the Current Config model list.
+  // All models PccAgent can pull from each engine's effective upstream (gateway
+  // or DPCC default) — drives the Current Config model list.
   ipcMain.handle("cc-config:models", async (): Promise<EffectiveCliModels> => {
     try {
       const claudeU = resolveClaudeUpstream();

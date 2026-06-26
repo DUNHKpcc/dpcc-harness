@@ -62,11 +62,11 @@ export interface CodexGatewaySettings {
 }
 
 /**
- * DPCC official default upstream (api.dpccgaming.xyz). The lowest-priority tier:
- * applied only when neither a custom third-party gateway nor a local CLI config
- * is set. Credentials come from the DPCC API account entry (Settings → Account)
- * and the welcome wizard. Unlike the gateway settings there is no `enabled`
- * flag — this is always the fallback, gated only by whether a token is present.
+ * DPCC official default upstream (api.dpccgaming.xyz). Applied unless the user
+ * explicitly enables a custom third-party gateway. Credentials come from the
+ * DPCC API account entry (Settings → Account) and the welcome wizard. Unlike the
+ * gateway settings there is no `enabled` flag — this is the default upstream,
+ * gated only by whether a token is present.
  */
 export interface DpccUpstreamSettings {
   /** Host root (empty → DEFAULT_NEWAPI_BASE_URL). Claude uses as-is; Codex appends /v1. */
@@ -111,6 +111,8 @@ export interface AppSettings {
   claudeBinarySource: ClaudeBinarySource;
   /** Absolute path used when claudeBinarySource is custom */
   claudeCustomBinaryPath: string;
+  /** One-time marker that legacy binary source defaults were normalized to built-in */
+  binarySourceDefaultsMigrated: boolean;
   /** Show developer-only "Dev Fill" button in chat title bar (local dev builds only) */
   showDevFillInChatTitleBar: boolean;
   /** Show the Jira board UI in the sidebar and main panel (developer preview) */
@@ -128,9 +130,9 @@ export interface AppSettings {
   /** Custom third-party gateway config for the Codex engine (highest-priority tier) */
   codexGateway: CodexGatewaySettings;
   /**
-   * DPCC official default upstream (api.dpccgaming.xyz) — the lowest-priority
-   * fallback used when no gateway and no local CLI config apply. Populated by the
-   * DPCC API account entry and the welcome wizard.
+   * DPCC official default upstream (api.dpccgaming.xyz), used unless an explicit
+   * third-party gateway is enabled. Populated by the DPCC API account entry and
+   * the welcome wizard.
    */
   dpccUpstream: DpccUpstreamSettings;
   /**

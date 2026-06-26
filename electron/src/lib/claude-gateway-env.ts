@@ -7,11 +7,11 @@
  * bare endpoint and the gateway replies "not login" (B4: WeChat sends fail;
  * B5b: built-in title generation returns "not login" as the title).
  *
- * Precedence (see upstream-resolver): custom gateway > local ~/.claude > DPCC
- * default upstream. Process env wins over ~/.claude/settings.json env, so the
- * injected override always beats a local config when the gateway/default tier is
- * active — claudeSpawnEnv additionally purges inherited ANTHROPIC_* so a stale
- * local key can't leak through.
+ * Precedence (see upstream-resolver): custom gateway > DPCC default upstream.
+ * Process env wins over ~/.claude/settings.json env, so claudeSpawnEnv purges
+ * inherited ANTHROPIC_* before injecting the resolved upstream. This prevents a
+ * stale local CLI key or base URL from overriding DPCC unless the user explicitly
+ * enables a third-party gateway in app settings.
  */
 
 import { loadLocalClaudeEnv } from "./local-cli-config";
@@ -20,8 +20,7 @@ import { resolveClaudeUpstream } from "./upstream-resolver";
 
 /**
  * Env vars for the effective Claude upstream (ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN).
- * Returns `{}` for the local tier so the user's ~/.claude/settings.json applies
- * unchanged via settingSources.
+ * Returns the env override for the gateway/default tier.
  */
 export function claudeGatewayEnv(): Record<string, string> {
   const u = resolveClaudeUpstream();
@@ -54,12 +53,11 @@ export function claudeSpawnEnv(): Record<string, string | undefined> {
 }
 
 /**
- * Configured upstream model. The gateway and DPCC-default tiers serve their own
- * models, so the configured id overrides the in-app picker (and seeds one-shot
- * utility queries that have no picker). undefined on the local tier — the picker
- * / the caller's own fallback stays in charge, and a local ANTHROPIC_MODEL applies.
+ * Configured upstream model. Gateway and DPCC can serve their own models, so a
+ * configured id overrides the in-app picker and seeds one-shot utility queries.
+ * undefined means the picker / caller fallback stays in charge.
  */
 export function claudeGatewayModel(): string | undefined {
   const u = resolveClaudeUpstream();
-  return u.tier === "local" ? undefined : u.model || undefined;
+  return u.model || undefined;
 }

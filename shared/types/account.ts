@@ -8,9 +8,9 @@
 
 /**
  * Where the account panel's credentials came from. The account panel always
- * reflects the DPCC account (dpccUpstream), independent of any custom gateway or
- * local CLI config (those are session-only upstream overrides, shown in Current
- * Config). So this is binary: configured or not.
+ * reflects the DPCC account (dpccUpstream), independent of any custom gateway.
+ * Session routing uses DPCC by default and switches only when a third-party
+ * gateway is explicitly enabled. So this is binary: configured or not.
  */
 export type AccountSource = "dpcc" | "none";
 
@@ -94,4 +94,3 @@ export interface UsageStats {
 }
 
 export type UsageStatsResult = UsageStats | { error: string };
-

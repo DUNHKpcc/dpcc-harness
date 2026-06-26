@@ -24,7 +24,6 @@ interface UseSessionCrudParams {
   // From draft materialization
   eagerStartSession: (projectId: string, options?: StartOptions) => Promise<void>;
   eagerStartAcpSession: (projectId: string, options?: StartOptions, overrideServers?: McpServerConfig[]) => Promise<void>;
-  prefetchCodexModels: (preferredModel?: string) => Promise<void>;
   probeMcpServers: (projectId: string, overrideServers?: McpServerConfig[]) => Promise<void>;
   abandonEagerSession: (reason?: string) => void;
   abandonDraftAcpSession: (reason?: string) => void;
@@ -37,6 +36,18 @@ interface UseSessionCrudParams {
   clearQueue: () => void;
 }
 
+export function applySelectedSessionReadState(session: ChatSession, selectedSessionId: string): ChatSession {
+  if (session.id !== selectedSessionId) {
+    return { ...session, isActive: false };
+  }
+  return {
+    ...session,
+    isActive: true,
+    hasPendingPermission: false,
+    hasUnreadCompletion: false,
+  };
+}
+
 export function useSessionCrud({
   refs,
   setters,
@@ -47,7 +58,6 @@ export function useSessionCrud({
   seedBackgroundStore,
   eagerStartSession,
   eagerStartAcpSession,
-  prefetchCodexModels,
   probeMcpServers,
   abandonEagerSession,
   abandonDraftAcpSession,
@@ -167,12 +177,12 @@ export function useSessionCrud({
         eagerStartAcpSession(projectId, options);
         probeMcpServers(projectId);
       } else {
-        // Codex: no eager start; prefetch model list for the picker.
+        // Codex: no eager start. Avoid spawning the Codex CLI during draft setup
+        // because macOS can surface CLI/MCP subprocesses as extra Dock icons.
         setDraftMcpStatuses([]);
-        prefetchCodexModels(options?.model);
       }
     },
-    [saveCurrentSession, seedBackgroundStore, eagerStartSession, eagerStartAcpSession, abandonEagerSession, abandonDraftAcpSession, prefetchCodexModels, probeMcpServers],
+    [saveCurrentSession, seedBackgroundStore, eagerStartSession, eagerStartAcpSession, abandonEagerSession, abandonDraftAcpSession, probeMcpServers],
   );
 
   // ── Switch to an existing session ──
@@ -234,11 +244,7 @@ export function useSessionCrud({
           setActiveSessionId(id);
           setDraftProjectId(null);
           setSessions((prev) =>
-            prev.filter(s => s.id !== DRAFT_ID).map((s) => ({
-              ...s,
-              isActive: s.id === id,
-              ...(s.id === id ? { hasPendingPermission: false } : {}),
-            })),
+            prev.filter(s => s.id !== DRAFT_ID).map((s) => applySelectedSessionReadState(s, id)),
           );
         });
         toast.dismiss(`permission-${id}`);
@@ -443,9 +449,7 @@ export function useSessionCrud({
       agentId,
       model: normalizedModel || undefined,
     }));
-    if (draftEngine === "codex") {
-      prefetchCodexModels(normalizedModel || undefined);
-    } else if (draftEngine === "acp" && draftProjectIdRef.current) {
+    if (draftEngine === "acp" && draftProjectIdRef.current) {
       setInitialConfigOptions([]);
       setInitialSlashCommands([]);
       eagerStartAcpSession(draftProjectIdRef.current, {
@@ -456,7 +460,7 @@ export function useSessionCrud({
       });
       probeMcpServers(draftProjectIdRef.current);
     }
-  }, [prefetchCodexModels, abandonEagerSession, abandonDraftAcpSession, eagerStartAcpSession, probeMcpServers]);
+  }, [abandonEagerSession, abandonDraftAcpSession, eagerStartAcpSession, probeMcpServers]);
 
   return {
     createSession,

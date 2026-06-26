@@ -1,8 +1,9 @@
 /**
  * Lightweight probes for the user's local Claude Code / Codex CLI configuration.
  *
- * Goal: when the user has already configured a custom gateway in their CLI's
- * own config file, PccAgent's own gateway settings should not override it.
+ * Goal: inspect config files for diagnostics and utility contexts. Session
+ * routing itself is resolved in upstream-resolver and uses DPCC by default unless
+ * the user explicitly enables an in-app third-party gateway.
  *
  * These probes do not parse the full config — they only detect whether the
  * fields that would conflict with PccAgent's gateway injection are present.

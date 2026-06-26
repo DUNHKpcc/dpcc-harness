@@ -41,6 +41,7 @@ const DEFAULTS: AppSettings = {
   codexCustomBinaryPath: "",
   claudeBinarySource: "builtin",
   claudeCustomBinaryPath: "",
+  binarySourceDefaultsMigrated: true,
   showDevFillInChatTitleBar: false,
   showJiraBoard: false,
   macBackgroundEffect: "liquid-glass",
@@ -65,8 +66,9 @@ function looksLikeDpcc(baseUrl: string | undefined): boolean {
  *
  * Previously the DPCC API account entry stored its key in claudeGateway/
  * codexGateway with `enabled=true`. Those gateways now mean "custom third-party
- * gateway" only (the highest-priority tier), while the DPCC default upstream has
- * its own field (the lowest tier). Move any DPCC-shaped gateway credentials into
+ * gateway" only, while the DPCC official default upstream has its own field and
+ * is used unless a third-party gateway is explicitly enabled. Move any
+ * DPCC-shaped gateway credentials into
  * `dpccUpstream` and clear them from the gateway fields so a DPCC account isn't
  * mistaken for a custom gateway. Custom (non-DPCC) gateways are left untouched.
  */
@@ -96,6 +98,23 @@ function migrateLegacyDpcc(parsed: Partial<AppSettings>): {
     claudeGateway: claudeIsDpcc ? { ...DEFAULTS.claudeGateway } : cg,
     codexGateway: codexIsDpcc ? { ...DEFAULTS.codexGateway } : xg,
   };
+}
+
+function migrateBinarySourceDefaults(parsed: Partial<AppSettings>): Partial<AppSettings> | null {
+  if (parsed.binarySourceDefaultsMigrated) return null;
+
+  const patch: Partial<AppSettings> = {
+    binarySourceDefaultsMigrated: true,
+  };
+
+  if (parsed.claudeBinarySource !== "custom" || !parsed.claudeCustomBinaryPath?.trim()) {
+    patch.claudeBinarySource = "builtin";
+  }
+  if (parsed.codexBinarySource !== "custom" || !parsed.codexCustomBinaryPath?.trim()) {
+    patch.codexBinarySource = "builtin";
+  }
+
+  return patch;
 }
 
 // ── Internal state ──
@@ -136,6 +155,7 @@ export function getAppSettings(): AppSettings {
     // splits DPCC account creds out of the gateway fields (see migrateLegacyDpcc).
     const needsDpccMigration = parsed.dpccUpstream === undefined;
     const migrated = needsDpccMigration ? migrateLegacyDpcc(parsed) : null;
+    const binarySourceMigration = migrateBinarySourceDefaults(parsed);
     // Merge with defaults so newly added keys are always present.
     // Deep-merge `notifications` so upgrading users get defaults for each event type
     // even if their settings.json has a partial or missing notifications object.
@@ -154,10 +174,11 @@ export function getAppSettings(): AppSettings {
       // already contains a complete object and overrides this below.)
       dpccUpstream: { ...DEFAULTS.dpccUpstream, ...parsed.dpccUpstream },
       ...(migrated ?? {}),
+      ...(binarySourceMigration ?? {}),
     };
-    if (migrated) {
+    if (migrated || binarySourceMigration) {
       // Persist the migration once so the legacy gateway creds are physically
-      // moved and this branch never runs again for this user.
+      // moved and one-time default normalizations never run again for this user.
       try {
         fs.writeFileSync(filePath(), JSON.stringify(cached, null, 2), "utf-8");
         cachedMtimeMs = readMtimeMs();

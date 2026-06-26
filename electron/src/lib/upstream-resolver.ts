@@ -3,11 +3,11 @@
  *
  * Precedence (highest → lowest):
  *   1. gateway — the in-app custom third-party gateway (Settings → Engines), when enabled
- *   2. local   — the user's local CLI config (~/.claude env / ~/.codex provider)
- *   3. default — the DPCC official upstream (api.dpccgaming.xyz) + the DPCC account key
+ *   2. default — the DPCC official upstream (api.dpccgaming.xyz) + the DPCC account key
  *
  * The DPCC default replaces the engine's own login / cloud auth entirely: when no
- * gateway and no local config apply, sessions are routed to api.dpccgaming.xyz.
+ * explicit third-party gateway applies, sessions are routed to api.dpccgaming.xyz,
+ * even if the user's local ~/.claude or ~/.codex config contains another provider.
  *
  * Consumers: session spawn env (claude-gateway-env, codex-sessions), the read-only
  * "Current Config" panel (effective-cli-config), and upstream model listing
@@ -15,19 +15,13 @@
  */
 
 import { getAppSetting } from "./app-settings";
-import {
-  loadLocalClaudeEnv,
-  loadLocalCodexProvider,
-  localClaudeGatewayTakesPriority,
-  localCodexGatewayTakesPriority,
-} from "./local-cli-config";
 import { DEFAULT_NEWAPI_BASE_URL } from "@shared/types/account";
 
 export type UpstreamTier = "gateway" | "local" | "default";
 
 export interface ClaudeUpstream {
   tier: UpstreamTier;
-  /** Effective base URL (may be "" for the local tier when ~/.claude sets none). */
+  /** Effective base URL. */
   baseUrl: string;
   /** Effective bearer token (may be "" when unset). */
   token: string;
@@ -37,11 +31,11 @@ export interface ClaudeUpstream {
 
 export interface CodexUpstream {
   tier: UpstreamTier;
-  /** Provider display name (gateway/default). "" for the local tier. */
+  /** Provider display name (gateway/default). */
   providerName: string;
   /** Effective base URL, including the /v1 suffix where relevant. */
   baseUrl: string;
-  /** Effective api key (gateway/default). "" for the local tier. */
+  /** Effective api key (gateway/default). */
   apiKey: string;
   /** Effective default model id (may be ""). */
   model: string;
@@ -56,7 +50,7 @@ function dpccHost(): string {
   return raw || DEFAULT_NEWAPI_BASE_URL.replace(/\/+$/, "");
 }
 
-/** Resolve the effective Claude upstream by the gateway → local → DPCC-default ladder. */
+/** Resolve the effective Claude upstream by the gateway → DPCC-default ladder. */
 export function resolveClaudeUpstream(): ClaudeUpstream {
   const g = getAppSetting("claudeGateway");
   if (g?.enabled && (g.baseUrl.trim() || g.authToken.trim())) {
@@ -65,15 +59,6 @@ export function resolveClaudeUpstream(): ClaudeUpstream {
       baseUrl: g.baseUrl.trim(),
       token: g.authToken.trim(),
       model: g.model.trim(),
-    };
-  }
-  if (localClaudeGatewayTakesPriority()) {
-    const env = loadLocalClaudeEnv();
-    return {
-      tier: "local",
-      baseUrl: (env.ANTHROPIC_BASE_URL ?? "").trim(),
-      token: (env.ANTHROPIC_AUTH_TOKEN ?? env.ANTHROPIC_API_KEY ?? "").trim(),
-      model: (env.ANTHROPIC_MODEL ?? "").trim(),
     };
   }
   const dpcc = getAppSetting("dpccUpstream");
@@ -85,7 +70,7 @@ export function resolveClaudeUpstream(): ClaudeUpstream {
   };
 }
 
-/** Resolve the effective Codex upstream by the gateway → local → DPCC-default ladder. */
+/** Resolve the effective Codex upstream by the gateway → DPCC-default ladder. */
 export function resolveCodexUpstream(): CodexUpstream {
   const c = getAppSetting("codexGateway");
   if (c?.enabled && c.baseUrl.trim()) {
@@ -97,16 +82,6 @@ export function resolveCodexUpstream(): CodexUpstream {
       baseUrl: c.baseUrl.trim(),
       apiKey: c.apiKey.trim(),
       model: c.model.trim(),
-    };
-  }
-  if (localCodexGatewayTakesPriority()) {
-    const local = loadLocalCodexProvider();
-    return {
-      tier: "local",
-      providerName: local.provider ?? "",
-      baseUrl: local.baseUrl ?? "",
-      apiKey: "",
-      model: local.model ?? "",
     };
   }
   const dpcc = getAppSetting("dpccUpstream");

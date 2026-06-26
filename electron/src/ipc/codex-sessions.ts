@@ -299,10 +299,10 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         const authResult = await rpc.request<CodexAccountResponse>("account/read", { refreshToken: false });
 
         // The OpenAI/ChatGPT login gate is retired: Codex always routes through a
-        // custom model_providers entry — a custom gateway, the user's local ~/.codex
-        // provider, or the DPCC default upstream (requires_openai_auth=false for all
-        // three tiers). A missing DPCC Codex key fails at call time, not via a login
-        // prompt. authResult is still consulted below for the connected-account info.
+        // custom model_providers entry — either an explicit third-party gateway or
+        // the DPCC default upstream (requires_openai_auth=false). A missing DPCC
+        // Codex key fails at call time, not via a login prompt. authResult is still
+        // consulted below for the connected-account info.
         const needsAuth: boolean = false;
         if (needsAuth) {
           // Notify renderer that auth is required — don't start thread yet

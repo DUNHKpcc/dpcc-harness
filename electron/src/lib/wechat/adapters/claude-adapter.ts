@@ -54,8 +54,8 @@ export class ClaudeAdapter implements CLIAdapter {
       includePartialMessages: true,
       settingSources: ["user", "project", "local"],
       // Authenticate phone-initiated runs against the same upstream as interactive
-      // sessions (gateway > local > DPCC default) — without it the gateway returns
-      // "not login" for every WeChat message (B4).
+      // sessions (gateway > DPCC default) — without it the gateway returns "not
+      // login" for every WeChat message (B4).
       env: claudeSpawnEnv(),
     };
     const sdkProcessOptions = getClaudeSdkProcessOptions(cliPath);

@@ -1,4 +1,4 @@
-import { app, ipcMain, BrowserWindow, shell, powerMonitor } from "electron";
+import { app, ipcMain, BrowserWindow, powerMonitor } from "electron";
 import { autoUpdater } from "electron-updater";
 import type { UpdateInfo, ProgressInfo } from "electron-updater";
 import { execFile } from "child_process";
@@ -8,6 +8,7 @@ import * as fs from "fs";
 import { log } from "./logger";
 import { reportError } from "./error-utils";
 import { getAppSetting } from "./app-settings";
+import { openExternalUrl } from "./open-external";
 import type { UpdateSource } from "@shared/types/settings";
 import { onSettingsChanged } from "../ipc/settings";
 
@@ -299,7 +300,7 @@ export function initAutoUpdater(
         } catch (err) {
           reportError("UPDATER_ERR", err, { context: "manual-mac-install" });
           // Last resort: open the active source's download page for manual install
-          shell.openExternal(manualDownloadUrl());
+          void openExternalUrl(manualDownloadUrl(), { logLabel: "UPDATER_OPEN_EXTERNAL_BLOCKED" });
           sendInstallError(
             getMainWindow,
             "manual-install-failed",

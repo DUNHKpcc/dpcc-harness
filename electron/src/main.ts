@@ -1,5 +1,5 @@
 import { execSync } from "child_process";
-import { app, BrowserWindow, clipboard, globalShortcut, ipcMain, Menu, nativeTheme, session, shell, systemPreferences, webContents } from "electron";
+import { app, BrowserWindow, clipboard, globalShortcut, ipcMain, Menu, nativeTheme, session, systemPreferences, webContents } from "electron";
 import path from "path";
 import http from "http";
 import { getBootstrapMinWindowWidth } from "../../src/lib/layout/constants";
@@ -31,6 +31,8 @@ import {
   setClaudeCodexBridgeController,
 } from "./lib/claude-codex-bridge-controller";
 import { safeSend } from "./lib/safe-send";
+import { killProcessTree } from "./lib/process-tree";
+import { openExternalUrl } from "./lib/open-external";
 import { getAcpAnalyticsPropertiesForSession } from "./ipc/acp-sessions";
 import { terminals } from "./ipc/terminal";
 
@@ -280,13 +282,13 @@ function createWindow(): void {
   }
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    void shell.openExternal(url);
+    void openExternalUrl(url, { logLabel: "MAIN_WINDOW_OPEN_EXTERNAL_BLOCKED" });
     return { action: "deny" };
   });
   mainWindow.webContents.on("will-navigate", (event, url) => {
     if (url === mainWindow?.webContents.getURL()) return;
     event.preventDefault();
-    void shell.openExternal(url);
+    void openExternalUrl(url, { logLabel: "MAIN_WINDOW_OPEN_EXTERNAL_BLOCKED" });
   });
 
   if (process.platform === "darwin") {
@@ -631,7 +633,7 @@ function teardownSessionsAndTerminals(reason: string): void {
   for (const [terminalId, term] of terminals) {
     if (term.exited) continue;
     log("CLEANUP", `Killing terminal ${terminalId.slice(0, 8)}`);
-    try { term.pty.kill(); } catch { /* already dead */ }
+    killProcessTree(term.pty);
   }
   terminals.clear();
 }

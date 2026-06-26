@@ -1,9 +1,9 @@
-import { shell } from "electron";
 import { loadOAuthData, saveOAuthData, type StoredOAuthData } from "./mcp-oauth-store";
+import { openExternalUrl } from "./open-external";
+import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
 import type {
-  OAuthClientProvider,
   OAuthTokens,
-  OAuthClientInformation,
+  OAuthClientInformationMixed,
   OAuthClientInformationFull,
 } from "@modelcontextprotocol/sdk/shared/auth.js";
 
@@ -40,8 +40,8 @@ export class ElectronOAuthClientProvider implements OAuthClientProvider {
     };
   }
 
-  clientInformation(): OAuthClientInformation | undefined {
-    return this.stored?.clientInfo as OAuthClientInformation | undefined;
+  clientInformation(): OAuthClientInformationMixed | undefined {
+    return this.stored?.clientInfo as OAuthClientInformationMixed | undefined;
   }
 
   saveClientInformation(info: OAuthClientInformationFull): void {
@@ -67,7 +67,10 @@ export class ElectronOAuthClientProvider implements OAuthClientProvider {
   }
 
   redirectToAuthorization(url: URL): void {
-    shell.openExternal(url.toString());
+    void openExternalUrl(url, {
+      allowedProtocols: ["http:", "https:"],
+      logLabel: "MCP_OAUTH_OPEN_EXTERNAL_BLOCKED",
+    });
   }
 
   saveCodeVerifier(verifier: string): void {

@@ -4,9 +4,12 @@ import path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MAX_PROMPT_TEXT_FILE_BYTES } from "../../lib/prompt-file-read";
 
-const { mockIpcMainHandle, mockGitExec } = vi.hoisted(() => ({
+const { mockIpcMainHandle, mockGitExec, mockExecFile, mockGetAppSetting, mockCaptureEvent } = vi.hoisted(() => ({
   mockIpcMainHandle: vi.fn(),
   mockGitExec: vi.fn(),
+  mockExecFile: vi.fn(),
+  mockGetAppSetting: vi.fn(),
+  mockCaptureEvent: vi.fn(),
 }));
 
 vi.mock("electron", () => ({
@@ -32,6 +35,18 @@ vi.mock("../../lib/error-utils", () => ({
   reportError: (_label: string, err: unknown) => (err instanceof Error ? err.message : String(err)),
 }));
 
+vi.mock("child_process", () => ({
+  execFile: mockExecFile,
+}));
+
+vi.mock("../../lib/app-settings", () => ({
+  getAppSetting: mockGetAppSetting,
+}));
+
+vi.mock("../../lib/posthog", () => ({
+  captureEvent: mockCaptureEvent,
+}));
+
 async function loadModule() {
   vi.resetModules();
   return import("../files");
@@ -49,6 +64,10 @@ describe("files IPC", () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "files-ipc-"));
     mockIpcMainHandle.mockReset();
     mockGitExec.mockReset();
+    mockExecFile.mockReset();
+    mockGetAppSetting.mockReset();
+    mockCaptureEvent.mockReset();
+    mockGetAppSetting.mockReturnValue("auto");
   });
 
   afterEach(() => {
@@ -105,5 +124,34 @@ describe("files IPC", () => {
         expect.objectContaining({ path: "docs", error: expect.stringContaining("Deep folder content too large") }),
       ]),
     );
+  });
+
+  it("opens files through a Windows shell command with quoted goto arguments", async () => {
+    const filePath = path.join(tmpDir, "Folder With Spaces", "hello world.ts");
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, "console.log('hello');", "utf-8");
+    vi.spyOn(process, "platform", "get").mockReturnValue("win32");
+    mockExecFile.mockImplementation((_command: string, _options: unknown, callback: (err: Error | null) => void) => {
+      callback(null);
+    });
+
+    const { register } = await loadModule();
+    register(() => null);
+
+    const openInEditor = handlerFor<
+      [{ filePath: string; line?: number; editor?: string }],
+      { ok?: true; editor?: string; error?: string }
+    >("file:open-in-editor");
+    expect(openInEditor).toBeDefined();
+
+    const result = await openInEditor!(null, { filePath, line: 42, editor: "code" });
+
+    expect(result).toEqual({ ok: true, editor: "code" });
+    expect(mockExecFile).toHaveBeenCalledWith(
+      `"code" "--goto" "${filePath}:42"`,
+      { timeout: 3000, shell: true },
+      expect.any(Function),
+    );
+    expect(mockCaptureEvent).toHaveBeenCalledWith("file_opened_in_editor", { editor: "code" });
   });
 });

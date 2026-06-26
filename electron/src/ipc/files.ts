@@ -3,12 +3,14 @@ import type { BrowserWindow } from "electron";
 import path from "path";
 import fs from "fs";
 import { promises as fsPromises } from "fs";
+import { execFile } from "child_process";
 import { log } from "../lib/logger";
 import { ALWAYS_SKIP, gitExec, isGitNotFoundError, isNotGitRepositoryError } from "../lib/git-exec";
 import { getAppSetting } from "../lib/app-settings";
 import { captureEvent } from "../lib/posthog";
 import { reportError } from "../lib/error-utils";
 import { safeSend } from "../lib/safe-send";
+import { openExternalUrl } from "../lib/open-external";
 import { checkPromptTextFile, readPromptTextFile } from "../lib/prompt-file-read";
 import {
   mergeFileWatchEvents,
@@ -276,8 +278,7 @@ function buildFolderTree(dirPrefix: string, filePaths: string[]): string {
 export function register(getMainWindow: () => BrowserWindow | null): void {
   ipcMain.handle("shell:open-external", async (_event, url: string) => {
     try {
-      await shell.openExternal(url);
-      return { ok: true };
+      return await openExternalUrl(url, { logLabel: "SHELL:OPEN_EXTERNAL_BLOCKED" });
     } catch (err) {
       const errMsg = reportError("SHELL:OPEN_EXTERNAL_ERR", err, { url });
       return { error: errMsg };

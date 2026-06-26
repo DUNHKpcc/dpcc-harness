@@ -14,3 +14,13 @@ cli
 .codex/
 .superpowers/
 build/.icon-backup-orig/
+
+# Local agent workflow
+.agents/skills/harnss-agent-workflow/
+scripts/agent-workflow/
+.serena/
+.semgrep.yml
+.harnss/agent-workflow/
+
+# Added by code-review-graph
+.code-review-graph/

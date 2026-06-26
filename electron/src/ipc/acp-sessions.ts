@@ -6,6 +6,7 @@ import path from "path";
 import { log } from "../lib/logger";
 import { safeSend } from "../lib/safe-send";
 import { getAgent } from "../lib/agent-registry";
+import { killProcessTree } from "../lib/process-tree";
 import type { InstalledAgent } from "../lib/agent-registry";
 import { getMcpAuthHeaders } from "../lib/mcp-oauth-flow";
 import { extractErrorMessage, reportError } from "../lib/error-utils";
@@ -96,6 +97,31 @@ const commandsBuffer = new Map<string, unknown[]>();
 // Track in-flight acp:start so the renderer can abort during npx download / protocol init.
 // Only one start can be in-flight at a time (guarded by materializingRef in the renderer).
 let pendingStartProcess: { id: string; process: ChildProcess; aborted?: boolean } | null = null;
+
+interface AcpCleanupProcess {
+  pid?: number;
+  kill: (signal?: NodeJS.Signals) => unknown;
+}
+
+export function selectAcpStartCleanupProcess(
+  connResult: { proc: AcpCleanupProcess } | null | undefined,
+  pendingProcess: { process: AcpCleanupProcess } | null | undefined,
+): AcpCleanupProcess | undefined {
+  return connResult?.proc ?? pendingProcess?.process;
+}
+
+export function shouldUseWindowsShellForAcpBinary(binary: string, platform: NodeJS.Platform = process.platform): boolean {
+  if (platform !== "win32") return false;
+
+  const normalized = binary.trim().replace(/^["']|["']$/g, "");
+  const ext = path.extname(normalized).toLowerCase();
+  if (ext === ".exe" || ext === ".com") return false;
+  if (ext === ".cmd" || ext === ".bat") return true;
+
+  // Bare commands such as "npx" usually resolve to .cmd shims on Windows.
+  // Explicit paths should be passed directly unless they opt into a batch shim.
+  return !/[\\/]/.test(normalized);
+}
 
 type AcpAnalyticsProperties = {
   acp_agent: string;
@@ -319,7 +345,8 @@ async function createAcpConnection(
   const proc = spawn(agentDef.binary, agentDef.args ?? [], {
     stdio: ["pipe", "pipe", "pipe"],
     env: { ...process.env, ...agentDef.env },
-    shell: process.platform === "win32",
+    shell: shouldUseWindowsShellForAcpBinary(agentDef.binary),
+    windowsHide: true,
   });
   onSpawn?.(internalId, proc);
 
@@ -571,10 +598,11 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
 
       // Check if the user intentionally aborted the start (stop button during download)
       const wasAborted = pendingStartProcess?.aborted === true;
+      const cleanupProcess = selectAcpStartCleanupProcess(connResult, pendingStartProcess);
       pendingStartProcess = null;
 
       // Kill the spawned process to avoid orphans
-      try { connResult?.proc?.kill(); } catch { /* already dead */ }
+      killProcessTree(cleanupProcess);
       if (connResult?.internalId) {
         acpSessions.delete(connResult.internalId);
         configBuffer.delete(connResult.internalId);
@@ -658,9 +686,17 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     }
 
     let connResult: AcpConnectionResult | null = null;
+    let spawnedProcess: ChildProcess | null = null;
     const analyticsProperties = buildAcpAnalyticsProperties(agentDef);
     try {
-      connResult = await createAcpConnection(agentDef as { binary: string; args?: string[]; env?: Record<string, string>; name: string }, getMainWindow, "ACP_REVIVE");
+      connResult = await createAcpConnection(
+        agentDef as { binary: string; args?: string[]; env?: Record<string, string>; name: string },
+        getMainWindow,
+        "ACP_REVIVE",
+        (_internalId, proc) => {
+          spawnedProcess = proc;
+        },
+      );
       const { proc, connection, pendingPermissions, internalId, supportsLoadSession, authMethods } = connResult;
 
       const acpMcpServers = await buildAcpMcpServers(options.mcpServers ?? []);
@@ -695,7 +731,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       return { sessionId: internalId, agentSessionId: acpSessionId, usedLoad, configOptions, mcpStatuses };
     } catch (err) {
       // Kill process and clean up any partial session entry
-      try { connResult?.proc?.kill(); } catch { /* already dead */ }
+      killProcessTree(selectAcpStartCleanupProcess(connResult, spawnedProcess ? { process: spawnedProcess } : null));
       if (connResult?.internalId) {
         acpSessions.delete(connResult.internalId);
         configBuffer.delete(connResult.internalId);
@@ -760,7 +796,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     }
     log("ACP_ABORT_START", `Aborting start id=${pendingStartProcess.id.slice(0, 8)} pid=${pendingStartProcess.process.pid}`);
     pendingStartProcess.aborted = true;
-    try { pendingStartProcess.process.kill(); } catch { /* already dead */ }
+    killProcessTree(pendingStartProcess.process);
     return { ok: true };
   });
 
@@ -771,7 +807,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       if (pendingStartProcess?.id === sessionId) {
         log("ACP_STOP", `session=${sessionId?.slice(0, 8)} is pending start — aborting`);
         pendingStartProcess.aborted = true;
-        try { pendingStartProcess.process.kill(); } catch { /* already dead */ }
+        killProcessTree(pendingStartProcess.process);
         return { ok: true };
       }
       log("ACP_STOP", `session=${sessionId?.slice(0, 8)} already removed`);
@@ -783,7 +819,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       resolver.resolve({ outcome: { outcome: "cancelled" } });
     }
     session.pendingPermissions.clear();
-    session.process.kill();
+    killProcessTree(session.process);
     acpSessions.delete(sessionId);
     configBuffer.delete(sessionId);
     commandsBuffer.delete(sessionId);
@@ -956,7 +992,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
 export function stopAll(): void {
   for (const [sessionId, entry] of acpSessions) {
     log("CLEANUP", `Stopping ACP session ${sessionId.slice(0, 8)}`);
-    try { entry.process.kill(); } catch { /* already dead */ }
+    killProcessTree(entry.process);
   }
   acpSessions.clear();
   configBuffer.clear();

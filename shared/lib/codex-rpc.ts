@@ -16,6 +16,7 @@ export type ReportErrorFn = (label: string, err: unknown, context?: Record<strin
 export interface CodexRpcClientOptions {
   log: LogFn;
   reportError: ReportErrorFn;
+  killProcess?: (proc: ChildProcess) => void;
 }
 
 interface PendingRequest {
@@ -49,6 +50,7 @@ export class CodexRpcClient {
   private destroyed = false;
   private log: LogFn;
   private reportError: ReportErrorFn;
+  private killProcess: (proc: ChildProcess) => void;
 
   /** Called for server-initiated requests (e.g. approval prompts) */
   onServerRequest: ServerRequestHandler | null = null;
@@ -62,6 +64,7 @@ export class CodexRpcClient {
   constructor(private proc: ChildProcess, options: CodexRpcClientOptions) {
     this.log = options.log;
     this.reportError = options.reportError;
+    this.killProcess = options.killProcess ?? ((child) => child.kill());
 
     proc.stdout?.on("data", (chunk: Buffer) => this.handleData(chunk));
     proc.stderr?.on("data", (chunk: Buffer) => {
@@ -128,7 +131,7 @@ export class CodexRpcClient {
     if (this.destroyed) return;
     this.destroyed = true;
     try {
-      this.proc.kill();
+      this.killProcess(this.proc);
     } catch {
       /* already dead */
     }

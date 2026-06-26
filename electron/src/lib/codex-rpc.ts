@@ -9,6 +9,7 @@ import type { ChildProcess } from "child_process";
 import { CodexRpcClient as SharedCodexRpcClient } from "@shared/lib/codex-rpc";
 import { log } from "./logger";
 import { reportError } from "./error-utils";
+import { killProcessTree } from "./process-tree";
 
 export type {
   RpcError,
@@ -21,6 +22,6 @@ export type {
  */
 export class CodexRpcClient extends SharedCodexRpcClient {
   constructor(proc: ChildProcess) {
-    super(proc, { log, reportError });
+    super(proc, { log, reportError, killProcess: killProcessTree });
   }
 }

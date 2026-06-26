@@ -2,6 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { log } from "../../logger";
 import { reportError } from "../../error-utils";
 import { getCodexBinaryPath, isCodexInstalled } from "../../codex-binary";
+import { killProcessTree } from "../../process-tree";
 import { isSessionError } from "./session-error";
 import type { CLIAdapter, AdapterExecOptions, AdapterExecResult } from "./types";
 
@@ -64,21 +65,13 @@ export class CodexAdapter implements CLIAdapter {
       };
 
       const onAbort = () => {
-        try {
-          proc.kill("SIGTERM");
-        } catch {
-          /* already dead */
-        }
+        killProcessTree(proc);
         finish({ text: "已取消", error: true, durationMs: Date.now() - start });
       };
       opts.signal.addEventListener("abort", onAbort, { once: true });
 
       const timer = setTimeout(() => {
-        try {
-          proc.kill("SIGTERM");
-        } catch {
-          /* already dead */
-        }
+        killProcessTree(proc);
         finish({ text: "运行超时", error: true, durationMs: Date.now() - start });
       }, HARD_TIMEOUT_MS);
 

@@ -5,6 +5,7 @@ import { safeSend } from "../lib/safe-send";
 import { captureEvent } from "../lib/posthog";
 import { reportError } from "../lib/error-utils";
 import { loadLocalClaudeEnv } from "../lib/local-cli-config";
+import { killProcessTree } from "../lib/process-tree";
 import {
   appendTerminalHistory,
   EMPTY_TERMINAL_HISTORY,
@@ -14,6 +15,7 @@ import type { TerminalHistoryState } from "../lib/terminal-history";
 
 interface TerminalEntry {
   pty: {
+    pid?: number;
     write: (data: string) => void;
     resize: (cols: number, rows: number) => void;
     kill: () => void;
@@ -177,7 +179,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     const term = terminals.get(terminalId);
     if (term) {
       term.destroyed = true;
-      if (!term.exited) term.pty.kill();
+      if (!term.exited) killProcessTree(term.pty);
       terminals.delete(terminalId);
       log("TERMINAL", `Destroyed terminal ${terminalId.slice(0, 8)}`);
     }
@@ -188,7 +190,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     for (const [terminalId, term] of terminals.entries()) {
       if (term.spaceId !== spaceId) continue;
       term.destroyed = true;
-      if (!term.exited) term.pty.kill();
+      if (!term.exited) killProcessTree(term.pty);
       terminals.delete(terminalId);
       log("TERMINAL", `Destroyed terminal ${terminalId.slice(0, 8)} for space ${spaceId}`);
     }

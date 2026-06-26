@@ -96,11 +96,11 @@ export function getRegistryPlatformKeys(): string[] {
   const arch = archMap[process.arch];
   if (!platform || !arch) return [];
 
-  const primary = `${platform}-${arch}`;
-  // Windows on ARM commonly runs x86_64 binaries under emulation.
-  if (process.platform === "win32" && process.arch === "arm64") {
-    return [primary, "windows-x86_64"];
+  if (process.platform === "win32") {
+    return ["windows-x86_64"];
   }
+
+  const primary = `${platform}-${arch}`;
   return [primary];
 }
 

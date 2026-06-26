@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import type { StateStorage } from "zustand/middleware";
 import type { ToolId } from "@/types/tools";
 import type { AcpPermissionBehavior, ClaudeEffort, EngineId, LanguageOption, MacBackgroundEffect, ThemeOption } from "@/types";
 
@@ -42,6 +43,38 @@ const VALID_TOOL_IDS = new Set<ToolId>([
 const IS_MAC_PLATFORM = typeof navigator !== "undefined" && /mac/i.test(navigator.platform);
 
 const STORE_KEY = "pcc-agent-settings-store";
+
+function createMemoryStorage(): StateStorage {
+  const values = new Map<string, string>();
+  return {
+    getItem: (name) => values.get(name) ?? null,
+    setItem: (name, value) => {
+      values.set(name, value);
+    },
+    removeItem: (name) => {
+      values.delete(name);
+    },
+  };
+}
+
+const fallbackSettingsStorage = createMemoryStorage();
+
+function getRendererLocalStorage(): Storage | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function resolveSettingsStorage(): StateStorage {
+  return getRendererLocalStorage() ?? fallbackSettingsStorage;
+}
+
+function mirrorLegacyTransparency(enabled: boolean): void {
+  getRendererLocalStorage()?.setItem("pcc-agent-transparency", String(enabled));
+}
 
 // ── Shared helpers (also used by compat hook) ──
 
@@ -464,14 +497,17 @@ export const useSettingsStore = create<SettingsStore>()(
 
       setMacBackgroundEffect: (effect) => {
         if (effect === "off") {
+          mirrorLegacyTransparency(false);
           set({ transparency: false });
           return;
         }
+        mirrorLegacyTransparency(true);
         set({ macNativeBackgroundEffect: effect, transparency: true });
         persistMacBackgroundEffect(effect);
       },
 
       setTransparency: (enabled) => {
+        mirrorLegacyTransparency(enabled);
         set({ transparency: enabled });
         if (IS_MAC_PLATFORM && enabled) {
           persistMacBackgroundEffect(get().macNativeBackgroundEffect);
@@ -632,7 +668,7 @@ export const useSettingsStore = create<SettingsStore>()(
     }),
     {
       name: STORE_KEY,
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(resolveSettingsStorage),
       partialize: (state) => ({
         // Global state
         theme: state.theme,
@@ -681,8 +717,11 @@ export const useSettingsStore = create<SettingsStore>()(
  * No-op if the store key already exists.
  */
 export function migrateSettingsIfNeeded(): void {
+  const storage = getRendererLocalStorage();
+  if (!storage) return;
+
   // If the store already has data, skip migration
-  if (localStorage.getItem(STORE_KEY)) return;
+  if (storage.getItem(STORE_KEY)) return;
 
   const { global, projects } = migrateFromLegacyLocalStorage();
 

@@ -159,8 +159,9 @@ export function useSessionRestart({
         cwd: nextCwd,
         threadId: codexThreadId,
         model: session.model,
-        approvalPolicy: getCodexApprovalPolicy(startOptionsRef.current),
-        sandbox: getCodexSandboxMode(startOptionsRef.current),
+        permissionMode: session.permissionMode,
+        approvalPolicy: getCodexApprovalPolicy({ permissionMode: session.permissionMode }),
+        sandbox: getCodexSandboxMode({ permissionMode: session.permissionMode }),
       });
 
       if (resumeResult.error || !resumeResult.sessionId) {

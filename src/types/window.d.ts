@@ -350,7 +350,7 @@ declare global {
       };
       codex: {
         log: (label: string, data: unknown) => void;
-        start: (options: { cwd: string; model?: string; approvalPolicy?: string; sandbox?: "read-only" | "workspace-write" | "danger-full-access"; personality?: string; collaborationMode?: CollaborationMode }) =>
+        start: (options: { cwd: string; model?: string; permissionMode?: string; approvalPolicy?: string; sandbox?: "read-only" | "workspace-write" | "danger-full-access"; personality?: string; collaborationMode?: CollaborationMode }) =>
           Promise<{
             sessionId?: string;
             threadId?: string;
@@ -389,9 +389,10 @@ declare global {
         listModels: () => Promise<{ models: CodexModel[]; error?: string }>;
         authStatus: () => Promise<{ account: unknown; requiresOpenaiAuth: boolean }>;
         login: (sessionId: string, type: "apiKey" | "chatgpt", apiKey?: string) => Promise<unknown>;
-        resume: (options: { cwd: string; threadId: string; model?: string; approvalPolicy?: string; sandbox?: "read-only" | "workspace-write" | "danger-full-access" }) =>
+        resume: (options: { cwd: string; threadId: string; model?: string; permissionMode?: string; approvalPolicy?: string; sandbox?: "read-only" | "workspace-write" | "danger-full-access" }) =>
           Promise<{ sessionId?: string; threadId?: string; error?: string }>;
         setModel: (sessionId: string, model: string) => Promise<{ error?: string }>;
+        setPermissionMode: (sessionId: string, permissionMode: string) => Promise<{ ok?: boolean; permissionMode?: string; error?: string }>;
         version: () => Promise<{ version?: string; error?: string }>;
         binaryStatus: () => Promise<{ installed: boolean; downloading: boolean }>;
         binaryInfo: () => Promise<{

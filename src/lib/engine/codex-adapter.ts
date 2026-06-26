@@ -18,6 +18,9 @@ import type {
   ToolUseResult,
 } from "@/types";
 import { parseUnifiedDiff } from "@/lib/diff/unified-diff";
+import {
+  codexPermissionOptionsFromMode,
+} from "@shared/lib/codex-permissions";
 
 export { SimpleStreamingBuffer as CodexStreamingBuffer } from "@/lib/engine/streaming-buffer";
 
@@ -286,16 +289,8 @@ function describeWebSearchAction(payload: CodexWebSearchToolPayload): string {
  * Keep this in sync with src/types/codex-protocol/v2/AskForApproval.ts.
  */
 export function permissionModeToCodexPolicy(mode: string): string | undefined {
-  switch (mode) {
-    case "default":
-      return "on-request";
-    case "acceptEdits":
-      return "untrusted";
-    case "bypassPermissions":
-      return "never";
-    default:
-      return undefined;
-  }
+  const approvalPolicy = codexPermissionOptionsFromMode(mode).approvalPolicy;
+  return typeof approvalPolicy === "string" ? approvalPolicy : undefined;
 }
 
 /**
@@ -305,15 +300,8 @@ export function permissionModeToCodexPolicy(mode: string): string | undefined {
  * Without setting sandbox, Codex may inherit a read-only default from user config.
  */
 export function permissionModeToCodexSandbox(mode: string): "workspace-write" | "danger-full-access" | undefined {
-  switch (mode) {
-    case "default":
-    case "acceptEdits":
-      return "workspace-write";
-    case "bypassPermissions":
-      return "danger-full-access";
-    default:
-      return undefined;
-  }
+  const sandbox = codexPermissionOptionsFromMode(mode).sandbox;
+  return sandbox === "read-only" ? undefined : sandbox;
 }
 
 // ── Turn plan → TodoItem mapping ──

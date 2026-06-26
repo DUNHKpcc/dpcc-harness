@@ -23,6 +23,7 @@ import { getAppSetting } from "../lib/app-settings";
 import { reportError } from "../lib/error-utils";
 import { captureEvent } from "../lib/posthog";
 import { codexUpstreamEnv, codexUpstreamThreadParams } from "../lib/codex-upstream";
+import { codexPermissionOptionsFromMode, codexSandboxPolicyFromMode, normalizeAppPermissionMode } from "@shared/lib/codex-permissions";
 
 import type {
   CodexServerNotification,
@@ -55,9 +56,11 @@ interface CodexSession {
   approvalPolicy?: string;
   /** Sandbox policy for the session — passed to lazy thread/start */
   sandbox?: string;
+  /** App permission mode used to derive turn-level Codex overrides. */
+  permissionMode?: string;
 }
 
-import { SUPPORTED_SERVER_REQUESTS, isSupportedServerRequestMethod, pickModelId } from "@shared/lib/codex-helpers";
+import { isSupportedServerRequestMethod, pickModelId } from "@shared/lib/codex-helpers";
 
 type CodexImageInput = Extract<CodexUserInput, { type: "image" | "localImage" }>;
 type CodexMentionInput = Extract<CodexUserInput, { type: "mention" }>;
@@ -238,6 +241,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       options: {
         cwd: string;
         model?: string;
+        permissionMode?: string;
         approvalPolicy?: string;
         sandbox?: string;
         personality?: string;
@@ -276,6 +280,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
           model: undefined,
           approvalPolicy: options.approvalPolicy,
           sandbox: options.sandbox,
+          permissionMode: options.permissionMode,
         };
         codexSessions.set(internalId, session);
         setupCodexHandlers(rpc, session, internalId, getMainWindow);
@@ -447,6 +452,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
           ...(data.effort ? { effort: data.effort } : {}),
           ...(data.collaborationMode ? { collaborationMode: data.collaborationMode } : {}),
           ...(session.approvalPolicy ? { approvalPolicy: session.approvalPolicy } : {}),
+          ...(session.permissionMode ? { sandboxPolicy: codexSandboxPolicyFromMode(session.permissionMode, session.cwd) } : {}),
         };
 
 
@@ -716,6 +722,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         cwd: string;
         threadId: string;
         model?: string;
+        permissionMode?: string;
         approvalPolicy?: string;
         sandbox?: string;
       },
@@ -749,6 +756,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
           model: data.model,
           approvalPolicy: data.approvalPolicy,
           sandbox: data.sandbox,
+          permissionMode: data.permissionMode,
         };
         codexSessions.set(internalId, session);
         setupCodexHandlers(rpc, session, internalId, getMainWindow);
@@ -804,6 +812,22 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       // Store model for next turn/start override
       session.model = data.model;
       return {};
+    },
+  );
+
+  // ─── codex:set-permission-mode ───
+  ipcMain.handle(
+    "codex:set-permission-mode",
+    async (_, data: { sessionId: string; permissionMode: string }) => {
+      const session = codexSessions.get(data.sessionId);
+      if (!session) return { error: "Session not found" };
+
+      const permissionMode = normalizeAppPermissionMode(data.permissionMode);
+      const { approvalPolicy, sandbox } = codexPermissionOptionsFromMode(permissionMode);
+      session.permissionMode = permissionMode;
+      session.approvalPolicy = typeof approvalPolicy === "string" ? approvalPolicy : undefined;
+      session.sandbox = sandbox;
+      return { ok: true, permissionMode };
     },
   );
 

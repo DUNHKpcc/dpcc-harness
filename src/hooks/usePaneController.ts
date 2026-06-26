@@ -181,6 +181,9 @@ export function usePaneController(
         ctx.handlePermissionModeChange(nextMode);
         return;
       }
+      if (paneEngine === "codex") {
+        void paneState.codex.setPermissionMode(nextMode);
+      }
       ctx.manager.setSessionPermissionMode(sessionId, nextMode);
     };
 

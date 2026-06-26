@@ -451,15 +451,19 @@ export function useSessionSettings({
       : permissionMode;
     persistSessionPatch(sessionId, { permissionMode: normalizedPermission });
 
-    if ((session.engine ?? "claude") !== "claude" || !liveSessionIdsRef.current.has(sessionId)) {
+    if (!liveSessionIdsRef.current.has(sessionId)) {
       return;
     }
 
-    const effectiveClaudeMode = getEffectiveClaudePermissionMode({
-      permissionMode: normalizedPermission,
-      planMode: !!session.planMode,
-    });
-    const result = await window.claude.setPermissionMode(sessionId, effectiveClaudeMode);
+    const sessionEngine = session.engine ?? "claude";
+    const result = sessionEngine === "codex"
+      ? await window.claude.codex.setPermissionMode(sessionId, normalizedPermission)
+      : sessionEngine === "claude"
+        ? await window.claude.setPermissionMode(sessionId, getEffectiveClaudePermissionMode({
+          permissionMode: normalizedPermission,
+          planMode: !!session.planMode,
+        }))
+        : undefined;
     if (result?.error) {
       toast.error(toastText("session.permissionModeUpdateFailed"), { description: result.error });
     }

@@ -481,6 +481,7 @@ export function useDraftMaterialization({
         const result = await window.claude.codex.start({
           cwd: draftCwd,
           ...(draftModel ? { model: draftModel } : {}),
+          ...(options.permissionMode ? { permissionMode: options.permissionMode } : {}),
           ...(approvalPolicy ? { approvalPolicy } : {}),
           ...(sandbox ? { sandbox } : {}),
         });

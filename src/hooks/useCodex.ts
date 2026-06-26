@@ -35,6 +35,7 @@ import { captureException } from "@/lib/analytics/analytics";
 import { createSystemMessage, createUserMessage, nextId } from "@/lib/message-factory";
 import { toastText } from "@/lib/toast-i18n";
 import { markInFlightToolCallsFailed } from "@/lib/chat/in-flight-tools";
+import { normalizeAppPermissionMode } from "@shared/lib/codex-permissions";
 import { useEngineBase } from "./useEngineBase";
 
 interface UseCodexOptions {
@@ -1123,9 +1124,21 @@ export function useCodex({
     [sessionId, pendingPermission, send, sessionInfo?.model],
   );
 
-  const setPermissionMode = useCallback(async (_mode: string) => {
-    // Codex doesn't support live permission mode changes — applied on next turn
-  }, []);
+  const setPermissionMode = useCallback(async (mode: string) => {
+    if (!sessionIdRef.current) return { error: "No session" };
+    const result = await window.claude.codex.setPermissionMode(sessionIdRef.current, mode);
+    if (result?.error) return result;
+    const nextPermissionMode = result.permissionMode ?? normalizeAppPermissionMode(mode);
+    setSessionInfo((prev) =>
+      upsertCodexSessionInfo(
+        prev,
+        sessionIdRef.current,
+        sessionModelRef.current,
+        nextPermissionMode,
+      ),
+    );
+    return result;
+  }, [setSessionInfo]);
 
   return {
     messages, setMessages,

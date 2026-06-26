@@ -5,6 +5,7 @@ import {
   getAvailableSlashCommands,
   getSlashCommandReplacement,
   isClearCommandText,
+  splitComposerFiles,
 } from "./input-bar";
 
 describe("InputBar slash command helpers", () => {
@@ -45,5 +46,15 @@ describe("InputBar slash command helpers", () => {
     expect(
       getSlashCommandReplacement({ name: "fix", description: "", source: "codex-skill", defaultPrompt: "bug" }),
     ).toBe("$fix bug");
+  });
+
+  it("splits selected composer files into image attachments and file references", () => {
+    const image = new File(["image"], "screen.png", { type: "image/png" });
+    const document = new File(["notes"], "notes.txt", { type: "text/plain" });
+
+    expect(splitComposerFiles([document, image])).toEqual({
+      imageFiles: [image],
+      otherFiles: [document],
+    });
   });
 });

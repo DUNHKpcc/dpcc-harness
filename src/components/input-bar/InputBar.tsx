@@ -62,6 +62,7 @@ import {
   isClearCommandText,
   parseDroppedUrls,
   buildFileReferenceMessage,
+  splitComposerFiles,
 } from "./input-bar-utils";
 import { ContextGauge } from "./ContextGauge";
 import { AttachmentPreview } from "./AttachmentPreview";
@@ -697,8 +698,9 @@ export const InputBar = memo(function InputBar({
       if (items) {
         const imageFiles: globalThis.File[] = [];
         for (const item of items) {
-          if (item.kind === "file" && isAcceptedImage(item.getAsFile()!)) {
-            imageFiles.push(item.getAsFile()!);
+          const file = item.kind === "file" ? item.getAsFile() : null;
+          if (file && isAcceptedImage(file)) {
+            imageFiles.push(file);
           }
         }
         if (imageFiles.length > 0) {
@@ -764,17 +766,9 @@ export const InputBar = memo(function InputBar({
 
       // 2. Files: split into images (inlined as base64 attachments for the
       //    SDK) vs. other files (sent as local path references).
-      const images: globalThis.File[] = [];
-      const others: globalThis.File[] = [];
-      for (const f of droppedFiles) {
-        if (isAcceptedImage(f)) {
-          images.push(f);
-        } else {
-          others.push(f);
-        }
-      }
-      if (images.length > 0) addImageFiles(images);
-      if (others.length > 0) addFileAttachments(others);
+      const { imageFiles, otherFiles } = splitComposerFiles(droppedFiles);
+      if (imageFiles.length > 0) addImageFiles(imageFiles);
+      if (otherFiles.length > 0) addFileAttachments(otherFiles);
     },
     [addImageFiles, addFileAttachments, setComposerHasContent],
   );
@@ -782,11 +776,13 @@ export const InputBar = memo(function InputBar({
   const handleFileInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files) {
-        addImageFiles(e.target.files);
+        const { imageFiles, otherFiles } = splitComposerFiles(e.target.files);
+        if (imageFiles.length > 0) addImageFiles(imageFiles);
+        if (otherFiles.length > 0) addFileAttachments(otherFiles);
       }
       e.target.value = "";
     },
-    [addImageFiles],
+    [addImageFiles, addFileAttachments],
   );
 
   // ── Placeholder text ──
@@ -816,7 +812,6 @@ export const InputBar = memo(function InputBar({
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/png,image/jpeg,image/gif,image/webp"
         multiple
         className="hidden"
         onChange={handleFileInputChange}

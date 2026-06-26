@@ -3,8 +3,6 @@ import type { AcceptedMediaType } from "./constants";
 import { ACCEPTED_IMAGE_TYPES } from "./constants";
 
 const BLANK_AUDIO_PLACEHOLDER_RE = /\[BLANK_AUDIO\]/gi;
-const COMPOSER_IMAGE_ONLY_ACCEPT = "image/png,image/jpeg,image/gif,image/webp";
-const ALL_FILES_PICKER_FLAG = "pccAllFilesPicker";
 
 /** Read a file as base64 data with its media type. */
 export function readFileAsBase64(
@@ -25,6 +23,24 @@ export function readFileAsBase64(
 /** Check if a file has an accepted image MIME type. */
 export function isAcceptedImage(file: globalThis.File): boolean {
   return (ACCEPTED_IMAGE_TYPES as readonly string[]).includes(file.type);
+}
+
+export function splitComposerFiles(files: Iterable<globalThis.File>): {
+  imageFiles: globalThis.File[];
+  otherFiles: globalThis.File[];
+} {
+  const imageFiles: globalThis.File[] = [];
+  const otherFiles: globalThis.File[] = [];
+
+  for (const file of files) {
+    if (isAcceptedImage(file)) {
+      imageFiles.push(file);
+    } else {
+      otherFiles.push(file);
+    }
+  }
+
+  return { imageFiles, otherFiles };
 }
 
 /** Parse dragged URL-like payloads into a deduped list of valid URLs.
@@ -244,94 +260,6 @@ export function getSlashCommandReplacement(cmd: SlashCommand): string {
       return `/${cmd.name}`;
   }
 }
-
-/**
- * Keep the composer toolbar file picker in sync with drag/drop support.
- *
- * The InputBar file input was originally image-only. Today's drag/drop change
- * already knows how to split selected Files into image attachments vs. generic
- * file chips. This enhancement removes the native file-picker MIME filter and,
- * when the picker returns any non-image file, replays the selection as a drop on
- * the composer container so it follows that same split path.
- */
-function installComposerFilePickerEnhancement(): void {
-  if (typeof window === "undefined" || typeof document === "undefined") return;
-
-  const isComposerPicker = (input: HTMLInputElement) =>
-    input.type === "file" &&
-    input.multiple &&
-    (input.accept === COMPOSER_IMAGE_ONLY_ACCEPT ||
-      input.dataset[ALL_FILES_PICKER_FLAG] === "true");
-
-  const patchInput = (input: HTMLInputElement) => {
-    if (!isComposerPicker(input)) return;
-    input.dataset[ALL_FILES_PICKER_FLAG] = "true";
-    input.removeAttribute("accept");
-  };
-
-  const patchRoot = (root: ParentNode) => {
-    root
-      .querySelectorAll<HTMLInputElement>(`input[type="file"][accept="${COMPOSER_IMAGE_ONLY_ACCEPT}"]`)
-      .forEach(patchInput);
-  };
-
-  const getDropTarget = (input: HTMLInputElement): HTMLElement | null => {
-    const next = input.nextElementSibling;
-    if (next instanceof HTMLElement) return next;
-    return input.parentElement?.querySelector<HTMLElement>(".pointer-events-auto") ?? null;
-  };
-
-  const replaySelectionAsDrop = (input: HTMLInputElement, files: globalThis.File[]) => {
-    const dropTarget = getDropTarget(input);
-    if (!dropTarget || typeof DataTransfer === "undefined") return false;
-
-    const dataTransfer = new DataTransfer();
-    for (const file of files) dataTransfer.items.add(file);
-    dropTarget.dispatchEvent(
-      new DragEvent("drop", {
-        bubbles: true,
-        cancelable: true,
-        dataTransfer,
-      }),
-    );
-    return true;
-  };
-
-  patchRoot(document);
-
-  const observer = new MutationObserver((mutations) => {
-    for (const mutation of mutations) {
-      for (const node of mutation.addedNodes) {
-        if (!(node instanceof HTMLElement)) continue;
-        if (node instanceof HTMLInputElement) patchInput(node);
-        patchRoot(node);
-      }
-    }
-  });
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-
-  document.addEventListener(
-    "change",
-    (event) => {
-      const input = event.target;
-      if (!(input instanceof HTMLInputElement) || input.dataset[ALL_FILES_PICKER_FLAG] !== "true") {
-        return;
-      }
-
-      const files = input.files ? Array.from(input.files) : [];
-      if (files.length === 0 || files.every(isAcceptedImage)) return;
-
-      if (replaySelectionAsDrop(input, files)) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        input.value = "";
-      }
-    },
-    true,
-  );
-}
-
-installComposerFilePickerEnhancement();
 
 // ── In-source tests ──
 

@@ -7,4 +7,5 @@ export {
   getAvailableSlashCommands,
   getSlashCommandReplacement,
   isClearCommandText,
+  splitComposerFiles,
 } from "./input-bar-utils";

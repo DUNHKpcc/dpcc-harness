@@ -11,7 +11,7 @@
 import { useClaude } from "../useClaude";
 import { useACP } from "../useACP";
 import { useCodex } from "../useCodex";
-import type { UIMessage, PermissionRequest, EngineId, AcpPermissionBehavior, ContextUsage, SessionInfo, ACPConfigOption, ACPPermissionEvent, SlashCommand } from "@/types";
+import type { UIMessage, PermissionRequest, EngineId, AcpPermissionBehavior, ContextUsage, SessionInfo, ACPConfigOption, ACPPermissionEvent, SlashCommand, UpstreamRequestRecord } from "@/types";
 import type { InitialMeta } from "./types";
 
 export interface UseSessionPaneOptions {
@@ -51,6 +51,8 @@ export interface SessionPaneState {
   /** Convenience accessors — derived from the active engine. */
   messages: UIMessage[];
   totalCost: number;
+  upstreamRequestCount: number;
+  requestLog: UpstreamRequestRecord[];
   contextUsage: ContextUsage | null;
   isProcessing: boolean;
   isConnected: boolean;
@@ -116,6 +118,8 @@ export function useSessionPane({
     engine,
     messages: engine.messages,
     totalCost: engine.totalCost,
+    upstreamRequestCount: engine.upstreamRequestCount,
+    requestLog: engine.requestLog,
     contextUsage: engine.contextUsage,
     isProcessing: engine.isProcessing,
     isConnected: engine.isConnected,

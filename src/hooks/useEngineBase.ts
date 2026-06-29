@@ -8,7 +8,8 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import type { UIMessage, SessionInfo, PermissionRequest, ContextUsage, BackgroundSessionSnapshot } from "@/types";
+import type { UIMessage, SessionInfo, PermissionRequest, ContextUsage, BackgroundSessionSnapshot, UpstreamRequestRecord } from "@/types";
+import { getUpstreamRequestCount, trimUpstreamRequestLog } from "@/lib/usage/upstream-requests";
 
 export interface UseEngineBaseOptions {
   sessionId: string | null;
@@ -29,6 +30,10 @@ export interface EngineBaseState {
   setSessionInfo: Dispatch<SetStateAction<SessionInfo | null>>;
   totalCost: number;
   setTotalCost: Dispatch<SetStateAction<number>>;
+  upstreamRequestCount: number;
+  setUpstreamRequestCount: Dispatch<SetStateAction<number>>;
+  requestLog: UpstreamRequestRecord[];
+  setRequestLog: Dispatch<SetStateAction<UpstreamRequestRecord[]>>;
   pendingPermission: PermissionRequest | null;
   setPendingPermission: Dispatch<SetStateAction<PermissionRequest | null>>;
   contextUsage: ContextUsage | null;
@@ -58,6 +63,12 @@ export function useEngineBase({
   const [isConnected, setIsConnected] = useState(initialMeta?.isConnected ?? false);
   const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(initialMeta?.sessionInfo ?? null);
   const [totalCost, setTotalCost] = useState(initialMeta?.totalCost ?? 0);
+  const [requestLog, setRequestLog] = useState<UpstreamRequestRecord[]>(
+    trimUpstreamRequestLog(initialMeta?.requestLog),
+  );
+  const [upstreamRequestCount, setUpstreamRequestCount] = useState(
+    getUpstreamRequestCount(initialMeta?.requestLog, initialMeta?.upstreamRequestCount),
+  );
   const [pendingPermission, setPendingPermission] = useState<PermissionRequest | null>(initialPermission ?? null);
   const [contextUsage, setContextUsage] = useState<ContextUsage | null>(initialMeta?.contextUsage ?? null);
   const [isCompacting, setIsCompacting] = useState(initialMeta?.isCompacting ?? false);
@@ -84,12 +95,16 @@ export function useEngineBase({
       setIsConnected(initialMeta.isConnected);
       setSessionInfo(initialMeta.sessionInfo);
       setTotalCost(initialMeta.totalCost);
+      setRequestLog(trimUpstreamRequestLog(initialMeta.requestLog));
+      setUpstreamRequestCount(getUpstreamRequestCount(initialMeta.requestLog, initialMeta.upstreamRequestCount));
       setContextUsage(initialMeta.contextUsage);
     } else {
       setIsProcessing(false);
       setIsConnected(false);
       setSessionInfo(null);
       setTotalCost(0);
+      setRequestLog([]);
+      setUpstreamRequestCount(0);
       setContextUsage(null);
     }
     setPendingPermission(initialPermission ?? null);
@@ -128,6 +143,8 @@ export function useEngineBase({
     isConnected, setIsConnected,
     sessionInfo, setSessionInfo,
     totalCost, setTotalCost,
+    upstreamRequestCount, setUpstreamRequestCount,
+    requestLog, setRequestLog,
     pendingPermission, setPendingPermission,
     contextUsage, setContextUsage,
     isCompacting, setIsCompacting,

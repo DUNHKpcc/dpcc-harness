@@ -41,6 +41,7 @@ import { normalizeTodoToolInput } from "../lib/chat/todo-utils";
 import { markInFlightToolCallsFailed } from "../lib/chat/in-flight-tools";
 import { capture } from "../lib/analytics/analytics";
 import { toastText } from "../lib/toast-i18n";
+import { appendUpstreamRequestRecord, createClaudeRequestRecord } from "../lib/usage/upstream-requests";
 import { useEngineBase } from "./useEngineBase";
 
 function uiLog(label: string, data: unknown) {
@@ -66,6 +67,8 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
     isConnected, setIsConnected,
     sessionInfo, setSessionInfo,
     totalCost, setTotalCost,
+    upstreamRequestCount, setUpstreamRequestCount,
+    requestLog, setRequestLog,
     pendingPermission, setPendingPermission,
     contextUsage, setContextUsage,
     isCompacting, setIsCompacting,
@@ -84,6 +87,8 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
   const permissionResponseInFlight = useRef(false);
   const respondingPermissionIds = useRef<Set<string>>(new Set());
   const completedPermissionIds = useRef<Set<string>>(new Set());
+  const upstreamRequestCountRef = useRef(upstreamRequestCount);
+  upstreamRequestCountRef.current = upstreamRequestCount;
   // Throttle timer for thinking-only flushes (invisible content → 250ms instead of 60fps)
   const thinkingThrottleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Tracks user-initiated interrupts so the result event's ede_diagnostic error is suppressed
@@ -693,6 +698,17 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
           uiLog("RESULT", { subtype: event.subtype, cost: event.total_cost_usd, turns: event.num_turns });
           setIsProcessing(false);
           setTotalCost((prev) => prev + (event.total_cost_usd ?? 0));
+          {
+            const resultEvent = event as ResultEvent;
+            const requestCount = Math.max(1, resultEvent.num_turns || 1);
+            const nextRequestCount = upstreamRequestCountRef.current + requestCount;
+            upstreamRequestCountRef.current = nextRequestCount;
+            setUpstreamRequestCount(nextRequestCount);
+            setRequestLog((log) => appendUpstreamRequestRecord(
+              log,
+              createClaudeRequestRecord(resultEvent, nextRequestCount, sessionInfo?.model),
+            ));
+          }
 
           // Surface SDK error results to the user.
           // Respect is_error flag — when false, the SDK considers it a non-fatal result
@@ -1070,6 +1086,10 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
     sessionInfo,
     totalCost,
     setTotalCost,
+    upstreamRequestCount,
+    setUpstreamRequestCount,
+    requestLog,
+    setRequestLog,
     contextUsage,
     isCompacting,
     send,

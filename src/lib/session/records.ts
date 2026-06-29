@@ -1,5 +1,6 @@
 import type { SessionMeta as SessionListItem } from "@shared/lib/session-persistence";
-import type { ChatSession, ClaudeEffort, ContextUsage, PersistedSession, UIMessage } from "@/types";
+import type { ChatSession, ClaudeEffort, ContextUsage, PersistedSession, UIMessage, UpstreamRequestRecord } from "@/types";
+import { getUpstreamRequestCount, trimUpstreamRequestLog } from "@/lib/usage/upstream-requests";
 
 const VALID_EFFORTS = new Set<string>(["low", "medium", "high", "max"]);
 function toClaudeEffort(value: string | undefined): ClaudeEffort | undefined {
@@ -10,6 +11,9 @@ export function toChatSession(
   session: SessionListItem,
   isActive: boolean,
 ): ChatSession {
+  const requestLog = Array.isArray(session.requestLog)
+    ? trimUpstreamRequestLog(session.requestLog as UpstreamRequestRecord[])
+    : [];
   return {
     id: session.id,
     projectId: session.projectId,
@@ -21,6 +25,8 @@ export function toChatSession(
     permissionMode: session.permissionMode,
     planMode: session.planMode,
     totalCost: session.totalCost ?? 0,
+    upstreamRequestCount: getUpstreamRequestCount(requestLog, session.upstreamRequestCount),
+    requestLog,
     isActive,
     engine: session.engine,
     codexThreadId: session.codexThreadId,
@@ -39,7 +45,10 @@ export function buildPersistedSession(
   messages: UIMessage[],
   totalCost: number,
   contextUsage: ContextUsage | null,
+  requestLog?: UpstreamRequestRecord[],
+  upstreamRequestCount?: number,
 ): PersistedSession {
+  const recentRequestLog = trimUpstreamRequestLog(requestLog ?? session.requestLog);
   return {
     id: session.id,
     projectId: session.projectId,
@@ -51,6 +60,8 @@ export function buildPersistedSession(
     permissionMode: session.permissionMode,
     planMode: session.planMode,
     totalCost,
+    upstreamRequestCount: getUpstreamRequestCount(recentRequestLog, upstreamRequestCount ?? session.upstreamRequestCount),
+    requestLog: recentRequestLog,
     contextUsage,
     engine: session.engine,
     folderId: session.folderId,

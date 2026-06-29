@@ -82,6 +82,8 @@ export function useSessionCache({
         isConnected: false,
         sessionInfo: null,
         totalCost: data.totalCost,
+        upstreamRequestCount: data.upstreamRequestCount,
+        requestLog: data.requestLog ?? [],
         contextUsage: data.contextUsage ?? null,
       });
       setInitialPermission(null);

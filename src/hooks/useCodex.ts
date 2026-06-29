@@ -35,6 +35,7 @@ import { captureException } from "@/lib/analytics/analytics";
 import { createSystemMessage, createUserMessage, nextId } from "@/lib/message-factory";
 import { toastText } from "@/lib/toast-i18n";
 import { markInFlightToolCallsFailed } from "@/lib/chat/in-flight-tools";
+import { hasCodexRequestRecord, upsertCodexRequestRecord } from "@/lib/usage/upstream-requests";
 import { normalizeAppPermissionMode } from "@shared/lib/codex-permissions";
 import { useEngineBase } from "./useEngineBase";
 
@@ -102,6 +103,8 @@ export function useCodex({
     isConnected, setIsConnected,
     sessionInfo, setSessionInfo,
     totalCost, setTotalCost,
+    upstreamRequestCount, setUpstreamRequestCount,
+    requestLog, setRequestLog,
     pendingPermission, setPendingPermission,
     contextUsage, setContextUsage,
     isCompacting, setIsCompacting,
@@ -120,6 +123,10 @@ export function useCodex({
   // Refs for rAF streaming flush (avoid React 19 batching issues)
   const bufferRef = useRef(new CodexStreamingBuffer());
   const sessionModelRef = useRef(sessionModel);
+  const requestLogRef = useRef(requestLog);
+  requestLogRef.current = requestLog;
+  const upstreamRequestCountRef = useRef(upstreamRequestCount);
+  upstreamRequestCountRef.current = upstreamRequestCount;
   const serverRequestRef = useRef<CodexServerRequest | null>(null);
   // Map Codex itemId → UIMessage id for updating tool_call messages
   const itemMapRef = useRef(new Map<string, string>());
@@ -138,6 +145,18 @@ export function useCodex({
   useEffect(() => {
     sessionModelRef.current = sessionModel;
   }, [sessionModel]);
+
+  const upsertCodexRequest = useCallback((turnId: string, update: Parameters<typeof upsertCodexRequestRecord>[1]) => {
+    const didInsert = !hasCodexRequestRecord(requestLogRef.current, turnId);
+    const nextLog = upsertCodexRequestRecord(requestLogRef.current, update);
+    requestLogRef.current = nextLog;
+    if (didInsert) {
+      const nextCount = upstreamRequestCountRef.current + 1;
+      upstreamRequestCountRef.current = nextCount;
+      setUpstreamRequestCount(nextCount);
+    }
+    setRequestLog(nextLog);
+  }, [setRequestLog, setUpstreamRequestCount]);
 
   useEffect(() => {
     planModeEnabledRef.current = !!planModeEnabled;
@@ -321,11 +340,31 @@ export function useCodex({
         setIsProcessing(true);
         planTextRef.current = ""; // Reset plan accumulator for new turn
         planTurnCounterRef.current += 1; // New turn → new plan card ID
+        {
+          const turnId = (event.params as { turn?: { id?: string } }).turn?.id;
+          if (turnId) {
+            upsertCodexRequest(turnId, {
+              turnId,
+              status: "pending",
+              model: sessionModelRef.current,
+              startedAt: Date.now(),
+            });
+          }
+        }
         break;
 
-      case "turn/completed":
+      case "turn/completed": {
         handleTurnComplete(event.params);
+        const turnId = (event.params as { turn?: { id?: string } }).turn?.id;
+        if (turnId) {
+          upsertCodexRequest(turnId, {
+            turnId,
+            status: "completed",
+            completedAt: Date.now(),
+          });
+        }
         break;
+      }
 
       case "item/started":
         handleItemStarted(event.params);
@@ -351,6 +390,17 @@ export function useCodex({
       case "thread/tokenUsage/updated":
         handleTokenUsage(event.params);
         break;
+
+      case "model/rerouted": {
+        const reroute = event.params as { turnId?: string; toModel?: string };
+        if (reroute.turnId) {
+          upsertCodexRequest(reroute.turnId, {
+            turnId: reroute.turnId!,
+            model: reroute.toModel,
+          });
+        }
+        break;
+      }
 
       case "turn/plan/updated":
         handlePlanUpdate(event.params);
@@ -724,7 +774,13 @@ export function useCodex({
       cacheCreationTokens: 0,
       contextWindow: usage.modelContextWindow ?? 200_000,
     });
-  }, []);
+    upsertCodexRequest(params.turnId, {
+      turnId: params.turnId,
+      status: "completed",
+      model: sessionModelRef.current,
+      tokenUsage: usage,
+    });
+  }, [upsertCodexRequest]);
 
   // ── Plan updates (step checklist + chat tool card) ──
   // Codex emits turn/plan/updated as a turn-level notification (not an item lifecycle event),
@@ -1146,6 +1202,8 @@ export function useCodex({
     isConnected, setIsConnected,
     sessionInfo, setSessionInfo,
     totalCost, setTotalCost,
+    upstreamRequestCount, setUpstreamRequestCount,
+    requestLog, setRequestLog,
     contextUsage,
     isCompacting,
     send, sendRaw, stop, interrupt, compact,

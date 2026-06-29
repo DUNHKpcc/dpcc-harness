@@ -1,4 +1,4 @@
-import type { ChatSession, UIMessage, SessionInfo, PermissionRequest, FileReference, ImageAttachment, McpServerStatus, ModelInfo, AcpPermissionBehavior, EngineId, Project, SlashCommand, ClaudeEffort, ContextUsage, ACPConfigOption, ACPPermissionEvent } from "@/types";
+import type { ChatSession, UIMessage, SessionInfo, PermissionRequest, FileReference, ImageAttachment, McpServerStatus, ModelInfo, AcpPermissionBehavior, EngineId, Project, SlashCommand, ClaudeEffort, ContextUsage, ACPConfigOption, ACPPermissionEvent, UpstreamRequestRecord } from "@/types";
 import type { BackgroundSessionStore } from "../../lib/background/session-store";
 import { permissionModeToCodexPolicy, permissionModeToCodexSandbox } from "../../lib/engine/codex-adapter";
 import type { CollaborationMode } from "../../types/codex-protocol/CollaborationMode";
@@ -35,6 +35,8 @@ export interface InitialMeta {
   isConnected: boolean;
   sessionInfo: SessionInfo | null;
   totalCost: number;
+  upstreamRequestCount?: number;
+  requestLog?: UpstreamRequestRecord[];
   contextUsage: ContextUsage | null;
   isCompacting?: boolean;
 }
@@ -74,6 +76,8 @@ export interface SharedSessionRefs {
   startOptionsRef: React.MutableRefObject<StartOptions>;
   messagesRef: React.MutableRefObject<UIMessage[]>;
   totalCostRef: React.MutableRefObject<number>;
+  upstreamRequestCountRef: React.MutableRefObject<number>;
+  requestLogRef: React.MutableRefObject<UpstreamRequestRecord[]>;
   contextUsageRef: React.MutableRefObject<ContextUsage | null>;
   isProcessingRef: React.MutableRefObject<boolean>;
   isCompactingRef: React.MutableRefObject<boolean>;

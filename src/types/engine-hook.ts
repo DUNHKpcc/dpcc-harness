@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
-import type { UIMessage, SessionInfo } from "./session";
+import type { UIMessage, SessionInfo, UpstreamRequestRecord } from "./session";
 import type { PermissionRequest } from "./permissions";
 import type { ContextUsage } from "./mcp";
 import type { RespondPermissionFn } from "../../shared/types/engine";
@@ -10,6 +10,8 @@ export interface BackgroundSessionSnapshot {
   isConnected: boolean;
   sessionInfo: SessionInfo | null;
   totalCost: number;
+  upstreamRequestCount?: number;
+  requestLog?: UpstreamRequestRecord[];
   contextUsage: ContextUsage | null;
   isCompacting?: boolean;
 }
@@ -29,6 +31,10 @@ export interface EngineHookState {
   setSessionInfo: Dispatch<SetStateAction<SessionInfo | null>>;
   totalCost: number;
   setTotalCost: Dispatch<SetStateAction<number>>;
+  upstreamRequestCount: number;
+  setUpstreamRequestCount: Dispatch<SetStateAction<number>>;
+  requestLog: UpstreamRequestRecord[];
+  setRequestLog: Dispatch<SetStateAction<UpstreamRequestRecord[]>>;
   contextUsage: ContextUsage | null;
   isCompacting?: boolean;
   pendingPermission: PermissionRequest | null;

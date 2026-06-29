@@ -235,6 +235,8 @@ export function useSessionCrud({
             isConnected: bgState.isConnected,
             sessionInfo: normalizedBgSessionInfo,
             totalCost: bgState.totalCost,
+            upstreamRequestCount: bgState.upstreamRequestCount,
+            requestLog: bgState.requestLog ?? [],
             contextUsage: bgState.contextUsage,
             isCompacting: bgState.isCompacting,
           });
@@ -391,6 +393,7 @@ export function useSessionCrud({
         title: titleText.length > 60 ? titleText.slice(0, 57) + "..." : titleText,
         createdAt: result.messages[0]?.timestamp || Date.now(),
         totalCost: 0,
+        requestLog: [],
         isActive: true,
       };
 
@@ -402,6 +405,7 @@ export function useSessionCrud({
         createdAt: newSession.createdAt,
         messages: result.messages,
         totalCost: 0,
+        requestLog: [],
       });
       cacheSessionPayload({
         id: ccSessionId,
@@ -410,6 +414,7 @@ export function useSessionCrud({
         createdAt: newSession.createdAt,
         messages: result.messages,
         totalCost: 0,
+        requestLog: [],
       });
 
       setSessions((prev) => [

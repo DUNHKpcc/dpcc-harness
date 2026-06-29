@@ -96,6 +96,40 @@ export interface SessionInfo {
   agentName?: string;
 }
 
+export type UpstreamRequestEngine = "claude" | "codex";
+export type UpstreamRequestStatus = "pending" | "completed" | "failed";
+
+export interface UpstreamModelUsageBreakdown {
+  model: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheCreationTokens?: number;
+  reasoningOutputTokens?: number;
+  webSearchRequests?: number;
+  costUSD?: number;
+  contextWindow?: number;
+}
+
+export interface UpstreamRequestRecord {
+  id: string;
+  engine: UpstreamRequestEngine;
+  model?: string;
+  status: UpstreamRequestStatus;
+  startedAt: number;
+  completedAt?: number;
+  requestCount: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheCreationTokens?: number;
+  reasoningOutputTokens?: number;
+  durationMs?: number;
+  costUSD?: number;
+  modelBreakdown?: UpstreamModelUsageBreakdown[];
+  note?: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -134,6 +168,9 @@ export interface SessionBase {
   permissionMode?: string;
   planMode?: boolean;
   totalCost: number;
+  /** Total upstream model request/turn count for the session. Detailed records are capped. */
+  upstreamRequestCount?: number;
+  requestLog?: UpstreamRequestRecord[];
   engine?: EngineId;
   agentSessionId?: string;
   agentId?: string;

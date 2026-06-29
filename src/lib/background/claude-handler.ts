@@ -24,6 +24,7 @@ import { createSystemMessage, formatResultError, nextId } from "@/lib/message-fa
 import { bgAgentStore } from "./agent-store";
 import { mergeStreamingChunk } from "@/lib/engine/streaming-buffer";
 import { normalizeTodoToolInput } from "@/lib/chat/todo-utils";
+import { appendUpstreamRequestRecord, createClaudeRequestRecord } from "@/lib/usage/upstream-requests";
 import type { InternalState } from "./session-store";
 
 // ── Stream event handler ──
@@ -371,6 +372,16 @@ export function handleClaudeEvent(
       const resultEvt = event as ResultEvent;
       state.isProcessing = false;
       state.totalCost += resultEvt.total_cost_usd ?? 0;
+      const requestCount = Math.max(1, resultEvt.num_turns || 1);
+      state.upstreamRequestCount += requestCount;
+      state.requestLog = appendUpstreamRequestRecord(
+        state.requestLog,
+        createClaudeRequestRecord(
+          resultEvt,
+          state.upstreamRequestCount,
+          state.sessionInfo?.model,
+        ),
+      );
 
       if (resultEvt.modelUsage) {
         const entries = Object.values(resultEvt.modelUsage);

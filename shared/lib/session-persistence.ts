@@ -14,6 +14,8 @@ export interface SessionMeta {
   permissionMode?: string;
   planMode?: boolean;
   totalCost?: number;
+  upstreamRequestCount?: number;
+  requestLog?: unknown[];
   engine?: "claude" | "acp" | "codex";
   codexThreadId?: string;
   /** Which folder this chat belongs to (undefined = root level). */
@@ -61,6 +63,8 @@ export function extractSessionMeta(data: Record<string, unknown>, lastMessageAt:
     permissionMode: data.permissionMode as string | undefined,
     planMode: data.planMode as boolean | undefined,
     totalCost: (data.totalCost as number) || 0,
+    upstreamRequestCount: typeof data.upstreamRequestCount === "number" ? data.upstreamRequestCount : undefined,
+    requestLog: Array.isArray(data.requestLog) ? data.requestLog : [],
     engine: data.engine as SessionMeta["engine"],
     codexThreadId: data.codexThreadId as string | undefined,
     folderId: data.folderId as string | undefined,

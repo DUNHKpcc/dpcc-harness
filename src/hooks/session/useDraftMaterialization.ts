@@ -364,6 +364,7 @@ export function useDraftMaterialization({
           createdAt: Date.now(),
           lastMessageAt: Date.now(),
           totalCost: 0,
+          requestLog: [],
           effort: options.effort,
           permissionMode: options.permissionMode,
           planMode: !!options.planMode,
@@ -405,6 +406,7 @@ export function useDraftMaterialization({
               isConnected: false,
               sessionInfo: null,
               totalCost: 0,
+              requestLog: [],
               contextUsage: null,
             });
             setActiveSessionId(failedId);
@@ -420,6 +422,7 @@ export function useDraftMaterialization({
               permissionMode: options.permissionMode,
               planMode: !!options.planMode,
               totalCost: 0,
+              requestLog: [],
               engine: "acp",
               agentId: options.agentId,
             });
@@ -438,6 +441,7 @@ export function useDraftMaterialization({
               isConnected: false,
               sessionInfo: null,
               totalCost: 0,
+              requestLog: [],
               contextUsage: null,
             });
             acp.setAuthMethods(result.authMethods ?? []);
@@ -467,6 +471,7 @@ export function useDraftMaterialization({
           createdAt: Date.now(),
           lastMessageAt: Date.now(),
           totalCost: 0,
+          requestLog: [],
           effort: options.effort,
           permissionMode: options.permissionMode,
           planMode: !!options.planMode,
@@ -500,6 +505,7 @@ export function useDraftMaterialization({
             isConnected: false,
             sessionInfo: null,
             totalCost: 0,
+            requestLog: [],
             contextUsage: null,
           });
           setActiveSessionId(failedId);
@@ -514,6 +520,7 @@ export function useDraftMaterialization({
             permissionMode: options.permissionMode,
             planMode: !!options.planMode,
             totalCost: 0,
+            requestLog: [],
             engine: "codex",
           });
           materializingRef.current = false;
@@ -569,6 +576,8 @@ export function useDraftMaterialization({
               isConnected: bgState.isConnected,
               sessionInfo: bgState.sessionInfo,
               totalCost: bgState.totalCost,
+              upstreamRequestCount: bgState.upstreamRequestCount,
+              requestLog: bgState.requestLog ?? [],
               contextUsage: bgState.contextUsage,
               isCompacting: bgState.isCompacting,
             });
@@ -616,6 +625,7 @@ export function useDraftMaterialization({
         permissionMode: options.permissionMode,
         planMode: !!options.planMode,
         totalCost: 0,
+        requestLog: [],
         isActive: true,
         titleGenerating: true,
         ...(currentBranch ? { branch: currentBranch } : {}),
@@ -645,6 +655,7 @@ export function useDraftMaterialization({
             isConnected: true,
             sessionInfo: null,
             totalCost: 0,
+            requestLog: [],
             contextUsage: null,
           });
         } else {

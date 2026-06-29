@@ -26,7 +26,7 @@ export function useSessionPersistence({
   continueQueuedBackgroundSession,
 }: UseSessionPersistenceParams) {
   const { claude, acp, codex, engine } = engines;
-  const { messages, totalCost, sessionInfo } = engine;
+  const { messages, totalCost, upstreamRequestCount, requestLog, sessionInfo } = engine;
   const {
     setSessions,
     setDraftMcpStatuses,
@@ -40,6 +40,8 @@ export function useSessionPersistence({
     sessionsRef,
     messagesRef,
     totalCostRef,
+    upstreamRequestCountRef,
+    requestLogRef,
     contextUsageRef,
     isProcessingRef,
     isCompactingRef,
@@ -179,6 +181,7 @@ export function useSessionPersistence({
             bgState.messages,
             bgState.totalCost,
             bgState.contextUsage,
+            bgState.requestLog ?? [],
           );
           window.claude.sessions.save(persisted);
         }
@@ -371,6 +374,8 @@ export function useSessionPersistence({
         permissionMode: session.permissionMode,
         planMode: session.planMode,
         totalCost: totalCostRef.current,
+        upstreamRequestCount: upstreamRequestCountRef.current,
+        requestLog: requestLogRef.current,
         contextUsage: contextUsageRef.current,
         engine: session.engine,
         ...(session.agentId ? { agentId: session.agentId } : {}),
@@ -384,7 +389,7 @@ export function useSessionPersistence({
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     };
-  }, [messages, activeSessionId, sessionInfo?.model, persistSessionWithCodexFallback]);
+  }, [messages, activeSessionId, sessionInfo?.model, upstreamRequestCount, requestLog, persistSessionWithCodexFallback]);
 
   // Consolidated sync of session metadata to the session list (model, totalCost,
   // lastMessageAt, isProcessing, hasPendingPermission). A single effect avoids
@@ -435,6 +440,14 @@ export function useSessionPersistence({
           updates.totalCost = totalCost;
         }
 
+        if (requestLog.length > 0 && s.requestLog !== requestLog) {
+          updates.requestLog = requestLog;
+        }
+
+        if (upstreamRequestCount > 0 && s.upstreamRequestCount !== upstreamRequestCount) {
+          updates.upstreamRequestCount = upstreamRequestCount;
+        }
+
         // lastMessageAt sync
         if (lastMessageAt !== undefined && s.lastMessageAt !== lastMessageAt) {
           updates.lastMessageAt = lastMessageAt;
@@ -456,7 +469,7 @@ export function useSessionPersistence({
       });
       return changed ? next : prev;
     });
-  }, [activeClaudeModels, activeSessionId, sessionInfo?.model, sessionInfo?.permissionMode, totalCost, messages.length, engine.isProcessing, engine.pendingPermission]);
+  }, [activeClaudeModels, activeSessionId, sessionInfo?.model, sessionInfo?.permissionMode, totalCost, upstreamRequestCount, requestLog, messages.length, engine.isProcessing, engine.pendingPermission]);
 
   // Save current session to disk (used before switching/creating)
   const saveCurrentSession = useCallback(async () => {
@@ -471,6 +484,8 @@ export function useSessionPersistence({
       msgs,
       totalCostRef.current,
       contextUsageRef.current,
+      requestLogRef.current,
+      upstreamRequestCountRef.current,
     );
     await persistSessionWithCodexFallback(data);
   }, [persistSessionWithCodexFallback]);
@@ -494,6 +509,8 @@ export function useSessionPersistence({
         isCompacting: isCompactingRef.current,
         sessionInfo: sessionInfoRef.current,
         totalCost: totalCostRef.current,
+        upstreamRequestCount: upstreamRequestCountRef.current,
+        requestLog: requestLogRef.current,
         contextUsage: contextUsageRef.current,
         pendingPermission: pendingPermissionRef.current ?? null,
         rawAcpPermission: null, // ACP ref is internal to useACP — will be restored via initialRawAcpPermission

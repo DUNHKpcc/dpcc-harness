@@ -45,6 +45,8 @@ export function useSessionRevival({
     sessionsRef,
     messagesRef,
     totalCostRef,
+    upstreamRequestCountRef,
+    requestLogRef,
     contextUsageRef,
     liveSessionIdsRef,
     startOptionsRef,
@@ -98,6 +100,8 @@ export function useSessionRevival({
         isConnected: true,
         sessionInfo: null,
         totalCost: totalCostRef.current,
+        upstreamRequestCount: upstreamRequestCountRef.current,
+        requestLog: requestLogRef.current,
         contextUsage: contextUsageRef.current,
       });
       if (result.configOptions?.length) setInitialConfigOptions(result.configOptions);
@@ -171,6 +175,8 @@ export function useSessionRevival({
         isConnected: true,
         sessionInfo: null,
         totalCost: totalCostRef.current,
+        upstreamRequestCount: upstreamRequestCountRef.current,
+        requestLog: requestLogRef.current,
         contextUsage: contextUsageRef.current,
       });
       setActiveSessionId(newId);

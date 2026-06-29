@@ -111,7 +111,7 @@ export function useSessionManager(
   });
 
   const { claude, acp, codex, engine } = primaryPane;
-  const { messages, totalCost, contextUsage } = primaryPane;
+  const { messages, totalCost, upstreamRequestCount, requestLog, contextUsage } = primaryPane;
 
   // ── All refs (21+) — kept for stale-closure avoidance ──
   const liveSessionIdsRef = useRef<Set<string>>(new Set());
@@ -119,6 +119,10 @@ export function useSessionManager(
   messagesRef.current = messages;
   const totalCostRef = useRef(totalCost);
   totalCostRef.current = totalCost;
+  const upstreamRequestCountRef = useRef(upstreamRequestCount);
+  upstreamRequestCountRef.current = upstreamRequestCount;
+  const requestLogRef = useRef(requestLog);
+  requestLogRef.current = requestLog;
   const contextUsageRef = useRef(contextUsage);
   contextUsageRef.current = contextUsage;
   const activeSessionIdRef = useRef(activeSessionId);
@@ -207,6 +211,8 @@ export function useSessionManager(
     startOptionsRef,
     messagesRef,
     totalCostRef,
+    upstreamRequestCountRef,
+    requestLogRef,
     contextUsageRef,
     isProcessingRef,
     isCompactingRef,
@@ -444,6 +450,7 @@ export function useSessionManager(
             createdAt: now,
             lastMessageAt: now,
             totalCost: 0,
+            requestLog: [],
             planMode: !!startOptionsRef.current.planMode,
             isActive: true,
             titleGenerating: true,
@@ -515,6 +522,8 @@ export function useSessionManager(
           isConnected: backgroundState.isConnected,
           sessionInfo: backgroundState.sessionInfo,
           totalCost: backgroundState.totalCost,
+          upstreamRequestCount: backgroundState.upstreamRequestCount,
+          requestLog: backgroundState.requestLog ?? [],
           contextUsage: backgroundState.contextUsage,
           isCompacting: backgroundState.isCompacting,
         },
@@ -538,6 +547,8 @@ export function useSessionManager(
         isConnected: false,
         sessionInfo: null,
         totalCost: persistedSession.totalCost ?? 0,
+        upstreamRequestCount: persistedSession.upstreamRequestCount,
+        requestLog: persistedSession.requestLog ?? [],
         contextUsage: persistedSession.contextUsage ?? null,
       },
       initialPermission: null,
@@ -580,6 +591,8 @@ export function useSessionManager(
     isConnected: engine.isConnected || isDraft,
     sessionInfo: engine.sessionInfo,
     totalCost: engine.totalCost,
+    upstreamRequestCount: engine.upstreamRequestCount,
+    requestLog: engine.requestLog,
     send,
     unqueueMessage,
     sendQueuedMessageNext,

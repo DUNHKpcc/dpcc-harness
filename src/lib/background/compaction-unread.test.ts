@@ -43,6 +43,8 @@ function seedState(overrides: Partial<BackgroundSessionState>): BackgroundSessio
     isCompacting: false,
     sessionInfo: null,
     totalCost: 0,
+    upstreamRequestCount: 0,
+    requestLog: [],
     contextUsage: null,
     pendingPermission: null,
     rawAcpPermission: null,

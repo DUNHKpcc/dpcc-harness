@@ -14,6 +14,7 @@ import type { InternalState } from "./session-store";
 import { codexItemToToolName, codexItemToToolInput, codexItemToToolResult, codexPlanToTodos } from "@/lib/engine/codex-adapter";
 import { ensureACPStreamingMsg, finalizeACPStreamingMsg } from "./acp-handler";
 import { nextId } from "@/lib/message-factory";
+import { hasCodexRequestRecord, upsertCodexRequestRecord } from "@/lib/usage/upstream-requests";
 
 /**
  * Process a Codex notification for a background session, mutating `state` in place.
@@ -39,11 +40,33 @@ export function handleCodexEvent(
       state.codexPlanTurnCounter += 1;
       state.turnSawCompaction = false;
       state.turnSawOutput = false;
+      {
+        const turnId = (params as { turn?: { id?: string } }).turn?.id;
+        if (turnId) {
+          if (!hasCodexRequestRecord(state.requestLog, turnId)) {
+            state.upstreamRequestCount += 1;
+          }
+          state.requestLog = upsertCodexRequestRecord(state.requestLog, {
+            turnId,
+            status: "pending",
+            model: state.sessionInfo?.model,
+            startedAt: Date.now(),
+          });
+        }
+      }
       return { processingChanged: true, isProcessing: true };
 
     case "turn/completed": {
       finalizeACPStreamingMsg(state); // reuse — same pattern
       state.isProcessing = false;
+      const turnId = (params as { turn?: { id?: string } }).turn?.id;
+      if (turnId) {
+        state.requestLog = upsertCodexRequestRecord(state.requestLog, {
+          turnId,
+          status: "completed",
+          completedAt: Date.now(),
+        });
+      }
       // A compaction-only turn must not light up the unread dot / fire a notification.
       const suppressUnread = state.turnSawCompaction && !state.turnSawOutput;
       state.turnSawCompaction = false;
@@ -261,7 +284,7 @@ export function handleCodexEvent(
     }
 
     case "thread/tokenUsage/updated": {
-      const { tokenUsage } = params as CodexTokenUsageNotification;
+      const { turnId, tokenUsage } = params as CodexTokenUsageNotification;
       state.contextUsage = {
         inputTokens: tokenUsage.last.inputTokens,
         outputTokens: tokenUsage.last.outputTokens,
@@ -269,6 +292,26 @@ export function handleCodexEvent(
         cacheCreationTokens: 0,
         contextWindow: tokenUsage.modelContextWindow ?? state.contextUsage?.contextWindow ?? 200_000,
       };
+      if (!hasCodexRequestRecord(state.requestLog, turnId)) {
+        state.upstreamRequestCount += 1;
+      }
+      state.requestLog = upsertCodexRequestRecord(state.requestLog, {
+        turnId,
+        status: "completed",
+        model: state.sessionInfo?.model,
+        tokenUsage,
+      });
+      break;
+    }
+
+    case "model/rerouted": {
+      const reroute = params as { turnId?: string; toModel?: string };
+      if (reroute.turnId) {
+        state.requestLog = upsertCodexRequestRecord(state.requestLog, {
+          turnId: reroute.turnId,
+          model: reroute.toModel,
+        });
+      }
       break;
     }
 

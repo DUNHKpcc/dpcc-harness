@@ -5,11 +5,13 @@ import type {
   PermissionRequest,
   SlashCommand,
   ContextUsage,
+  UpstreamRequestRecord,
 } from "@/types";
 import type { ACPSessionEvent, ACPPermissionEvent, CodexSessionEvent } from "@/types";
 import { handleClaudeEvent } from "./claude-handler";
 import { handleACPEvent as acpHandler, handleACPTurnComplete as acpTurnComplete } from "./acp-handler";
 import { handleCodexEvent as codexHandler } from "./codex-handler";
+import { getUpstreamRequestCount, trimUpstreamRequestLog } from "@/lib/usage/upstream-requests";
 
 export interface BackgroundSessionState {
   messages: UIMessage[];
@@ -18,6 +20,8 @@ export interface BackgroundSessionState {
   isCompacting: boolean;
   sessionInfo: SessionInfo | null;
   totalCost: number;
+  upstreamRequestCount?: number;
+  requestLog?: UpstreamRequestRecord[];
   contextUsage: ContextUsage | null;
   pendingPermission: PermissionRequest | null;
   /** Raw ACP permission event — needed for optionId lookup when responding */
@@ -27,6 +31,8 @@ export interface BackgroundSessionState {
 }
 
 export interface InternalState extends BackgroundSessionState {
+  upstreamRequestCount: number;
+  requestLog: UpstreamRequestRecord[];
   parentToolMap: Map<string, string>;
   currentStreamingMsgId: string | null;
   /** Accumulated plan text from item/plan/delta events (Codex only). */
@@ -69,6 +75,8 @@ export class BackgroundSessionStore {
         isCompacting: false,
         sessionInfo: null,
         totalCost: 0,
+        upstreamRequestCount: 0,
+        requestLog: [],
         contextUsage: null,
         pendingPermission: null,
         rawAcpPermission: null,
@@ -160,6 +168,8 @@ export class BackgroundSessionStore {
       isCompacting: state.isCompacting,
       sessionInfo: cloneValue(state.sessionInfo),
       totalCost: state.totalCost,
+      upstreamRequestCount: state.upstreamRequestCount,
+      requestLog: cloneValue(trimUpstreamRequestLog(state.requestLog)),
       contextUsage: cloneValue(state.contextUsage),
       pendingPermission: cloneValue(state.pendingPermission),
       rawAcpPermission: cloneValue(state.rawAcpPermission),
@@ -179,6 +189,8 @@ export class BackgroundSessionStore {
       isCompacting: state.isCompacting,
       sessionInfo: state.sessionInfo,
       totalCost: state.totalCost,
+      upstreamRequestCount: state.upstreamRequestCount,
+      requestLog: trimUpstreamRequestLog(state.requestLog),
       contextUsage: state.contextUsage,
       pendingPermission: state.pendingPermission,
       rawAcpPermission: state.rawAcpPermission,
@@ -281,6 +293,8 @@ export class BackgroundSessionStore {
       isCompacting: state.isCompacting ?? false,
       sessionInfo: state.sessionInfo ? { ...state.sessionInfo } : null,
       totalCost: state.totalCost,
+      upstreamRequestCount: getUpstreamRequestCount(state.requestLog, state.upstreamRequestCount),
+      requestLog: cloneValue(trimUpstreamRequestLog(state.requestLog)),
       contextUsage: state.contextUsage ? { ...state.contextUsage } : null,
       pendingPermission: state.pendingPermission ? { ...state.pendingPermission } : null,
       rawAcpPermission: state.rawAcpPermission ?? null,

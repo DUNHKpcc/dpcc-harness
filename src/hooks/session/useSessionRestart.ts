@@ -41,6 +41,8 @@ export function useSessionRestart({
     sessionsRef,
     messagesRef,
     totalCostRef,
+    upstreamRequestCountRef,
+    requestLogRef,
     contextUsageRef,
     isProcessingRef,
     liveSessionIdsRef,
@@ -113,6 +115,8 @@ export function useSessionRestart({
       isConnected: true,
       sessionInfo: null,
       totalCost: currentCost,
+      upstreamRequestCount: upstreamRequestCountRef.current,
+      requestLog: requestLogRef.current,
       contextUsage: contextUsageRef.current,
     });
     if ("configOptions" in result && result.configOptions?.length) setInitialConfigOptions(result.configOptions);
@@ -181,6 +185,8 @@ export function useSessionRestart({
         isConnected: true,
         sessionInfo: null,
         totalCost: totalCostRef.current,
+        upstreamRequestCount: upstreamRequestCountRef.current,
+        requestLog: requestLogRef.current,
         contextUsage: contextUsageRef.current,
       });
       setActiveSessionId(newId);
@@ -276,6 +282,8 @@ export function useSessionRestart({
       isConnected: true,
       sessionInfo: null, // repopulated by system/init event from forked session
       totalCost: totalCostRef.current,
+      upstreamRequestCount: upstreamRequestCountRef.current,
+      requestLog: requestLogRef.current,
       contextUsage: contextUsageRef.current,
     });
 

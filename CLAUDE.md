@@ -676,7 +676,7 @@ Always search the web when needed for up-to-date API references, Electron APIs, 
 - Never commit local artifacts (e.g. `.codex/`, icon backups, scratch files) — add them to `.gitignore` instead.
 
 **Version bumping**:
-1. Check for latest `@anthropic-ai/claude-agent-sdk` version and update in `package.json` if newer
+1. Do not upgrade `@anthropic-ai/claude-agent-sdk` during version bumping, tagging, pushing tags, or release preparation unless the user explicitly forces an SDK upgrade in the same request.
 2. Bump `version` in `package.json` (electron-builder uses this, NOT the git tag)
 3. Commit: `chore: bump version to X.Y.Z`
 4. Tag: `git tag vX.Y.Z HEAD && git push origin vX.Y.Z`

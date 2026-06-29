@@ -15,7 +15,11 @@
 import fs from "fs";
 import path from "path";
 import os from "os";
-import { execFileSync, type ExecFileSyncOptionsWithStringEncoding } from "child_process";
+import {
+  execFile,
+  execFileSync,
+  type ExecFileOptionsWithStringEncoding,
+} from "child_process";
 import { app } from "electron";
 import { log } from "./logger";
 import { reportError } from "./error-utils";
@@ -368,24 +372,40 @@ function getNpmCommand(): string {
   return process.platform === "win32" ? "npm.cmd" : "npm";
 }
 
-function runNpmPack(packageSpec: string, cwd: string): void {
+function execFileUtf8(
+  command: string,
+  args: string[],
+  options: ExecFileOptionsWithStringEncoding,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    execFile(command, args, options, (error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
+async function runNpmPack(packageSpec: string, cwd: string): Promise<void> {
   const args = ["pack", packageSpec, "--pack-destination", "."];
-  const options: ExecFileSyncOptionsWithStringEncoding = {
+  const options: ExecFileOptionsWithStringEncoding = {
     cwd,
     encoding: "utf-8",
     timeout: 120000,
-    stdio: ["ignore", "pipe", "pipe"],
+    maxBuffer: 10 * 1024 * 1024,
   };
 
   try {
-    execFileSync(getNpmCommand(), args, options);
+    await execFileUtf8(getNpmCommand(), args, options);
     return;
   } catch (error) {
     const err = error as NodeJS.ErrnoException;
     if (process.platform === "win32" && err.code === "EINVAL") {
       const comSpec = process.env.ComSpec || "cmd.exe";
       log("codex-binary", `npm.cmd failed with EINVAL, retrying via ${comSpec}`);
-      execFileSync(comSpec, ["/d", "/c", "npm", "pack", packageSpec, "--pack-destination", "."], options);
+      await execFileUtf8(comSpec, ["/d", "/c", "npm", "pack", packageSpec, "--pack-destination", "."], options);
       return;
     }
     throw error;
@@ -504,7 +524,7 @@ async function downloadCodexBinary(): Promise<string> {
     log("codex-binary", `npm pack ${packageSpec} in ${tmpDir}`);
 
     // npm pack downloads the tarball
-    runNpmPack(packageSpec, tmpDir);
+    await runNpmPack(packageSpec, tmpDir);
 
     // Find the downloaded .tgz
     const tgzFiles = fs.readdirSync(tmpDir).filter((f) => f.endsWith(".tgz"));

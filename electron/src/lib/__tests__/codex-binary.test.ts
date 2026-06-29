@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   mockAccessSync,
+  mockExecFile,
   mockExecFileSync,
   mockGetAppSetting,
   mockLog,
@@ -10,6 +11,7 @@ const {
   mockOsArch,
 } = vi.hoisted(() => ({
   mockAccessSync: vi.fn(),
+  mockExecFile: vi.fn(),
   mockExecFileSync: vi.fn(),
   mockGetAppSetting: vi.fn<(key: string) => string>((key: string) => {
     if (key === "codexBinarySource") return "auto";
@@ -41,6 +43,7 @@ vi.mock("fs", () => ({
 }));
 
 vi.mock("child_process", () => ({
+  execFile: mockExecFile,
   execFileSync: mockExecFileSync,
 }));
 
@@ -88,6 +91,7 @@ describe("codex binary resolution", () => {
       configurable: true,
     });
     mockAccessSync.mockReset();
+    mockExecFile.mockReset();
     mockExecFileSync.mockReset();
     mockGetAppSetting.mockReset();
     mockGetAppSetting.mockImplementation((key: string): string => {
@@ -128,5 +132,35 @@ describe("codex binary resolution", () => {
 
     expect(mod.__test.getPlatformTag()).toBe("win32-x64");
     expect(mod.__test.getVendorTargetTriple()).toBe("x86_64-pc-windows-msvc");
+  });
+
+  it("uses async npm pack when auto-downloading a missing Codex binary", async () => {
+    mockApp.isPackaged = false;
+    mockAccessSync.mockImplementation(() => {
+      throw new Error("missing");
+    });
+    mockExecFileSync.mockImplementation((command: string) => {
+      if (command === "where") throw new Error("not found");
+      if (command === "npm.cmd") throw new Error("sync npm should not run");
+      throw new Error(`unexpected sync command: ${command}`);
+    });
+    mockExecFile.mockImplementation((_command, _args, _options, callback) => {
+      callback(new Error("network unavailable"));
+    });
+
+    const mod = await loadModule();
+
+    await expect(mod.getCodexBinaryPath()).rejects.toThrow("network unavailable");
+    expect(mockExecFile).toHaveBeenCalledWith(
+      "npm.cmd",
+      expect.arrayContaining(["pack", "@openai/codex@win32-x64"]),
+      expect.objectContaining({ timeout: 120000 }),
+      expect.any(Function),
+    );
+    expect(mockExecFileSync).not.toHaveBeenCalledWith(
+      "npm.cmd",
+      expect.arrayContaining(["pack", "@openai/codex@win32-x64"]),
+      expect.anything(),
+    );
   });
 });

@@ -233,6 +233,8 @@ function SplitChatPaneInner({
               model={paneController.paneHeaderModel}
               sessionId={paneState.sessionInfo?.sessionId}
               totalCost={paneState.totalCost}
+              upstreamRequestCount={paneState.upstreamRequestCount}
+              requestLog={paneState.requestLog}
               title={session?.title}
               titleGenerating={session?.titleGenerating}
               planMode={paneController.panePlanMode}

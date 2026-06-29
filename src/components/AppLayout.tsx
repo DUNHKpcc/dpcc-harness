@@ -1882,6 +1882,8 @@ export function AppLayout() {
                   model={activePaneCtrl?.paneHeaderModel}
                   sessionId={manager.sessionInfo?.sessionId}
                   totalCost={manager.totalCost}
+                  upstreamRequestCount={manager.upstreamRequestCount}
+                  requestLog={manager.requestLog}
                   title={manager.activeSession?.title}
                   titleGenerating={manager.activeSession?.titleGenerating}
                   planMode={activePaneCtrl?.panePlanMode ?? settings.planMode}

@@ -119,4 +119,25 @@ describe("codexUtilityPrompt", () => {
       }),
     });
   });
+
+  it("does not leak a local model when the effective upstream has no configured model", async () => {
+    mockResolveCodexUpstream.mockReturnValue({
+      tier: "default",
+      providerName: "DPCC API",
+      baseUrl: "https://api.dpcc.example/v1",
+      apiKey: "sk-dpcc",
+      model: "",
+    });
+    const { codexUtilityPrompt } = await loadModule();
+
+    await expect(codexUtilityPrompt("hello", "/tmp/project", "TEST")).resolves.toBe("ok");
+
+    const threadStart = mockRequests.find((r) => r.method === "thread/start")?.params;
+    const turnStart = mockRequests.find((r) => r.method === "turn/start")?.params;
+    expect(threadStart).toMatchObject({
+      modelProvider: "pcc-agent-gateway",
+      model: null,
+    });
+    expect(turnStart).not.toHaveProperty("model");
+  });
 });

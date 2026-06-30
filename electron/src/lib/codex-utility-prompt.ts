@@ -179,6 +179,8 @@ export async function codexUtilityPrompt(
     Object.assign(threadParams, upstreamThreadParams);
     if (typeof upstreamThreadParams.model === "string") {
       selectedModel = upstreamThreadParams.model;
+    } else if ("model" in upstreamThreadParams) {
+      selectedModel = undefined;
     }
     const thread = await rpc.request<CodexThreadStartResponse>("thread/start", threadParams);
 

@@ -355,6 +355,9 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
           if (typeof gatewayParams.model === "string") {
             session.model = gatewayParams.model;
             selectedModel = gatewayParams.model;
+          } else if ("model" in gatewayParams) {
+            session.model = undefined;
+            selectedModel = undefined;
           }
         }
 
@@ -417,6 +420,9 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
           if (session.sandbox) threadParams.sandbox = session.sandbox;
           // Custom gateway: override provider + model (takes priority).
           Object.assign(threadParams, codexUpstreamThreadParams());
+          if (threadParams.model === null) {
+            session.model = undefined;
+          }
           const threadResult = await session.rpc.request<CodexThreadStartResponse>("thread/start", threadParams);
           session.threadId = threadResult.thread.id;
           log(
@@ -781,6 +787,8 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
           Object.assign(threadParams, gatewayResumeParams);
           if (typeof gatewayResumeParams.model === "string") {
             session.model = gatewayResumeParams.model;
+          } else if ("model" in gatewayResumeParams) {
+            session.model = undefined;
           }
         }
 

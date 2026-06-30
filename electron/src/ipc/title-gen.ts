@@ -4,7 +4,7 @@ import { getSDK } from "../lib/sdk";
 import { reportError } from "../lib/error-utils";
 import { gitExec } from "../lib/git-exec";
 import { getClaudeBinaryPath, getClaudeSdkProcessOptions } from "../lib/claude-binary";
-import { claudeSpawnEnv, claudeGatewayModel } from "../lib/claude-gateway-env";
+import { claudeSpawnEnv, claudeResolvedModel, claudeSettingSources } from "../lib/claude-gateway-env";
 
 function firstNonEmptyLine(text: string): string | undefined {
   for (const line of text.split(/\r?\n/g)) {
@@ -31,7 +31,7 @@ async function oneShotSdkQuery(
   // The effective upstream (gateway or DPCC default) may serve its own models.
   // Use that configured model so utility queries authenticate and resolve instead
   // of returning "not login" (B5b).
-  const model = claudeGatewayModel() ?? (options?.model?.trim() || "haiku");
+  const model = claudeResolvedModel(options?.model ?? "haiku");
   const startedAt = Date.now();
   log(logLabel, `one-shot:start cwd=${cwd} model=${model} prompt_len=${prompt.length} timeout_ms=${timeoutMs}`);
 
@@ -54,10 +54,8 @@ async function oneShotSdkQuery(
     const q = query({
       prompt,
       options: {
-        // Keep Claude's normal setting sources for non-auth preferences. claudeSpawnEnv
-        // injects the gateway/DPCC-default override and purges stale local auth.
-        settingSources: ["user", "project", "local"],
         ...options?.extraOptions,
+        settingSources: claudeSettingSources(),
         cwd,
         model,
         maxTurns: 1,
@@ -315,7 +313,6 @@ export function register(): void {
         model: "haiku",
         extraOptions: {
           systemPrompt: { type: "preset", preset: "claude_code" },
-          settingSources: ["project", "user", "local"],
         },
       });
       return { message: result, error };

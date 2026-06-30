@@ -18,6 +18,14 @@ import { loadLocalClaudeEnv } from "./local-cli-config";
 import { clientAppEnv } from "./sdk";
 import { resolveClaudeUpstream } from "./upstream-resolver";
 
+const DEFAULT_SETTING_SOURCES = ["user", "project", "local"];
+const GATEWAY_SETTING_SOURCES = ["project", "local"];
+
+function hasClaudeUpstreamOverride(): boolean {
+  const u = resolveClaudeUpstream();
+  return u.tier !== "local" && Boolean(u.baseUrl || u.token);
+}
+
 /**
  * Env vars for the effective Claude upstream (ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN).
  * Returns the env override for the gateway/default tier.
@@ -44,20 +52,37 @@ export function claudeSpawnEnv(): Record<string, string | undefined> {
     ...clientAppEnv(),
   };
   if (Object.keys(override).length > 0) {
-    delete base.ANTHROPIC_API_KEY;
-    delete base.ANTHROPIC_AUTH_TOKEN;
-    delete base.ANTHROPIC_BASE_URL;
-    delete base.ANTHROPIC_MODEL;
+    for (const key of Object.keys(base)) {
+      if (key.startsWith("ANTHROPIC_")) delete base[key];
+    }
   }
   return { ...base, ...override };
 }
 
 /**
- * Configured upstream model. Gateway and DPCC can serve their own models, so a
- * configured id overrides the in-app picker and seeds one-shot utility queries.
- * undefined means the picker / caller fallback stays in charge.
+ * Claude Code loads ~/.claude/settings.json when the `user` source is enabled.
+ * Gateway/default upstream requests must not inherit that file because it may
+ * contain local auth/model overrides that route requests away from the app's
+ * selected upstream.
+ */
+export function claudeSettingSources(): string[] {
+  return hasClaudeUpstreamOverride() ? [...GATEWAY_SETTING_SOURCES] : [...DEFAULT_SETTING_SOURCES];
+}
+
+/**
+ * Resolved model for the effective upstream. Gateway and DPCC can serve their
+ * own model namespace, so once an upstream override is active, stale in-app
+ * picker values must not leak into SDK requests. An empty upstream model means
+ * "let that upstream choose its default", not "reuse the local picker".
  */
 export function claudeGatewayModel(): string | undefined {
   const u = resolveClaudeUpstream();
   return u.model || undefined;
+}
+
+export function claudeResolvedModel(requestedModel?: string | null): string | undefined {
+  if (hasClaudeUpstreamOverride()) {
+    return resolveClaudeUpstream().model || undefined;
+  }
+  return requestedModel?.trim() || undefined;
 }

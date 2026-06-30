@@ -21,11 +21,11 @@ export function codexUpstreamEnv(): Record<string, string> {
 export function codexUpstreamThreadParams(): Record<string, unknown> {
   const u = resolveCodexUpstream();
   if (!u.baseUrl) return {};
-  const model = u.model;
+  const model = u.model || null;
   const name = u.providerName || (u.tier === "default" ? "DPCC API" : "PccAgent Gateway");
   return {
     modelProvider: CODEX_GATEWAY_PROVIDER_ID,
-    ...(model ? { model } : {}),
+    model,
     config: {
       [`model_providers.${CODEX_GATEWAY_PROVIDER_ID}.name`]: name,
       [`model_providers.${CODEX_GATEWAY_PROVIDER_ID}.base_url`]: u.baseUrl,
@@ -33,7 +33,7 @@ export function codexUpstreamThreadParams(): Record<string, unknown> {
       [`model_providers.${CODEX_GATEWAY_PROVIDER_ID}.wire_api`]: "responses",
       [`model_providers.${CODEX_GATEWAY_PROVIDER_ID}.requires_openai_auth`]: false,
       model_provider: CODEX_GATEWAY_PROVIDER_ID,
-      ...(model ? { model } : {}),
+      model,
     },
   };
 }

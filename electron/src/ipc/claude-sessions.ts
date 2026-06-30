@@ -26,7 +26,7 @@ import {
   getClaudeVersion,
 } from "../lib/claude-binary";
 import { captureEvent } from "../lib/posthog";
-import { claudeSpawnEnv, claudeGatewayModel } from "../lib/claude-gateway-env";
+import { claudeSpawnEnv, claudeResolvedModel, claudeSettingSources } from "../lib/claude-gateway-env";
 
 /** SDK options for file checkpointing — enables Write/Edit/NotebookEdit revert support.
  *  Env is resolved by claudeSpawnEnv: gateway > DPCC default, purging inherited
@@ -481,7 +481,7 @@ async function revalidateClaudeModelsCache(cwd?: string): Promise<ClaudeModelsCa
           cwd: cwd?.trim() || os.homedir(),
           includePartialMessages: true,
           thinking: buildThinkingConfig(),
-          settingSources: ["user", "project", "local"],
+          settingSources: claudeSettingSources(),
           ...fileCheckpointOptions(),
           stderr: (data: string) => {
             const trimmed = data.trim();
@@ -639,7 +639,7 @@ async function restartSession(
     includePartialMessages: true,
     thinking: buildThinkingConfig(),
     canUseTool,
-    settingSources: ["user", "project", "local"],
+    settingSources: claudeSettingSources(),
     agentProgressSummaries: true,
     ...fileCheckpointOptions(),
     resume: sessionId,
@@ -652,11 +652,8 @@ async function restartSession(
   applyClaudeSdkProcessOptions(queryOptions, cliPath);
 
   applyPermissionModeOptions(queryOptions, opts.permissionMode);
-  const restartModel = toSdkModelOverride(modelOverride ?? opts.model);
+  const restartModel = claudeResolvedModel(toSdkModelOverride(modelOverride ?? opts.model));
   if (restartModel) queryOptions.model = restartModel;
-  // Gateway custom model overrides the picker when enabled.
-  const gatewayRestartModel = claudeGatewayModel();
-  if (gatewayRestartModel) queryOptions.model = gatewayRestartModel;
   if (effortOverride ?? opts.effort) {
     queryOptions.effort = effortOverride ?? opts.effort;
   }
@@ -763,7 +760,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         includePartialMessages: true,
         thinking: buildThinkingConfig(),
         canUseTool,
-        settingSources: ["user", "project", "local"],
+        settingSources: claudeSettingSources(),
         agentProgressSummaries: true,
         ...fileCheckpointOptions(),
         stderr: (data: string) => {
@@ -787,14 +784,9 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       }
 
       applyPermissionModeOptions(queryOptions, options.permissionMode);
-      const startModel = toSdkModelOverride(options.model);
+      const startModel = claudeResolvedModel(toSdkModelOverride(options.model));
       if (startModel) {
         queryOptions.model = startModel;
-      }
-      // Gateway custom model overrides the picker when enabled.
-      const gatewayStartModel = claudeGatewayModel();
-      if (gatewayStartModel) {
-        queryOptions.model = gatewayStartModel;
       }
       if (options.effort) {
         queryOptions.effort = options.effort;

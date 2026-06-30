@@ -2,7 +2,7 @@ import { log } from "../../logger";
 import { reportError } from "../../error-utils";
 import { getSDK } from "../../sdk";
 import { getClaudeBinaryPath, getClaudeSdkProcessOptions, isClaudeInstalled } from "../../claude-binary";
-import { claudeSpawnEnv, claudeGatewayModel } from "../../claude-gateway-env";
+import { claudeSpawnEnv, claudeGatewayModel, claudeSettingSources } from "../../claude-gateway-env";
 import { isSessionError } from "./session-error";
 import type { CLIAdapter, AdapterExecOptions, AdapterExecResult } from "./types";
 
@@ -52,7 +52,7 @@ export class ClaudeAdapter implements CLIAdapter {
       // Emit partial streaming events so the desktop UI renders WeChat runs
       // token-by-token, matching a normal session's feel.
       includePartialMessages: true,
-      settingSources: ["user", "project", "local"],
+      settingSources: claudeSettingSources(),
       // Authenticate phone-initiated runs against the same upstream as interactive
       // sessions (gateway > DPCC default) — without it the gateway returns "not
       // login" for every WeChat message (B4).

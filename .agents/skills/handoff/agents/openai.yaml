@@ -1,0 +1,4 @@
+interface:
+  display_name: "Handoff"
+  short_description: "Create Codex-led task/session handoffs"
+  default_prompt: "Use $handoff to create or read a Codex-led task/session handoff."

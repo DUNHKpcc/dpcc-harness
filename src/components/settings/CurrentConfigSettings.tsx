@@ -4,6 +4,7 @@ import { Server, RefreshCw } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { SettingsHeader, SettingsSection } from "@/components/settings/shared";
+import { getVisibleGatewayModels } from "@/lib/gateway-models";
 import type {
   EffectiveCliConfig,
   EffectiveEngineConfig,
@@ -39,6 +40,7 @@ function ConfigRow({ label, value, mono = true }: { label: string; value: string
 /** Full list of models the engine's effective upstream exposes (/v1/models). */
 function ModelList({ models, activeModel }: { models: EffectiveModelList | undefined; activeModel: string | null }) {
   const { t } = useTranslation("settings");
+  const [expanded, setExpanded] = useState(false);
 
   if (!models) {
     return (
@@ -64,10 +66,11 @@ function ModelList({ models, activeModel }: { models: EffectiveModelList | undef
     );
   }
 
-  // Surface the effective default even when the upstream listing doesn't echo it back.
-  const list = activeModel && !models.models.includes(activeModel)
-    ? [activeModel, ...models.models]
-    : models.models;
+  const { visible, hiddenCount, totalCount } = getVisibleGatewayModels({
+    models: models.models,
+    activeModel,
+    expanded,
+  });
 
   return (
     <div className="space-y-1.5">
@@ -76,11 +79,11 @@ function ModelList({ models, activeModel }: { models: EffectiveModelList | undef
           {t("currentConfig.models.title")}
         </span>
         <span className="text-[10.5px] text-muted-foreground/70">
-          {t("currentConfig.models.count", { count: models.models.length })}
+          {t("currentConfig.models.count", { count: totalCount })}
         </span>
       </div>
       <div className="flex flex-wrap gap-1.5">
-        {list.map((m) => {
+        {visible.map((m) => {
           const isDefault = m === activeModel;
           return (
             <span
@@ -101,6 +104,19 @@ function ModelList({ models, activeModel }: { models: EffectiveModelList | undef
           );
         })}
       </div>
+      {hiddenCount > 0 || expanded ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-[11px] text-muted-foreground"
+          onClick={() => setExpanded((next) => !next)}
+        >
+          {expanded
+            ? t("currentConfig.models.showLess")
+            : t("currentConfig.models.showMore", { count: hiddenCount })}
+        </Button>
+      ) : null}
     </div>
   );
 }

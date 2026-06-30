@@ -1,13 +1,19 @@
 import { memo, useState, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Server, RefreshCw, Loader2, ChevronRight } from "lucide-react";
+import { Server, RefreshCw, Loader2, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { SettingRow, SettingsSelect, SettingsHeader, SettingsSection } from "@/components/settings/shared";
+import {
+  CLAUDE_GATEWAY_MODEL_PRESETS,
+  CODEX_GATEWAY_MODEL_PRESETS,
+  buildGatewayModelMappings,
+  type GatewayEngine,
+} from "@/lib/gateway-models";
 import { isImeComposing } from "@/lib/utils";
-import type { AppSettings, ClaudeGatewaySettings, CodexGatewaySettings } from "@/types";
+import type { AppSettings, ClaudeGatewaySettings, CodexGatewaySettings, GatewayModelMapping } from "@/types";
 
 interface EngineSettingsProps {
   appSettings: AppSettings | null;
@@ -16,9 +22,11 @@ interface EngineSettingsProps {
 
 const GATEWAY_INPUT_CLASS =
   "h-8 w-80 rounded-md border border-foreground/10 bg-background px-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground hover:border-foreground/20 focus:border-foreground/30 focus:ring-1 focus:ring-foreground/20";
+const GATEWAY_WIDE_INPUT_CLASS =
+  "h-8 w-full rounded-md border border-foreground/10 bg-background px-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground hover:border-foreground/20 focus:border-foreground/30 focus:ring-1 focus:ring-foreground/20";
 
-const CLAUDE_GATEWAY_DEFAULT: ClaudeGatewaySettings = { enabled: false, baseUrl: "", authToken: "", model: "" };
-const CODEX_GATEWAY_DEFAULT: CodexGatewaySettings = { enabled: false, name: "", baseUrl: "", apiKey: "", model: "" };
+const CLAUDE_GATEWAY_DEFAULT: ClaudeGatewaySettings = { enabled: false, baseUrl: "", authToken: "", model: "", modelMappings: CLAUDE_GATEWAY_MODEL_PRESETS };
+const CODEX_GATEWAY_DEFAULT: CodexGatewaySettings = { enabled: false, name: "", baseUrl: "", apiKey: "", model: "", modelMappings: CODEX_GATEWAY_MODEL_PRESETS };
 
 /** Controlled text field that commits on blur or Enter (mirrors the custom-path input pattern). */
 const GatewayTextField = memo(function GatewayTextField({
@@ -52,6 +60,167 @@ const GatewayTextField = memo(function GatewayTextField({
   );
 });
 
+const GatewayModelField = memo(function GatewayModelField({
+  value,
+  mappings,
+  upstreamModels,
+  onSave,
+  placeholder,
+  datalistId,
+}: {
+  value: string;
+  mappings: GatewayModelMapping[];
+  upstreamModels: string[];
+  onSave: (value: string) => void;
+  placeholder: string;
+  datalistId: string;
+}) {
+  const [local, setLocal] = useState(value);
+  useEffect(() => setLocal(value), [value]);
+  const optionIds = Array.from(new Set([...mappings.map((m) => m.modelId), ...upstreamModels].filter(Boolean)));
+  return (
+    <>
+      <input
+        type="text"
+        value={local}
+        list={datalistId}
+        onChange={(e) => setLocal(e.target.value)}
+        onBlur={(e) => onSave(e.target.value.trim())}
+        onKeyDown={(e) => {
+          if (isImeComposing(e)) return;
+          if (e.key === "Enter") onSave(e.currentTarget.value.trim());
+        }}
+        spellCheck={false}
+        autoComplete="off"
+        className={GATEWAY_INPUT_CLASS}
+        placeholder={placeholder}
+      />
+      <datalist id={datalistId}>
+        {optionIds.map((modelId) => {
+          const mapping = mappings.find((m) => m.modelId === modelId);
+          return <option key={modelId} value={modelId} label={mapping?.displayName ?? modelId} />;
+        })}
+      </datalist>
+    </>
+  );
+});
+
+const GatewayModelMappingsEditor = memo(function GatewayModelMappingsEditor({
+  engine,
+  mappings,
+  upstreamModels,
+  upstreamError,
+  loading,
+  onFetch,
+  onChange,
+}: {
+  engine: GatewayEngine;
+  mappings: GatewayModelMapping[];
+  upstreamModels: string[];
+  upstreamError: string | null;
+  loading: boolean;
+  onFetch: () => void;
+  onChange: (mappings: GatewayModelMapping[]) => void;
+}) {
+  const { t } = useTranslation("settings");
+  const normalized = buildGatewayModelMappings(engine, mappings);
+  const datalistId = `${engine}-gateway-upstream-models`;
+
+  const commit = (next: GatewayModelMapping[]) => onChange(buildGatewayModelMappings(engine, next));
+  const updateRow = (index: number, patch: Partial<GatewayModelMapping>) => {
+    commit(normalized.map((mapping, i) => (i === index ? { ...mapping, ...patch } : mapping)));
+  };
+  const addEmptyRow = () => commit([...normalized, { displayName: "", modelId: `custom-model-${normalized.length + 1}` }]);
+  const addUpstreamModel = (modelId: string) => {
+    if (!modelId || normalized.some((mapping) => mapping.modelId === modelId)) return;
+    commit([...normalized, { displayName: modelId, modelId }]);
+  };
+  const removeRow = (index: number) => commit(normalized.filter((_, i) => i !== index));
+
+  return (
+    <div className="space-y-2 rounded-lg border border-foreground/[0.06] bg-foreground/[0.015] p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-xs font-medium text-foreground/80">{t("engines.gatewayModels.title")}</p>
+          <p className="text-[11px] text-muted-foreground">{t("engines.gatewayModels.description")}</p>
+        </div>
+        <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={onFetch} disabled={loading}>
+          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+          {loading ? t("engines.gatewayModels.loading") : t("engines.gatewayModels.fetch")}
+        </Button>
+      </div>
+
+      {upstreamModels.length > 0 && (
+        <select
+          className={GATEWAY_WIDE_INPUT_CLASS}
+          value=""
+          onChange={(event) => addUpstreamModel(event.target.value)}
+        >
+          <option value="">{t("engines.gatewayModels.addFromUpstream", { count: upstreamModels.length })}</option>
+          {upstreamModels.map((modelId) => (
+            <option key={modelId} value={modelId}>
+              {modelId}
+            </option>
+          ))}
+        </select>
+      )}
+      {upstreamError && (
+        <p className="rounded border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-700 dark:text-amber-300">
+          {t("engines.gatewayModels.fetchError", { error: upstreamError })}
+        </p>
+      )}
+
+      <datalist id={datalistId}>
+        {upstreamModels.map((modelId) => (
+          <option key={modelId} value={modelId} />
+        ))}
+      </datalist>
+
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)_auto] gap-2 px-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        <span>{t("engines.gatewayModels.displayName")}</span>
+        <span>{t("engines.gatewayModels.modelId")}</span>
+        <span className="sr-only">{t("engines.gatewayModels.remove")}</span>
+      </div>
+      <div className="space-y-2">
+        {normalized.map((mapping, index) => (
+          <div key={`${mapping.modelId}-${index}`} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)_auto] gap-2">
+            <input
+              value={mapping.displayName}
+              onChange={(event) => updateRow(index, { displayName: event.target.value })}
+              className={GATEWAY_WIDE_INPUT_CLASS}
+              placeholder={t("engines.gatewayModels.displayNamePlaceholder")}
+              spellCheck={false}
+            />
+            <input
+              value={mapping.modelId}
+              list={datalistId}
+              onChange={(event) => updateRow(index, { modelId: event.target.value })}
+              className={GATEWAY_WIDE_INPUT_CLASS}
+              placeholder={t("engines.gatewayModels.modelIdPlaceholder")}
+              spellCheck={false}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+              onClick={() => removeRow(index)}
+              disabled={normalized.length <= 4}
+              title={t("engines.gatewayModels.remove")}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        ))}
+      </div>
+      <Button type="button" variant="ghost" size="sm" className="gap-1.5 px-2" onClick={addEmptyRow}>
+        <Plus className="h-3.5 w-3.5" />
+        {t("engines.gatewayModels.add")}
+      </Button>
+    </div>
+  );
+});
+
 
 type CodexOrigin = "env" | "managed" | "known" | "path" | "bundled" | "custom" | "none";
 type ClaudeOrigin = "custom" | "env" | "known" | "path" | "sdk-fallback" | "none";
@@ -79,6 +248,12 @@ export const EngineSettings = memo(function EngineSettings({
   const [codexGateway, setCodexGateway] = useState<CodexGatewaySettings>(CODEX_GATEWAY_DEFAULT);
   const [claudeGatewayOpen, setClaudeGatewayOpen] = useState(false);
   const [codexGatewayOpen, setCodexGatewayOpen] = useState(false);
+  const [claudeUpstreamModels, setClaudeUpstreamModels] = useState<string[]>([]);
+  const [codexUpstreamModels, setCodexUpstreamModels] = useState<string[]>([]);
+  const [claudeUpstreamError, setClaudeUpstreamError] = useState<string | null>(null);
+  const [codexUpstreamError, setCodexUpstreamError] = useState<string | null>(null);
+  const [claudeModelsLoading, setClaudeModelsLoading] = useState(false);
+  const [codexModelsLoading, setCodexModelsLoading] = useState(false);
 
   useEffect(() => {
     if (appSettings) {
@@ -86,8 +261,16 @@ export const EngineSettings = memo(function EngineSettings({
       setClaudeCustomBinaryPath(appSettings.claudeCustomBinaryPath || "");
       setCodexBinarySource(appSettings.codexBinarySource || "builtin");
       setCodexCustomBinaryPath(appSettings.codexCustomBinaryPath || "");
-      setClaudeGateway(appSettings.claudeGateway ?? CLAUDE_GATEWAY_DEFAULT);
-      setCodexGateway(appSettings.codexGateway ?? CODEX_GATEWAY_DEFAULT);
+      setClaudeGateway({
+        ...CLAUDE_GATEWAY_DEFAULT,
+        ...appSettings.claudeGateway,
+        modelMappings: buildGatewayModelMappings("claude", appSettings.claudeGateway?.modelMappings),
+      });
+      setCodexGateway({
+        ...CODEX_GATEWAY_DEFAULT,
+        ...appSettings.codexGateway,
+        modelMappings: buildGatewayModelMappings("codex", appSettings.codexGateway?.modelMappings),
+      });
     }
   }, [appSettings]);
 
@@ -185,13 +368,11 @@ export const EngineSettings = memo(function EngineSettings({
 
   const handleClaudeGatewayChange = useCallback(
     async (patch: Partial<ClaudeGatewaySettings>) => {
-      setClaudeGateway((prev) => {
-        const next = { ...prev, ...patch };
-        void onUpdateAppSettings({ claudeGateway: next });
-        return next;
-      });
+      const next = { ...claudeGateway, ...patch };
+      setClaudeGateway(next);
+      await onUpdateAppSettings({ claudeGateway: next });
     },
-    [onUpdateAppSettings],
+    [claudeGateway, onUpdateAppSettings],
   );
 
   const handleClaudeGatewayEnabledChange = useCallback(
@@ -205,13 +386,11 @@ export const EngineSettings = memo(function EngineSettings({
 
   const handleCodexGatewayChange = useCallback(
     async (patch: Partial<CodexGatewaySettings>) => {
-      setCodexGateway((prev) => {
-        const next = { ...prev, ...patch };
-        void onUpdateAppSettings({ codexGateway: next });
-        return next;
-      });
+      const next = { ...codexGateway, ...patch };
+      setCodexGateway(next);
+      await onUpdateAppSettings({ codexGateway: next });
     },
-    [onUpdateAppSettings],
+    [codexGateway, onUpdateAppSettings],
   );
 
   const handleCodexGatewayEnabledChange = useCallback(
@@ -222,6 +401,36 @@ export const EngineSettings = memo(function EngineSettings({
     },
     [codexGateway.enabled, handleCodexGatewayChange],
   );
+
+  const fetchClaudeGatewayModels = useCallback(async () => {
+    setClaudeModelsLoading(true);
+    setClaudeUpstreamError(null);
+    try {
+      const result = await window.claude.ccConfig.probeModels({
+        baseUrl: claudeGateway.baseUrl,
+        token: claudeGateway.authToken,
+      });
+      setClaudeUpstreamModels(result.models ?? []);
+      setClaudeUpstreamError(result.error);
+    } finally {
+      setClaudeModelsLoading(false);
+    }
+  }, [claudeGateway.baseUrl, claudeGateway.authToken]);
+
+  const fetchCodexGatewayModels = useCallback(async () => {
+    setCodexModelsLoading(true);
+    setCodexUpstreamError(null);
+    try {
+      const result = await window.claude.ccConfig.probeModels({
+        baseUrl: codexGateway.baseUrl,
+        token: codexGateway.apiKey,
+      });
+      setCodexUpstreamModels(result.models ?? []);
+      setCodexUpstreamError(result.error);
+    } finally {
+      setCodexModelsLoading(false);
+    }
+  }, [codexGateway.baseUrl, codexGateway.apiKey]);
 
   return (
     <div className="flex h-full flex-col">
@@ -337,12 +546,24 @@ export const EngineSettings = memo(function EngineSettings({
                       />
                     </SettingRow>
                     <SettingRow label={t("engines.claude.gateway.modelLabel")} description={t("engines.claude.gateway.modelDesc")}>
-                      <GatewayTextField
+                      <GatewayModelField
                         value={claudeGateway.model}
+                        mappings={claudeGateway.modelMappings}
+                        upstreamModels={claudeUpstreamModels}
                         onSave={(v) => handleClaudeGatewayChange({ model: v.trim() })}
                         placeholder={t("engines.claude.gateway.modelPlaceholder")}
+                        datalistId="claude-gateway-default-models"
                       />
                     </SettingRow>
+                    <GatewayModelMappingsEditor
+                      engine="claude"
+                      mappings={claudeGateway.modelMappings}
+                      upstreamModels={claudeUpstreamModels}
+                      upstreamError={claudeUpstreamError}
+                      loading={claudeModelsLoading}
+                      onFetch={fetchClaudeGatewayModels}
+                      onChange={(modelMappings) => void handleClaudeGatewayChange({ modelMappings })}
+                    />
                   </div>
                 </CollapsibleContent>
               </Collapsible>
@@ -461,12 +682,24 @@ export const EngineSettings = memo(function EngineSettings({
                       />
                     </SettingRow>
                     <SettingRow label={t("engines.codex.gateway.modelLabel")} description={t("engines.codex.gateway.modelDesc")}>
-                      <GatewayTextField
+                      <GatewayModelField
                         value={codexGateway.model}
+                        mappings={codexGateway.modelMappings}
+                        upstreamModels={codexUpstreamModels}
                         onSave={(v) => handleCodexGatewayChange({ model: v.trim() })}
                         placeholder={t("engines.codex.gateway.modelPlaceholder")}
+                        datalistId="codex-gateway-default-models"
                       />
                     </SettingRow>
+                    <GatewayModelMappingsEditor
+                      engine="codex"
+                      mappings={codexGateway.modelMappings}
+                      upstreamModels={codexUpstreamModels}
+                      upstreamError={codexUpstreamError}
+                      loading={codexModelsLoading}
+                      onFetch={fetchCodexGatewayModels}
+                      onChange={(modelMappings) => void handleCodexGatewayChange({ modelMappings })}
+                    />
                   </div>
                 </CollapsibleContent>
               </Collapsible>

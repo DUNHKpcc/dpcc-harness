@@ -18,6 +18,11 @@ import type {
   CodexGatewaySettings,
   DpccUpstreamSettings,
 } from "@shared/types/settings";
+import {
+  CLAUDE_GATEWAY_MODEL_PRESETS,
+  CODEX_GATEWAY_MODEL_PRESETS,
+  buildGatewayModelMappings,
+} from "@shared/lib/gateway-models";
 
 // Re-export shared types so existing `import from "./app-settings"` consumers still work
 export type { AppSettings, MacBackgroundEffect, PreferredEditor, VoiceDictationMode, NotificationTrigger, NotificationEventSettings, NotificationSettings, CodexBinarySource, ClaudeBinarySource, ClaudeGatewaySettings, CodexGatewaySettings, DpccUpstreamSettings, UpdateSource } from "@shared/types/settings";
@@ -46,8 +51,8 @@ const DEFAULTS: AppSettings = {
   showJiraBoard: false,
   macBackgroundEffect: "liquid-glass",
   analyticsEnabled: true,
-  claudeGateway: { enabled: false, baseUrl: "", authToken: "", model: "" },
-  codexGateway: { enabled: false, name: "", baseUrl: "", apiKey: "", model: "" },
+  claudeGateway: { enabled: false, baseUrl: "", authToken: "", model: "", modelMappings: CLAUDE_GATEWAY_MODEL_PRESETS },
+  codexGateway: { enabled: false, name: "", baseUrl: "", apiKey: "", model: "", modelMappings: CODEX_GATEWAY_MODEL_PRESETS },
   dpccUpstream: { baseUrl: "", claudeToken: "", codexToken: "", claudeModel: "", codexModel: "" },
   accountAccessToken: "",
   accountUserId: "",
@@ -117,6 +122,22 @@ function migrateBinarySourceDefaults(parsed: Partial<AppSettings>): Partial<AppS
   return patch;
 }
 
+function normalizeClaudeGateway(gateway: Partial<ClaudeGatewaySettings> | undefined): ClaudeGatewaySettings {
+  const merged = { ...DEFAULTS.claudeGateway, ...gateway };
+  return {
+    ...merged,
+    modelMappings: buildGatewayModelMappings("claude", merged.modelMappings),
+  };
+}
+
+function normalizeCodexGateway(gateway: Partial<CodexGatewaySettings> | undefined): CodexGatewaySettings {
+  const merged = { ...DEFAULTS.codexGateway, ...gateway };
+  return {
+    ...merged,
+    modelMappings: buildGatewayModelMappings("codex", merged.modelMappings),
+  };
+}
+
 // ── Internal state ──
 
 let cached: AppSettings | null = null;
@@ -173,6 +194,8 @@ export function getAppSettings(): AppSettings {
       // fields undefined — the resolver calls .trim() on them. (migrated, when set,
       // already contains a complete object and overrides this below.)
       dpccUpstream: { ...DEFAULTS.dpccUpstream, ...parsed.dpccUpstream },
+      claudeGateway: normalizeClaudeGateway(parsed.claudeGateway),
+      codexGateway: normalizeCodexGateway(parsed.codexGateway),
       ...(migrated ?? {}),
       ...(binarySourceMigration ?? {}),
     };

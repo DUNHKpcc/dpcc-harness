@@ -125,6 +125,7 @@ export type {
   AppSettings,
   ClaudeGatewaySettings,
   CodexGatewaySettings,
+  GatewayModelMapping,
 } from "@shared/types/settings";
 
 // ── WeChat bridge types (shared) ──

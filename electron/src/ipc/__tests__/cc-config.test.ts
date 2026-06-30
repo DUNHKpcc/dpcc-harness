@@ -42,9 +42,9 @@ async function loadModule() {
   return import("../cc-config");
 }
 
-function handlerFor(channel: string) {
+function handlerFor<T extends (...args: never[]) => unknown>(channel: string) {
   const call = mockIpcMainHandle.mock.calls.find(([registered]) => registered === channel);
-  return call?.[1] as (() => Promise<unknown>) | undefined;
+  return call?.[1] as T | undefined;
 }
 
 describe("cc-config IPC", () => {
@@ -75,7 +75,7 @@ describe("cc-config IPC", () => {
     const { register } = await loadModule();
     register();
 
-    const modelsHandler = handlerFor("cc-config:models");
+    const modelsHandler = handlerFor<() => Promise<unknown>>("cc-config:models");
     expect(modelsHandler).toBeDefined();
     const result = await modelsHandler!();
 
@@ -85,5 +85,21 @@ describe("cc-config IPC", () => {
       claude: { source: "default", models: ["claude-model"], error: null },
       codex: { source: "local", models: [], error: "local_provider_unreadable" },
     });
+  });
+
+  it("fetches upstream models from user-entered gateway credentials", async () => {
+    mockFetchUpstreamModels.mockResolvedValue({ models: ["upstream-a", "upstream-b"], error: null });
+
+    const { register } = await loadModule();
+    register();
+
+    const probeHandler =
+      handlerFor<(_event: unknown, input: { baseUrl: string; token: string }) => Promise<unknown>>("cc-config:probe-models");
+    expect(probeHandler).toBeDefined();
+
+    const result = await probeHandler!(null, { baseUrl: " https://gateway.example/v1 ", token: " sk-live " });
+
+    expect(mockFetchUpstreamModels).toHaveBeenCalledWith("https://gateway.example/v1", "sk-live");
+    expect(result).toEqual({ models: ["upstream-a", "upstream-b"], error: null });
   });
 });

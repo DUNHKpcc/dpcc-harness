@@ -112,7 +112,7 @@
         "tokenPlaceholder": "sk-...",
         "modelLabel": "Model ID",
         "modelDesc": "Custom model id used as the session default (overrides the model picker).",
-        "modelPlaceholder": "e.g. claude-sonnet-4-5"
+        "modelPlaceholder": "e.g. claude-sonnet-4-6"
       },
       "origin": {
         "known": "System install",
@@ -149,7 +149,7 @@
         "apiKeyPlaceholder": "sk-...",
         "modelLabel": "Model ID",
         "modelDesc": "Custom model id used as the session default.",
-        "modelPlaceholder": "e.g. gpt-5-codex"
+        "modelPlaceholder": "e.g. gpt-5.3-codex-spark"
       },
       "origin": {
         "bundled": "Bundled (offline)",
@@ -167,6 +167,20 @@
       "managedInstall": "Download official native",
       "managedDownload": "Managed download",
       "custom": "Custom path"
+    },
+    "gatewayModels": {
+      "title": "Model mappings",
+      "description": "Configure display names and upstream Model IDs. Official Claude/Codex candidates are prefilled, and models can be fetched from the current URL/key.",
+      "fetch": "Fetch upstream models",
+      "loading": "Fetching…",
+      "fetchError": "Fetch failed: {{error}}",
+      "addFromUpstream": "Add an upstream model ({{count}} available)",
+      "displayName": "Display name",
+      "modelId": "Model ID",
+      "displayNamePlaceholder": "e.g. Claude Sonnet",
+      "modelIdPlaceholder": "Upstream model ID",
+      "add": "Add mapping",
+      "remove": "Remove mapping"
     }
   },
   "general": {
@@ -342,7 +356,9 @@
       "noToken": "No key configured — add your DPCC key in Settings → Account to list models.",
       "localProviderUnreadable": "Model listing is managed by your local Codex CLI config.",
       "error": "Couldn't fetch models. Check the upstream URL and key.",
-      "default": "Default"
+      "default": "Default",
+      "showMore": "Show {{count}} more",
+      "showLess": "Show less"
     }
   },
   "advanced": {

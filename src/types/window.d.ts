@@ -246,6 +246,8 @@ declare global {
         effective: () => Promise<EffectiveCliConfig>;
         /** List all models available on each engine's effective upstream (/v1/models). */
         models: () => Promise<EffectiveCliModels>;
+        /** Probe models from user-entered gateway credentials before saving settings. */
+        probeModels: (input: { baseUrl: string; token: string }) => Promise<{ models: string[]; error: string | null }>;
       };
       files: {
         list: (cwd: string) => Promise<{ files: string[]; dirs: string[] }>;

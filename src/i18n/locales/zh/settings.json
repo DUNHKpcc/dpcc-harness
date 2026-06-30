@@ -112,7 +112,7 @@
         "tokenPlaceholder": "sk-...",
         "modelLabel": "模型 ID",
         "modelDesc": "作为会话默认模型，覆盖模型选择器。",
-        "modelPlaceholder": "例如 claude-sonnet-4-5"
+        "modelPlaceholder": "例如 claude-sonnet-4-6"
       },
       "origin": {
         "known": "系统安装",
@@ -149,7 +149,7 @@
         "apiKeyPlaceholder": "sk-...",
         "modelLabel": "模型 ID",
         "modelDesc": "作为会话默认模型。",
-        "modelPlaceholder": "例如 gpt-5-codex"
+        "modelPlaceholder": "例如 gpt-5.3-codex-spark"
       },
       "origin": {
         "bundled": "内置（离线）",
@@ -167,6 +167,20 @@
       "managedInstall": "下载官方原生",
       "managedDownload": "托管下载",
       "custom": "自定义路径"
+    },
+    "gatewayModels": {
+      "title": "模型映射",
+      "description": "配置显示名称与上游 Model ID。默认补齐官方 Claude/Codex 候选，也可从当前 URL/key 拉取上游模型加入。",
+      "fetch": "拉取上游模型",
+      "loading": "拉取中…",
+      "fetchError": "拉取失败：{{error}}",
+      "addFromUpstream": "选择上游模型加入（{{count}} 个可用）",
+      "displayName": "显示名称",
+      "modelId": "Model ID",
+      "displayNamePlaceholder": "例如 Claude Sonnet",
+      "modelIdPlaceholder": "上游模型 ID",
+      "add": "新增映射",
+      "remove": "删除映射"
     }
   },
   "general": {
@@ -342,7 +356,9 @@
       "noToken": "未配置密钥 —— 在「设置 → 账户」填入 DPCC 密钥后即可拉取模型。",
       "localProviderUnreadable": "模型列表由你的本机 Codex CLI 配置管理。",
       "error": "无法拉取模型，请检查上游地址与密钥是否正确。",
-      "default": "默认"
+      "default": "默认",
+      "showMore": "展开剩余 {{count}} 个",
+      "showLess": "收起"
     }
   },
   "advanced": {

@@ -59,4 +59,12 @@ export function register(): void {
       return { claude: { ...empty }, codex: { ...empty } };
     }
   });
+
+  ipcMain.handle("cc-config:probe-models", async (_event, input: { baseUrl?: string; token?: string }): Promise<{ models: string[]; error: string | null }> => {
+    try {
+      return fetchUpstreamModels((input.baseUrl ?? "").trim(), (input.token ?? "").trim());
+    } catch (err) {
+      return { models: [], error: reportError("CC_CONFIG:PROBE_MODELS_ERR", err) };
+    }
+  });
 }

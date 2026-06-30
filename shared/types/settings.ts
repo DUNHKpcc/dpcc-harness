@@ -35,6 +35,13 @@ export interface NotificationSettings {
 
 // ── Custom gateway settings ──
 
+export interface GatewayModelMapping {
+  /** User-facing name shown in gateway pickers. */
+  displayName: string;
+  /** Upstream model id sent to the gateway. */
+  modelId: string;
+}
+
 /** Third-party gateway config for the Claude engine (ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN). */
 export interface ClaudeGatewaySettings {
   /** When true, route Claude sessions through the custom gateway */
@@ -45,6 +52,8 @@ export interface ClaudeGatewaySettings {
   authToken: string;
   /** Custom model id used as the session default when enabled (empty = keep picker) */
   model: string;
+  /** Editable display-name → upstream-model mappings for gateway model pickers. */
+  modelMappings: GatewayModelMapping[];
 }
 
 /** Third-party gateway config for the Codex engine (model_providers override). */
@@ -59,6 +68,8 @@ export interface CodexGatewaySettings {
   apiKey: string;
   /** Custom model id used as the session default when enabled */
   model: string;
+  /** Editable display-name → upstream-model mappings for gateway model pickers. */
+  modelMappings: GatewayModelMapping[];
 }
 
 /**

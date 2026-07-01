@@ -11,6 +11,7 @@ import type { InstalledAgent } from "../lib/agent-registry";
 import { getMcpAuthHeaders } from "../lib/mcp-oauth-flow";
 import { extractErrorMessage, reportError } from "../lib/error-utils";
 import { captureEvent } from "../lib/posthog";
+import { reclaimMacDockFocus } from "../lib/macos-dock-focus";
 import {
   buildAuthRequiredError,
   extractAuthRequired,
@@ -33,6 +34,7 @@ async function getACP() {
 
 import { resolveACPFilePath, applyReadRange, ACP_CLIENT_CAPABILITIES } from "@shared/lib/acp-helpers";
 import type { ACPTextFileParams } from "@shared/lib/acp-helpers";
+import { normalizeMcpStdioServer } from "@shared/lib/mcp-config";
 import type { McpServerInput } from "@shared/lib/mcp-config";
 import type { ACPAuthMethod, ACPAuthenticateResult } from "@shared/types/acp";
 
@@ -217,24 +219,28 @@ function summarizeUpdate(update: Record<string, unknown>): string {
 }
 
 /** Convert renderer MCP server configs to ACP SDK format (with fresh auth headers). */
-async function buildAcpMcpServers(servers: McpServerInput[]): Promise<McpServer[]> {
+export async function buildAcpMcpServers(
+  servers: McpServerInput[],
+  options?: { platform?: string },
+): Promise<McpServer[]> {
   const resolved = await Promise.all(servers.map(async (s): Promise<McpServer | null> => {
-    if (s.transport === "stdio") {
-      if (!s.command) { log("ACP_MCP_WARN", `Server "${s.name}" (stdio) missing command — skipping`); return null; }
+    const server = normalizeMcpStdioServer(s, { platform: options?.platform });
+    if (server.transport === "stdio") {
+      if (!server.command) { log("ACP_MCP_WARN", `Server "${server.name}" (stdio) missing command — skipping`); return null; }
       return {
-        name: s.name,
-        command: s.command,
-        args: s.args ?? [],
-        env: s.env ? Object.entries(s.env).map(([name, value]) => ({ name, value })) : [],
+        name: server.name,
+        command: server.command,
+        args: server.args ?? [],
+        env: server.env ? Object.entries(server.env).map(([name, value]) => ({ name, value })) : [],
       };
     }
-    if (!s.url) { log("ACP_MCP_WARN", `Server "${s.name}" (${s.transport}) missing URL — skipping`); return null; }
-    const authHeaders = await getMcpAuthHeaders(s.name, s.url);
-    const mergedHeaders = { ...s.headers, ...authHeaders };
+    if (!server.url) { log("ACP_MCP_WARN", `Server "${server.name}" (${server.transport}) missing URL — skipping`); return null; }
+    const authHeaders = await getMcpAuthHeaders(server.name, server.url);
+    const mergedHeaders = { ...server.headers, ...authHeaders };
     return {
-      type: s.transport,
-      name: s.name,
-      url: s.url,
+      type: server.transport,
+      name: server.name,
+      url: server.url,
       headers: Object.entries(mergedHeaders).map(([name, value]) => ({ name, value })),
     };
   }));
@@ -348,6 +354,7 @@ async function createAcpConnection(
     shell: shouldUseWindowsShellForAcpBinary(agentDef.binary),
     windowsHide: true,
   });
+  reclaimMacDockFocus(getMainWindow, "acp-start");
   onSpawn?.(internalId, proc);
 
   // Process lifecycle handlers

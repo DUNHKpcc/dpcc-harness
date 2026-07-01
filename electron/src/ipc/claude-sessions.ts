@@ -16,6 +16,7 @@ import { buildSdkMcpConfig } from "@shared/lib/mcp-config";
 import type { McpServerInput } from "@shared/lib/mcp-config";
 import { appendClaudeCodexBridgeServer } from "@shared/lib/claude-codex-bridge";
 import { getClaudeCodexBridgeController } from "../lib/claude-codex-bridge-controller";
+import { reclaimMacDockFocus } from "../lib/macos-dock-focus";
 import {
   downloadClaudeUpdate,
   getClaudeBinaryInfo,
@@ -602,6 +603,7 @@ async function restartSession(
   const newChannel = new AsyncChannel<SDKUserMessage>();
   const cliPath = await getClaudeBinaryPath();
   logSdkCliPath(`restart session=${sessionId.slice(0, 8)}`, cliPath);
+  reclaimMacDockFocus(getMainWindow, "claude-restart");
 
   const newSession: SessionEntry = {
     channel: newChannel,
@@ -755,6 +757,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
 
       const cliPath = await getClaudeBinaryPath();
       logSdkCliPath(`start session=${sessionId.slice(0, 8)}`, cliPath);
+      reclaimMacDockFocus(getMainWindow, "claude-start");
       const queryOptions: Record<string, unknown> = {
         cwd: options.cwd || process.cwd(),
         includePartialMessages: true,

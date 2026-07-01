@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { selectAcpStartCleanupProcess, shouldUseWindowsShellForAcpBinary } from "../acp-sessions";
+import { buildAcpMcpServers, selectAcpStartCleanupProcess, shouldUseWindowsShellForAcpBinary } from "../acp-sessions";
 
 describe("shouldUseWindowsShellForAcpBinary", () => {
   it("uses the shell for Windows batch shims and bare commands", () => {
@@ -30,5 +30,22 @@ describe("selectAcpStartCleanupProcess", () => {
 
   it("prefers the connected process after connection setup returned", () => {
     expect(selectAcpStartCleanupProcess({ proc: connectedProcess }, { id: "pending", process: pendingProcess })).toBe(connectedProcess);
+  });
+});
+
+describe("buildAcpMcpServers", () => {
+  it("normalizes npm exec stdio MCP launchers on macOS", async () => {
+    await expect(buildAcpMcpServers([{
+      name: "xcodebuild",
+      transport: "stdio",
+      command: "npm",
+      args: ["exec", "xcodebuildmcp@latest", "mcp"],
+      env: { FOO: "bar" },
+    }], { platform: "darwin" })).resolves.toEqual([{
+      name: "xcodebuild",
+      command: "npx",
+      args: ["--yes", "xcodebuildmcp@latest", "mcp"],
+      env: [{ name: "FOO", value: "bar" }],
+    }]);
   });
 });

@@ -23,6 +23,7 @@ import { getAppSetting } from "../lib/app-settings";
 import { reportError } from "../lib/error-utils";
 import { captureEvent } from "../lib/posthog";
 import { codexUpstreamEnv, codexUpstreamThreadParams } from "../lib/codex-upstream";
+import { reclaimMacDockFocus } from "../lib/macos-dock-focus";
 import { codexPermissionOptionsFromMode, codexSandboxPolicyFromMode, normalizeAppPermissionMode } from "@shared/lib/codex-permissions";
 
 import type {
@@ -268,6 +269,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
           throw new Error("Failed to spawn codex app-server process");
         }
         log("codex",` Spawned pid=${proc.pid} for session=${internalId}`);
+        reclaimMacDockFocus(getMainWindow, "codex-start");
 
         const rpc = new CodexRpcClient(proc);
         const session: CodexSession = {
@@ -363,6 +365,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         const threadResult = await rpc.request<CodexThreadStartResponse>("thread/start", threadParams);
         session.threadId = threadResult.thread.id;
         log("codex",` Thread started: ${session.threadId}`);
+        reclaimMacDockFocus(getMainWindow, "codex-thread-start");
 
         void captureEvent("session_created", { engine: "codex", model: selectedModel });
 
@@ -428,6 +431,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
             "codex",
             ` Thread lazily started: session=${shortId(data.sessionId, 12)} thread=${shortId(session.threadId, 12)}`,
           );
+          reclaimMacDockFocus(getMainWindow, "codex-thread-lazy-start");
         } catch (err) {
           const msg = reportError("CODEX_THREAD_START_ERR", err, { engine: "codex", sessionId: data.sessionId });
           return { error: msg };
@@ -749,6 +753,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         });
 
         if (!proc.pid) throw new Error("Failed to spawn codex app-server");
+        reclaimMacDockFocus(getMainWindow, "codex-resume");
 
         const rpc = new CodexRpcClient(proc);
         const session: CodexSession = {
@@ -794,6 +799,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         const threadResult = await rpc.request<CodexThreadResumeResponse>("thread/resume", threadParams);
         session.threadId = threadResult.thread.id;
         log("codex",` Thread resumed: ${session.threadId}`);
+        reclaimMacDockFocus(getMainWindow, "codex-thread-resume");
 
         void captureEvent("session_revived", { engine: "codex", success: true });
         return { sessionId: internalId, threadId: session.threadId };

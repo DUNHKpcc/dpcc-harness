@@ -140,4 +140,24 @@ describe("codexUtilityPrompt", () => {
     });
     expect(turnStart).not.toHaveProperty("model");
   });
+
+  it("does not inject a PccAgent provider override when local Codex config is selected", async () => {
+    mockResolveCodexUpstream.mockReturnValue({
+      tier: "local",
+      providerName: "local-provider",
+      baseUrl: "https://local-codex.example/v1",
+      apiKey: "",
+      model: "local-codex-model",
+    });
+    const { codexUtilityPrompt } = await loadModule();
+
+    await expect(codexUtilityPrompt("hello", "/tmp/project", "TEST")).resolves.toBe("ok");
+
+    expect(mockSpawn).toHaveBeenCalledWith("/bin/codex", ["app-server"], expect.objectContaining({
+      env: expect.not.objectContaining({ PCCAGENT_GATEWAY_API_KEY: expect.any(String) }),
+    }));
+    const threadStart = mockRequests.find((r) => r.method === "thread/start")?.params;
+    expect(threadStart).not.toHaveProperty("modelProvider");
+    expect(threadStart).not.toHaveProperty("config");
+  });
 });

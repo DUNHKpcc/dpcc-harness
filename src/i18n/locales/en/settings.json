@@ -102,7 +102,7 @@
       "customPlaceholder": "Absolute path to claude executable",
       "gateway": {
         "toggleLabel": "Custom gateway",
-        "toggleDesc": "Route Claude sessions through a third-party Anthropic-compatible gateway (sets ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN).",
+        "toggleDesc": "Store third-party Anthropic-compatible gateway details. Use Settings → Current Config to route sessions through it.",
         "editLabel": "Edit gateway config",
         "baseUrlLabel": "Base URL",
         "baseUrlDesc": "Gateway endpoint → ANTHROPIC_BASE_URL.",
@@ -111,7 +111,7 @@
         "tokenDesc": "Bearer token / API key → ANTHROPIC_AUTH_TOKEN.",
         "tokenPlaceholder": "sk-...",
         "modelLabel": "Model ID",
-        "modelDesc": "Custom model id used as the session default (overrides the model picker).",
+        "modelDesc": "Custom model id used when Current Config selects the third-party gateway.",
         "modelPlaceholder": "e.g. claude-sonnet-4-6"
       },
       "origin": {
@@ -136,7 +136,7 @@
       "customPlaceholder": "Absolute path to codex executable",
       "gateway": {
         "toggleLabel": "Custom gateway",
-        "toggleDesc": "Route Codex sessions through a third-party Responses-API provider (model_providers override). The model id must be supported by the gateway.",
+        "toggleDesc": "Store third-party Responses-API provider details. Use Settings → Current Config to route sessions through it.",
         "editLabel": "Edit gateway config",
         "nameLabel": "Provider name",
         "nameDesc": "Human-readable display name for the provider.",
@@ -148,7 +148,7 @@
         "apiKeyDesc": "Injected into the Codex process at runtime; never written to config.toml.",
         "apiKeyPlaceholder": "sk-...",
         "modelLabel": "Model ID",
-        "modelDesc": "Custom model id used as the session default.",
+        "modelDesc": "Custom model id used when Current Config selects the third-party gateway.",
         "modelPlaceholder": "e.g. gpt-5.3-codex-spark"
       },
       "origin": {
@@ -327,7 +327,7 @@
   },
   "currentConfig": {
     "title": "Current Config",
-    "description": "The upstream and model configuration PccAgent is actually using to run sessions. Read-only — change these in Settings → Engines (third-party gateway) or Settings → Account (DPCC default upstream).",
+    "description": "The upstream and model configuration PccAgent is actually using to run sessions. Switch the config source here; maintain keys and gateway details in Settings → Account / Engines.",
     "refresh": "Refresh",
     "refreshing": "Refreshing…",
     "claude": "Claude",
@@ -338,8 +338,8 @@
       "default": "DPCC default upstream"
     },
     "sourceDesc": {
-      "gateway": "Routed through the custom third-party gateway set in Settings → Engines (highest priority).",
-      "local": "Legacy local CLI config source. Current sessions use DPCC unless a third-party gateway is enabled.",
+      "gateway": "Routed through the custom third-party gateway set in Settings → Engines.",
+      "local": "Uses the current local Claude Code / Codex CLI configuration.",
       "default": "Routed through the DPCC default upstream (api.dpccgaming.xyz)."
     },
     "fields": {

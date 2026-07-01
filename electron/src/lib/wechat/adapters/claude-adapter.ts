@@ -53,9 +53,8 @@ export class ClaudeAdapter implements CLIAdapter {
       // token-by-token, matching a normal session's feel.
       includePartialMessages: true,
       settingSources: claudeSettingSources(),
-      // Authenticate phone-initiated runs against the same upstream as interactive
-      // sessions (gateway > DPCC default) — without it the gateway returns "not
-      // login" for every WeChat message (B4).
+      // Authenticate phone-initiated runs against the same selected upstream as
+      // interactive sessions, avoiding a bare endpoint "not login" response.
       env: claudeSpawnEnv(),
     };
     const sdkProcessOptions = getClaudeSdkProcessOptions(cliPath);
@@ -66,8 +65,8 @@ export class ClaudeAdapter implements CLIAdapter {
       },
     });
     if (opts.model) sdkOpts.model = opts.model;
-    // Gateway custom model overrides the configured model when enabled — the
-    // gateway only serves its own model, mirroring interactive session behavior.
+    // A selected upstream model overrides the configured model, mirroring
+    // interactive session behavior.
     const gatewayModel = claudeGatewayModel();
     if (gatewayModel) sdkOpts.model = gatewayModel;
     if (opts.resumeId) sdkOpts.resume = opts.resumeId;

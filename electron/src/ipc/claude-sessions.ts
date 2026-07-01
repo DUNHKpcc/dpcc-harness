@@ -29,8 +29,8 @@ import { captureEvent } from "../lib/posthog";
 import { claudeSpawnEnv, claudeResolvedModel, claudeSettingSources } from "../lib/claude-gateway-env";
 
 /** SDK options for file checkpointing — enables Write/Edit/NotebookEdit revert support.
- *  Env is resolved by claudeSpawnEnv: gateway > DPCC default, purging inherited
- *  ANTHROPIC_* so local CLI config cannot override DPCC accidentally. */
+ *  Env is resolved by claudeSpawnEnv from the selected Current Config source,
+ *  purging inherited ANTHROPIC_* for non-local upstreams. */
 function fileCheckpointOptions(): Record<string, unknown> {
   return {
     enableFileCheckpointing: true,

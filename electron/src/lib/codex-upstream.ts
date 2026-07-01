@@ -9,6 +9,7 @@ export const CODEX_GATEWAY_ENV_KEY = "PCCAGENT_GATEWAY_API_KEY";
  */
 export function codexUpstreamEnv(): Record<string, string> {
   const u = resolveCodexUpstream();
+  if (u.tier === "local") return {};
   if (!u.apiKey) return {};
   return { [CODEX_GATEWAY_ENV_KEY]: u.apiKey };
 }
@@ -20,6 +21,7 @@ export function codexUpstreamEnv(): Record<string, string> {
  */
 export function codexUpstreamThreadParams(): Record<string, unknown> {
   const u = resolveCodexUpstream();
+  if (u.tier === "local") return {};
   if (!u.baseUrl) return {};
   const model = u.model || null;
   const name = u.providerName || (u.tier === "default" ? "DPCC API" : "PccAgent Gateway");

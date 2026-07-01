@@ -2,8 +2,7 @@
  * Lightweight probes for the user's local Claude Code / Codex CLI configuration.
  *
  * Goal: inspect config files for diagnostics and utility contexts. Session
- * routing itself is resolved in upstream-resolver and uses DPCC by default unless
- * the user explicitly enables an in-app third-party gateway.
+ * routing itself is resolved in upstream-resolver from Settings → Current Config.
  *
  * These probes do not parse the full config — they only detect whether the
  * fields that would conflict with PccAgent's gateway injection are present.

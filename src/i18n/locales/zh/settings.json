@@ -102,7 +102,7 @@
       "customPlaceholder": "claude 可执行文件的绝对路径",
       "gateway": {
         "toggleLabel": "自定义网关",
-        "toggleDesc": "通过第三方 Anthropic 兼容网关运行 Claude 会话（设置 ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN）。",
+        "toggleDesc": "保存第三方 Anthropic 兼容网关详情。是否通过它运行会话请在「当前配置」中选择。",
         "editLabel": "编辑网关配置",
         "baseUrlLabel": "Base URL",
         "baseUrlDesc": "网关地址 → ANTHROPIC_BASE_URL。",
@@ -111,7 +111,7 @@
         "tokenDesc": "Bearer 令牌 / API Key → ANTHROPIC_AUTH_TOKEN。",
         "tokenPlaceholder": "sk-...",
         "modelLabel": "模型 ID",
-        "modelDesc": "作为会话默认模型，覆盖模型选择器。",
+        "modelDesc": "当「当前配置」选择第三方网关时使用的模型 ID。",
         "modelPlaceholder": "例如 claude-sonnet-4-6"
       },
       "origin": {
@@ -136,7 +136,7 @@
       "customPlaceholder": "codex 可执行文件的绝对路径",
       "gateway": {
         "toggleLabel": "自定义网关",
-        "toggleDesc": "通过第三方 Responses API 提供方运行 Codex 会话（model_providers 覆盖）。模型 ID 需被网关支持。",
+        "toggleDesc": "保存第三方 Responses API 提供方详情。是否通过它运行会话请在「当前配置」中选择。",
         "editLabel": "编辑网关配置",
         "nameLabel": "提供方名称",
         "nameDesc": "提供方的显示名称。",
@@ -148,7 +148,7 @@
         "apiKeyDesc": "运行时注入 Codex 进程，不会写入 config.toml。",
         "apiKeyPlaceholder": "sk-...",
         "modelLabel": "模型 ID",
-        "modelDesc": "作为会话默认模型。",
+        "modelDesc": "当「当前配置」选择第三方网关时使用的模型 ID。",
         "modelPlaceholder": "例如 gpt-5.3-codex-spark"
       },
       "origin": {
@@ -327,7 +327,7 @@
   },
   "currentConfig": {
     "title": "当前配置",
-    "description": "PccAgent 实际用于运行会话的上游与模型配置。此处为只读 —— 如需修改，请前往「设置 → 引擎」（第三方网关）或「设置 → 账户」（DPCC 官方上游）。",
+    "description": "PccAgent 实际用于运行会话的上游与模型配置。可在此切换配置来源；具体密钥和网关参数仍在「设置 → 账户 / 引擎」中维护。",
     "refresh": "刷新",
     "refreshing": "刷新中…",
     "claude": "Claude",
@@ -338,8 +338,8 @@
       "default": "DPCC 官方上游"
     },
     "sourceDesc": {
-      "gateway": "通过「设置 → 引擎」中配置的自定义第三方网关转发（最高优先级）。",
-      "local": "保留的本机 CLI 配置来源。当前会话默认使用 DPCC，除非启用第三方网关。",
+      "gateway": "通过「设置 → 引擎」中配置的自定义第三方网关转发。",
+      "local": "使用当前本机 Claude Code / Codex CLI 配置。",
       "default": "通过 DPCC 官方上游 (api.dpccgaming.xyz) 转发。"
     },
     "fields": {

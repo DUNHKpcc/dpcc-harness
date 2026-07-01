@@ -1,13 +1,14 @@
 /**
  * Resolves the config PccAgent actually applies when starting sessions — the
- * "effective" view shown read-only in Settings → Current Config.
+ * "effective" view shown in Settings → Current Config.
  *
- * Precedence mirrors the session spawn logic (see upstream-resolver):
- *  - gateway: the in-app custom third-party gateway, when enabled (highest)
+ * Source options mirror the session spawn logic (see upstream-resolver):
  *  - default: the DPCC official upstream (api.dpccgaming.xyz) + the DPCC account key
+ *  - local: the user's current Claude Code / Codex CLI configuration
+ *  - gateway: the in-app custom third-party gateway
  *
  * The "default" tier routes to the DPCC upstream, so it carries a real base URL
- * + (masked) token. Local CLI config is intentionally not a higher-priority tier.
+ * + (masked) token. Current Config lets the user choose local or gateway instead.
  */
 
 import {

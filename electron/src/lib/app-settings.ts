@@ -25,7 +25,7 @@ import {
 } from "@shared/lib/gateway-models";
 
 // Re-export shared types so existing `import from "./app-settings"` consumers still work
-export type { AppSettings, MacBackgroundEffect, PreferredEditor, VoiceDictationMode, NotificationTrigger, NotificationEventSettings, NotificationSettings, CodexBinarySource, ClaudeBinarySource, ClaudeGatewaySettings, CodexGatewaySettings, DpccUpstreamSettings, UpdateSource } from "@shared/types/settings";
+export type { AppSettings, MacBackgroundEffect, PreferredEditor, VoiceDictationMode, NotificationTrigger, NotificationEventSettings, NotificationSettings, CodexBinarySource, ClaudeBinarySource, ClaudeGatewaySettings, CodexGatewaySettings, DpccUpstreamSettings, UpdateSource, CliConfigSource } from "@shared/types/settings";
 
 const NOTIFICATION_DEFAULTS: NotificationSettings = {
   exitPlanMode: { osNotification: "unfocused", sound: "always" },
@@ -53,6 +53,7 @@ const DEFAULTS: AppSettings = {
   analyticsEnabled: true,
   claudeGateway: { enabled: false, baseUrl: "", authToken: "", model: "", modelMappings: CLAUDE_GATEWAY_MODEL_PRESETS },
   codexGateway: { enabled: false, name: "", baseUrl: "", apiKey: "", model: "", modelMappings: CODEX_GATEWAY_MODEL_PRESETS },
+  cliConfigSource: "default",
   dpccUpstream: { baseUrl: "", claudeToken: "", codexToken: "", claudeModel: "", codexModel: "" },
   accountAccessToken: "",
   accountUserId: "",
@@ -72,7 +73,7 @@ function looksLikeDpcc(baseUrl: string | undefined): boolean {
  * Previously the DPCC API account entry stored its key in claudeGateway/
  * codexGateway with `enabled=true`. Those gateways now mean "custom third-party
  * gateway" only, while the DPCC official default upstream has its own field and
- * is used unless a third-party gateway is explicitly enabled. Move any
+ * is selected from Current Config. Move any
  * DPCC-shaped gateway credentials into
  * `dpccUpstream` and clear them from the gateway fields so a DPCC account isn't
  * mistaken for a custom gateway. Custom (non-DPCC) gateways are left untouched.

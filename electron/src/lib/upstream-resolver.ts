@@ -1,20 +1,22 @@
 /**
  * Single source of truth for which upstream PccAgent routes each engine through.
  *
- * Precedence (highest → lowest):
- *   1. gateway — the in-app custom third-party gateway (Settings → Engines), when enabled
- *   2. default — the DPCC official upstream (api.dpccgaming.xyz) + the DPCC account key
+ * Source is selected in Settings → Current Config:
+ *   - default — the DPCC official upstream (api.dpccgaming.xyz) + the DPCC account key
+ *   - local — the user's current Claude Code / Codex CLI configuration
+ *   - gateway — the in-app custom third-party gateway (Settings → Engines)
  *
- * The DPCC default replaces the engine's own login / cloud auth entirely: when no
- * explicit third-party gateway applies, sessions are routed to api.dpccgaming.xyz,
- * even if the user's local ~/.claude or ~/.codex config contains another provider.
+ * The DPCC default replaces the engine's own login / cloud auth entirely. New
+ * installs default to DPCC; local CLI and third-party gateway are opt-in
+ * selections so the UI source and the session spawn behavior stay aligned.
  *
- * Consumers: session spawn env (claude-gateway-env, codex-sessions), the read-only
+ * Consumers: session spawn env (claude-gateway-env, codex-sessions), the
  * "Current Config" panel (effective-cli-config), and upstream model listing
  * (cc-config:models).
  */
 
 import { getAppSetting } from "./app-settings";
+import { loadLocalClaudeEnv, loadLocalCodexProvider } from "./local-cli-config";
 import { DEFAULT_NEWAPI_BASE_URL } from "@shared/types/account";
 
 export type UpstreamTier = "gateway" | "local" | "default";
@@ -50,17 +52,32 @@ function dpccHost(): string {
   return raw || DEFAULT_NEWAPI_BASE_URL.replace(/\/+$/, "");
 }
 
-/** Resolve the effective Claude upstream by the gateway → DPCC-default ladder. */
-export function resolveClaudeUpstream(): ClaudeUpstream {
+function selectedSource(): UpstreamTier {
+  const source = getAppSetting("cliConfigSource");
+  return source === "local" || source === "gateway" || source === "default" ? source : "default";
+}
+
+function resolveLocalClaudeUpstream(): ClaudeUpstream {
+  const env = loadLocalClaudeEnv();
+  return {
+    tier: "local",
+    baseUrl: env.ANTHROPIC_BASE_URL?.trim() ?? "",
+    token: (env.ANTHROPIC_AUTH_TOKEN || env.ANTHROPIC_API_KEY || "").trim(),
+    model: env.ANTHROPIC_MODEL?.trim() ?? "",
+  };
+}
+
+function resolveGatewayClaudeUpstream(): ClaudeUpstream {
   const g = getAppSetting("claudeGateway");
-  if (g?.enabled && (g.baseUrl.trim() || g.authToken.trim())) {
-    return {
-      tier: "gateway",
-      baseUrl: g.baseUrl.trim(),
-      token: g.authToken.trim(),
-      model: g.model.trim(),
-    };
-  }
+  return {
+    tier: "gateway",
+    baseUrl: g.baseUrl.trim(),
+    token: g.authToken.trim(),
+    model: g.model.trim(),
+  };
+}
+
+function resolveDefaultClaudeUpstream(): ClaudeUpstream {
   const dpcc = getAppSetting("dpccUpstream");
   return {
     tier: "default",
@@ -70,20 +87,31 @@ export function resolveClaudeUpstream(): ClaudeUpstream {
   };
 }
 
-/** Resolve the effective Codex upstream by the gateway → DPCC-default ladder. */
-export function resolveCodexUpstream(): CodexUpstream {
+function resolveLocalCodexUpstream(): CodexUpstream {
+  const local = loadLocalCodexProvider();
+  return {
+    tier: "local",
+    providerName: local.provider ?? "",
+    baseUrl: local.baseUrl ?? "",
+    apiKey: "",
+    model: local.model ?? "",
+  };
+}
+
+function resolveGatewayCodexUpstream(): CodexUpstream {
   const c = getAppSetting("codexGateway");
-  if (c?.enabled && c.baseUrl.trim()) {
-    return {
-      // Leave the name empty when unset so each consumer applies its own fallback
-      // (codex-sessions → "PccAgent Gateway"; the Current Config view → "—").
-      tier: "gateway",
-      providerName: c.name.trim(),
-      baseUrl: c.baseUrl.trim(),
-      apiKey: c.apiKey.trim(),
-      model: c.model.trim(),
-    };
-  }
+  return {
+    // Leave the name empty when unset so each consumer applies its own fallback
+    // (codex-sessions → "PccAgent Gateway"; the Current Config view → "—").
+    tier: "gateway",
+    providerName: c.name.trim(),
+    baseUrl: c.baseUrl.trim(),
+    apiKey: c.apiKey.trim(),
+    model: c.model.trim(),
+  };
+}
+
+function resolveDefaultCodexUpstream(): CodexUpstream {
   const dpcc = getAppSetting("dpccUpstream");
   return {
     tier: "default",
@@ -92,4 +120,30 @@ export function resolveCodexUpstream(): CodexUpstream {
     apiKey: dpcc.codexToken.trim(),
     model: dpcc.codexModel.trim(),
   };
+}
+
+/** Resolve the effective Claude upstream from the user-selected Current Config source. */
+export function resolveClaudeUpstream(): ClaudeUpstream {
+  switch (selectedSource()) {
+    case "local":
+      return resolveLocalClaudeUpstream();
+    case "gateway":
+      return resolveGatewayClaudeUpstream();
+    case "default":
+    default:
+      return resolveDefaultClaudeUpstream();
+  }
+}
+
+/** Resolve the effective Codex upstream from the user-selected Current Config source. */
+export function resolveCodexUpstream(): CodexUpstream {
+  switch (selectedSource()) {
+    case "local":
+      return resolveLocalCodexUpstream();
+    case "gateway":
+      return resolveGatewayCodexUpstream();
+    case "default":
+    default:
+      return resolveDefaultCodexUpstream();
+  }
 }

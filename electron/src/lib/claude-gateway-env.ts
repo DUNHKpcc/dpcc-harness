@@ -7,11 +7,10 @@
  * bare endpoint and the gateway replies "not login" (B4: WeChat sends fail;
  * B5b: built-in title generation returns "not login" as the title).
  *
- * Precedence (see upstream-resolver): custom gateway > DPCC default upstream.
+ * Source selection is resolved in upstream-resolver from Settings → Current Config.
  * Process env wins over ~/.claude/settings.json env, so claudeSpawnEnv purges
  * inherited ANTHROPIC_* before injecting the resolved upstream. This prevents a
- * stale local CLI key or base URL from overriding DPCC unless the user explicitly
- * enables a third-party gateway in app settings.
+ * stale local CLI key or base URL from overriding DPCC or gateway selections.
  */
 
 import { loadLocalClaudeEnv } from "./local-cli-config";
@@ -23,7 +22,7 @@ const GATEWAY_SETTING_SOURCES = ["project", "local"];
 
 function hasClaudeUpstreamOverride(): boolean {
   const u = resolveClaudeUpstream();
-  return u.tier !== "local" && Boolean(u.baseUrl || u.token);
+  return u.tier !== "local";
 }
 
 /**
@@ -51,7 +50,7 @@ export function claudeSpawnEnv(): Record<string, string | undefined> {
     ...loadLocalClaudeEnv(),
     ...clientAppEnv(),
   };
-  if (Object.keys(override).length > 0) {
+  if (hasClaudeUpstreamOverride()) {
     for (const key of Object.keys(base)) {
       if (key.startsWith("ANTHROPIC_")) delete base[key];
     }

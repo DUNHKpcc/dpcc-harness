@@ -1,6 +1,6 @@
 /**
  * "Current Config" — the effective gateway/provider config PccAgent actually
- * applies when starting sessions. Resolved read-only by
+ * applies when starting sessions. Resolved by
  * electron/src/lib/effective-cli-config.ts; consumed by the CurrentConfigSettings panel.
  */
 

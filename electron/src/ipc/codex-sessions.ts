@@ -298,11 +298,10 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         // ── Check auth status ──
         const authResult = await rpc.request<CodexAccountResponse>("account/read", { refreshToken: false });
 
-        // The OpenAI/ChatGPT login gate is retired: Codex always routes through a
-        // custom model_providers entry — either an explicit third-party gateway or
-        // the DPCC default upstream (requires_openai_auth=false). A missing DPCC
-        // Codex key fails at call time, not via a login prompt. authResult is still
-        // consulted below for the connected-account info.
+        // The OpenAI/ChatGPT login gate is retired for non-local upstreams:
+        // DPCC/default and third-party gateway inject requires_openai_auth=false.
+        // Local Codex config keeps its own auth behavior. authResult is still
+        // consulted below for connected-account info.
         const needsAuth: boolean = false;
         if (needsAuth) {
           // Notify renderer that auth is required — don't start thread yet
@@ -348,7 +347,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         if (options.personality) threadParams.personality = options.personality;
         // collaborationMode is set per-turn via turn/start, not on thread/start
 
-        // Custom gateway: override provider + model (takes priority over selectedModel).
+        // Non-local selected upstreams override provider + model.
         const gatewayParams = codexUpstreamThreadParams();
         if (Object.keys(gatewayParams).length > 0) {
           Object.assign(threadParams, gatewayParams);
@@ -418,7 +417,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
           if (session.model) threadParams.model = session.model;
           if (session.approvalPolicy) threadParams.approvalPolicy = session.approvalPolicy;
           if (session.sandbox) threadParams.sandbox = session.sandbox;
-          // Custom gateway: override provider + model (takes priority).
+          // Non-local selected upstreams override provider + model.
           Object.assign(threadParams, codexUpstreamThreadParams());
           if (threadParams.model === null) {
             session.model = undefined;
@@ -781,7 +780,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         };
         if (data.approvalPolicy) threadParams.approvalPolicy = data.approvalPolicy;
         if (data.sandbox) threadParams.sandbox = data.sandbox;
-        // Custom gateway: override provider + model (takes priority).
+        // Non-local selected upstreams override provider + model.
         const gatewayResumeParams = codexUpstreamThreadParams();
         if (Object.keys(gatewayResumeParams).length > 0) {
           Object.assign(threadParams, gatewayResumeParams);

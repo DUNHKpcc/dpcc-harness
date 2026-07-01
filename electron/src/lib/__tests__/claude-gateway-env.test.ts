@@ -94,6 +94,29 @@ describe("claude gateway env", () => {
     expect(claudeSettingSources()).toEqual(["user", "project", "local"]);
   });
 
+  it("keeps local Claude env when the local upstream is selected", async () => {
+    mockLoadLocalClaudeEnv.mockReturnValue({
+      ANTHROPIC_BASE_URL: "https://local.example",
+      ANTHROPIC_AUTH_TOKEN: "sk-local",
+      ANTHROPIC_DEFAULT_SONNET_MODEL: "local-sonnet",
+      KEEP_ME: "1",
+    });
+    mockResolveClaudeUpstream.mockReturnValue({
+      tier: "local",
+      baseUrl: "https://local.example",
+      token: "sk-local",
+      model: "local-sonnet",
+    });
+    const { claudeSpawnEnv } = await loadModule();
+
+    const env = claudeSpawnEnv();
+
+    expect(env.ANTHROPIC_BASE_URL).toBe("https://local.example");
+    expect(env.ANTHROPIC_AUTH_TOKEN).toBe("sk-local");
+    expect(env.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe("local-sonnet");
+    expect(env.KEEP_ME).toBe("1");
+  });
+
   it("uses the resolved upstream model when configured", async () => {
     mockResolveClaudeUpstream.mockReturnValue({
       tier: "default",

@@ -1,5 +1,6 @@
 {
   "titlebar": "Settings",
+  "saveFailed": "Couldn't save settings.",
   "nav": {
     "general": "General",
     "account": "DPCC API",
@@ -330,6 +331,7 @@
     "description": "The upstream and model configuration PccAgent is actually using to run sessions. Switch the config source here; maintain keys and gateway details in Settings → Account / Engines.",
     "refresh": "Refresh",
     "refreshing": "Refreshing…",
+    "saveFailed": "Couldn't save the config source.",
     "claude": "Claude",
     "codex": "Codex",
     "source": {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ToolId } from "@/types/tools";
 import type { AcpPermissionBehavior, ClaudeEffort, EngineId, MacBackgroundEffect, ThemeOption } from "@/types";
+import { reportSettingsSaveFailure, setAppSettingsChecked } from "@/lib/app-settings-ipc";
 
 // ── Helpers ──
 
@@ -37,7 +38,7 @@ type MacNativeBackgroundEffect = Exclude<MacBackgroundEffect, "off">;
 
 function persistMacBackgroundEffect(effect: MacNativeBackgroundEffect): void {
   if (!IS_MAC_PLATFORM || typeof window === "undefined" || !window.claude?.settings) return;
-  void window.claude.settings.set({ macBackgroundEffect: effect });
+  void setAppSettingsChecked({ macBackgroundEffect: effect }).catch(reportSettingsSaveFailure);
 }
 
 /** Normalize an array of ratios to sum to 1.0, respecting a per-element minimum. */

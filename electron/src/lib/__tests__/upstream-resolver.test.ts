@@ -139,4 +139,58 @@ describe("upstream resolver", () => {
       model: "gateway-codex-model",
     });
   });
+
+  it("falls back to DPCC default when the selected gateway is not configured", async () => {
+    mockSettings({
+      cliConfigSource: "gateway",
+      claudeGateway: {
+        enabled: false,
+        baseUrl: "",
+        authToken: "",
+        model: "",
+      },
+      codexGateway: {
+        enabled: false,
+        name: "",
+        baseUrl: "",
+        apiKey: "",
+        model: "",
+      },
+    });
+    const { resolveClaudeUpstream, resolveCodexUpstream } = await loadModule();
+
+    expect(resolveClaudeUpstream()).toEqual({
+      tier: "default",
+      baseUrl: "https://api.dpcc.example",
+      token: "sk-dpcc-claude",
+      model: "dpcc-claude-model",
+    });
+    expect(resolveCodexUpstream()).toEqual({
+      tier: "default",
+      providerName: "DPCC API",
+      baseUrl: "https://api.dpcc.example/v1",
+      apiKey: "sk-dpcc-codex",
+      model: "dpcc-codex-model",
+    });
+  });
+
+  it("falls back to DPCC default when a Claude gateway only has a stale token", async () => {
+    mockSettings({
+      cliConfigSource: "gateway",
+      claudeGateway: {
+        enabled: false,
+        baseUrl: "",
+        authToken: "sk-stale-claude",
+        model: "gateway-claude-model",
+      },
+    });
+    const { resolveClaudeUpstream } = await loadModule();
+
+    expect(resolveClaudeUpstream()).toEqual({
+      tier: "default",
+      baseUrl: "https://api.dpcc.example",
+      token: "sk-dpcc-claude",
+      model: "dpcc-claude-model",
+    });
+  });
 });

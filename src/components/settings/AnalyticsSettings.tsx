@@ -54,7 +54,9 @@ export const AnalyticsSettings = memo(function AnalyticsSettings({
             >
               <Switch
                 checked={analyticsEnabled}
-                onCheckedChange={handleToggleAnalytics}
+                onCheckedChange={(checked) => {
+                  void handleToggleAnalytics(checked).catch(() => {});
+                }}
               />
             </SettingRow>
 

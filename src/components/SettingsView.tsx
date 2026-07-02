@@ -1,5 +1,6 @@
 import { memo, useState, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import {
   SlidersHorizontal,
   Bell,
@@ -34,6 +35,7 @@ import { AboutSettings } from "@/components/settings/AboutSettings";
 import { AnalyticsSettings } from "@/components/settings/AnalyticsSettings";
 import { CurrentConfigSettings } from "@/components/settings/CurrentConfigSettings";
 import { useSettingsStore } from "@/stores/settings-store";
+import { setAppSettingsChecked } from "@/lib/app-settings-ipc";
 import { isMac } from "@/lib/utils";
 import type { AppSettings } from "@/types";
 import { useAgentContext } from "./AgentContext";
@@ -109,10 +111,20 @@ export const SettingsView = memo(function SettingsView({
   }, []);
 
   const updateAppSettings = useCallback(async (patch: Partial<AppSettings>) => {
-    // Optimistic local update
+    const previousSettings = appSettings;
     setAppSettings((prev) => (prev ? { ...prev, ...patch } : null));
-    await window.claude.settings.set(patch);
-  }, []);
+    try {
+      await setAppSettingsChecked(patch);
+    } catch (error) {
+      try {
+        setAppSettings((await window.claude.settings.get()) ?? previousSettings);
+      } catch {
+        setAppSettings(previousSettings);
+      }
+      toast.error(t("saveFailed"));
+      throw error;
+    }
+  }, [appSettings, t]);
 
   // Escape key closes settings
   useEffect(() => {

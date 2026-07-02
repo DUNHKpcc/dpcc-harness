@@ -77,6 +77,11 @@ function resolveGatewayClaudeUpstream(): ClaudeUpstream {
   };
 }
 
+function hasConfiguredClaudeGateway(): boolean {
+  const g = getAppSetting("claudeGateway");
+  return Boolean(g.baseUrl.trim());
+}
+
 function resolveDefaultClaudeUpstream(): ClaudeUpstream {
   const dpcc = getAppSetting("dpccUpstream");
   return {
@@ -111,6 +116,11 @@ function resolveGatewayCodexUpstream(): CodexUpstream {
   };
 }
 
+function hasConfiguredCodexGateway(): boolean {
+  const c = getAppSetting("codexGateway");
+  return Boolean(c.baseUrl.trim());
+}
+
 function resolveDefaultCodexUpstream(): CodexUpstream {
   const dpcc = getAppSetting("dpccUpstream");
   return {
@@ -128,7 +138,7 @@ export function resolveClaudeUpstream(): ClaudeUpstream {
     case "local":
       return resolveLocalClaudeUpstream();
     case "gateway":
-      return resolveGatewayClaudeUpstream();
+      return hasConfiguredClaudeGateway() ? resolveGatewayClaudeUpstream() : resolveDefaultClaudeUpstream();
     case "default":
     default:
       return resolveDefaultClaudeUpstream();
@@ -141,7 +151,7 @@ export function resolveCodexUpstream(): CodexUpstream {
     case "local":
       return resolveLocalCodexUpstream();
     case "gateway":
-      return resolveGatewayCodexUpstream();
+      return hasConfiguredCodexGateway() ? resolveGatewayCodexUpstream() : resolveDefaultCodexUpstream();
     case "default":
     default:
       return resolveDefaultCodexUpstream();

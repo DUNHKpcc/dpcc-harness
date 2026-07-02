@@ -1,5 +1,6 @@
 {
   "titlebar": "设置",
+  "saveFailed": "无法保存设置。",
   "nav": {
     "general": "通用",
     "account": "DPCC API",
@@ -330,6 +331,7 @@
     "description": "PccAgent 实际用于运行会话的上游与模型配置。可在此切换配置来源；具体密钥和网关参数仍在「设置 → 账户 / 引擎」中维护。",
     "refresh": "刷新",
     "refreshing": "刷新中…",
+    "saveFailed": "无法保存配置来源。",
     "claude": "Claude",
     "codex": "Codex",
     "source": {

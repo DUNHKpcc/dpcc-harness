@@ -1,9 +1,12 @@
-import { memo, useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Server, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { SettingsHeader, SettingsSection, SettingsSelect } from "@/components/settings/shared";
+import { shouldApplyConfigSourceRefresh } from "@/components/settings/current-config-settings-utils";
+import { setAppSettingsChecked } from "@/lib/app-settings-ipc";
 import { getVisibleGatewayModels } from "@/lib/gateway-models";
 import type {
   EffectiveCliConfig,
@@ -168,8 +171,10 @@ export const CurrentConfigSettings = memo(function CurrentConfigSettings() {
   const [configSource, setConfigSource] = useState<CliConfigSource>("default");
   const [refreshing, setRefreshing] = useState(false);
   const [savingSource, setSavingSource] = useState(false);
+  const refreshRequestIdRef = useRef(0);
 
   const refresh = useCallback(async () => {
+    const requestId = ++refreshRequestIdRef.current;
     setRefreshing(true);
     try {
       // Effective config resolves instantly; the model lists hit /v1/models, so
@@ -179,24 +184,32 @@ export const CurrentConfigSettings = memo(function CurrentConfigSettings() {
         window.claude.ccConfig.models(),
         window.claude.settings.get(),
       ]);
+      if (!shouldApplyConfigSourceRefresh(requestId, refreshRequestIdRef.current)) return;
       setData(cfg);
       setModels(mdl);
       setConfigSource(settings?.cliConfigSource ?? "default");
     } finally {
-      setRefreshing(false);
+      if (shouldApplyConfigSourceRefresh(requestId, refreshRequestIdRef.current)) {
+        setRefreshing(false);
+      }
     }
   }, []);
 
   const updateConfigSource = useCallback(async (source: CliConfigSource) => {
+    const previousSource = configSource;
     setConfigSource(source);
     setSavingSource(true);
     try {
-      await window.claude.settings.set({ cliConfigSource: source });
+      await setAppSettingsChecked({ cliConfigSource: source });
       await refresh();
+    } catch {
+      setConfigSource(previousSource);
+      toast.error(t("currentConfig.saveFailed"));
+      void refresh();
     } finally {
       setSavingSource(false);
     }
-  }, [refresh]);
+  }, [configSource, refresh, t]);
 
   useEffect(() => {
     void refresh();
@@ -234,6 +247,7 @@ export const CurrentConfigSettings = memo(function CurrentConfigSettings() {
                   label: t(option.labelKey),
                 }))}
                 className="w-[180px]"
+                disabled={savingSource}
               />
               {savingSource && (
                 <RefreshCw className="h-3.5 w-3.5 animate-spin text-muted-foreground" />

@@ -123,4 +123,80 @@ describe("app settings", () => {
       "gpt-5.3-codex-spark",
     ]);
   });
+
+  it("preserves legacy third-party gateway routing by selecting the gateway source", async () => {
+    const settingsPath = path.join(dataDirRef.current, "settings.json");
+    fs.writeFileSync(settingsPath, JSON.stringify({
+      binarySourceDefaultsMigrated: true,
+      claudeGateway: {
+        enabled: true,
+        baseUrl: "https://anthropic-gateway.example",
+        authToken: "sk-claude",
+        model: "claude-sonnet-4-6",
+      },
+      codexGateway: {
+        enabled: true,
+        name: "My Gateway",
+        baseUrl: "https://openai-gateway.example/v1",
+        apiKey: "sk-codex",
+        model: "gpt-5.5",
+      },
+      dpccUpstream: {
+        baseUrl: "",
+        claudeToken: "",
+        codexToken: "",
+        claudeModel: "",
+        codexModel: "",
+      },
+    }), "utf-8");
+
+    const { getAppSettings } = await loadModule();
+
+    const settings = getAppSettings();
+    expect(settings.cliConfigSource).toBe("gateway");
+
+    const persisted = JSON.parse(fs.readFileSync(settingsPath, "utf-8")) as {
+      cliConfigSource: string;
+    };
+    expect(persisted.cliConfigSource).toBe("gateway");
+  });
+
+  it("keeps legacy DPCC gateway credentials on the default source after migration", async () => {
+    fs.writeFileSync(path.join(dataDirRef.current, "settings.json"), JSON.stringify({
+      binarySourceDefaultsMigrated: true,
+      claudeGateway: {
+        enabled: true,
+        baseUrl: "https://api.dpccgaming.xyz",
+        authToken: "sk-dpcc-claude",
+        model: "dpcc-claude",
+      },
+      codexGateway: {
+        enabled: true,
+        name: "DPCC",
+        baseUrl: "https://api.dpccgaming.xyz/v1",
+        apiKey: "sk-dpcc-codex",
+        model: "dpcc-codex",
+      },
+    }), "utf-8");
+
+    const { getAppSettings } = await loadModule();
+
+    const settings = getAppSettings();
+    expect(settings.cliConfigSource).toBe("default");
+    expect(settings.dpccUpstream).toMatchObject({
+      claudeToken: "sk-dpcc-claude",
+      codexToken: "sk-dpcc-codex",
+    });
+  });
+
+  it("throws when settings cannot be persisted", async () => {
+    const { setAppSettings } = await loadModule();
+    const writeSpy = vi.spyOn(fs, "writeFileSync").mockImplementation(() => {
+      throw new Error("disk full");
+    });
+
+    expect(() => setAppSettings({ cliConfigSource: "gateway" })).toThrow("disk full");
+
+    writeSpy.mockRestore();
+  });
 });

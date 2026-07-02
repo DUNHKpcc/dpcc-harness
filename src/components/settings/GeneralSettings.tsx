@@ -103,7 +103,9 @@ export const GeneralSettings = memo(function GeneralSettings({
             >
               <Switch
                 checked={allowPrerelease}
-                onCheckedChange={handleTogglePrerelease}
+                onCheckedChange={(checked) => {
+                  void handleTogglePrerelease(checked).catch(() => {});
+                }}
               />
             </SettingRow>
           </SettingsSection>

@@ -80,10 +80,14 @@ export const AdvancedSettings = memo(function AdvancedSettings({
                 type="text"
                 value={codexClientName}
                 onChange={(e) => setCodexClientName(e.target.value)}
-                onBlur={(e) => handleClientNameChange(e.target.value)}
+                onBlur={(e) => {
+                  void handleClientNameChange(e.target.value).catch(() => {});
+                }}
                 onKeyDown={(e) => {
                   if (isImeComposing(e)) return;
-                  if (e.key === "Enter") handleClientNameChange(e.currentTarget.value);
+                  if (e.key === "Enter") {
+                    void handleClientNameChange(e.currentTarget.value).catch(() => {});
+                  }
                 }}
                 spellCheck={false}
                 className="h-8 w-40 rounded-md border border-foreground/10 bg-background px-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground hover:border-foreground/20 focus:border-foreground/30 focus:ring-1 focus:ring-foreground/20"
@@ -98,7 +102,9 @@ export const AdvancedSettings = memo(function AdvancedSettings({
               >
                 <Switch
                   checked={showDevFillInChatTitleBar}
-                  onCheckedChange={handleDevFillToggle}
+                  onCheckedChange={(checked) => {
+                    void handleDevFillToggle(checked).catch(() => {});
+                  }}
                 />
               </SettingRow>
             )}
@@ -109,7 +115,9 @@ export const AdvancedSettings = memo(function AdvancedSettings({
             >
               <Switch
                 checked={showJiraBoard}
-                onCheckedChange={handleJiraBoardToggle}
+                onCheckedChange={(checked) => {
+                  void handleJiraBoardToggle(checked).catch(() => {});
+                }}
               />
             </SettingRow>
 

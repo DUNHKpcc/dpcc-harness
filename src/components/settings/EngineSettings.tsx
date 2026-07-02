@@ -36,7 +36,7 @@ const GatewayTextField = memo(function GatewayTextField({
   type = "text",
 }: {
   value: string;
-  onSave: (value: string) => void;
+  onSave: (value: string) => void | Promise<void>;
   placeholder: string;
   type?: "text" | "password";
 }) {
@@ -47,10 +47,14 @@ const GatewayTextField = memo(function GatewayTextField({
       type={type}
       value={local}
       onChange={(e) => setLocal(e.target.value)}
-      onBlur={(e) => onSave(e.target.value)}
+      onBlur={(e) => {
+        void Promise.resolve(onSave(e.target.value)).catch(() => {});
+      }}
       onKeyDown={(e) => {
         if (isImeComposing(e)) return;
-        if (e.key === "Enter") onSave(e.currentTarget.value);
+        if (e.key === "Enter") {
+          void Promise.resolve(onSave(e.currentTarget.value)).catch(() => {});
+        }
       }}
       spellCheck={false}
       autoComplete="off"
@@ -71,7 +75,7 @@ const GatewayModelField = memo(function GatewayModelField({
   value: string;
   mappings: GatewayModelMapping[];
   upstreamModels: string[];
-  onSave: (value: string) => void;
+  onSave: (value: string) => void | Promise<void>;
   placeholder: string;
   datalistId: string;
 }) {
@@ -85,10 +89,14 @@ const GatewayModelField = memo(function GatewayModelField({
         value={local}
         list={datalistId}
         onChange={(e) => setLocal(e.target.value)}
-        onBlur={(e) => onSave(e.target.value.trim())}
+        onBlur={(e) => {
+          void Promise.resolve(onSave(e.target.value.trim())).catch(() => {});
+        }}
         onKeyDown={(e) => {
           if (isImeComposing(e)) return;
-          if (e.key === "Enter") onSave(e.currentTarget.value.trim());
+          if (e.key === "Enter") {
+            void Promise.resolve(onSave(e.currentTarget.value.trim())).catch(() => {});
+          }
         }}
         spellCheck={false}
         autoComplete="off"
@@ -379,7 +387,7 @@ export const EngineSettings = memo(function EngineSettings({
     (checked: boolean) => {
       if (checked && !claudeGateway.enabled) setClaudeGatewayOpen(true);
       if (!checked) setClaudeGatewayOpen(false);
-      void handleClaudeGatewayChange({ enabled: checked });
+      void handleClaudeGatewayChange({ enabled: checked }).catch(() => {});
     },
     [claudeGateway.enabled, handleClaudeGatewayChange],
   );
@@ -397,7 +405,7 @@ export const EngineSettings = memo(function EngineSettings({
     (checked: boolean) => {
       if (checked && !codexGateway.enabled) setCodexGatewayOpen(true);
       if (!checked) setCodexGatewayOpen(false);
-      void handleCodexGatewayChange({ enabled: checked });
+      void handleCodexGatewayChange({ enabled: checked }).catch(() => {});
     },
     [codexGateway.enabled, handleCodexGatewayChange],
   );
@@ -500,10 +508,14 @@ export const EngineSettings = memo(function EngineSettings({
                   type="text"
                   value={claudeCustomBinaryPath}
                   onChange={(e) => setClaudeCustomBinaryPath(e.target.value)}
-                  onBlur={(e) => handleClaudeCustomPathSave(e.target.value)}
+                  onBlur={(e) => {
+                    void handleClaudeCustomPathSave(e.target.value).catch(() => {});
+                  }}
                   onKeyDown={(e) => {
                     if (isImeComposing(e)) return;
-                    if (e.key === "Enter") handleClaudeCustomPathSave(e.currentTarget.value);
+                    if (e.key === "Enter") {
+                      void handleClaudeCustomPathSave(e.currentTarget.value).catch(() => {});
+                    }
                   }}
                   spellCheck={false}
                   className="h-8 w-80 rounded-md border border-foreground/10 bg-background px-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground hover:border-foreground/20 focus:border-foreground/30 focus:ring-1 focus:ring-foreground/20"
@@ -562,7 +574,9 @@ export const EngineSettings = memo(function EngineSettings({
                       upstreamError={claudeUpstreamError}
                       loading={claudeModelsLoading}
                       onFetch={fetchClaudeGatewayModels}
-                      onChange={(modelMappings) => void handleClaudeGatewayChange({ modelMappings })}
+                      onChange={(modelMappings) => {
+                        void handleClaudeGatewayChange({ modelMappings }).catch(() => {});
+                      }}
                     />
                   </div>
                 </CollapsibleContent>
@@ -629,10 +643,14 @@ export const EngineSettings = memo(function EngineSettings({
                   type="text"
                   value={codexCustomBinaryPath}
                   onChange={(e) => setCodexCustomBinaryPath(e.target.value)}
-                  onBlur={(e) => handleCodexCustomPathSave(e.target.value)}
+                  onBlur={(e) => {
+                    void handleCodexCustomPathSave(e.target.value).catch(() => {});
+                  }}
                   onKeyDown={(e) => {
                     if (isImeComposing(e)) return;
-                    if (e.key === "Enter") handleCodexCustomPathSave(e.currentTarget.value);
+                    if (e.key === "Enter") {
+                      void handleCodexCustomPathSave(e.currentTarget.value).catch(() => {});
+                    }
                   }}
                   spellCheck={false}
                   className="h-8 w-80 rounded-md border border-foreground/10 bg-background px-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground hover:border-foreground/20 focus:border-foreground/30 focus:ring-1 focus:ring-foreground/20"
@@ -698,7 +716,9 @@ export const EngineSettings = memo(function EngineSettings({
                       upstreamError={codexUpstreamError}
                       loading={codexModelsLoading}
                       onFetch={fetchCodexGatewayModels}
-                      onChange={(modelMappings) => void handleCodexGatewayChange({ modelMappings })}
+                      onChange={(modelMappings) => {
+                        void handleCodexGatewayChange({ modelMappings }).catch(() => {});
+                      }}
                     />
                   </div>
                 </CollapsibleContent>

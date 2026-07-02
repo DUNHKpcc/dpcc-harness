@@ -48,14 +48,14 @@ describe("codex home isolation", () => {
     const { buildCodexAppServerEnv } = await loadModule();
 
     const env = buildCodexAppServerEnv({ PATH: "/usr/bin" });
-    const codexHome = path.join(testDataDir, "codex-home");
+    const codexHome = env.CODEX_HOME as string;
 
     expect(env).toMatchObject({
       PATH: "/usr/bin",
       RUST_LOG: "warn",
-      CODEX_HOME: codexHome,
       PCCAGENT_GATEWAY_API_KEY: "sk-dpcc",
     });
+    expect(codexHome).toContain(path.join(testDataDir, "codex-home"));
     const config = fs.readFileSync(path.join(codexHome, "config.toml"), "utf-8");
     expect(config).toContain('model_provider = "pcc-agent-gateway"');
     expect(config).toContain('model = "dpcc-codex"');
@@ -80,6 +80,75 @@ describe("codex home isolation", () => {
     expect(env.CODEX_HOME).toBe("/Users/me/.codex");
     expect(env).not.toHaveProperty("PCCAGENT_GATEWAY_API_KEY");
     expect(fs.existsSync(path.join(testDataDir, "codex-home", "config.toml"))).toBe(false);
+  });
+
+  it("clears inherited gateway API keys for local Codex config", async () => {
+    mockResolveCodexUpstream.mockReturnValue({
+      tier: "local",
+      providerName: "local-provider",
+      baseUrl: "https://local.example/v1",
+      apiKey: "",
+      model: "local-model",
+    });
+    const { buildCodexAppServerEnv } = await loadModule();
+
+    const env = buildCodexAppServerEnv({
+      PCCAGENT_GATEWAY_API_KEY: "stale-key",
+      CODEX_HOME: "/Users/me/.codex",
+    });
+
+    expect(env).not.toHaveProperty("PCCAGENT_GATEWAY_API_KEY");
+    expect(env.CODEX_HOME).toBe("/Users/me/.codex");
+  });
+
+  it("clears inherited gateway API keys when a non-local upstream has no key", async () => {
+    mockResolveCodexUpstream.mockReturnValue({
+      tier: "default",
+      providerName: "DPCC API",
+      baseUrl: "https://api.dpcc.example/v1",
+      apiKey: "",
+      model: "dpcc-codex",
+    });
+    const { buildCodexAppServerEnv } = await loadModule();
+
+    const env = buildCodexAppServerEnv({ PCCAGENT_GATEWAY_API_KEY: "stale-key" });
+
+    expect(env).not.toHaveProperty("PCCAGENT_GATEWAY_API_KEY");
+  });
+
+  it("does not reuse a stale isolated config when a non-local upstream has no base URL", async () => {
+    const { buildCodexAppServerEnv } = await loadModule();
+    const firstEnv = buildCodexAppServerEnv({});
+    const firstHome = firstEnv.CODEX_HOME as string;
+    expect(fs.existsSync(path.join(firstHome, "config.toml"))).toBe(true);
+
+    mockResolveCodexUpstream.mockReturnValue({
+      tier: "gateway",
+      providerName: "",
+      baseUrl: "",
+      apiKey: "sk-gateway",
+      model: "",
+    });
+
+    const secondEnv = buildCodexAppServerEnv({});
+
+    expect(secondEnv).not.toHaveProperty("CODEX_HOME");
+  });
+
+  it("uses a distinct CODEX_HOME for different non-local upstream configs", async () => {
+    const { buildCodexAppServerEnv } = await loadModule();
+    const firstEnv = buildCodexAppServerEnv({});
+
+    mockResolveCodexUpstream.mockReturnValue({
+      tier: "gateway",
+      providerName: "Gateway",
+      baseUrl: "https://gateway.example/v1",
+      apiKey: "sk-gateway",
+      model: "gateway-model",
+    });
+    const secondEnv = buildCodexAppServerEnv({});
+
+    expect(secondEnv.CODEX_HOME).not.toBe(firstEnv.CODEX_HOME);
   });
 
   it("preserves an explicit RUST_LOG value", async () => {

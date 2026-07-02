@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import type { StateStorage } from "zustand/middleware";
 import type { ToolId } from "@/types/tools";
 import type { AcpPermissionBehavior, ClaudeEffort, EngineId, LanguageOption, MacBackgroundEffect, ThemeOption } from "@/types";
+import { reportSettingsSaveFailure, setAppSettingsChecked } from "@/lib/app-settings-ipc";
 
 // ── Constants ──
 
@@ -427,7 +428,7 @@ function readLegacyProjectSettings(pid: string): ProjectSettings {
 
 function persistMacBackgroundEffect(effect: Exclude<MacBackgroundEffect, "off">): void {
   if (!IS_MAC_PLATFORM || typeof window === "undefined" || !window.claude?.settings) return;
-  void window.claude.settings.set({ macBackgroundEffect: effect });
+  void setAppSettingsChecked({ macBackgroundEffect: effect }).catch(reportSettingsSaveFailure);
 }
 
 // ── Validation helpers ──

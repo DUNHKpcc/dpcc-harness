@@ -342,7 +342,13 @@ export const AccountSettings = memo(function AccountSettings({
                 </div>
 
                 <div className="flex justify-end pt-1">
-                  <Button size="sm" disabled={saving || !appSettings} onClick={handleSave}>
+                  <Button
+                    size="sm"
+                    disabled={saving || !appSettings}
+                    onClick={() => {
+                      void handleSave().catch(() => {});
+                    }}
+                  >
                     {t("account.save")}
                   </Button>
                 </div>

@@ -7,6 +7,7 @@ import type {
   AccountStatus,
 } from "@shared/types/account";
 import { DEFAULT_NEWAPI_BASE_URL } from "@shared/types/account";
+import { setAppSettingsChecked } from "@/lib/app-settings-ipc";
 
 /** Full credential save for the DPCC account (one host, two token groups, shared balance creds). */
 export interface SaveAccountInput {
@@ -146,19 +147,29 @@ export function useAccount(active: boolean): UseAccountResult {
       if (input.accessToken !== undefined) patch.accountAccessToken = input.accessToken.trim();
       if (input.userId !== undefined) patch.accountUserId = input.userId.trim();
 
-      await window.claude.settings.set(patch);
-      await load();
+      try {
+        await setAppSettingsChecked(patch);
+        await load();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+        throw e;
+      }
     },
     [load],
   );
 
   const saveAccessToken = useCallback(
     async (accessToken: string, userId: string) => {
-      await window.claude.settings.set({
-        accountAccessToken: accessToken.trim(),
-        accountUserId: userId.trim(),
-      });
-      await load();
+      try {
+        await setAppSettingsChecked({
+          accountAccessToken: accessToken.trim(),
+          accountUserId: userId.trim(),
+        });
+        await load();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+        throw e;
+      }
     },
     [load],
   );

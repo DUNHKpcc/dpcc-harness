@@ -120,12 +120,12 @@ describe("codexUtilityPrompt", () => {
 
     await expect(codexUtilityPrompt("hello", "/tmp/project", "TEST")).resolves.toBe("ok");
 
-    expect(mockSpawn).toHaveBeenCalledWith("/bin/codex", ["app-server"], expect.objectContaining({
-      env: expect.objectContaining({
-        CODEX_HOME: path.join(testDataDir, "codex-home"),
-        PCCAGENT_GATEWAY_API_KEY: "sk-dpcc",
-      }),
-    }));
+    const spawnEnv = mockSpawn.mock.calls[0]?.[2]?.env;
+    expect(spawnEnv).toMatchObject({
+      PCCAGENT_GATEWAY_API_KEY: "sk-dpcc",
+    });
+    expect(spawnEnv?.CODEX_HOME).toContain(path.join(testDataDir, "codex-home"));
+    expect(spawnEnv?.CODEX_HOME).not.toBe(path.join(testDataDir, "codex-home"));
     const threadStart = mockRequests.find((r) => r.method === "thread/start")?.params;
     expect(threadStart).toMatchObject({
       modelProvider: "pcc-agent-gateway",

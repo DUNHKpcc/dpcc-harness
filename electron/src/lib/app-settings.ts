@@ -17,6 +17,7 @@ import type {
   ClaudeGatewaySettings,
   CodexGatewaySettings,
   DpccUpstreamSettings,
+  CliConfigSource,
 } from "@shared/types/settings";
 import {
   CLAUDE_GATEWAY_MODEL_PRESETS,
@@ -123,6 +124,29 @@ function migrateBinarySourceDefaults(parsed: Partial<AppSettings>): Partial<AppS
   return patch;
 }
 
+function hasLegacyThirdPartyGatewaySelection(parsed: Partial<AppSettings>): boolean {
+  if (parsed.cliConfigSource !== undefined) return false;
+
+  const cg: ClaudeGatewaySettings = { ...DEFAULTS.claudeGateway, ...parsed.claudeGateway };
+  const xg: CodexGatewaySettings = { ...DEFAULTS.codexGateway, ...parsed.codexGateway };
+  const claudeCustomGateway = !!(
+    cg.enabled &&
+    (cg.baseUrl.trim() || cg.authToken.trim()) &&
+    !looksLikeDpcc(cg.baseUrl)
+  );
+  const codexCustomGateway = !!(
+    xg.enabled &&
+    xg.baseUrl.trim() &&
+    !looksLikeDpcc(xg.baseUrl)
+  );
+  return claudeCustomGateway || codexCustomGateway;
+}
+
+function migrateLegacyCliConfigSource(parsed: Partial<AppSettings>): Partial<Pick<AppSettings, "cliConfigSource">> | null {
+  if (!hasLegacyThirdPartyGatewaySelection(parsed)) return null;
+  return { cliConfigSource: "gateway" satisfies CliConfigSource };
+}
+
 function normalizeClaudeGateway(gateway: Partial<ClaudeGatewaySettings> | undefined): ClaudeGatewaySettings {
   const merged = { ...DEFAULTS.claudeGateway, ...gateway };
   return {
@@ -178,6 +202,7 @@ export function getAppSettings(): AppSettings {
     const needsDpccMigration = parsed.dpccUpstream === undefined;
     const migrated = needsDpccMigration ? migrateLegacyDpcc(parsed) : null;
     const binarySourceMigration = migrateBinarySourceDefaults(parsed);
+    const cliConfigSourceMigration = migrateLegacyCliConfigSource(parsed);
     // Merge with defaults so newly added keys are always present.
     // Deep-merge `notifications` so upgrading users get defaults for each event type
     // even if their settings.json has a partial or missing notifications object.
@@ -199,8 +224,9 @@ export function getAppSettings(): AppSettings {
       codexGateway: normalizeCodexGateway(parsed.codexGateway),
       ...(migrated ?? {}),
       ...(binarySourceMigration ?? {}),
+      ...(cliConfigSourceMigration ?? {}),
     };
-    if (migrated || binarySourceMigration) {
+    if (migrated || binarySourceMigration || cliConfigSourceMigration) {
       // Persist the migration once so the legacy gateway creds are physically
       // moved and one-time default normalizations never run again for this user.
       try {
@@ -234,8 +260,10 @@ export function setAppSettings(patch: Partial<AppSettings>): AppSettings {
     // Keep the cache key in sync with the file we just wrote so the next read
     // doesn't see our own write as an external change and reload needlessly.
     cachedMtimeMs = readMtimeMs();
-  } catch {
-    // Non-fatal — setting is still cached in memory for this session
+  } catch (error) {
+    cached = current;
+    cachedMtimeMs = readMtimeMs();
+    throw error;
   }
   return next;
 }

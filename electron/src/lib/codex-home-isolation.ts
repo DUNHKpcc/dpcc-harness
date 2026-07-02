@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
 import { getDataDir } from "./data-dir";
 import { CODEX_GATEWAY_ENV_KEY, CODEX_GATEWAY_PROVIDER_ID } from "./codex-upstream";
 import { resolveCodexUpstream, type CodexUpstream } from "./upstream-resolver";
@@ -13,10 +14,27 @@ function tomlString(value: string): string {
   return JSON.stringify(value);
 }
 
-export function getIsolatedCodexHome(): string {
-  const dir = path.join(getDataDir(), "codex-home");
+function upstreamConfigHash(upstream: CodexUpstream): string {
+  const input = JSON.stringify({
+    tier: upstream.tier,
+    providerName: upstream.providerName.trim(),
+    baseUrl: upstream.baseUrl.trim(),
+    model: upstream.model.trim(),
+  });
+  return crypto.createHash("sha256").update(input).digest("hex").slice(0, 16);
+}
+
+export function getIsolatedCodexHome(upstream?: CodexUpstream): string {
+  const baseDir = path.join(getDataDir(), "codex-home");
+  const dir = upstream ? path.join(baseDir, upstreamConfigHash(upstream)) : baseDir;
   fs.mkdirSync(dir, { recursive: true });
   return dir;
+}
+
+function writeFileAtomic(filePath: string, contents: string): void {
+  const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(tmpPath, contents, "utf-8");
+  fs.renameSync(tmpPath, filePath);
 }
 
 export function buildIsolatedCodexConfig(upstream: CodexUpstream): string | null {
@@ -49,11 +67,11 @@ export function prepareCodexHomeIsolation(upstream = resolveCodexUpstream()): Co
     return { isolated: false };
   }
 
-  const codexHome = getIsolatedCodexHome();
   const config = buildIsolatedCodexConfig(upstream);
-  if (config) {
-    fs.writeFileSync(path.join(codexHome, "config.toml"), config, "utf-8");
-  }
+  if (!config) return { isolated: false };
+
+  const codexHome = getIsolatedCodexHome(upstream);
+  writeFileAtomic(path.join(codexHome, "config.toml"), config);
   return { codexHome, isolated: true };
 }
 
@@ -63,6 +81,7 @@ export function buildCodexAppServerEnv(baseEnv: NodeJS.ProcessEnv = process.env)
     ...baseEnv,
     RUST_LOG: baseEnv.RUST_LOG ?? "warn",
   };
+  delete env[CODEX_GATEWAY_ENV_KEY];
 
   if (upstream.tier !== "local" && upstream.apiKey.trim()) {
     env[CODEX_GATEWAY_ENV_KEY] = upstream.apiKey.trim();

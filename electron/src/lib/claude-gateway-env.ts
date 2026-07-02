@@ -19,6 +19,11 @@ import { resolveClaudeUpstream } from "./upstream-resolver";
 
 const DEFAULT_SETTING_SOURCES = ["user", "project", "local"];
 const GATEWAY_SETTING_SOURCES = ["project", "local"];
+const MAC_APP_IDENTITY_ENV_KEYS = [
+  "__CFBundleIdentifier",
+  "XPC_FLAGS",
+  "XPC_SERVICE_NAME",
+];
 
 function hasClaudeUpstreamOverride(): boolean {
   const u = resolveClaudeUpstream();
@@ -38,6 +43,14 @@ export function claudeGatewayEnv(): Record<string, string> {
   return env;
 }
 
+export function stripMacAppIdentityEnv<T extends Record<string, string | undefined>>(env: T): T {
+  const next = { ...env };
+  for (const key of MAC_APP_IDENTITY_ENV_KEYS) {
+    delete next[key];
+  }
+  return next;
+}
+
 /**
  * Full subprocess env for spawning Claude. When a gateway/default override wins,
  * purge inherited ANTHROPIC_* (from process.env or ~/.claude) before applying the
@@ -55,7 +68,7 @@ export function claudeSpawnEnv(): Record<string, string | undefined> {
       if (key.startsWith("ANTHROPIC_")) delete base[key];
     }
   }
-  return { ...base, ...override };
+  return stripMacAppIdentityEnv({ ...base, ...override });
 }
 
 /**

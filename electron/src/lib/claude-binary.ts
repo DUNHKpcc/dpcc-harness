@@ -72,6 +72,10 @@ function getNodeRuntimeExecutable(): string | null {
   const candidates = [
     process.env.npm_node_execpath,
     process.env.NODE,
+    ...nodeRuntimeCandidatesFromPath(),
+    "/opt/homebrew/bin/node",
+    "/usr/local/bin/node",
+    "/usr/bin/node",
   ];
   for (const candidate of candidates) {
     if (!candidate) continue;
@@ -79,6 +83,40 @@ function getNodeRuntimeExecutable(): string | null {
     if (normalized) return normalized;
   }
   return null;
+}
+
+function nodeRuntimeCandidatesFromPath(): string[] {
+  const envPath = process.env.PATH;
+  if (!envPath) return [];
+  return envPath
+    .split(path.delimiter)
+    .filter(Boolean)
+    .map((dir) => path.join(dir, process.platform === "win32" ? "node.exe" : "node"));
+}
+
+function getElectronHelperNodeRuntimeExecutable(): string | null {
+  const override = process.env.PCC_AGENT_ELECTRON_NODE_HELPER;
+  if (override) {
+    const normalized = normalizeExecutablePath(override);
+    if (normalized) return normalized;
+  }
+
+  if (process.platform !== "darwin") return null;
+  const appExecutableName = path.basename(process.execPath);
+  const helperPath = path.resolve(
+    path.dirname(process.execPath),
+    "..",
+    "Frameworks",
+    `${appExecutableName} Helper.app`,
+    "Contents",
+    "MacOS",
+    `${appExecutableName} Helper`,
+  );
+  return normalizeExecutablePath(helperPath);
+}
+
+function getElectronNodeModeRuntimeExecutable(): string {
+  return getElectronHelperNodeRuntimeExecutable() ?? process.execPath;
 }
 
 function resolveFromCustom(): ClaudeBinaryResolution | null {
@@ -374,7 +412,7 @@ export function getClaudeSdkProcessOptions(cliPath: string | undefined): Record<
     options.pathToClaudeCodeExecutable = cliPath;
     if (isScriptExecutable(cliPath)) {
       const nodeRuntime = getNodeRuntimeExecutable();
-      options.executable = nodeRuntime ?? process.execPath;
+      options.executable = nodeRuntime ?? getElectronNodeModeRuntimeExecutable();
       if (!nodeRuntime) {
         options.env.ELECTRON_RUN_AS_NODE = "1";
       }
@@ -394,7 +432,7 @@ function readClaudeVersion(binaryPath: string): string | null {
   // windowsHide suppresses a console flash on the native-binary branch too.
   const isScript = isScriptExecutable(binaryPath);
   const nodeRuntime = isScript ? getNodeRuntimeExecutable() : null;
-  const command = isScript ? nodeRuntime ?? process.execPath : binaryPath;
+  const command = isScript ? nodeRuntime ?? getElectronNodeModeRuntimeExecutable() : binaryPath;
   const args = isScript ? [binaryPath, "--version"] : ["--version"];
   const output = execFileSync(command, args, {
     encoding: "utf-8",

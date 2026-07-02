@@ -76,6 +76,23 @@ describe("claude gateway env", () => {
     expect(env.KEEP_ME).toBe("1");
   });
 
+  it("strips macOS app identity env from Claude subprocesses", async () => {
+    mockLoadLocalClaudeEnv.mockReturnValue({
+      __CFBundleIdentifier: "com.pccagent.app",
+      XPC_FLAGS: "0x0",
+      XPC_SERVICE_NAME: "application.com.pccagent.app.123",
+      KEEP_ME: "1",
+    });
+    const { claudeSpawnEnv } = await loadModule();
+
+    const env = claudeSpawnEnv();
+
+    expect(env.__CFBundleIdentifier).toBeUndefined();
+    expect(env.XPC_FLAGS).toBeUndefined();
+    expect(env.XPC_SERVICE_NAME).toBeUndefined();
+    expect(env.KEEP_ME).toBe("1");
+  });
+
   it("disables the user settings source when a gateway upstream is active", async () => {
     const { claudeSettingSources } = await loadModule();
 

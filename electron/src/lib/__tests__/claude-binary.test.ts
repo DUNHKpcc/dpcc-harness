@@ -292,9 +292,47 @@ describe("claude binary resolution", () => {
     });
   });
 
+  it("finds a real Node runtime from PATH for SDK cli.js queries", async () => {
+    vi.stubEnv("npm_node_execpath", "");
+    vi.stubEnv("NODE", "");
+    vi.stubEnv("PATH", "/opt/homebrew/bin:/usr/bin");
+    allowExecutable("/opt/homebrew/bin/node");
+
+    const mod = await loadModule();
+    const cliPath = "/app.asar.unpacked/node_modules/@anthropic-ai/claude-agent-sdk/cli.js";
+
+    expect(mod.getClaudeSdkProcessOptions(cliPath)).toEqual({
+      pathToClaudeCodeExecutable: cliPath,
+      executable: "/opt/homebrew/bin/node",
+      env: {},
+    });
+  });
+
+  it("uses the Electron helper in Node mode before falling back to the main app executable", async () => {
+    vi.stubEnv("npm_node_execpath", "");
+    vi.stubEnv("NODE", "");
+    vi.stubEnv("PATH", "");
+    vi.stubEnv("PCC_AGENT_ELECTRON_NODE_HELPER", "/Applications/PccAgent.app/Contents/Frameworks/PccAgent Helper.app/Contents/MacOS/PccAgent Helper");
+    allowExecutable("/Applications/PccAgent.app/Contents/Frameworks/PccAgent Helper.app/Contents/MacOS/PccAgent Helper");
+
+    const mod = await loadModule();
+    const cliPath = "/app.asar.unpacked/node_modules/@anthropic-ai/claude-agent-sdk/cli.js";
+
+    expect(mod.getClaudeSdkProcessOptions(cliPath)).toEqual({
+      pathToClaudeCodeExecutable: cliPath,
+      executable: "/Applications/PccAgent.app/Contents/Frameworks/PccAgent Helper.app/Contents/MacOS/PccAgent Helper",
+      env: { ELECTRON_RUN_AS_NODE: "1" },
+    });
+  });
+
   it("falls back to the Electron binary in Node mode when no Node runtime is available", async () => {
     vi.stubEnv("npm_node_execpath", "");
     vi.stubEnv("NODE", "");
+    vi.stubEnv("PATH", "");
+    vi.stubEnv("PCC_AGENT_ELECTRON_NODE_HELPER", "");
+    mockAccessSync.mockImplementation(() => {
+      throw new Error("missing");
+    });
 
     const mod = await loadModule();
     const cliPath = "/app.asar.unpacked/node_modules/@anthropic-ai/claude-agent-sdk/cli.js";

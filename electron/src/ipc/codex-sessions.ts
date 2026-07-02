@@ -22,7 +22,8 @@ import {
 import { getAppSetting } from "../lib/app-settings";
 import { reportError } from "../lib/error-utils";
 import { captureEvent } from "../lib/posthog";
-import { codexUpstreamEnv, codexUpstreamThreadParams } from "../lib/codex-upstream";
+import { codexUpstreamThreadParams } from "../lib/codex-upstream";
+import { buildCodexAppServerEnv } from "../lib/codex-home-isolation";
 import { reclaimMacDockFocus } from "../lib/macos-dock-focus";
 import { codexPermissionOptionsFromMode, codexSandboxPolicyFromMode, normalizeAppPermissionMode } from "@shared/lib/codex-permissions";
 
@@ -258,11 +259,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         const proc = spawn(codexPath, ["app-server"], {
           stdio: ["pipe", "pipe", "pipe"],
           cwd: options.cwd,
-          env: {
-            ...process.env,
-            RUST_LOG: process.env.RUST_LOG ?? "warn",
-            ...codexUpstreamEnv(),
-          },
+          env: buildCodexAppServerEnv(),
         });
 
         if (!proc.pid) {
@@ -350,7 +347,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         // collaborationMode is set per-turn via turn/start, not on thread/start
 
         // Non-local selected upstreams override provider + model.
-        const gatewayParams = codexUpstreamThreadParams();
+        const gatewayParams = codexUpstreamThreadParams(selectedModel);
         if (Object.keys(gatewayParams).length > 0) {
           Object.assign(threadParams, gatewayParams);
           if (typeof gatewayParams.model === "string") {
@@ -421,10 +418,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
           if (session.approvalPolicy) threadParams.approvalPolicy = session.approvalPolicy;
           if (session.sandbox) threadParams.sandbox = session.sandbox;
           // Non-local selected upstreams override provider + model.
-          Object.assign(threadParams, codexUpstreamThreadParams());
-          if (threadParams.model === null) {
-            session.model = undefined;
-          }
+          Object.assign(threadParams, codexUpstreamThreadParams(session.model));
           const threadResult = await session.rpc.request<CodexThreadStartResponse>("thread/start", threadParams);
           session.threadId = threadResult.thread.id;
           log(
@@ -654,11 +648,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       const proc = spawn(codexPath, ["app-server"], {
         stdio: ["pipe", "pipe", "pipe"],
         cwd: process.cwd(),
-        env: {
-          ...process.env,
-          RUST_LOG: process.env.RUST_LOG ?? "warn",
-          ...codexUpstreamEnv(),
-        },
+        env: buildCodexAppServerEnv(),
       });
       if (!proc.pid) {
         throw new Error("Failed to spawn codex app-server process");
@@ -745,11 +735,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         const proc = spawn(codexPath, ["app-server"], {
           stdio: ["pipe", "pipe", "pipe"],
           cwd: data.cwd,
-          env: {
-            ...process.env,
-            RUST_LOG: process.env.RUST_LOG ?? "warn",
-            ...codexUpstreamEnv(),
-          },
+          env: buildCodexAppServerEnv(),
         });
 
         if (!proc.pid) throw new Error("Failed to spawn codex app-server");
@@ -786,7 +772,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         if (data.approvalPolicy) threadParams.approvalPolicy = data.approvalPolicy;
         if (data.sandbox) threadParams.sandbox = data.sandbox;
         // Non-local selected upstreams override provider + model.
-        const gatewayResumeParams = codexUpstreamThreadParams();
+        const gatewayResumeParams = codexUpstreamThreadParams(data.model);
         if (Object.keys(gatewayResumeParams).length > 0) {
           Object.assign(threadParams, gatewayResumeParams);
           if (typeof gatewayResumeParams.model === "string") {

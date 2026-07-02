@@ -16,6 +16,7 @@ import { buildSdkMcpConfig } from "@shared/lib/mcp-config";
 import type { McpServerInput } from "@shared/lib/mcp-config";
 import { appendClaudeCodexBridgeServer } from "@shared/lib/claude-codex-bridge";
 import { getClaudeCodexBridgeController } from "../lib/claude-codex-bridge-controller";
+import { applyClaudeMcpIsolation } from "../lib/claude-mcp-isolation";
 import { reclaimMacDockFocus } from "../lib/macos-dock-focus";
 import {
   downloadClaudeUpdate,
@@ -178,6 +179,7 @@ function summarizeSpawnOptions(options: Record<string, unknown>): Record<string,
     settingSources: options.settingSources,
     enableFileCheckpointing: options.enableFileCheckpointing,
     extraArgs: options.extraArgs,
+    strictMcpConfig: options.strictMcpConfig,
     envKeys:
       options.env && typeof options.env === "object"
         ? Object.keys(options.env as Record<string, unknown>).sort()
@@ -491,6 +493,7 @@ async function revalidateClaudeModelsCache(cwd?: string): Promise<ClaudeModelsCa
           },
         };
         applyClaudeSdkProcessOptions(queryOptions, attempt.cliPath);
+        applyClaudeMcpIsolation(queryOptions);
 
         queryHandle = query({ prompt: channel, options: queryOptions });
         if (!queryHandle.supportedModels) {
@@ -652,6 +655,7 @@ async function restartSession(
     },
   };
   applyClaudeSdkProcessOptions(queryOptions, cliPath);
+  applyClaudeMcpIsolation(queryOptions);
 
   applyPermissionModeOptions(queryOptions, opts.permissionMode);
   const restartModel = claudeResolvedModel(toSdkModelOverride(modelOverride ?? opts.model));
@@ -773,6 +777,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         },
       };
       applyClaudeSdkProcessOptions(queryOptions, cliPath);
+      applyClaudeMcpIsolation(queryOptions);
 
       if (options.resume) {
         queryOptions.resume = options.resume;

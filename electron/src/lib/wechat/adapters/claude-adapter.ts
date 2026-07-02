@@ -3,6 +3,7 @@ import { reportError } from "../../error-utils";
 import { getSDK } from "../../sdk";
 import { getClaudeBinaryPath, getClaudeSdkProcessOptions, isClaudeInstalled } from "../../claude-binary";
 import { claudeSpawnEnv, claudeGatewayModel, claudeSettingSources } from "../../claude-gateway-env";
+import { applyClaudeMcpIsolation } from "../../claude-mcp-isolation";
 import { isSessionError } from "./session-error";
 import type { CLIAdapter, AdapterExecOptions, AdapterExecResult } from "./types";
 
@@ -64,6 +65,7 @@ export class ClaudeAdapter implements CLIAdapter {
         ...sdkProcessOptions.env,
       },
     });
+    applyClaudeMcpIsolation(sdkOpts);
     if (opts.model) sdkOpts.model = opts.model;
     // A selected upstream model overrides the configured model, mirroring
     // interactive session behavior.

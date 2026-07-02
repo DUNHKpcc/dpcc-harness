@@ -19,15 +19,14 @@ export function codexUpstreamEnv(): Record<string, string> {
  * override table (base_url / env_key / wire_api) plus provider + model selection.
  * Covers both the explicit custom gateway and the DPCC official default upstream.
  */
-export function codexUpstreamThreadParams(): Record<string, unknown> {
+export function codexUpstreamThreadParams(modelFallback?: string): Record<string, unknown> {
   const u = resolveCodexUpstream();
   if (u.tier === "local") return {};
   if (!u.baseUrl) return {};
-  const model = u.model || null;
+  const model = u.model.trim() || modelFallback?.trim() || "";
   const name = u.providerName || (u.tier === "default" ? "DPCC API" : "PccAgent Gateway");
-  return {
+  const params: Record<string, unknown> = {
     modelProvider: CODEX_GATEWAY_PROVIDER_ID,
-    model,
     config: {
       [`model_providers.${CODEX_GATEWAY_PROVIDER_ID}.name`]: name,
       [`model_providers.${CODEX_GATEWAY_PROVIDER_ID}.base_url`]: u.baseUrl,
@@ -35,7 +34,11 @@ export function codexUpstreamThreadParams(): Record<string, unknown> {
       [`model_providers.${CODEX_GATEWAY_PROVIDER_ID}.wire_api`]: "responses",
       [`model_providers.${CODEX_GATEWAY_PROVIDER_ID}.requires_openai_auth`]: false,
       model_provider: CODEX_GATEWAY_PROVIDER_ID,
-      model,
     },
   };
+  if (model) {
+    params.model = model;
+    (params.config as Record<string, unknown>).model = model;
+  }
+  return params;
 }

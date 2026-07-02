@@ -3,7 +3,8 @@ import { CodexRpcClient } from "./codex-rpc";
 import { getCodexBinaryPath } from "./codex-binary";
 import { log } from "./logger";
 import { reportError } from "./error-utils";
-import { codexUpstreamEnv, codexUpstreamThreadParams } from "./codex-upstream";
+import { codexUpstreamThreadParams } from "./codex-upstream";
+import { buildCodexAppServerEnv } from "./codex-home-isolation";
 import type {
   CodexInitializeResponse,
   CodexModel,
@@ -49,11 +50,7 @@ export async function codexUtilityPrompt(
     const proc = spawn(codexPath, ["app-server"], {
       stdio: ["pipe", "pipe", "pipe"],
       cwd,
-      env: {
-        ...process.env,
-        RUST_LOG: process.env.RUST_LOG ?? "warn",
-        ...codexUpstreamEnv(),
-      },
+      env: buildCodexAppServerEnv(),
     });
 
     if (!proc.pid) {
@@ -175,7 +172,7 @@ export async function codexUtilityPrompt(
     if (selectedModel) {
       threadParams.model = selectedModel;
     }
-    const upstreamThreadParams = codexUpstreamThreadParams();
+    const upstreamThreadParams = codexUpstreamThreadParams(selectedModel);
     Object.assign(threadParams, upstreamThreadParams);
     if (typeof upstreamThreadParams.model === "string") {
       selectedModel = upstreamThreadParams.model;

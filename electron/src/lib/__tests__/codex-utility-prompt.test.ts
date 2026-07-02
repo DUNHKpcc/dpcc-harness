@@ -1,25 +1,35 @@
 import { EventEmitter } from "events";
+import fs from "fs";
+import path from "path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   mockSpawn,
   mockGetCodexBinaryPath,
   mockResolveCodexUpstream,
+  mockGetDataDir,
+  testDataDir,
   mockRequests,
   mockInstances,
-} = vi.hoisted(() => ({
-  mockSpawn: vi.fn(),
-  mockGetCodexBinaryPath: vi.fn(),
-  mockResolveCodexUpstream: vi.fn(),
-  mockRequests: [] as Array<{ method: string; params: Record<string, unknown> }>,
-  mockInstances: [] as Array<{
-    onNotification?: (msg: { method: string; params?: unknown }) => void;
-    onStderr?: (text: string) => void;
-    request: ReturnType<typeof vi.fn>;
-    notify: ReturnType<typeof vi.fn>;
-    destroy: ReturnType<typeof vi.fn>;
-  }>,
-}));
+} = vi.hoisted(() => {
+  const osMod = require("os") as typeof import("os");
+  const pathMod = require("path") as typeof import("path");
+  return {
+    mockSpawn: vi.fn(),
+    mockGetCodexBinaryPath: vi.fn(),
+    mockResolveCodexUpstream: vi.fn(),
+    mockGetDataDir: vi.fn(),
+    testDataDir: pathMod.join(osMod.tmpdir(), "pcc-agent-codex-utility-test"),
+    mockRequests: [] as Array<{ method: string; params: Record<string, unknown> }>,
+    mockInstances: [] as Array<{
+      onNotification?: (msg: { method: string; params?: unknown }) => void;
+      onStderr?: (text: string) => void;
+      request: ReturnType<typeof vi.fn>;
+      notify: ReturnType<typeof vi.fn>;
+      destroy: ReturnType<typeof vi.fn>;
+    }>,
+  };
+});
 
 vi.mock("child_process", () => ({
   spawn: mockSpawn,
@@ -31,6 +41,10 @@ vi.mock("../codex-binary", () => ({
 
 vi.mock("../upstream-resolver", () => ({
   resolveCodexUpstream: mockResolveCodexUpstream,
+}));
+
+vi.mock("../data-dir", () => ({
+  getDataDir: mockGetDataDir,
 }));
 
 vi.mock("../logger", () => ({
@@ -84,10 +98,13 @@ describe("codexUtilityPrompt", () => {
     mockSpawn.mockReset();
     mockGetCodexBinaryPath.mockReset();
     mockResolveCodexUpstream.mockReset();
+    mockGetDataDir.mockReset();
     mockRequests.length = 0;
     mockInstances.length = 0;
+    fs.rmSync(testDataDir, { recursive: true, force: true });
 
     mockGetCodexBinaryPath.mockResolvedValue("/bin/codex");
+    mockGetDataDir.mockReturnValue(testDataDir);
     mockSpawn.mockReturnValue(Object.assign(new EventEmitter(), { pid: 1234 }));
     mockResolveCodexUpstream.mockReturnValue({
       tier: "default",
@@ -104,7 +121,10 @@ describe("codexUtilityPrompt", () => {
     await expect(codexUtilityPrompt("hello", "/tmp/project", "TEST")).resolves.toBe("ok");
 
     expect(mockSpawn).toHaveBeenCalledWith("/bin/codex", ["app-server"], expect.objectContaining({
-      env: expect.objectContaining({ PCCAGENT_GATEWAY_API_KEY: "sk-dpcc" }),
+      env: expect.objectContaining({
+        CODEX_HOME: path.join(testDataDir, "codex-home"),
+        PCCAGENT_GATEWAY_API_KEY: "sk-dpcc",
+      }),
     }));
     const threadStart = mockRequests.find((r) => r.method === "thread/start")?.params;
     expect(threadStart).toMatchObject({
@@ -120,7 +140,7 @@ describe("codexUtilityPrompt", () => {
     });
   });
 
-  it("does not leak a local model when the effective upstream has no configured model", async () => {
+  it("uses the listed default model when the effective upstream has no configured model", async () => {
     mockResolveCodexUpstream.mockReturnValue({
       tier: "default",
       providerName: "DPCC API",
@@ -136,9 +156,9 @@ describe("codexUtilityPrompt", () => {
     const turnStart = mockRequests.find((r) => r.method === "turn/start")?.params;
     expect(threadStart).toMatchObject({
       modelProvider: "pcc-agent-gateway",
-      model: null,
+      model: "dpcc-codex",
     });
-    expect(turnStart).not.toHaveProperty("model");
+    expect(turnStart).toMatchObject({ model: "dpcc-codex" });
   });
 
   it("does not inject a PccAgent provider override when local Codex config is selected", async () => {
@@ -154,7 +174,10 @@ describe("codexUtilityPrompt", () => {
     await expect(codexUtilityPrompt("hello", "/tmp/project", "TEST")).resolves.toBe("ok");
 
     expect(mockSpawn).toHaveBeenCalledWith("/bin/codex", ["app-server"], expect.objectContaining({
-      env: expect.not.objectContaining({ PCCAGENT_GATEWAY_API_KEY: expect.any(String) }),
+      env: expect.not.objectContaining({
+        CODEX_HOME: expect.any(String),
+        PCCAGENT_GATEWAY_API_KEY: expect.any(String),
+      }),
     }));
     const threadStart = mockRequests.find((r) => r.method === "thread/start")?.params;
     expect(threadStart).not.toHaveProperty("modelProvider");

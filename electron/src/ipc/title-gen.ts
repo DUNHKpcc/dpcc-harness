@@ -5,6 +5,7 @@ import { reportError } from "../lib/error-utils";
 import { gitExec } from "../lib/git-exec";
 import { getClaudeBinaryPath, getClaudeSdkProcessOptions } from "../lib/claude-binary";
 import { claudeSpawnEnv, claudeResolvedModel, claudeSettingSources } from "../lib/claude-gateway-env";
+import { applyClaudeMcpIsolation } from "../lib/claude-mcp-isolation";
 
 function firstNonEmptyLine(text: string): string | undefined {
   for (const line of text.split(/\r?\n/g)) {
@@ -51,30 +52,30 @@ async function oneShotSdkQuery(
     let timedOut = false;
     const sdkProcessOptions = getClaudeSdkProcessOptions(cliPath);
 
-    const q = query({
-      prompt,
-      options: {
-        ...options?.extraOptions,
-        settingSources: claudeSettingSources(),
-        cwd,
-        model,
-        maxTurns: 1,
-        permissionMode: "bypassPermissions",
-        allowDangerouslySkipPermissions: true,
-        persistSession: false,
-        ...sdkProcessOptions,
-        env: {
-          ...claudeSpawnEnv(),
-          ...sdkProcessOptions.env,
-        },
-        stderr: (data: string) => {
-          const trimmed = data.trim();
-          if (!trimmed) return;
-          lastStderr = trimmed;
-          log(`${logLabel}_STDERR`, trimmed);
-        },
+    const queryOptions: Record<string, unknown> = {
+      ...options?.extraOptions,
+      settingSources: claudeSettingSources(),
+      cwd,
+      model,
+      maxTurns: 1,
+      permissionMode: "bypassPermissions",
+      allowDangerouslySkipPermissions: true,
+      persistSession: false,
+      ...sdkProcessOptions,
+      env: {
+        ...claudeSpawnEnv(),
+        ...sdkProcessOptions.env,
       },
-    });
+      stderr: (data: string) => {
+        const trimmed = data.trim();
+        if (!trimmed) return;
+        lastStderr = trimmed;
+        log(`${logLabel}_STDERR`, trimmed);
+      },
+    };
+    applyClaudeMcpIsolation(queryOptions);
+
+    const q = query({ prompt, options: queryOptions });
 
     const timeout = setTimeout(() => {
       timedOut = true;

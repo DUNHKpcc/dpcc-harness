@@ -80,6 +80,17 @@ function GrainOverlay() {
   );
 }
 
+function PccAgentMark() {
+  return (
+    <img
+      src="icon.png"
+      alt="PccAgent"
+      className="h-12 w-12 shrink-0 object-contain sm:h-14 sm:w-14 lg:h-16 lg:w-16"
+      draggable={false}
+    />
+  );
+}
+
 // ── Sidebar Arrow — absolutely positioned from left edge to center ─────
 
 /** Sweeping hand-drawn arrow that stretches from the left edge of the chat
@@ -94,7 +105,11 @@ interface SidebarArrowProps {
 function SidebarArrow({ anchorElement }: SidebarArrowProps) {
   const { t } = useTranslation("welcome");
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [metrics, setMetrics] = useState({ svgWidth: 900, tailX: 660 });
+  const [metrics, setMetrics] = useState<{ svgWidth: number; tailX: number; labelTop: number | null }>({
+    svgWidth: 900,
+    tailX: 660,
+    labelTop: null,
+  });
 
   useEffect(() => {
     const container = containerRef.current;
@@ -105,20 +120,25 @@ function SidebarArrow({ anchorElement }: SidebarArrowProps) {
     const updateMetrics = () => {
       const containerRect = container.getBoundingClientRect();
       const anchorRect = anchorElement.getBoundingClientRect();
+      const parentRect = container.offsetParent instanceof HTMLElement
+        ? container.offsetParent.getBoundingClientRect()
+        : containerRect;
       const nextWidth = Math.max(containerRect.width, 1);
       const maxTailX = Math.max(nextWidth - 24, SIDEBAR_ARROW_TIP_INSET + 120);
       const minTailX = Math.min(660, maxTailX);
       const anchoredTailX =
         anchorRect.right - containerRect.left + SIDEBAR_ARROW_TAIL_GAP;
       const nextTailX = clamp(anchoredTailX, minTailX, maxTailX);
+      const nextLabelTop = anchorRect.bottom - parentRect.top + 14;
 
       setMetrics((prevMetrics) => {
         const widthChanged = Math.abs(prevMetrics.svgWidth - nextWidth) >= 1;
         const tailChanged = Math.abs(prevMetrics.tailX - nextTailX) >= 1;
-        if (!widthChanged && !tailChanged) {
+        const labelChanged = prevMetrics.labelTop === null || Math.abs(prevMetrics.labelTop - nextLabelTop) >= 1;
+        if (!widthChanged && !tailChanged && !labelChanged) {
           return prevMetrics;
         }
-        return { svgWidth: nextWidth, tailX: nextTailX };
+        return { svgWidth: nextWidth, tailX: nextTailX, labelTop: nextLabelTop };
       });
     };
 
@@ -212,7 +232,7 @@ function SidebarArrow({ anchorElement }: SidebarArrowProps) {
       {/* Label */}
       <motion.div
         className="pointer-events-none absolute left-0 z-[3] w-full text-center"
-        style={{ top: "calc(50% + 48px)" }}
+        style={{ top: metrics.labelTop ?? "calc(50% + 84px)" }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 1.6, duration: 0.4 }}
@@ -353,9 +373,10 @@ export const WelcomeScreen = memo(function WelcomeScreen({
             animate={{ opacity: 1 }}
             transition={{ delay: 0.1, duration: 0.5 }}
           >
+            <PccAgentMark />
             <h1
-              className="text-5xl italic"
-              style={{ fontFamily: DISPLAY_FONT, color: "oklch(0.65 0.22 25)" }}
+              className="text-center text-4xl italic text-foreground sm:text-5xl"
+              style={{ fontFamily: DISPLAY_FONT }}
             >
               {t("screen.openProject")}
             </h1>
@@ -398,15 +419,16 @@ export const WelcomeScreen = memo(function WelcomeScreen({
         >
           {/* Headline */}
           <motion.div
-            className="flex flex-col items-center gap-4"
+            className="flex flex-col items-center gap-3 sm:gap-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.1, duration: 0.5 }}
           >
+            <PccAgentMark />
             <motion.h1
               key={continueMessage.headline}
-              className="text-5xl italic"
-              style={{ fontFamily: DISPLAY_FONT, color: continueMessage.accent }}
+              className="text-center text-4xl italic text-foreground sm:text-5xl"
+              style={{ fontFamily: DISPLAY_FONT }}
               initial={{ opacity: 0, y: 10, filter: "blur(4px)" }}
               animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
               transition={{ duration: 0.45, ease: EASE_OUT }}

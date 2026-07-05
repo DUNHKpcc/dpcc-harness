@@ -20,11 +20,13 @@ const pendingLogLines: string[] = [];
 // most recent MAX_LOG_FILES and drop anything older than MAX_LOG_AGE_MS.
 const MAX_LOG_FILES = 10;
 const MAX_LOG_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const LOG_PRUNE_INTERVAL_MS = 24 * 60 * 60 * 1000; // daily
 const LOG_FILE_RE = /^main-\d+\.log$/;
 
 // Per-line cap: a single tool_result / result payload (full file reads, command
 // output) can be hundreds of KB. Truncate so one event can't balloon the file.
 const MAX_LOG_LINE_CHARS = 20_000;
+let logPruneTimer: ReturnType<typeof setInterval> | null = null;
 
 function resolveLogsDir(): string | null {
   if (logsDir) return logsDir;
@@ -74,6 +76,12 @@ function pruneOldLogs(dir: string): void {
   }
 }
 
+function ensureLogPruneTimer(dir: string): void {
+  if (logPruneTimer) return;
+  logPruneTimer = setInterval(() => pruneOldLogs(dir), LOG_PRUNE_INTERVAL_MS);
+  logPruneTimer.unref?.();
+}
+
 function scheduleReadyInit(): void {
   if (readyInitScheduled || !app.isPackaged || app.isReady()) return;
   readyInitScheduled = true;
@@ -99,6 +107,7 @@ function getLogStream(): fs.WriteStream | null {
   try {
     fs.mkdirSync(dir, { recursive: true });
     pruneOldLogs(dir);
+    ensureLogPruneTimer(dir);
 
     const nextLogFile = path.join(dir, `main-${Date.now()}.log`);
     logStream = fs.createWriteStream(nextLogFile, { flags: "a" });

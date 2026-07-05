@@ -39,6 +39,11 @@ export interface UseAccountResult {
   saveAccessToken: (accessToken: string, userId: string) => Promise<void>;
 }
 
+export interface UseAccountOptions {
+  /** Fetch /v1/models as part of account loading. Settings needs this; the sidebar popover does not. */
+  loadModels?: boolean;
+}
+
 /** Normalize a host to a bare root (no trailing slash or /v1); falls back to the DPCC default. */
 function normalizeHost(raw: string): string {
   const n = raw.trim().replace(/\/+$/, "").replace(/\/v1$/, "");
@@ -55,11 +60,12 @@ export function shouldLoadAccountModels(config: AccountConfig): boolean {
 
 /**
  * Reads the upstream (new-api) account: effective config, balance, and per-engine
- * model lists. Loads lazily — only fetches while `active` is true (e.g. when the
- * account popover is open) and on manual refresh. Branding (name + logo) loads on
- * mount regardless so the sidebar trigger can show the logo.
+ * model lists when requested. Loads lazily — only fetches while `active` is true
+ * and on manual refresh. Branding (name + logo) loads on mount regardless so the
+ * sidebar trigger can show the logo.
  */
-export function useAccount(active: boolean): UseAccountResult {
+export function useAccount(active: boolean, options: UseAccountOptions = {}): UseAccountResult {
+  const loadModels = options.loadModels ?? true;
   const [config, setConfig] = useState<AccountConfig | null>(null);
   const [status, setStatus] = useState<AccountStatus | null>(null);
   const [balance, setBalance] = useState<AccountBalance | null>(null);
@@ -89,9 +95,9 @@ export function useAccount(active: boolean): UseAccountResult {
         setCodexModels([]);
         return;
       }
-      const modelsPromise: Promise<AccountModelsResult> = shouldLoadAccountModels(cfg)
+      const modelsPromise: Promise<AccountModelsResult | null> = loadModels && shouldLoadAccountModels(cfg)
         ? window.claude.account.getModels()
-        : Promise.resolve({ claude: [], codex: [] });
+        : Promise.resolve(null);
       const [bal, mdl] = await Promise.all([
         window.claude.account.getBalance(),
         modelsPromise,
@@ -102,7 +108,10 @@ export function useAccount(active: boolean): UseAccountResult {
       } else {
         setBalance(bal);
       }
-      if ("error" in mdl) {
+      if (mdl === null) {
+        setClaudeModels([]);
+        setCodexModels([]);
+      } else if ("error" in mdl) {
         setClaudeModels([]);
         setCodexModels([]);
       } else {
@@ -114,7 +123,7 @@ export function useAccount(active: boolean): UseAccountResult {
     } finally {
       setLoading(false);
     }
-  }, [loadStatus]);
+  }, [loadModels, loadStatus]);
 
   useEffect(() => {
     void loadStatus();

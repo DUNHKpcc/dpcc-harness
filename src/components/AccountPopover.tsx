@@ -1,7 +1,7 @@
 import { memo, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { CircleUser, RefreshCw, Settings, ChevronDown, CreditCard, Globe, ExternalLink } from "lucide-react";
+import { CircleUser, RefreshCw, Settings, CreditCard, Globe, ExternalLink } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -157,49 +157,6 @@ const SetupCard = memo(function SetupCard({
       <Button size="sm" className="w-full" disabled={!canSave} onClick={handleSave}>
         {t("account.setup.save")}
       </Button>
-    </div>
-  );
-});
-
-// ── Available models list (collapsible, one per engine) ──
-
-const ModelsSection = memo(function ModelsSection({
-  t,
-  label,
-  models,
-}: {
-  t: TFunction<"workspace">;
-  label: string;
-  models: string[];
-}) {
-  const [expanded, setExpanded] = useState(false);
-  return (
-    <div className="border-b border-border/60 px-4 py-3">
-      <button
-        onClick={() => setExpanded((e) => !e)}
-        className="flex w-full items-center justify-between text-xs"
-        disabled={models.length === 0}
-      >
-        <span className="text-muted-foreground">{label}</span>
-        <span className="flex items-center gap-1 text-muted-foreground">
-          {models.length === 0 ? t("account.noModels") : models.length}
-          {models.length > 0 && (
-            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
-          )}
-        </span>
-      </button>
-      {expanded && models.length > 0 && (
-        <div className="mt-2 max-h-40 space-y-0.5 overflow-y-auto">
-          {models.map((m) => (
-            <div
-              key={m}
-              className="truncate rounded bg-foreground/[0.03] px-2 py-1 font-mono text-[11px] text-foreground/80"
-            >
-              {m}
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 });
@@ -362,14 +319,6 @@ const AccountView = memo(function AccountView({
         {showAdder && <AccessTokenAdder t={t} onSave={account.saveAccessToken} />}
       </div>
 
-      {/* Available models — one section per engine */}
-      {cfg?.hasClaudeToken && (
-        <ModelsSection t={t} label={t("account.claudeModels")} models={account.claudeModels} />
-      )}
-      {cfg?.hasCodexToken && (
-        <ModelsSection t={t} label={t("account.codexModels")} models={account.codexModels} />
-      )}
-
       {/* Footer — quick links + settings entry */}
       <div className="p-1.5">
         <button
@@ -409,7 +358,7 @@ export const AccountPopover = memo(function AccountPopover({
 }) {
   const { t } = useTranslation("workspace");
   const [open, setOpen] = useState(false);
-  const account = useAccount(open);
+  const account = useAccount(open, { loadModels: false });
 
   // The account button is an optional login entry point — it never force-opens.
   // (Auto-opening the setup card on first launch was removed: the product does

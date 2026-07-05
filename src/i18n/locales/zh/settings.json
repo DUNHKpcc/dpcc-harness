@@ -328,7 +328,7 @@
   },
   "currentConfig": {
     "title": "当前配置",
-    "description": "PccAgent 实际用于运行会话的上游与模型配置。可在此切换配置来源；具体密钥和网关参数仍在「设置 → 账户 / 引擎」中维护。",
+    "description": "PccAgent 实际用于运行会话的上游与模型配置。可在此分别切换 Claude Code 与 Codex 的配置来源；具体密钥和网关参数仍在「设置 → 账户 / 引擎」中维护。",
     "refresh": "刷新",
     "refreshing": "刷新中…",
     "saveFailed": "无法保存配置来源。",
@@ -341,7 +341,7 @@
     },
     "sourceDesc": {
       "gateway": "通过「设置 → 引擎」中配置的自定义第三方网关转发。",
-      "local": "使用当前本机 Claude Code / Codex CLI 配置。",
+      "local": "使用当前本机对应 CLI 配置。",
       "default": "通过 DPCC 官方上游 (api.dpccgaming.xyz) 转发。"
     },
     "fields": {

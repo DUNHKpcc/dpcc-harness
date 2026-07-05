@@ -16,7 +16,7 @@ export type CodexBinarySource = "builtin" | "auto" | "managed" | "custom";
 export type ClaudeBinarySource = "builtin" | "auto" | "managed" | "custom";
 /** Where the auto-updater fetches releases from. "github" = official source, "mirror" = self-hosted domestic mirror. */
 export type UpdateSource = "github" | "mirror";
-/** Which upstream source built-in Claude Code and Codex sessions should use. */
+/** Which upstream source a built-in Claude Code or Codex session should use. */
 export type CliConfigSource = "default" | "local" | "gateway";
 
 // ── Notification settings ──
@@ -46,13 +46,13 @@ export interface GatewayModelMapping {
 
 /** Third-party gateway config for the Claude engine (ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN). */
 export interface ClaudeGatewaySettings {
-  /** Engine settings toggle for this saved gateway; routing is selected by cliConfigSource. */
+  /** Engine settings toggle for this saved gateway; routing is selected by the Claude config source. */
   enabled: boolean;
   /** Gateway endpoint → ANTHROPIC_BASE_URL */
   baseUrl: string;
   /** Bearer token / API key → ANTHROPIC_AUTH_TOKEN */
   authToken: string;
-  /** Custom model id used as the session default when cliConfigSource is "gateway" (empty = upstream default). */
+  /** Custom model id used as the session default when the Claude config source is "gateway" (empty = upstream default). */
   model: string;
   /** Editable display-name → upstream-model mappings for gateway model pickers. */
   modelMappings: GatewayModelMapping[];
@@ -60,7 +60,7 @@ export interface ClaudeGatewaySettings {
 
 /** Third-party gateway config for the Codex engine (model_providers override). */
 export interface CodexGatewaySettings {
-  /** Engine settings toggle for this saved provider; routing is selected by cliConfigSource. */
+  /** Engine settings toggle for this saved provider; routing is selected by the Codex config source. */
   enabled: boolean;
   /** Human-readable provider display name */
   name: string;
@@ -68,7 +68,7 @@ export interface CodexGatewaySettings {
   baseUrl: string;
   /** API key injected into the app-server process under the provider's env_key */
   apiKey: string;
-  /** Custom model id used as the session default when cliConfigSource is "gateway". */
+  /** Custom model id used as the session default when the Codex config source is "gateway". */
   model: string;
   /** Editable display-name → upstream-model mappings for gateway model pickers. */
   modelMappings: GatewayModelMapping[];
@@ -142,8 +142,12 @@ export interface AppSettings {
   claudeGateway: ClaudeGatewaySettings;
   /** Saved third-party gateway config for the Codex engine */
   codexGateway: CodexGatewaySettings;
-  /** Selected upstream source for built-in Claude Code and Codex sessions. */
+  /** Legacy shared upstream source. Kept for migration/backward compatibility. */
   cliConfigSource: CliConfigSource;
+  /** Selected upstream source for built-in Claude Code sessions. */
+  claudeCliConfigSource: CliConfigSource;
+  /** Selected upstream source for built-in Codex sessions. */
+  codexCliConfigSource: CliConfigSource;
   /**
    * DPCC official default upstream (api.dpccgaming.xyz), used when Current
    * Config source is "default". Populated by the DPCC API account entry and the

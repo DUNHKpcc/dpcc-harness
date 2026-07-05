@@ -1,7 +1,7 @@
 /**
  * Single source of truth for which upstream PccAgent routes each engine through.
  *
- * Source is selected in Settings → Current Config:
+ * Each source is selected in Settings → Current Config:
  *   - default — the DPCC official upstream (api.dpccgaming.xyz) + the DPCC account key
  *   - local — the user's current Claude Code / Codex CLI configuration
  *   - gateway — the in-app custom third-party gateway (Settings → Engines)
@@ -52,9 +52,20 @@ function dpccHost(): string {
   return raw || DEFAULT_NEWAPI_BASE_URL.replace(/\/+$/, "");
 }
 
-function selectedSource(): UpstreamTier {
-  const source = getAppSetting("cliConfigSource");
-  return source === "local" || source === "gateway" || source === "default" ? source : "default";
+function normalizeSource(source: unknown): UpstreamTier | null {
+  return source === "local" || source === "gateway" || source === "default" ? source : null;
+}
+
+function selectedClaudeSource(): UpstreamTier {
+  return normalizeSource(getAppSetting("claudeCliConfigSource"))
+    ?? normalizeSource(getAppSetting("cliConfigSource"))
+    ?? "default";
+}
+
+function selectedCodexSource(): UpstreamTier {
+  return normalizeSource(getAppSetting("codexCliConfigSource"))
+    ?? normalizeSource(getAppSetting("cliConfigSource"))
+    ?? "default";
 }
 
 function resolveLocalClaudeUpstream(): ClaudeUpstream {
@@ -134,7 +145,7 @@ function resolveDefaultCodexUpstream(): CodexUpstream {
 
 /** Resolve the effective Claude upstream from the user-selected Current Config source. */
 export function resolveClaudeUpstream(): ClaudeUpstream {
-  switch (selectedSource()) {
+  switch (selectedClaudeSource()) {
     case "local":
       return resolveLocalClaudeUpstream();
     case "gateway":
@@ -147,7 +158,7 @@ export function resolveClaudeUpstream(): ClaudeUpstream {
 
 /** Resolve the effective Codex upstream from the user-selected Current Config source. */
 export function resolveCodexUpstream(): CodexUpstream {
-  switch (selectedSource()) {
+  switch (selectedCodexSource()) {
     case "local":
       return resolveLocalCodexUpstream();
     case "gateway":

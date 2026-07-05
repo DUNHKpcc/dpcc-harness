@@ -55,6 +55,8 @@ const DEFAULTS: AppSettings = {
   claudeGateway: { enabled: false, baseUrl: "", authToken: "", model: "", modelMappings: CLAUDE_GATEWAY_MODEL_PRESETS },
   codexGateway: { enabled: false, name: "", baseUrl: "", apiKey: "", model: "", modelMappings: CODEX_GATEWAY_MODEL_PRESETS },
   cliConfigSource: "default",
+  claudeCliConfigSource: "default",
+  codexCliConfigSource: "default",
   dpccUpstream: { baseUrl: "", claudeToken: "", codexToken: "", claudeModel: "", codexModel: "" },
   accountAccessToken: "",
   accountUserId: "",
@@ -142,9 +144,34 @@ function hasLegacyThirdPartyGatewaySelection(parsed: Partial<AppSettings>): bool
   return claudeCustomGateway || codexCustomGateway;
 }
 
-function migrateLegacyCliConfigSource(parsed: Partial<AppSettings>): Partial<Pick<AppSettings, "cliConfigSource">> | null {
-  if (!hasLegacyThirdPartyGatewaySelection(parsed)) return null;
-  return { cliConfigSource: "gateway" satisfies CliConfigSource };
+function normalizeCliConfigSource(source: unknown): CliConfigSource | null {
+  return source === "local" || source === "gateway" || source === "default" ? source : null;
+}
+
+function legacyCliConfigSource(parsed: Partial<AppSettings>): CliConfigSource {
+  const explicit = normalizeCliConfigSource(parsed.cliConfigSource);
+  if (explicit) return explicit;
+  return hasLegacyThirdPartyGatewaySelection(parsed) ? "gateway" : "default";
+}
+
+function resolveCliConfigSources(parsed: Partial<AppSettings>): Pick<AppSettings, "cliConfigSource" | "claudeCliConfigSource" | "codexCliConfigSource"> {
+  const legacy = legacyCliConfigSource(parsed);
+  return {
+    cliConfigSource: legacy,
+    claudeCliConfigSource: normalizeCliConfigSource(parsed.claudeCliConfigSource) ?? legacy,
+    codexCliConfigSource: normalizeCliConfigSource(parsed.codexCliConfigSource) ?? legacy,
+  };
+}
+
+function migrateLegacyCliConfigSource(
+  parsed: Partial<AppSettings>,
+  sources: Pick<AppSettings, "cliConfigSource" | "claudeCliConfigSource" | "codexCliConfigSource">,
+): Partial<Pick<AppSettings, "cliConfigSource" | "claudeCliConfigSource" | "codexCliConfigSource">> | null {
+  const patch: Partial<Pick<AppSettings, "cliConfigSource" | "claudeCliConfigSource" | "codexCliConfigSource">> = {};
+  if (!normalizeCliConfigSource(parsed.cliConfigSource)) patch.cliConfigSource = sources.cliConfigSource;
+  if (!normalizeCliConfigSource(parsed.claudeCliConfigSource)) patch.claudeCliConfigSource = sources.claudeCliConfigSource;
+  if (!normalizeCliConfigSource(parsed.codexCliConfigSource)) patch.codexCliConfigSource = sources.codexCliConfigSource;
+  return Object.keys(patch).length > 0 ? patch : null;
 }
 
 function normalizeClaudeGateway(gateway: Partial<ClaudeGatewaySettings> | undefined): ClaudeGatewaySettings {
@@ -202,7 +229,8 @@ export function getAppSettings(): AppSettings {
     const needsDpccMigration = parsed.dpccUpstream === undefined;
     const migrated = needsDpccMigration ? migrateLegacyDpcc(parsed) : null;
     const binarySourceMigration = migrateBinarySourceDefaults(parsed);
-    const cliConfigSourceMigration = migrateLegacyCliConfigSource(parsed);
+    const cliConfigSources = resolveCliConfigSources(parsed);
+    const cliConfigSourceMigration = migrateLegacyCliConfigSource(parsed, cliConfigSources);
     // Merge with defaults so newly added keys are always present.
     // Deep-merge `notifications` so upgrading users get defaults for each event type
     // even if their settings.json has a partial or missing notifications object.
@@ -222,6 +250,7 @@ export function getAppSettings(): AppSettings {
       dpccUpstream: { ...DEFAULTS.dpccUpstream, ...parsed.dpccUpstream },
       claudeGateway: normalizeClaudeGateway(parsed.claudeGateway),
       codexGateway: normalizeCodexGateway(parsed.codexGateway),
+      ...cliConfigSources,
       ...(migrated ?? {}),
       ...(binarySourceMigration ?? {}),
       ...(cliConfigSourceMigration ?? {}),

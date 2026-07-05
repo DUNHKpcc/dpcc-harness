@@ -328,7 +328,7 @@
   },
   "currentConfig": {
     "title": "Current Config",
-    "description": "The upstream and model configuration PccAgent is actually using to run sessions. Switch the config source here; maintain keys and gateway details in Settings → Account / Engines.",
+    "description": "The upstream and model configuration PccAgent is actually using to run sessions. Switch Claude Code and Codex config sources separately here; maintain keys and gateway details in Settings → Account / Engines.",
     "refresh": "Refresh",
     "refreshing": "Refreshing…",
     "saveFailed": "Couldn't save the config source.",
@@ -341,7 +341,7 @@
     },
     "sourceDesc": {
       "gateway": "Routed through the custom third-party gateway set in Settings → Engines.",
-      "local": "Uses the current local Claude Code / Codex CLI configuration.",
+      "local": "Uses the corresponding local CLI configuration.",
       "default": "Routed through the DPCC default upstream (api.dpccgaming.xyz)."
     },
     "fields": {

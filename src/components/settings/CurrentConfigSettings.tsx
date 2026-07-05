@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { SettingsHeader, SettingsSection, SettingsSelect } from "@/components/settings/shared";
-import { shouldApplyConfigSourceRefresh } from "@/components/settings/current-config-settings-utils";
+import { buildConfigSourcePatch, shouldApplyConfigSourceRefresh, type ConfigSourceEngine } from "@/components/settings/current-config-settings-utils";
 import { setAppSettingsChecked } from "@/lib/app-settings-ipc";
 import { getVisibleGatewayModels } from "@/lib/gateway-models";
 import type {
@@ -136,22 +136,43 @@ function EngineCard({
   engine,
   isCodex,
   models,
+  selectedSource,
+  savingSource,
+  onSourceChange,
   first = false,
 }: {
   label: string;
   engine: EffectiveEngineConfig;
   isCodex: boolean;
   models: EffectiveModelList | undefined;
+  selectedSource: CliConfigSource;
+  savingSource: boolean;
+  onSourceChange: (source: CliConfigSource) => void;
   first?: boolean;
 }) {
   const { t } = useTranslation("settings");
   return (
     <SettingsSection icon={Server} label={label} first={first}>
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <p className="text-xs text-muted-foreground">
+      <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <p className="min-w-0 text-xs text-muted-foreground">
           {t(`currentConfig.sourceDesc.${engine.source}`)}
         </p>
-        <SourceBadge source={engine.source} />
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          <SourceBadge source={engine.source} />
+          <SettingsSelect
+            value={selectedSource}
+            onValueChange={onSourceChange}
+            options={CONFIG_SOURCE_OPTIONS.map((option) => ({
+              value: option.value,
+              label: t(option.labelKey),
+            }))}
+            className="w-[180px]"
+            disabled={savingSource}
+          />
+          {savingSource && (
+            <RefreshCw className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+          )}
+        </div>
       </div>
 
       <div className="space-y-1.5">
@@ -168,9 +189,10 @@ export const CurrentConfigSettings = memo(function CurrentConfigSettings() {
   const { t } = useTranslation("settings");
   const [data, setData] = useState<EffectiveCliConfig | null>(null);
   const [models, setModels] = useState<EffectiveCliModels | null>(null);
-  const [configSource, setConfigSource] = useState<CliConfigSource>("default");
+  const [claudeConfigSource, setClaudeConfigSource] = useState<CliConfigSource>("default");
+  const [codexConfigSource, setCodexConfigSource] = useState<CliConfigSource>("default");
   const [refreshing, setRefreshing] = useState(false);
-  const [savingSource, setSavingSource] = useState(false);
+  const [savingSource, setSavingSource] = useState<ConfigSourceEngine | null>(null);
   const refreshRequestIdRef = useRef(0);
 
   const refresh = useCallback(async () => {
@@ -187,7 +209,8 @@ export const CurrentConfigSettings = memo(function CurrentConfigSettings() {
       if (!shouldApplyConfigSourceRefresh(requestId, refreshRequestIdRef.current)) return;
       setData(cfg);
       setModels(mdl);
-      setConfigSource(settings?.cliConfigSource ?? "default");
+      setClaudeConfigSource(settings?.claudeCliConfigSource ?? settings?.cliConfigSource ?? "default");
+      setCodexConfigSource(settings?.codexCliConfigSource ?? settings?.cliConfigSource ?? "default");
     } finally {
       if (shouldApplyConfigSourceRefresh(requestId, refreshRequestIdRef.current)) {
         setRefreshing(false);
@@ -195,21 +218,22 @@ export const CurrentConfigSettings = memo(function CurrentConfigSettings() {
     }
   }, []);
 
-  const updateConfigSource = useCallback(async (source: CliConfigSource) => {
-    const previousSource = configSource;
-    setConfigSource(source);
-    setSavingSource(true);
+  const updateConfigSource = useCallback(async (engine: ConfigSourceEngine, source: CliConfigSource) => {
+    const previousSource = engine === "claude" ? claudeConfigSource : codexConfigSource;
+    const setSource = engine === "claude" ? setClaudeConfigSource : setCodexConfigSource;
+    setSource(source);
+    setSavingSource(engine);
     try {
-      await setAppSettingsChecked({ cliConfigSource: source });
+      await setAppSettingsChecked(buildConfigSourcePatch(engine, source));
       await refresh();
     } catch {
-      setConfigSource(previousSource);
+      setSource(previousSource);
       toast.error(t("currentConfig.saveFailed"));
       void refresh();
     } finally {
-      setSavingSource(false);
+      setSavingSource(null);
     }
-  }, [configSource, refresh, t]);
+  }, [claudeConfigSource, codexConfigSource, refresh, t]);
 
   useEffect(() => {
     void refresh();
@@ -237,33 +261,16 @@ export const CurrentConfigSettings = memo(function CurrentConfigSettings() {
         title={t("currentConfig.title")}
         description={t("currentConfig.description")}
         actions={
-          <div className="flex items-center gap-2">
-            <div className="flex min-w-[180px] items-center gap-2">
-              <SettingsSelect
-                value={configSource}
-                onValueChange={(source) => void updateConfigSource(source)}
-                options={CONFIG_SOURCE_OPTIONS.map((option) => ({
-                  value: option.value,
-                  label: t(option.labelKey),
-                }))}
-                className="w-[180px]"
-                disabled={savingSource}
-              />
-              {savingSource && (
-                <RefreshCw className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-              )}
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void refresh()}
-              disabled={refreshing}
-              className="gap-1.5"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
-              {refreshing ? t("currentConfig.refreshing") : t("currentConfig.refresh")}
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void refresh()}
+            disabled={refreshing}
+            className="gap-1.5"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+            {refreshing ? t("currentConfig.refreshing") : t("currentConfig.refresh")}
+          </Button>
         }
       />
 
@@ -276,12 +283,18 @@ export const CurrentConfigSettings = memo(function CurrentConfigSettings() {
                 engine={data.claude}
                 isCodex={false}
                 models={models?.claude}
+                selectedSource={claudeConfigSource}
+                savingSource={savingSource === "claude"}
+                onSourceChange={(source) => void updateConfigSource("claude", source)}
               />
               <EngineCard
                 label={t("currentConfig.codex")}
                 engine={data.codex}
                 isCodex={true}
                 models={models?.codex}
+                selectedSource={codexConfigSource}
+                savingSource={savingSource === "codex"}
+                onSourceChange={(source) => void updateConfigSource("codex", source)}
               />
             </>
           )}

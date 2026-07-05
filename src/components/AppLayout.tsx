@@ -1414,6 +1414,18 @@ export function AppLayout() {
           style={{ background: isLightGlass ? "rgba(255,255,255,0.38)" : "rgba(0,0,0,0.34)" }}
         />
       )}
+      {showSettings ? (
+        <div className="relative z-10 flex min-w-0 flex-1">
+          <SettingsView
+            onClose={() => setShowSettings(false)}
+            glassSupported={glassSupported}
+            macLiquidGlassSupported={macLiquidGlassSupported}
+            onReplayWelcome={handleReplayWelcome}
+            initialSection={showSettings}
+          />
+        </div>
+      ) : (
+        <>
       <AppSidebar
         state={{
           isOpen: sidebar.isOpen,
@@ -1489,20 +1501,7 @@ export function AppLayout() {
       )}
 
       <div ref={contentRef} className={`flex min-w-0 flex-1 flex-col ${settings.islandLayout ? "m-[var(--island-gap)]" : sidebar.isOpen ? "flat-divider-s" : ""} ${isResizing || sidebar.isResizing ? "select-none" : ""}`}>
-        {showSettings && (
-          <SettingsView
-            onClose={() => setShowSettings(false)}
-            glassSupported={glassSupported}
-            macLiquidGlassSupported={macLiquidGlassSupported}
-            sidebarOpen={sidebar.isOpen}
-            onToggleSidebar={sidebar.toggle}
-            onReplayWelcome={handleReplayWelcome}
-            initialSection={showSettings}
-          />
-        )}
-        {/* Keep chat area mounted (hidden) when settings is open to avoid
-            destroying/recreating the entire ChatView DOM tree on toggle */}
-        <div className={showSettings ? "hidden" : "flex min-h-0 flex-1 flex-col"}>
+        <div className="flex min-h-0 flex-1 flex-col">
         {/* ── Top row: Split View OR (Chat | Right Panel | Tools Column | ToolPicker) ── */}
         <div
           ref={(element) => {
@@ -2116,8 +2115,10 @@ export function AppLayout() {
             renderToolContent={renderMainWorkspaceToolContent}
           />
         )}
-        </div>{/* end showSettings wrapper */}
+        </div>{/* end main workspace */}
       </div>
+        </>
+      )}
       {showCodexAuthDialog && (
         <CodexAuthDialog
           sessionId={manager.activeSessionId!}

@@ -13,7 +13,6 @@ import {
   Sparkles,
   Users,
   BarChart3,
-  PanelLeft,
   Server,
   X,
   Wallet,
@@ -34,7 +33,6 @@ import { PlaceholderSection } from "@/components/settings/PlaceholderSection";
 import { AboutSettings } from "@/components/settings/AboutSettings";
 import { AnalyticsSettings } from "@/components/settings/AnalyticsSettings";
 import { CurrentConfigSettings } from "@/components/settings/CurrentConfigSettings";
-import { useSettingsStore } from "@/stores/settings-store";
 import { setAppSettingsChecked } from "@/lib/app-settings-ipc";
 import { isMac } from "@/lib/utils";
 import type { AppSettings } from "@/types";
@@ -76,8 +74,6 @@ interface SettingsViewProps {
   onClose: () => void;
   glassSupported: boolean;
   macLiquidGlassSupported: boolean;
-  sidebarOpen?: boolean;
-  onToggleSidebar?: () => void;
   /** Resets the welcome wizard so it shows again. Dev-only. */
   onReplayWelcome: () => void;
   /** Open directly to a specific section (e.g. "agents" from the engine picker). */
@@ -90,16 +86,13 @@ export const SettingsView = memo(function SettingsView({
   onClose,
   glassSupported,
   macLiquidGlassSupported,
-  sidebarOpen = false,
-  onToggleSidebar,
   onReplayWelcome,
   initialSection,
 }: SettingsViewProps) {
   const { t } = useTranslation("settings");
   const { agents, saveAgent, deleteAgent } = useAgentContext();
-  const islandLayout = useSettingsStore((s) => s.islandLayout);
   const [activeSection, setActiveSection] = useState<SettingsSection>(initialSection ?? "account");
-  const macIslandTitlebarOffsetClass = "";
+  const macTitlebarInsetClass = isMac ? "ps-[84px]" : "";
 
   // ── Main-process app settings (loaded once, updated optimistically) ──
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
@@ -227,25 +220,11 @@ export const SettingsView = memo(function SettingsView({
   }, [activeSection, appSettings, updateAppSettings, agents, saveAgent, deleteAgent, glassSupported, macLiquidGlassSupported, onReplayWelcome]);
 
   return (
-    <div className={`island flex flex-1 flex-col overflow-hidden bg-background ${islandLayout ? "rounded-[var(--island-radius)]" : "rounded-none"}`}>
+    <div className="flex h-full w-full flex-1 flex-col overflow-hidden rounded-none bg-background">
       <div
-        className={`drag-region flex shrink-0 items-center border-b border-foreground/[0.06] ${
-          islandLayout ? "h-[2.375rem] px-4" : "h-[3.25rem] px-4"
-        } ${
-          !sidebarOpen && isMac ? (islandLayout ? "ps-[78px]" : "ps-[84px]") : ""
-        }`}
+        className={`drag-region flex h-[3.25rem] shrink-0 items-center border-b border-foreground/[0.06] px-4 ${macTitlebarInsetClass}`}
       >
-        {onToggleSidebar && !sidebarOpen && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className={`no-drag me-2 h-7 w-7 text-muted-foreground/60 hover:text-foreground ${macIslandTitlebarOffsetClass}`}
-            onClick={onToggleSidebar}
-          >
-            <PanelLeft className="h-4 w-4" />
-          </Button>
-        )}
-        <span className={`leading-none text-sm font-semibold text-foreground ${macIslandTitlebarOffsetClass}`}>{t("titlebar")}</span>
+        <span className="text-sm font-semibold leading-none text-foreground">{t("titlebar")}</span>
 
         <Button
           variant="ghost"

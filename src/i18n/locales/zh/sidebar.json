@@ -26,6 +26,18 @@
     "chats": "聊天",
     "messages": "消息"
   },
+  "topActions": {
+    "newChat": "新对话",
+    "search": "搜索"
+  },
+  "plugins": {
+    "open": "插件",
+    "skills": "Skills",
+    "skillsHint": "Agent 能力扩展",
+    "mcp": "MCP 服务器",
+    "mcpHint": "管理项目工具",
+    "comingSoon": "即将推出"
+  },
   "project": {
     "openJiraBoard": "打开 Jira 看板",
     "newFolder": "新建文件夹",

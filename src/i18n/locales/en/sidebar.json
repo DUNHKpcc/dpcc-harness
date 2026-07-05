@@ -26,6 +26,18 @@
     "chats": "Chats",
     "messages": "Messages"
   },
+  "topActions": {
+    "newChat": "New Chat",
+    "search": "Search"
+  },
+  "plugins": {
+    "open": "Plugins",
+    "skills": "Skills",
+    "skillsHint": "Agent capability extensions",
+    "mcp": "MCP Servers",
+    "mcpHint": "Manage project tools",
+    "comingSoon": "Coming soon"
+  },
   "project": {
     "openJiraBoard": "Open Jira board",
     "newFolder": "New folder",

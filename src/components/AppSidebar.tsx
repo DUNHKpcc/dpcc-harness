@@ -12,12 +12,12 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import type { ChatFolder, ChatSession, Project, Space, SpaceColor } from "@/types";
-import { SidebarSearch } from "./SidebarSearch";
 import { SpaceBar, SpaceIcon } from "./SpaceBar";
 import { SpaceCustomizer } from "./SpaceCustomizer";
 import { UpdateBanner } from "./UpdateBanner";
 import { PreReleaseBanner } from "./PreReleaseBanner";
 import { ProjectSection } from "./sidebar/ProjectSection";
+import { SidebarTopActions } from "./sidebar/SidebarTopActions";
 import { WeChatSection } from "./sidebar/WeChatSection";
 import { SidebarActionsProvider } from "./sidebar/SidebarActionsContext";
 import { useAgentContext } from "./AgentContext";
@@ -148,6 +148,7 @@ interface AppSidebarProps {
   spaceState: AppSidebarSpaceState;
   spaceActions: AppSidebarSpaceActions;
   sessionActions: AppSidebarSessionActions;
+  onOpenMcpPanel?: () => void;
 }
 
 export const AppSidebar = memo(function AppSidebar({
@@ -156,6 +157,7 @@ export const AppSidebar = memo(function AppSidebar({
   spaceState,
   spaceActions,
   sessionActions,
+  onOpenMcpPanel,
 }: AppSidebarProps) {
   const { t } = useTranslation("sidebar");
   const {
@@ -260,6 +262,14 @@ export const AppSidebar = memo(function AppSidebar({
   // WeChat-bound projects are represented by the dedicated WeChat area, so they're
   // hidden from the normal project list (but kept in projectIds for search).
   const visibleProjects = useMemo(() => filteredProjects.filter((p) => !p.wechat), [filteredProjects]);
+
+  const topActionNewChatProjectId = useMemo(() => {
+    const activeProjectId = sessions.find((session) => session.id === activeSessionId)?.projectId;
+    if (activeProjectId && filteredProjects.some((project) => project.id === activeProjectId)) {
+      return activeProjectId;
+    }
+    return visibleProjects[0]?.id ?? filteredProjects[0]?.id ?? null;
+  }, [activeSessionId, filteredProjects, sessions, visibleProjects]);
 
   // Pre-group sessions by projectId (O(n) once) instead of filtering per project (O(n*m))
   const sessionsByProject = useMemo(() => {
@@ -622,10 +632,15 @@ export const AppSidebar = memo(function AppSidebar({
           onDragOver={handleProjectListDragOver}
           onDrop={handleProjectListDrop}
         >
-          <SidebarSearch
+          <SidebarTopActions
             projectIds={projectIds}
+            canCreateChat={!!topActionNewChatProjectId}
+            onCreateChat={() => {
+              if (topActionNewChatProjectId) onNewChat(topActionNewChatProjectId);
+            }}
             onNavigateToMessage={onNavigateToMessage}
             onSelectSession={onSelectSession}
+            onOpenMcpPanel={onOpenMcpPanel}
           />
 
           <div

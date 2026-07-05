@@ -8,12 +8,14 @@ interface SidebarSearchProps {
   projectIds: string[];
   onNavigateToMessage: (sessionId: string, messageId: string) => void;
   onSelectSession: (sessionId: string) => void;
+  variant?: "field" | "row";
 }
 
 export const SidebarSearch = memo(function SidebarSearch({
   projectIds,
   onNavigateToMessage,
   onSelectSession,
+  variant = "field",
 }: SidebarSearchProps) {
   const { t } = useTranslation("sidebar");
   const [query, setQuery] = useState("");
@@ -91,10 +93,30 @@ export const SidebarSearch = memo(function SidebarSearch({
     );
   };
 
+  const isRowVariant = variant === "row";
+
   return (
-    <div ref={containerRef} className="relative no-drag px-3 pb-3 pt-1">
-      <div className="glass-outline sidebar-search-glass relative overflow-hidden rounded-xl transition-all focus-within:ring-2 focus-within:ring-primary/20" style={{ "--island-fill": "var(--sidebar-accent)" } as React.CSSProperties}>
-        <Search className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-sidebar-foreground/40" />
+    <div ref={containerRef} className={isRowVariant ? "relative no-drag" : "relative no-drag px-3 pb-3 pt-1"}>
+      {isRowVariant && !isOpen && !query ? (
+        <button
+          type="button"
+          className="flex h-10 w-full items-center gap-3 rounded-md px-4 text-start text-[15px] font-medium text-sidebar-foreground/82 transition-colors hover:bg-sidebar-accent/55"
+          onClick={() => {
+            setIsOpen(true);
+            requestAnimationFrame(() => inputRef.current?.focus());
+          }}
+        >
+          <Search className="h-5 w-5 shrink-0 stroke-[1.8] text-sidebar-foreground/75" />
+          <span>{t("topActions.search")}</span>
+        </button>
+      ) : (
+      <div
+        className={isRowVariant
+          ? "relative overflow-hidden rounded-md bg-sidebar-accent/45 transition-all focus-within:ring-2 focus-within:ring-primary/15"
+          : "glass-outline sidebar-search-glass relative overflow-hidden rounded-xl transition-all focus-within:ring-2 focus-within:ring-primary/20"}
+        style={isRowVariant ? undefined : { "--island-fill": "var(--sidebar-accent)" } as React.CSSProperties}
+      >
+        <Search className={`${isRowVariant ? "start-4 h-5 w-5 text-sidebar-foreground/70" : "start-3 h-4 w-4 text-sidebar-foreground/40"} absolute top-1/2 -translate-y-1/2`} />
         <input
           ref={inputRef}
           value={query}
@@ -105,7 +127,9 @@ export const SidebarSearch = memo(function SidebarSearch({
           onFocus={() => setIsOpen(true)}
           onKeyDown={handleKeyDown}
           placeholder={t("search.placeholder")}
-          className="w-full bg-black/5 py-1.5 pe-8 ps-9 text-[13px] text-sidebar-foreground placeholder:text-sidebar-foreground/40 outline-none transition-colors focus:bg-black/10 dark:bg-white/5 dark:focus:bg-white/10"
+          className={isRowVariant
+            ? "h-10 w-full bg-transparent pe-8 ps-12 text-[14px] text-sidebar-foreground placeholder:text-sidebar-foreground/45 outline-none"
+            : "w-full bg-black/5 py-1.5 pe-8 ps-9 text-[13px] text-sidebar-foreground placeholder:text-sidebar-foreground/40 outline-none transition-colors focus:bg-black/10 dark:bg-white/5 dark:focus:bg-white/10"}
         />
         {query && (
           <button
@@ -119,6 +143,7 @@ export const SidebarSearch = memo(function SidebarSearch({
           </button>
         )}
       </div>
+      )}
 
       {showDropdown && (
         <div className="absolute inset-x-3 top-full z-50 mt-1 max-h-80 overflow-y-auto rounded-xl border border-sidebar-border bg-popover p-1.5 shadow-xl glass-outline" style={{ "--island-fill": "var(--popover)" } as React.CSSProperties}>

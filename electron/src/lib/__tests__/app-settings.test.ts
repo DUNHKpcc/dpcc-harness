@@ -154,11 +154,17 @@ describe("app settings", () => {
 
     const settings = getAppSettings();
     expect(settings.cliConfigSource).toBe("gateway");
+    expect(settings.claudeCliConfigSource).toBe("gateway");
+    expect(settings.codexCliConfigSource).toBe("gateway");
 
     const persisted = JSON.parse(fs.readFileSync(settingsPath, "utf-8")) as {
       cliConfigSource: string;
+      claudeCliConfigSource: string;
+      codexCliConfigSource: string;
     };
     expect(persisted.cliConfigSource).toBe("gateway");
+    expect(persisted.claudeCliConfigSource).toBe("gateway");
+    expect(persisted.codexCliConfigSource).toBe("gateway");
   });
 
   it("keeps legacy DPCC gateway credentials on the default source after migration", async () => {
@@ -183,10 +189,73 @@ describe("app settings", () => {
 
     const settings = getAppSettings();
     expect(settings.cliConfigSource).toBe("default");
+    expect(settings.claudeCliConfigSource).toBe("default");
+    expect(settings.codexCliConfigSource).toBe("default");
     expect(settings.dpccUpstream).toMatchObject({
       claudeToken: "sk-dpcc-claude",
       codexToken: "sk-dpcc-codex",
     });
+  });
+
+  it("preserves explicit per-engine config sources over the legacy shared source", async () => {
+    const settingsPath = path.join(dataDirRef.current, "settings.json");
+    fs.writeFileSync(settingsPath, JSON.stringify({
+      binarySourceDefaultsMigrated: true,
+      cliConfigSource: "local",
+      claudeCliConfigSource: "gateway",
+      codexCliConfigSource: "default",
+      dpccUpstream: {
+        baseUrl: "",
+        claudeToken: "",
+        codexToken: "",
+        claudeModel: "",
+        codexModel: "",
+      },
+    }), "utf-8");
+
+    const { getAppSettings } = await loadModule();
+
+    const settings = getAppSettings();
+    expect(settings.cliConfigSource).toBe("local");
+    expect(settings.claudeCliConfigSource).toBe("gateway");
+    expect(settings.codexCliConfigSource).toBe("default");
+
+    const persisted = JSON.parse(fs.readFileSync(settingsPath, "utf-8")) as {
+      claudeCliConfigSource: string;
+      codexCliConfigSource: string;
+    };
+    expect(persisted.claudeCliConfigSource).toBe("gateway");
+    expect(persisted.codexCliConfigSource).toBe("default");
+  });
+
+  it("falls back invalid per-engine config sources to the legacy shared source", async () => {
+    const settingsPath = path.join(dataDirRef.current, "settings.json");
+    fs.writeFileSync(settingsPath, JSON.stringify({
+      binarySourceDefaultsMigrated: true,
+      cliConfigSource: "local",
+      claudeCliConfigSource: "bad-source",
+      codexCliConfigSource: "gateway",
+      dpccUpstream: {
+        baseUrl: "",
+        claudeToken: "",
+        codexToken: "",
+        claudeModel: "",
+        codexModel: "",
+      },
+    }), "utf-8");
+
+    const { getAppSettings } = await loadModule();
+
+    const settings = getAppSettings();
+    expect(settings.claudeCliConfigSource).toBe("local");
+    expect(settings.codexCliConfigSource).toBe("gateway");
+
+    const persisted = JSON.parse(fs.readFileSync(settingsPath, "utf-8")) as {
+      claudeCliConfigSource: string;
+      codexCliConfigSource: string;
+    };
+    expect(persisted.claudeCliConfigSource).toBe("local");
+    expect(persisted.codexCliConfigSource).toBe("gateway");
   });
 
   it("throws when settings cannot be persisted", async () => {

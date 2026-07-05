@@ -26,10 +26,14 @@ async function loadModule() {
 
 function mockSettings({
   cliConfigSource = "default",
+  claudeCliConfigSource,
+  codexCliConfigSource,
   claudeGateway = { enabled: false, baseUrl: "", authToken: "", model: "" },
   codexGateway = { enabled: false, name: "", baseUrl: "", apiKey: "", model: "" },
 }: {
   cliConfigSource?: "default" | "local" | "gateway";
+  claudeCliConfigSource?: "default" | "local" | "gateway";
+  codexCliConfigSource?: "default" | "local" | "gateway";
   claudeGateway?: { enabled: boolean; baseUrl: string; authToken: string; model: string };
   codexGateway?: { enabled: boolean; name: string; baseUrl: string; apiKey: string; model: string };
 } = {}) {
@@ -43,6 +47,8 @@ function mockSettings({
 
   mockGetAppSetting.mockImplementation((key: string) => {
     if (key === "cliConfigSource") return cliConfigSource;
+    if (key === "claudeCliConfigSource") return claudeCliConfigSource ?? cliConfigSource;
+    if (key === "codexCliConfigSource") return codexCliConfigSource ?? cliConfigSource;
     if (key === "claudeGateway") return claudeGateway;
     if (key === "codexGateway") return codexGateway;
     if (key === "dpccUpstream") return dpccUpstream;
@@ -103,6 +109,35 @@ describe("upstream resolver", () => {
       baseUrl: "https://local-codex.example/v1",
       apiKey: "",
       model: "local-codex-model",
+    });
+  });
+
+  it("uses independent config sources for Claude and Codex", async () => {
+    mockSettings({
+      claudeCliConfigSource: "local",
+      codexCliConfigSource: "gateway",
+      codexGateway: {
+        enabled: false,
+        name: "Gateway Provider",
+        baseUrl: "https://responses-gateway.example/v1",
+        apiKey: "sk-gateway-codex",
+        model: "gateway-codex-model",
+      },
+    });
+    const { resolveClaudeUpstream, resolveCodexUpstream } = await loadModule();
+
+    expect(resolveClaudeUpstream()).toEqual({
+      tier: "local",
+      baseUrl: "https://local-claude.example",
+      token: "sk-local-claude",
+      model: "local-claude-model",
+    });
+    expect(resolveCodexUpstream()).toEqual({
+      tier: "gateway",
+      providerName: "Gateway Provider",
+      baseUrl: "https://responses-gateway.example/v1",
+      apiKey: "sk-gateway-codex",
+      model: "gateway-codex-model",
     });
   });
 

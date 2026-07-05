@@ -17,4 +17,12 @@ describe("AppLayout i18n", () => {
     expect(zhWorkspace.split.codexDelegationNeedsWidth).toBeTypeOf("string");
     expect(zhWorkspace.split.addPaneNeedsWidth).toBeTypeOf("string");
   });
+
+  it("renders settings instead of the workspace shell", () => {
+    const appLayout = fs.readFileSync(path.join(repoRoot, "src/components/AppLayout.tsx"), "utf8");
+
+    expect(appLayout).toContain('{showSettings ? (\n        <div className="relative z-10 flex min-w-0 flex-1">');
+    expect(appLayout).not.toContain('className="fixed inset-0 z-50 flex bg-background"');
+    expect(appLayout).not.toContain('className={showSettings ? "hidden" : "flex min-h-0 flex-1 flex-col"}');
+  });
 });

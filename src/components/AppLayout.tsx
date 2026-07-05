@@ -139,7 +139,7 @@ export function AppLayout() {
     showSettings, setShowSettings, scrollToMessageId, setScrollToMessageId, chatSearchOpen, setChatSearchOpen,
   } = ui;
   const {
-    handleToggleTool, handleNewChat, handleSend,
+    handleToggleTool, handleCloseTasksPanel, handleNewChat, handleSend,
     handleModelChange, handlePermissionModeChange, handlePlanModeChange,
     handleClaudeModelEffortChange, handleAgentWorktreeChange, handleStop, handleSelectSession,
     handleSendQueuedNow, handleUnqueueMessage, handleCreateProject, handleImportCCSession,
@@ -2050,6 +2050,7 @@ export function AppLayout() {
                   activeTools,
                   activeTodos,
                   bgAgents,
+                  onCloseTodos: handleCloseTasksPanel,
                   expandEditToolCallsByDefault: settings.expandEditToolCallsByDefault,
                 }}
               />

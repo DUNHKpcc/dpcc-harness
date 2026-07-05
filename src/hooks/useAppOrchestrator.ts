@@ -79,6 +79,16 @@ export function useAppOrchestrator() {
     [settings],
   );
 
+  const handleCloseTasksPanel = useCallback(() => {
+    settings.setActiveTools((prev) => {
+      if (!prev.has("tasks")) return prev;
+      const next = new Set(prev);
+      next.delete("tasks");
+      return next;
+    });
+    settings.suppressPanel("tasks");
+  }, [settings]);
+
   // Reorder panel tools in the ToolPicker (moves fromId to toId's position)
   const handleToolReorder = useCallback(
     (fromId: ToolId, toId: ToolId) => {
@@ -287,6 +297,7 @@ export function useAppOrchestrator() {
 
   const actions = {
     handleToggleTool,
+    handleCloseTasksPanel,
     handleToolReorder,
     handleNewChat: sessionActions.handleNewChat,
     handleSend: sessionActions.handleSend,
@@ -395,6 +406,7 @@ export function useAppOrchestrator() {
 
     // Callbacks
     handleToggleTool,
+    handleCloseTasksPanel,
     handleToolReorder,
     handleNewChat: sessionActions.handleNewChat,
     handleSend: sessionActions.handleSend,

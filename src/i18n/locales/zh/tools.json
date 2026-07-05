@@ -53,7 +53,8 @@
     }
   },
   "todos": {
-    "title": "任务"
+    "title": "任务",
+    "close": "隐藏任务"
   },
   "agents": {
     "title": "代理",

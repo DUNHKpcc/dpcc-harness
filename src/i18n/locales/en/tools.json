@@ -53,7 +53,8 @@
     }
   },
   "todos": {
-    "title": "Tasks"
+    "title": "Tasks",
+    "close": "Hide tasks"
   },
   "agents": {
     "title": "Agents",

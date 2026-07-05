@@ -1,15 +1,17 @@
 import { useTranslation } from "react-i18next";
-import { CheckCircle2, Loader2, ListChecks, Circle } from "lucide-react";
+import { CheckCircle2, Loader2, ListChecks, Circle, X } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
 import { PanelHeader } from "@/components/PanelHeader";
 import type { TodoItem } from "@/types";
 import { getTodoItems } from "@/lib/chat/todo-utils";
 
 interface TodoPanelProps {
   todos: TodoItem[];
+  onClose?: () => void;
 }
 
-export function TodoPanel({ todos }: TodoPanelProps) {
+export function TodoPanel({ todos, onClose }: TodoPanelProps) {
   const { t } = useTranslation("tools");
   const items = getTodoItems(todos);
   const completed = items.filter((t) => t.status === "completed").length;
@@ -23,9 +25,24 @@ export function TodoPanel({ todos }: TodoPanelProps) {
         separator={false}
         iconClass="text-blue-600/70 dark:text-blue-200/50"
       >
-        <span className="text-[10px] tabular-nums text-foreground/40">
-          {completed}/{total}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] tabular-nums text-foreground/40">
+            {completed}/{total}
+          </span>
+          {onClose && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              className="text-muted-foreground/55 hover:text-foreground"
+              aria-label={t("todos.close")}
+              title={t("todos.close")}
+              onClick={onClose}
+            >
+              <X className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
       </PanelHeader>
 
       {/* Thin progress bar */}

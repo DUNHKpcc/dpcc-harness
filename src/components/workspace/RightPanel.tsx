@@ -24,6 +24,7 @@ interface RightPanelContentProps {
     dismissAgent: (id: string) => void;
     stopAgent: (id: string, taskId: string) => void;
   };
+  onCloseTodos: () => void;
   expandEditToolCallsByDefault: boolean;
 }
 
@@ -52,6 +53,7 @@ export const RightPanel = React.memo(function RightPanel({
     activeTools,
     activeTodos,
     bgAgents,
+    onCloseTodos,
     expandEditToolCallsByDefault,
   } = content;
   const showTodos = hasTodos && activeTools.has("tasks");
@@ -90,7 +92,7 @@ export const RightPanel = React.memo(function RightPanel({
                 : { flex: "1 1 0%", minHeight: 0 }
             }
           >
-            <TodoPanel todos={activeTodos} />
+            <TodoPanel todos={activeTodos} onClose={onCloseTodos} />
           </div>
         )}
         {bothVisible && (

@@ -55,6 +55,52 @@ function stripForeignCodexTriples(resourcesDir, context) {
   }
 }
 
+function portableGitTargetForBuild(platformName, archEnum) {
+  const platform = platformName === "mas" ? "darwin" : platformName;
+  if (platform !== "win32") return null;
+  const arch = archEnum === 1 ? "x64" : null;
+  return arch === "x64" ? "win32-x64" : null;
+}
+
+function stripForeignPortableGitResources(resourcesDir, context) {
+  const portableGitDir = path.join(resourcesDir, "portable-git");
+  if (!fs.existsSync(portableGitDir)) return;
+
+  const wantTarget = portableGitTargetForBuild(context.electronPlatformName, context.arch);
+  if (!wantTarget) {
+    console.log("  • afterPack: stripping PortableGit from non-Windows-x64 package");
+    fs.rmSync(portableGitDir, { recursive: true, force: true });
+    return;
+  }
+
+  for (const entry of fs.readdirSync(portableGitDir)) {
+    if (entry !== wantTarget) {
+      console.log(`  • afterPack: stripping non-target PortableGit ${entry}`);
+      fs.rmSync(path.join(portableGitDir, entry), { recursive: true, force: true });
+    }
+  }
+}
+
+function extraResourcesConfig() {
+  const resources = [
+    {
+      from: "build/codex-vendor",
+      to: "codex-vendor",
+      filter: ["**/*"],
+    },
+  ];
+
+  if (fs.existsSync(path.join(__dirname, "build", "portable-git"))) {
+    resources.push({
+      from: "build/portable-git",
+      to: "portable-git",
+      filter: ["**/*"],
+    });
+  }
+
+  return resources;
+}
+
 async function afterPackHook(context) {
   const resourcesDir = ["darwin", "mas"].includes(context.electronPlatformName)
     ? path.join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`, "Contents", "Resources")
@@ -62,6 +108,7 @@ async function afterPackHook(context) {
 
   // Drop the codex binaries for arches other than the one just packed.
   stripForeignCodexTriples(resourcesDir, context);
+  stripForeignPortableGitResources(resourcesDir, context);
 
   const asarPath = path.join(resourcesDir, "app.asar");
   if (!fs.existsSync(asarPath)) return;
@@ -153,13 +200,7 @@ module.exports = {
   // run from inside an asar). The afterPack hook strips non-target arch triples.
   // If the dir is absent (e.g. local dev build without bundling), this is a no-op
   // and Codex falls back to its npm auto-download path at runtime.
-  extraResources: [
-    {
-      from: "build/codex-vendor",
-      to: "codex-vendor",
-      filter: ["**/*"],
-    },
-  ],
+  extraResources: extraResourcesConfig(),
 
   afterPack: afterPackHook,
 
@@ -256,6 +297,9 @@ if (process.env.NODE_ENV === "test" || process.env.VITEST) {
     value: {
       codexTripleForBuild,
       stripForeignCodexTriples,
+      portableGitTargetForBuild,
+      stripForeignPortableGitResources,
+      extraResourcesConfig,
       shouldRebuildNativeDeps,
     },
   });

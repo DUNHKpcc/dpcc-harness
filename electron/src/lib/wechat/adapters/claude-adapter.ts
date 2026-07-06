@@ -1,8 +1,9 @@
+import { app } from "electron";
 import { log } from "../../logger";
 import { reportError } from "../../error-utils";
 import { getSDK } from "../../sdk";
 import { getClaudeBinaryPath, getClaudeSdkProcessOptions, isClaudeInstalled } from "../../claude-binary";
-import { claudeSpawnEnv, claudeGatewayModel, claudeSettingSources } from "../../claude-gateway-env";
+import { prepareClaudeSpawnEnv, claudeGatewayModel, claudeSettingSources } from "../../claude-gateway-env";
 import { applyClaudeMcpIsolation } from "../../claude-mcp-isolation";
 import { isSessionError } from "./session-error";
 import type { CLIAdapter, AdapterExecOptions, AdapterExecResult } from "./types";
@@ -44,6 +45,10 @@ export class ClaudeAdapter implements CLIAdapter {
         : opts.permissionMode === "plan"
           ? "plan"
           : "default";
+    const spawnEnv = await prepareClaudeSpawnEnv({
+      userDataPath: app.getPath("userData"),
+      resourcesPath: process.resourcesPath,
+    });
 
     const sdkOpts: Record<string, unknown> = {
       cwd: opts.workDir,
@@ -56,7 +61,7 @@ export class ClaudeAdapter implements CLIAdapter {
       settingSources: claudeSettingSources(),
       // Authenticate phone-initiated runs against the same selected upstream as
       // interactive sessions, avoiding a bare endpoint "not login" response.
-      env: claudeSpawnEnv(),
+      env: spawnEnv,
     };
     const sdkProcessOptions = getClaudeSdkProcessOptions(cliPath);
     Object.assign(sdkOpts, sdkProcessOptions, {

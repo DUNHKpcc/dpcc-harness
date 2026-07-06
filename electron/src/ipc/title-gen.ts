@@ -1,10 +1,10 @@
-import { ipcMain } from "electron";
+import { app, ipcMain } from "electron";
 import { log } from "../lib/logger";
 import { getSDK } from "../lib/sdk";
 import { reportError } from "../lib/error-utils";
 import { gitExec } from "../lib/git-exec";
 import { getClaudeBinaryPath, getClaudeSdkProcessOptions } from "../lib/claude-binary";
-import { claudeSpawnEnv, claudeResolvedModel, claudeSettingSources } from "../lib/claude-gateway-env";
+import { prepareClaudeSpawnEnv, claudeResolvedModel, claudeSettingSources } from "../lib/claude-gateway-env";
 import { applyClaudeMcpIsolation } from "../lib/claude-mcp-isolation";
 
 function firstNonEmptyLine(text: string): string | undefined {
@@ -51,6 +51,10 @@ async function oneShotSdkQuery(
     let lastStderr = "";
     let timedOut = false;
     const sdkProcessOptions = getClaudeSdkProcessOptions(cliPath);
+    const spawnEnv = await prepareClaudeSpawnEnv({
+      userDataPath: app.getPath("userData"),
+      resourcesPath: process.resourcesPath,
+    });
 
     const queryOptions: Record<string, unknown> = {
       ...options?.extraOptions,
@@ -63,7 +67,7 @@ async function oneShotSdkQuery(
       persistSession: false,
       ...sdkProcessOptions,
       env: {
-        ...claudeSpawnEnv(),
+        ...spawnEnv,
         ...sdkProcessOptions.env,
       },
       stderr: (data: string) => {

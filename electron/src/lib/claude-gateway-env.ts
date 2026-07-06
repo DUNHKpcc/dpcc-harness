@@ -16,6 +16,7 @@
 import { loadLocalClaudeEnv } from "./local-cli-config";
 import { clientAppEnv } from "./sdk";
 import { resolveClaudeUpstream } from "./upstream-resolver";
+import { ensureClaudeCodeGitBashEnv, prepareClaudeCodeGitBashEnv } from "./claude-git-bash";
 
 const DEFAULT_SETTING_SOURCES = ["user", "project", "local"];
 const GATEWAY_SETTING_SOURCES = ["project", "local"];
@@ -57,6 +58,17 @@ export function stripMacAppIdentityEnv<T extends Record<string, string | undefin
  * override so the resolved upstream fully controls auth.
  */
 export function claudeSpawnEnv(): Record<string, string | undefined> {
+  return ensureClaudeCodeGitBashEnv(buildClaudeSpawnEnv());
+}
+
+export async function prepareClaudeSpawnEnv(paths?: {
+  userDataPath?: string;
+  resourcesPath?: string;
+}): Promise<Record<string, string | undefined>> {
+  return prepareClaudeCodeGitBashEnv(buildClaudeSpawnEnv(), paths);
+}
+
+function buildClaudeSpawnEnv(): Record<string, string | undefined> {
   const override = claudeGatewayEnv();
   const base: Record<string, string | undefined> = {
     ...process.env,

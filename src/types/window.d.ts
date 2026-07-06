@@ -192,8 +192,14 @@ declare global {
       binaryInfo: () => Promise<{
         path?: string | null;
         origin?: "custom" | "env" | "known" | "path" | "sdk-fallback" | "none";
-        source?: "auto" | "managed" | "custom";
+        source?: "builtin" | "auto" | "managed" | "custom";
         version?: string | null;
+        gitBash?: {
+          required: boolean;
+          ready: boolean;
+          path: string | null;
+          message: string | null;
+        };
         error?: string;
       }>;
       downloadUpdate: () => Promise<{ version?: string | null; error?: string }>;

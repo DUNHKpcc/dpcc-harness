@@ -3,7 +3,9 @@ import os from "os";
 import path from "path";
 import { execFile, execFileSync, spawn } from "child_process";
 import { promisify } from "util";
+import { app as electronApp } from "electron";
 import { getAppSetting } from "./app-settings";
+import { getClaudeCodeGitBashStatus, type ClaudeCodeGitBashStatus } from "./claude-git-bash";
 import { extractErrorMessage, reportError } from "./error-utils";
 import { log } from "./logger";
 import { getCliPath } from "./sdk";
@@ -463,6 +465,7 @@ export async function getClaudeBinaryInfo(): Promise<{
   origin: ClaudeBinaryResolutionStrategy | "none";
   source: ClaudeBinarySource;
   version: string | null;
+  gitBash: ClaudeCodeGitBashStatus;
 }> {
   const resolution = await resolveClaudeBinary({ installIfMissing: false, allowSdkFallback: true });
   return {
@@ -470,6 +473,10 @@ export async function getClaudeBinaryInfo(): Promise<{
     origin: resolution?.strategy ?? "none",
     source: getSource(),
     version: resolution ? await getClaudeVersion(resolution.path) : null,
+    gitBash: getClaudeCodeGitBashStatus(process.env, process.platform, fs.existsSync, {
+      userDataPath: electronApp?.getPath?.("userData"),
+      resourcesPath: process.resourcesPath,
+    }),
   };
 }
 

@@ -96,6 +96,7 @@
       "sourceDesc": "Choose which Claude Code to use. The default (Built-in) works out of the box, offline, with no install.",
       "versionLabel": "Claude Code version",
       "versionDesc": "{{version}} · {{origin}}",
+      "gitBashMissing": "Windows requires Git Bash. PccAgent will use system Git, bundled PortableGit, or download managed PortableGit; if setup fails, set CLAUDE_CODE_GIT_BASH_PATH to bash.exe.",
       "updated": "Updated to {{version}}",
       "updateFailed": "Update failed: {{error}}",
       "customLabel": "Custom Claude path",

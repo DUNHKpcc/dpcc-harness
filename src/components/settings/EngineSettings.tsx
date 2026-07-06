@@ -232,6 +232,12 @@ const GatewayModelMappingsEditor = memo(function GatewayModelMappingsEditor({
 
 type CodexOrigin = "env" | "managed" | "known" | "path" | "bundled" | "custom" | "none";
 type ClaudeOrigin = "custom" | "env" | "known" | "path" | "sdk-fallback" | "none";
+interface ClaudeGitBashStatus {
+  required: boolean;
+  ready: boolean;
+  path: string | null;
+  message: string | null;
+}
 
 // ── Component ──
 
@@ -244,6 +250,7 @@ export const EngineSettings = memo(function EngineSettings({
   const [claudeCustomBinaryPath, setClaudeCustomBinaryPath] = useState("");
   const [claudeVersion, setClaudeVersion] = useState<string | null>(null);
   const [claudeOrigin, setClaudeOrigin] = useState<ClaudeOrigin>("none");
+  const [claudeGitBash, setClaudeGitBash] = useState<ClaudeGitBashStatus | null>(null);
   const [claudeUpdating, setClaudeUpdating] = useState(false);
   const [claudeUpdateMsg, setClaudeUpdateMsg] = useState<string | null>(null);
   const [codexBinarySource, setCodexBinarySource] = useState<"builtin" | "auto" | "managed" | "custom">("builtin");
@@ -287,6 +294,7 @@ export const EngineSettings = memo(function EngineSettings({
     if (info.error) return;
     setClaudeVersion(info.version ?? null);
     setClaudeOrigin((info.origin as ClaudeOrigin) ?? "none");
+    setClaudeGitBash(info.gitBash ?? null);
   }, []);
 
   const refreshCodexInfo = useCallback(async () => {
@@ -440,6 +448,14 @@ export const EngineSettings = memo(function EngineSettings({
     }
   }, [codexGateway.baseUrl, codexGateway.apiKey]);
 
+  const claudeGitBashMissing = !!claudeGitBash?.required && !claudeGitBash.ready;
+  const claudeRuntimeDescription = claudeGitBashMissing
+    ? t("engines.claude.gitBashMissing")
+    : t("engines.claude.versionDesc", {
+      version: claudeVersion ?? t("engines.claude.origin.none"),
+      origin: t(`engines.claude.origin.${claudeOrigin}`),
+    });
+
   return (
     <div className="flex h-full flex-col">
       <SettingsHeader
@@ -472,10 +488,7 @@ export const EngineSettings = memo(function EngineSettings({
                 label={t("engines.claude.versionLabel")}
                 description={
                   claudeUpdateMsg ??
-                  t("engines.claude.versionDesc", {
-                    version: claudeVersion ?? t("engines.claude.origin.none"),
-                    origin: t(`engines.claude.origin.${claudeOrigin}`),
-                  })
+                  claudeRuntimeDescription
                 }
               >
                 {/* Only "managed" downloads a native Claude from claude.ai; for
@@ -502,7 +515,7 @@ export const EngineSettings = memo(function EngineSettings({
             {claudeBinarySource === "custom" && (
               <SettingRow
                 label={t("engines.claude.customLabel")}
-                description={t("engines.claude.customDesc")}
+                description={claudeGitBashMissing ? t("engines.claude.gitBashMissing") : t("engines.claude.customDesc")}
               >
                 <input
                   type="text"

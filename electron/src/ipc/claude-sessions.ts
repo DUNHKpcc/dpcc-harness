@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain } from "electron";
 import crypto from "crypto";
 import fs from "fs";
 import os from "os";
@@ -28,17 +28,24 @@ import {
   getClaudeVersion,
 } from "../lib/claude-binary";
 import { captureEvent } from "../lib/posthog";
-import { claudeSpawnEnv, claudeResolvedModel, claudeSettingSources } from "../lib/claude-gateway-env";
+import { prepareClaudeSpawnEnv, claudeResolvedModel, claudeSettingSources } from "../lib/claude-gateway-env";
 
 /** SDK options for file checkpointing — enables Write/Edit/NotebookEdit revert support.
  *  Env is resolved by claudeSpawnEnv from the selected Current Config source,
  *  purging inherited ANTHROPIC_* for non-local upstreams. */
-function fileCheckpointOptions(): Record<string, unknown> {
+function claudePortableGitPaths(): { userDataPath: string; resourcesPath: string | undefined } {
+  return {
+    userDataPath: app.getPath("userData"),
+    resourcesPath: process.resourcesPath,
+  };
+}
+
+function fileCheckpointOptions(env: Record<string, string | undefined>): Record<string, unknown> {
   return {
     enableFileCheckpointing: true,
     extraArgs: { "replay-user-messages": null }, // required to receive checkpoint UUIDs
     env: {
-      ...claudeSpawnEnv(),
+      ...env,
       CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING: "1",
     },
   };
@@ -479,13 +486,14 @@ async function revalidateClaudeModelsCache(cwd?: string): Promise<ClaudeModelsCa
         if (version) {
           log("CLAUDE_VERSION", `models-revalidate attempt=${index + 1} ${attempt.label} version=${version}`);
         }
+        const spawnEnv = await prepareClaudeSpawnEnv(claudePortableGitPaths());
 
         const queryOptions: Record<string, unknown> = {
           cwd: cwd?.trim() || os.homedir(),
           includePartialMessages: true,
           thinking: buildThinkingConfig(),
           settingSources: claudeSettingSources(),
-          ...fileCheckpointOptions(),
+          ...fileCheckpointOptions(spawnEnv),
           stderr: (data: string) => {
             const trimmed = data.trim();
             if (!trimmed) return;
@@ -639,6 +647,7 @@ async function restartSession(
     });
   };
 
+  const spawnEnv = await prepareClaudeSpawnEnv(claudePortableGitPaths());
   const queryOptions: Record<string, unknown> = {
     cwd,
     includePartialMessages: true,
@@ -646,7 +655,7 @@ async function restartSession(
     canUseTool,
     settingSources: claudeSettingSources(),
     agentProgressSummaries: true,
-    ...fileCheckpointOptions(),
+    ...fileCheckpointOptions(spawnEnv),
     resume: sessionId,
     stderr: (data: string) => {
       const trimmed = data.trim();
@@ -762,6 +771,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       const cliPath = await getClaudeBinaryPath();
       logSdkCliPath(`start session=${sessionId.slice(0, 8)}`, cliPath);
       reclaimMacDockFocus(getMainWindow, "claude-start");
+      const spawnEnv = await prepareClaudeSpawnEnv(claudePortableGitPaths());
       const queryOptions: Record<string, unknown> = {
         cwd: options.cwd || process.cwd(),
         includePartialMessages: true,
@@ -769,7 +779,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         canUseTool,
         settingSources: claudeSettingSources(),
         agentProgressSummaries: true,
-        ...fileCheckpointOptions(),
+        ...fileCheckpointOptions(spawnEnv),
         stderr: (data: string) => {
           const trimmed = data.trim();
           log("STDERR", `session=${sessionId.slice(0, 8)} ${trimmed}`);

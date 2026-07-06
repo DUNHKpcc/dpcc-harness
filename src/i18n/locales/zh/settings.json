@@ -96,6 +96,7 @@
       "sourceDesc": "选择使用哪个 Claude Code。默认「内置」开箱即用、离线可用，无需安装。",
       "versionLabel": "Claude Code 版本",
       "versionDesc": "{{version}} · {{origin}}",
+      "gitBashMissing": "Windows 需要 Git Bash。PccAgent 会优先使用系统 Git、内置 PortableGit，或自动下载托管 PortableGit；若自动设置失败，请将 CLAUDE_CODE_GIT_BASH_PATH 设置为 bash.exe 路径。",
       "updated": "已更新至 {{version}}",
       "updateFailed": "更新失败：{{error}}",
       "customLabel": "自定义 Claude 路径",

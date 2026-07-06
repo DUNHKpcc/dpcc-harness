@@ -383,6 +383,12 @@ describe("claude binary resolution", () => {
       origin: "known",
       source: "auto",
       version: "2.1.181",
+      gitBash: {
+        required: false,
+        ready: true,
+        path: null,
+        message: null,
+      },
     });
   });
 

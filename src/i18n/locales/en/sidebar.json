@@ -10,7 +10,6 @@
     "createSpace": "Create Space"
   },
   "empty": {
-    "addProjectToStart": "Add a project to get started",
     "noProjectsInSpace": "No projects in this space",
     "noConversations": "No conversations yet",
     "noChats": "No chats"
@@ -29,6 +28,9 @@
   "topActions": {
     "newChat": "New Chat",
     "search": "Search"
+  },
+  "chat": {
+    "title": "Chat"
   },
   "plugins": {
     "open": "Plugins",

@@ -10,7 +10,6 @@
     "createSpace": "创建空间"
   },
   "empty": {
-    "addProjectToStart": "添加一个项目开始使用",
     "noProjectsInSpace": "此空间暂无项目",
     "noConversations": "暂无对话",
     "noChats": "暂无聊天"
@@ -29,6 +28,9 @@
   "topActions": {
     "newChat": "新对话",
     "search": "搜索"
+  },
+  "chat": {
+    "title": "Chat"
   },
   "plugins": {
     "open": "插件",

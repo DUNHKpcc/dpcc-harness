@@ -18,10 +18,16 @@ import { UpdateBanner } from "./UpdateBanner";
 import { PreReleaseBanner } from "./PreReleaseBanner";
 import { ProjectSection } from "./sidebar/ProjectSection";
 import { SidebarTopActions } from "./sidebar/SidebarTopActions";
+import { ChatSection } from "./sidebar/ChatSection";
 import { WeChatSection } from "./sidebar/WeChatSection";
 import { SidebarActionsProvider } from "./sidebar/SidebarActionsContext";
 import { useAgentContext } from "./AgentContext";
 import { clearSidebarDragPayload, isSidebarDragKind } from "@/lib/sidebar/dnd";
+import {
+  CHAT_MODULE_PROJECT_ID,
+  isChatModuleProjectId,
+  withChatModuleProjectIds,
+} from "@/lib/session/chat-module";
 
 type ProjectDropPlacement = "before" | "after";
 
@@ -258,23 +264,17 @@ export const AppSidebar = memo(function AppSidebar({
   );
 
   const projectIds = useMemo(() => filteredProjects.map((p) => p.id), [filteredProjects]);
+  const searchProjectIds = useMemo(() => withChatModuleProjectIds(projectIds), [projectIds]);
 
   // WeChat-bound projects are represented by the dedicated WeChat area, so they're
   // hidden from the normal project list (but kept in projectIds for search).
   const visibleProjects = useMemo(() => filteredProjects.filter((p) => !p.wechat), [filteredProjects]);
 
-  const topActionNewChatProjectId = useMemo(() => {
-    const activeProjectId = sessions.find((session) => session.id === activeSessionId)?.projectId;
-    if (activeProjectId && filteredProjects.some((project) => project.id === activeProjectId)) {
-      return activeProjectId;
-    }
-    return visibleProjects[0]?.id ?? filteredProjects[0]?.id ?? null;
-  }, [activeSessionId, filteredProjects, sessions, visibleProjects]);
-
   // Pre-group sessions by projectId (O(n) once) instead of filtering per project (O(n*m))
   const sessionsByProject = useMemo(() => {
     const map = new Map<string, ChatSession[]>();
     for (const s of sessions) {
+      if (isChatModuleProjectId(s.projectId)) continue;
       // WeChat-originated chats live in their own dedicated area, not the project list.
       if (s.source === "wechat") continue;
       const arr = map.get(s.projectId) ?? [];
@@ -633,11 +633,8 @@ export const AppSidebar = memo(function AppSidebar({
           onDrop={handleProjectListDrop}
         >
           <SidebarTopActions
-            projectIds={projectIds}
-            canCreateChat={!!topActionNewChatProjectId}
-            onCreateChat={() => {
-              if (topActionNewChatProjectId) onNewChat(topActionNewChatProjectId);
-            }}
+            projectIds={searchProjectIds}
+            onCreateChat={() => onNewChat(CHAT_MODULE_PROJECT_ID)}
             onNavigateToMessage={onNavigateToMessage}
             onSelectSession={onSelectSession}
             onOpenMcpPanel={onOpenMcpPanel}
@@ -649,6 +646,12 @@ export const AppSidebar = memo(function AppSidebar({
           >
             <ScrollArea ref={scrollRef} className="h-full">
               <div ref={projectListRef} className={`px-3 pt-2 pb-8 ${slideClass}`}>
+                <ChatSection
+                  sessions={sessions}
+                  activeSessionId={activeSessionId}
+                  islandLayout={islandLayout}
+                  agents={agents}
+                />
                 <WeChatSection
                   sessions={sessions}
                   projects={projects}
@@ -703,9 +706,7 @@ export const AppSidebar = memo(function AppSidebar({
 
                 {visibleProjects.length === 0 && (
                   <p className="px-2 py-8 text-center text-xs text-sidebar-foreground/50">
-                    {projects.length === 0
-                      ? t("empty.addProjectToStart")
-                      : t("empty.noProjectsInSpace")}
+                    {t("empty.noProjectsInSpace")}
                   </p>
                 )}
               </div>

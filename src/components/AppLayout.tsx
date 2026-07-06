@@ -83,6 +83,10 @@ import {
 } from "@/lib/workspace/drag";
 import { AgentProvider, type AgentContextValue } from "./AgentContext";
 import { toastText } from "@/lib/toast-i18n";
+import {
+  CHAT_MODULE_PROJECT_ID,
+  isChatModuleProjectId,
+} from "@/lib/session/chat-module";
 
 /**
  * Poll a ref until the delegated Codex session has materialised to a real id.
@@ -212,6 +216,12 @@ export function AppLayout() {
 
   const handleOpenNewChat = useCallback(
     async (projectId: string) => {
+      if (isChatModuleProjectId(projectId)) {
+        splitView.dismissSplitView();
+        await handleNewChat(CHAT_MODULE_PROJECT_ID);
+        return;
+      }
+
       const project = projectManager.projects.find((item) => item.id === projectId);
       if (project) {
         setJiraBoardProjectForSpace(project.spaceId || "default", null);
@@ -224,12 +234,10 @@ export function AppLayout() {
 
   const handleComposerClear = useCallback(
     async () => {
-      const projectId = activeProjectId ?? activeSpaceProject?.id;
-      if (!projectId) return;
       clearGrabbedElements();
-      await handleOpenNewChat(projectId);
+      await handleOpenNewChat(CHAT_MODULE_PROJECT_ID);
     },
-    [activeProjectId, activeSpaceProject, clearGrabbedElements, handleOpenNewChat],
+    [clearGrabbedElements, handleOpenNewChat],
   );
 
   // Claude-only: toggle whether Claude may delegate to a visible Codex split pane.
@@ -1116,7 +1124,9 @@ export function AppLayout() {
   const activeSessionProject = manager.activeSession
     ? projectManager.projects.find((project) => project.id === manager.activeSession?.projectId) ?? null
     : null;
-  const activeSessionSpaceId = activeSessionProject?.spaceId || "default";
+  const activeSessionSpaceId = isChatModuleProjectId(manager.activeSession?.projectId)
+    ? spaceManager.activeSpaceId
+    : activeSessionProject?.spaceId || "default";
   const isCrossSpaceSessionVisible = !!manager.activeSession && activeSessionSpaceId !== spaceManager.activeSpaceId;
   const { spaceSwitchLayoutCooldown, hasSpaceChangedThisRender } = useSpaceSwitchCooldown({
     activeSpaceId: spaceManager.activeSpaceId,

@@ -6,7 +6,6 @@ import { SidebarPluginEntry } from "./SidebarPluginEntry";
 
 interface SidebarTopActionsProps {
   projectIds: string[];
-  canCreateChat: boolean;
   onCreateChat: () => void;
   onNavigateToMessage: (sessionId: string, messageId: string) => void;
   onSelectSession: (sessionId: string) => void;
@@ -15,7 +14,6 @@ interface SidebarTopActionsProps {
 
 export const SidebarTopActions = memo(function SidebarTopActions({
   projectIds,
-  canCreateChat,
   onCreateChat,
   onNavigateToMessage,
   onSelectSession,
@@ -28,11 +26,10 @@ export const SidebarTopActions = memo(function SidebarTopActions({
       <div className="space-y-1">
         <button
           type="button"
-          className="flex h-10 w-full items-center gap-3 rounded-md px-4 text-start text-[15px] font-medium text-sidebar-foreground/82 transition-colors hover:bg-sidebar-accent/55 disabled:cursor-default disabled:opacity-45 disabled:hover:bg-transparent"
+          className="flex h-8 w-full items-center gap-2.5 rounded-md px-3.5 text-start text-[14px] font-medium text-sidebar-foreground/82 transition-colors hover:bg-sidebar-accent/55"
           onClick={onCreateChat}
-          disabled={!canCreateChat}
         >
-          <SquarePen className="h-5 w-5 shrink-0 stroke-[1.8] text-sidebar-foreground/75" />
+          <SquarePen className="h-4.5 w-4.5 shrink-0 stroke-[1.8] text-sidebar-foreground/75" />
           <span>{t("topActions.newChat")}</span>
         </button>
 

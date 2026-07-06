@@ -2,6 +2,11 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import type { ChatSession, UIMessage, PermissionRequest, McpServerStatus, McpServerConfig, ModelInfo, AcpPermissionBehavior, EngineId, Project, ACPAuthenticateResult, ACPConfigOption, ACPPermissionEvent } from "@/types";
 import { toMcpStatusState } from "../lib/mcp-utils";
 import { toChatSession } from "../lib/session/records";
+import {
+  getChatModuleProject,
+  isChatModuleProjectId,
+  withChatModuleProjectIds,
+} from "../lib/session/chat-module";
 import { BackgroundSessionStore } from "../lib/background/session-store";
 import { createSystemMessage } from "../lib/message-factory";
 import { suppressNextSessionCompletion } from "../lib/notification-utils";
@@ -194,10 +199,12 @@ export function useSessionManager(
 
   // ── Utility callbacks ──
   const findProject = useCallback((projectId: string) => {
+    if (isChatModuleProjectId(projectId)) return getChatModuleProject();
     return projectsRef.current.find((p) => p.id === projectId) ?? null;
   }, []);
 
   const getProjectCwd = useCallback((project: Project) => {
+    if (isChatModuleProjectId(project.id)) return project.path;
     const selected = localStorage.getItem(`pcc-agent-${project.id}-git-cwd`)?.trim();
     return selected || project.path;
   }, []);
@@ -381,7 +388,7 @@ export function useSessionManager(
   const refreshSessions = useCallback(async (projectIds?: string[]) => {
     const ids = (projectIds && projectIds.length > 0)
       ? projectIds
-      : projectsRef.current.map((p) => p.id);
+      : withChatModuleProjectIds(projectsRef.current.map((p) => p.id));
     if (ids.length === 0) return;
     const uniqueIds = [...new Set(ids)];
     const lists = await Promise.all(uniqueIds.map((projectId) => window.claude.sessions.list(projectId)));

@@ -2,6 +2,7 @@ import { startTransition, useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import type { PersistedSession, Project } from "../../types";
 import { toChatSession } from "../../lib/session/records";
+import { withChatModuleProjectIds } from "../../lib/session/chat-module";
 import { toastText } from "../../lib/toast-i18n";
 import { DRAFT_ID } from "./types";
 import type { SharedSessionRefs, SharedSessionSetters } from "./types";
@@ -127,14 +128,11 @@ export function useSessionCache({
 
   // ── Effects ──
 
-  // Load sessions for ALL projects
+  // Load sessions for ALL projects plus the project-independent Chat module.
   useEffect(() => {
-    if (projects.length === 0) {
-      setSessions([]);
-      return;
-    }
+    const projectIds = withChatModuleProjectIds(projects.map((project) => project.id));
     Promise.all(
-      projects.map((p) => window.claude.sessions.list(p.id)),
+      projectIds.map((projectId) => window.claude.sessions.list(projectId)),
     ).then((results) => {
       const all = results.flat().map((session) => toChatSession(session, false));
       setSessions((prev) => {

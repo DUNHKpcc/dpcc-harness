@@ -9,6 +9,7 @@
 import { app, BrowserWindow, ipcMain } from "electron";
 import { spawn } from "child_process";
 import crypto from "crypto";
+import os from "os";
 import { log } from "../lib/logger";
 import { safeSend } from "../lib/safe-send";
 import { CodexRpcClient } from "../lib/codex-rpc";
@@ -68,6 +69,10 @@ type CodexImageInput = Extract<CodexUserInput, { type: "image" | "localImage" }>
 type CodexMentionInput = Extract<CodexUserInput, { type: "mention" }>;
 
 const codexSessions = new Map<string, CodexSession>();
+
+function normalizeSessionCwd(cwd: string | null | undefined): string {
+  return cwd?.trim() || os.homedir();
+}
 
 /** Expose the currently selected model for utility prompts (title/commit generation). */
 export function getCodexSessionModel(internalId: string): string | undefined {
@@ -251,6 +256,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       },
     ) => {
       const internalId = crypto.randomUUID();
+      const cwd = normalizeSessionCwd(options.cwd);
 
       try {
         const codexPath = await getCodexBinaryPath();
@@ -258,7 +264,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
 
         const proc = spawn(codexPath, ["app-server"], {
           stdio: ["pipe", "pipe", "pipe"],
-          cwd: options.cwd,
+          cwd,
           env: buildCodexAppServerEnv(),
         });
 
@@ -275,7 +281,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
           threadId: null,
           activeTurnId: null,
           eventCounter: 0,
-          cwd: options.cwd,
+          cwd,
           model: undefined,
           approvalPolicy: options.approvalPolicy,
           sandbox: options.sandbox,
@@ -336,7 +342,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         // ── Start a thread ──
         // ThreadStartParams: experimentalRawEvents and persistExtendedHistory are required booleans
         const threadParams: Record<string, unknown> = {
-          cwd: options.cwd,
+          cwd,
           experimentalRawEvents: false,
           persistExtendedHistory: false,
         };
@@ -727,6 +733,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       },
     ) => {
       const internalId = crypto.randomUUID();
+      const cwd = normalizeSessionCwd(data.cwd);
 
       try {
         const codexPath = await getCodexBinaryPath();
@@ -734,7 +741,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
 
         const proc = spawn(codexPath, ["app-server"], {
           stdio: ["pipe", "pipe", "pipe"],
-          cwd: data.cwd,
+          cwd,
           env: buildCodexAppServerEnv(),
         });
 
@@ -748,7 +755,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
           threadId: null,
           activeTurnId: null,
           eventCounter: 0,
-          cwd: data.cwd,
+          cwd,
           model: data.model,
           approvalPolicy: data.approvalPolicy,
           sandbox: data.sandbox,

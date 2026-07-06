@@ -2,6 +2,7 @@ import { BrowserWindow, ipcMain } from "electron";
 import { spawn, ChildProcess } from "child_process";
 import { Readable, Writable } from "stream";
 import crypto from "crypto";
+import os from "os";
 import path from "path";
 import { log } from "../lib/logger";
 import { safeSend } from "../lib/safe-send";
@@ -40,6 +41,10 @@ import type { ACPAuthMethod, ACPAuthenticateResult } from "@shared/types/acp";
 
 type ACPReadTextFileParams = ACPTextFileParams & { content?: string; line?: number | null; limit?: number | null };
 type ACPWriteTextFileParams = ACPTextFileParams & { content: string };
+
+function normalizeSessionCwd(cwd: string | null | undefined): string {
+  return cwd?.trim() || os.homedir();
+}
 
 async function acpReadTextFile(params: ACPReadTextFileParams): Promise<{ content: string; filePath: string }> {
   const filePath = resolveACPFilePath(params);
@@ -525,7 +530,8 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
   });
 
   ipcMain.handle("acp:start", async (_event, options: { agentId: string; cwd: string; mcpServers?: McpServerInput[] }) => {
-    log("ACP_SPAWN", `acp:start called with agentId=${options.agentId} cwd=${options.cwd}`);
+    const cwd = normalizeSessionCwd(options.cwd);
+    log("ACP_SPAWN", `acp:start called with agentId=${options.agentId} cwd=${cwd}`);
 
     const agentDef = getAgent(options.agentId);
     if (!agentDef || agentDef.engine !== "acp") {
@@ -560,12 +566,12 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         analyticsProperties,
         eventCounter: 0,
         pendingPermissions,
-        cwd: options.cwd,
+        cwd,
         supportsLoadSession,
         agentName: agentDef.name,
         authMethods,
         pendingStartRequest: {
-          cwd: options.cwd,
+          cwd,
           mcpServers: acpMcpServers,
           sourceServers: options.mcpServers ?? [],
         },
@@ -575,7 +581,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
 
       log("ACP_SPAWN", `Creating new session with ${acpMcpServers.length} MCP server(s)...`);
       const sessionResult = await withTimeout(connection.newSession({
-        cwd: options.cwd,
+        cwd,
         mcpServers: acpMcpServers,
       }), ACP_START_TIMEOUT_MS, `${agentDef.name} ACP session/new`);
       log("ACP_SPAWN", `Created session ${sessionResult.sessionId} for ${agentDef.name}`);
@@ -685,7 +691,8 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     agentSessionId?: string; // ACP-side session ID from previous run
     mcpServers?: McpServerInput[];
   }) => {
-    log("ACP_REVIVE", `agentId=${options.agentId} agentSessionId=${options.agentSessionId?.slice(0, 12) ?? "none"} cwd=${options.cwd}`);
+    const cwd = normalizeSessionCwd(options.cwd);
+    log("ACP_REVIVE", `agentId=${options.agentId} agentSessionId=${options.agentSessionId?.slice(0, 12) ?? "none"} cwd=${cwd}`);
 
     const agentDef = getAgent(options.agentId);
     if (!agentDef || agentDef.engine !== "acp" || !agentDef.binary) {
@@ -714,9 +721,9 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
 
       if (supportsLoadSession && options.agentSessionId) {
         // Restore full context — suppress history replay from reaching the renderer
-        const entry: ACPSessionEntry = { process: proc, connection, acpSessionId: options.agentSessionId, internalId, analyticsProperties, eventCounter: 0, pendingPermissions, cwd: options.cwd, supportsLoadSession, agentName: agentDef.name, authMethods, isReloading: true };
+        const entry: ACPSessionEntry = { process: proc, connection, acpSessionId: options.agentSessionId, internalId, analyticsProperties, eventCounter: 0, pendingPermissions, cwd, supportsLoadSession, agentName: agentDef.name, authMethods, isReloading: true };
         acpSessions.set(internalId, entry);
-        const loadResult = await withTimeout(connection.loadSession({ sessionId: options.agentSessionId, cwd: options.cwd, mcpServers: acpMcpServers }), ACP_START_TIMEOUT_MS, `${agentDef.name} ACP session/load`);
+        const loadResult = await withTimeout(connection.loadSession({ sessionId: options.agentSessionId, cwd, mcpServers: acpMcpServers }), ACP_START_TIMEOUT_MS, `${agentDef.name} ACP session/load`);
         entry.isReloading = false;
         acpSessionId = options.agentSessionId;
         usedLoad = true;
@@ -725,9 +732,9 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         log("ACP_REVIVE", `loadSession OK, session=${acpSessionId.slice(0, 12)} configOptions=${configOptions.length}`);
       } else {
         // Fall back to fresh session — UI messages already restored from disk
-        const sessionResult = await withTimeout(connection.newSession({ cwd: options.cwd, mcpServers: acpMcpServers }), ACP_START_TIMEOUT_MS, `${agentDef.name} ACP session/new`);
+        const sessionResult = await withTimeout(connection.newSession({ cwd, mcpServers: acpMcpServers }), ACP_START_TIMEOUT_MS, `${agentDef.name} ACP session/new`);
         acpSessionId = sessionResult.sessionId;
-        const entry: ACPSessionEntry = { process: proc, connection, acpSessionId, internalId, analyticsProperties, eventCounter: 0, pendingPermissions, cwd: options.cwd, supportsLoadSession, agentName: agentDef.name, authMethods, isReloading: false };
+        const entry: ACPSessionEntry = { process: proc, connection, acpSessionId, internalId, analyticsProperties, eventCounter: 0, pendingPermissions, cwd, supportsLoadSession, agentName: agentDef.name, authMethods, isReloading: false };
         acpSessions.set(internalId, entry);
         configOptions = resolveConfigOptions(sessionResult, internalId, "ACP_REVIVE");
         log("ACP_REVIVE", `newSession fallback, session=${acpSessionId.slice(0, 12)}`);

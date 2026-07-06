@@ -100,13 +100,13 @@ export const SidebarSearch = memo(function SidebarSearch({
       {isRowVariant && !isOpen && !query ? (
         <button
           type="button"
-          className="flex h-10 w-full items-center gap-3 rounded-md px-4 text-start text-[15px] font-medium text-sidebar-foreground/82 transition-colors hover:bg-sidebar-accent/55"
+          className="flex h-8 w-full items-center gap-2.5 rounded-md px-3.5 text-start text-[14px] font-medium text-sidebar-foreground/82 transition-colors hover:bg-sidebar-accent/55"
           onClick={() => {
             setIsOpen(true);
             requestAnimationFrame(() => inputRef.current?.focus());
           }}
         >
-          <Search className="h-5 w-5 shrink-0 stroke-[1.8] text-sidebar-foreground/75" />
+          <Search className="h-4.5 w-4.5 shrink-0 stroke-[1.8] text-sidebar-foreground/75" />
           <span>{t("topActions.search")}</span>
         </button>
       ) : (
@@ -116,7 +116,7 @@ export const SidebarSearch = memo(function SidebarSearch({
           : "glass-outline sidebar-search-glass relative overflow-hidden rounded-xl transition-all focus-within:ring-2 focus-within:ring-primary/20"}
         style={isRowVariant ? undefined : { "--island-fill": "var(--sidebar-accent)" } as React.CSSProperties}
       >
-        <Search className={`${isRowVariant ? "start-4 h-5 w-5 text-sidebar-foreground/70" : "start-3 h-4 w-4 text-sidebar-foreground/40"} absolute top-1/2 -translate-y-1/2`} />
+        <Search className={`${isRowVariant ? "start-3.5 h-4.5 w-4.5 text-sidebar-foreground/70" : "start-3 h-4 w-4 text-sidebar-foreground/40"} absolute top-1/2 -translate-y-1/2`} />
         <input
           ref={inputRef}
           value={query}
@@ -128,7 +128,7 @@ export const SidebarSearch = memo(function SidebarSearch({
           onKeyDown={handleKeyDown}
           placeholder={t("search.placeholder")}
           className={isRowVariant
-            ? "h-10 w-full bg-transparent pe-8 ps-12 text-[14px] text-sidebar-foreground placeholder:text-sidebar-foreground/45 outline-none"
+            ? "h-8 w-full bg-transparent pe-8 ps-11 text-[14px] text-sidebar-foreground placeholder:text-sidebar-foreground/45 outline-none"
             : "w-full bg-black/5 py-1.5 pe-8 ps-9 text-[13px] text-sidebar-foreground placeholder:text-sidebar-foreground/40 outline-none transition-colors focus:bg-black/10 dark:bg-white/5 dark:focus:bg-white/10"}
         />
         {query && (

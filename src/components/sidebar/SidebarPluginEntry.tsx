@@ -65,10 +65,10 @@ export const SidebarPluginEntry = memo(function SidebarPluginEntry({
           <button
             type="button"
             data-sidebar-plugin-entry="true"
-            className="flex h-10 w-full items-center gap-3 rounded-md px-4 text-start text-[15px] font-medium text-sidebar-foreground/82 transition-colors hover:bg-sidebar-accent/55"
+            className="flex h-8 w-full items-center gap-2.5 rounded-md px-3.5 text-start text-[14px] font-medium text-sidebar-foreground/82 transition-colors hover:bg-sidebar-accent/55"
             aria-label={t("plugins.open")}
           >
-            <Puzzle className="h-5 w-5 shrink-0 stroke-[1.8] text-sidebar-foreground/75" />
+            <Puzzle className="h-4.5 w-4.5 shrink-0 stroke-[1.8] text-sidebar-foreground/75" />
             <span>{t("plugins.open")}</span>
           </button>
         </PopoverTrigger>

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import type { BrowserColorScheme, BrowserHistoryEntry } from "./browser-types";
 import { BrowserUrlBar } from "./BrowserUrlBar";
+import { shouldShowBrowserDevTools } from "@/lib/devtools-policy";
 
 // ── Props ───────────────────────────────────────────────────────────────
 
@@ -64,6 +65,8 @@ interface BrowserNavBarProps {
   isDevToolsOpen: boolean;
   /** Toggle DevTools. */
   onToggleDevTools: () => void;
+  /** Whether the DevTools control should be visible. */
+  showDevToolsControl?: boolean;
 
   /** Current color scheme being simulated. */
   colorScheme: BrowserColorScheme;
@@ -93,6 +96,7 @@ export function BrowserNavBar({
   onToggleInspect,
   isDevToolsOpen,
   onToggleDevTools,
+  showDevToolsControl = shouldShowBrowserDevTools(),
   colorScheme,
   onToggleColorScheme,
 }: BrowserNavBarProps) {
@@ -156,20 +160,21 @@ export function BrowserNavBar({
         <Crosshair className="h-3 w-3" />
       </button>
 
-      {/* DevTools button */}
-      <button
-        type="button"
-        className={`flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border border-foreground/[0.08] bg-foreground/[0.02] transition-colors disabled:cursor-not-allowed disabled:opacity-20 ${
-          isDevToolsOpen
-            ? "bg-emerald-500/10 text-emerald-400 hover:text-emerald-300"
-            : "text-foreground/35 hover:bg-foreground/[0.06] hover:text-foreground/65"
-        }`}
-        onClick={onToggleDevTools}
-        disabled={!canNavigate}
-        title={isDevToolsOpen ? t("browser.closeInspector") : t("browser.openInspector")}
-      >
-        <Bug className="h-3 w-3" />
-      </button>
+      {showDevToolsControl && (
+        <button
+          type="button"
+          className={`flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border border-foreground/[0.08] bg-foreground/[0.02] transition-colors disabled:cursor-not-allowed disabled:opacity-20 ${
+            isDevToolsOpen
+              ? "bg-emerald-500/10 text-emerald-400 hover:text-emerald-300"
+              : "text-foreground/35 hover:bg-foreground/[0.06] hover:text-foreground/65"
+          }`}
+          onClick={onToggleDevTools}
+          disabled={!canNavigate}
+          title={isDevToolsOpen ? t("browser.closeInspector") : t("browser.openInspector")}
+        >
+          <Bug className="h-3 w-3" />
+        </button>
+      )}
 
       {/* Color scheme toggle */}
       <button

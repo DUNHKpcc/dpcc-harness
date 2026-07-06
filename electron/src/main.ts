@@ -33,6 +33,13 @@ import {
 import { safeSend } from "./lib/safe-send";
 import { killProcessTree } from "./lib/process-tree";
 import { openExternalUrl } from "./lib/open-external";
+import {
+  canOpenAppDevTools,
+  shouldDisableApplicationMenu,
+  shouldEnableRemoteDevTools,
+  shouldEnableRendererDevTools,
+  shouldRegisterDevToolsShortcuts,
+} from "./lib/devtools-policy";
 import { getAcpAnalyticsPropertiesForSession } from "./ipc/acp-sessions";
 import { terminals } from "./ipc/terminal";
 
@@ -81,7 +88,7 @@ app.commandLine.appendSwitch("ignore-gpu-blocklist"); // use GPU even on blockli
 app.commandLine.appendSwitch("enable-features", "CanvasOopRasterization"); // off-main-thread canvas
 
 // --- Liquid Glass command-line switches ---
-if (glassEnabled) {
+if (shouldEnableRemoteDevTools({ isPackaged: app.isPackaged, glassEnabled })) {
   app.commandLine.appendSwitch("remote-debugging-port", "9222");
   app.commandLine.appendSwitch("remote-allow-origins", "*");
 }
@@ -187,7 +194,7 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       webviewTag: true,
-      devTools: !glassEnabled,
+      devTools: shouldEnableRendererDevTools({ isPackaged: app.isPackaged, glassEnabled }),
       v8CacheOptions: "bypassHeatCheckAndEagerCompile", // cache compiled JS on first run — eliminates cold-start jank
       // Pass the real OS UI language to the renderer so the "system" i18n option
       // strictly follows the OS, not Chromium's navigator.language. Preferred
@@ -475,6 +482,8 @@ ipcMain.on("analytics:capture", (_event, eventName: string, properties?: Record<
 let devToolsWindow: BrowserWindow | null = null;
 
 function openDevToolsWindow(): void {
+  if (!canOpenAppDevTools(app.isPackaged)) return;
+
   if (!glassEnabled) {
     mainWindow?.webContents.openDevTools({ mode: "detach" });
     return;
@@ -563,6 +572,9 @@ app.whenReady().then(() => {
       normalizeMacBackgroundEffect(getAppSettings().macBackgroundEffect),
     );
   }
+  if (shouldDisableApplicationMenu(app.isPackaged)) {
+    Menu.setApplicationMenu(null);
+  }
 
   createWindow();
   initAutoUpdater(getMainWindow);
@@ -610,13 +622,15 @@ app.whenReady().then(() => {
     app.dock.setIcon(path.join(__dirname, "../../build/icon.png"));
   }
 
-  const shortcuts = ["CommandOrControl+Alt+I", "F12", "CommandOrControl+Shift+J"];
-  for (const shortcut of shortcuts) {
-    const ok = globalShortcut.register(shortcut, () => {
-      log("DEVTOOLS", `Shortcut ${shortcut} triggered`);
-      openDevToolsWindow();
-    });
-    log("DEVTOOLS", `Register ${shortcut}: ${ok ? "OK" : "FAILED"}`);
+  if (shouldRegisterDevToolsShortcuts(app.isPackaged)) {
+    const shortcuts = ["CommandOrControl+Alt+I", "F12", "CommandOrControl+Shift+J"];
+    for (const shortcut of shortcuts) {
+      const ok = globalShortcut.register(shortcut, () => {
+        log("DEVTOOLS", `Shortcut ${shortcut} triggered`);
+        openDevToolsWindow();
+      });
+      log("DEVTOOLS", `Register ${shortcut}: ${ok ? "OK" : "FAILED"}`);
+    }
   }
 });
 

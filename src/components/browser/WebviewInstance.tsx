@@ -8,6 +8,7 @@ import type { GrabbedElement } from "@/types";
 import { getInspectorScript, getCleanupScript } from "@/lib/element-inspector";
 import { reportError } from "@/lib/analytics/analytics";
 import { useBrowserWebviewEvents } from "@/hooks/useBrowserWebviewEvents";
+import { shouldShowBrowserDevTools } from "@/lib/devtools-policy";
 import type { BrowserHistoryEntry, BrowserTab, ElectronWebviewElement } from "./browser-types";
 import { resolveNavigationInput } from "./browser-utils";
 import { BrowserNavBar } from "./BrowserNavBar";
@@ -136,6 +137,7 @@ export function WebviewInstance({
   }, [onUpdateTab, tab.colorScheme]);
 
   const handleToggleDevTools = useCallback(() => {
+    if (!shouldShowBrowserDevTools()) return;
     withWebview((wv) => {
       if (wv.isDevToolsOpened()) {
         wv.closeDevTools();

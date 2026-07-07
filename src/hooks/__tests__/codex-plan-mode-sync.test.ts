@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { SessionInfo } from "@/types";
-import { getSyncedPlanMode } from "../useAppOrchestrator";
+import { getSyncedPlanMode, planToolToggle } from "../useAppOrchestrator";
 import { upsertCodexSessionInfo } from "../useCodex";
+import type { ToolId } from "@/types/tools";
 
 describe("Codex plan mode sync helpers", () => {
   it("prefers live permission mode over the persisted session flag", () => {
@@ -49,5 +50,23 @@ describe("Codex plan mode sync helpers", () => {
       ...existing,
       permissionMode: "bypassPermissions",
     });
+  });
+});
+
+describe("tool panel toggle planning", () => {
+  it("plans opening a contextual panel as a separate unsuppress action", () => {
+    const plan = planToolToggle("tasks", new Set<ToolId>());
+
+    expect([...plan.activeTools]).toEqual(["tasks"]);
+    expect(plan.unsuppressPanel).toBe("tasks");
+    expect(plan.suppressPanel).toBeNull();
+  });
+
+  it("plans closing a contextual panel as a separate suppress action", () => {
+    const plan = planToolToggle("tasks", new Set<ToolId>(["tasks"]));
+
+    expect([...plan.activeTools]).toEqual([]);
+    expect(plan.suppressPanel).toBe("tasks");
+    expect(plan.unsuppressPanel).toBeNull();
   });
 });

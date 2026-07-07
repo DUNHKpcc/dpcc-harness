@@ -22,6 +22,33 @@ import { useAppContextualPanels } from "@/hooks/app-layout/useAppContextualPanel
 
 export { getSyncedPlanMode } from "@/hooks/app-layout/session-utils";
 
+interface ToolTogglePlan {
+  activeTools: Set<ToolId>;
+  suppressPanel: ToolId | null;
+  unsuppressPanel: ToolId | null;
+}
+
+export function planToolToggle(toolId: ToolId, activeTools: ReadonlySet<ToolId>): ToolTogglePlan {
+  const isContextual = toolId === "tasks" || toolId === "agents";
+  const next = new Set(activeTools);
+
+  if (next.has(toolId)) {
+    next.delete(toolId);
+    return {
+      activeTools: next,
+      suppressPanel: isContextual ? toolId : null,
+      unsuppressPanel: null,
+    };
+  }
+
+  next.add(toolId);
+  return {
+    activeTools: next,
+    suppressPanel: null,
+    unsuppressPanel: isContextual ? toolId : null,
+  };
+}
+
 export function useAppOrchestrator() {
   const sidebar = useSidebar();
   const splitView = useSplitView();
@@ -61,20 +88,10 @@ export function useAppOrchestrator() {
 
   const handleToggleTool = useCallback(
     (toolId: ToolId) => {
-      const isContextual = toolId === "tasks" || toolId === "agents";
-      settings.setActiveTools((prev) => {
-        const next = new Set(prev);
-        if (next.has(toolId)) {
-          next.delete(toolId);
-          // User manually closed a contextual panel — suppress auto-open
-          if (isContextual) settings.suppressPanel(toolId);
-        } else {
-          next.add(toolId);
-          // User manually opened a contextual panel — clear suppression
-          if (isContextual) settings.unsuppressPanel(toolId);
-        }
-        return next;
-      });
+      const plan = planToolToggle(toolId, settings.activeTools);
+      settings.setActiveTools(plan.activeTools);
+      if (plan.suppressPanel) settings.suppressPanel(plan.suppressPanel);
+      if (plan.unsuppressPanel) settings.unsuppressPanel(plan.unsuppressPanel);
     },
     [settings],
   );

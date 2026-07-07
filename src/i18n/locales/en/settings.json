@@ -2,6 +2,7 @@
   "titlebar": "Settings",
   "saveFailed": "Couldn't save settings.",
   "nav": {
+    "backHome": "Back Home",
     "general": "General",
     "account": "DPCC API",
     "appearance": "Appearance",

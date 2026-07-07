@@ -2,6 +2,7 @@
   "titlebar": "设置",
   "saveFailed": "无法保存设置。",
   "nav": {
+    "backHome": "返回主页",
     "general": "通用",
     "account": "DPCC API",
     "appearance": "外观",

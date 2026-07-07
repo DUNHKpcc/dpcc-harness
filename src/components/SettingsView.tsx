@@ -13,12 +13,11 @@ import {
   Users,
   BarChart3,
   Server,
-  X,
+  ArrowLeft,
   Wallet,
   Smartphone,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { AgentSettings } from "@/components/settings/AgentSettings";
 import { WeChatSettings } from "@/components/settings/WeChatSettings";
 import { AppearanceSettings } from "@/components/settings/AppearanceSettings";
@@ -220,26 +219,21 @@ export const SettingsView = memo(function SettingsView({
     <div className="flex h-full w-full flex-1 flex-col overflow-hidden rounded-none bg-background">
       <div
         className={`drag-region flex h-[3.25rem] shrink-0 items-center border-b border-foreground/[0.06] px-4 ${macTitlebarInsetClass}`}
-      >
-        <span className="text-sm font-semibold leading-none text-foreground">{t("titlebar")}</span>
-
-        <Button
-          variant="ghost"
-          size="icon"
-          aria-label={t("close", { defaultValue: "Close" })}
-          title={t("close", { defaultValue: "Close" })}
-          className="no-drag ms-auto h-7 w-7 text-muted-foreground/60 hover:text-foreground"
-          onClick={onClose}
-        >
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
+      />
 
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* Settings nav sidebar */}
         <div className="flex w-44 shrink-0 flex-col border-e border-foreground/[0.06]">
           {/* Nav items */}
           <nav className="flex flex-1 flex-col gap-0.5 px-1.5 py-2">
+            <button
+              aria-label={t("nav.backHome")}
+              onClick={onClose}
+              className="mb-1 flex w-full items-center justify-start gap-2 rounded-md px-2 py-1.5 text-[13px] font-medium text-start text-muted-foreground transition-colors hover:bg-foreground/[0.03] hover:text-foreground"
+            >
+              <ArrowLeft className="h-4 w-4 shrink-0" />
+              <span className="flex-1">{t("nav.backHome")}</span>
+            </button>
             {NAV_ITEMS.map((item) => {
               const isActive = activeSection === item.id;
               const Icon = item.icon;

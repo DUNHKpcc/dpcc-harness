@@ -6,6 +6,7 @@ import { gitExec } from "../lib/git-exec";
 import { getClaudeBinaryPath, getClaudeSdkProcessOptions } from "../lib/claude-binary";
 import { prepareClaudeSpawnEnv, claudeResolvedModel, claudeSettingSources } from "../lib/claude-gateway-env";
 import { applyClaudeMcpIsolation } from "../lib/claude-mcp-isolation";
+import { normalizeSessionCwd } from "../lib/session-cwd";
 
 function firstNonEmptyLine(text: string): string | undefined {
   for (const line of text.split(/\r?\n/g)) {
@@ -211,7 +212,7 @@ export function register(): void {
         const { getCodexSessionModel } = await import("./codex-sessions");
         const preferredModel = sessionId ? getCodexSessionModel(sessionId) : undefined;
         const { codexUtilityPrompt } = await import("../lib/codex-utility-prompt");
-        const raw = await codexUtilityPrompt(prompt, cwd || process.cwd(), "TITLE_GEN", {
+        const raw = await codexUtilityPrompt(prompt, normalizeSessionCwd(cwd), "TITLE_GEN", {
           timeoutMs: 20000,
           model: preferredModel,
         });
@@ -226,7 +227,7 @@ export function register(): void {
 
     // Claude SDK path (default)
     log("TITLE_GEN", `Spawning SDK for: "${truncatedMsg.slice(0, 80)}..." cwd=${cwd}`);
-    const { result, error } = await oneShotSdkQuery(prompt, cwd || process.cwd(), "TITLE_GEN", {
+    const { result, error } = await oneShotSdkQuery(prompt, normalizeSessionCwd(cwd), "TITLE_GEN", {
       timeoutMs: 20000,
       model: "haiku",
     });

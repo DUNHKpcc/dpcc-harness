@@ -1,5 +1,6 @@
 import type { ClaudeEffort, EngineId, InstalledAgent } from "@/types";
 import type { StartOptions } from "@/hooks/session/types";
+import { CHAT_MODULE_PROJECT_ID } from "@/lib/session/chat-module";
 
 /** Build common session-creation options from current settings and agent state. */
 export function buildSessionOptions(
@@ -35,4 +36,8 @@ export function getSyncedPlanMode(
     return normalizedPermissionMode === "plan";
   }
   return !!sessionPlanMode;
+}
+
+export function resolveComposerClearProjectId(projectId: string | null | undefined): string {
+  return projectId?.trim() || CHAT_MODULE_PROJECT_ID;
 }

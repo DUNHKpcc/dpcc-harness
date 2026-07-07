@@ -2,7 +2,6 @@ import { BrowserWindow, ipcMain } from "electron";
 import { spawn, ChildProcess } from "child_process";
 import { Readable, Writable } from "stream";
 import crypto from "crypto";
-import os from "os";
 import path from "path";
 import { log } from "../lib/logger";
 import { safeSend } from "../lib/safe-send";
@@ -13,6 +12,7 @@ import { getMcpAuthHeaders } from "../lib/mcp-oauth-flow";
 import { extractErrorMessage, reportError } from "../lib/error-utils";
 import { captureEvent } from "../lib/posthog";
 import { reclaimMacDockFocus } from "../lib/macos-dock-focus";
+import { normalizeSessionCwd } from "../lib/session-cwd";
 import {
   buildAuthRequiredError,
   extractAuthRequired,
@@ -41,10 +41,6 @@ import type { ACPAuthMethod, ACPAuthenticateResult } from "@shared/types/acp";
 
 type ACPReadTextFileParams = ACPTextFileParams & { content?: string; line?: number | null; limit?: number | null };
 type ACPWriteTextFileParams = ACPTextFileParams & { content: string };
-
-function normalizeSessionCwd(cwd: string | null | undefined): string {
-  return cwd?.trim() || os.homedir();
-}
 
 async function acpReadTextFile(params: ACPReadTextFileParams): Promise<{ content: string; filePath: string }> {
   const filePath = resolveACPFilePath(params);

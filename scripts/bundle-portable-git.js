@@ -9,18 +9,11 @@ const fs = require("fs");
 const https = require("https");
 const os = require("os");
 const path = require("path");
+const portableGitAssets = require("../shared/portable-git-assets.json");
 
 const OUTPUT_DIR = path.join(__dirname, "..", "build", "portable-git");
 
-const ASSETS = {
-  "win32-x64": {
-    target: "win32-x64",
-    fileName: "PortableGit-2.55.0.2-64-bit.7z.exe",
-    url: "https://github.com/git-for-windows/git/releases/download/v2.55.0.windows.2/PortableGit-2.55.0.2-64-bit.7z.exe",
-    size: 59_005_448,
-    sha256: "b20d42da3afa228e9fa6174480de820282667e799440d655e308f700dfa0d0df",
-  },
-};
+const ASSETS = portableGitAssets;
 
 function parseArgs(argv = process.argv) {
   const platformIndex = argv.indexOf("--platform");

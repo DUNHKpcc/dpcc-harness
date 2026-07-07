@@ -8,7 +8,7 @@
  * B5b: built-in title generation returns "not login" as the title).
  *
  * Source selection is resolved in upstream-resolver from Settings → Current Config.
- * Process env wins over ~/.claude/settings.json env, so claudeSpawnEnv purges
+ * Process env wins over ~/.claude/settings.json env, so buildClaudeSpawnEnv purges
  * inherited ANTHROPIC_* before injecting the resolved upstream. This prevents a
  * stale local CLI key or base URL from overriding DPCC or gateway selections.
  */
@@ -16,7 +16,7 @@
 import { loadLocalClaudeEnv } from "./local-cli-config";
 import { clientAppEnv } from "./sdk";
 import { resolveClaudeUpstream } from "./upstream-resolver";
-import { ensureClaudeCodeGitBashEnv, prepareClaudeCodeGitBashEnv } from "./claude-git-bash";
+import { prepareClaudeCodeGitBashEnv } from "./claude-git-bash";
 
 const DEFAULT_SETTING_SOURCES = ["user", "project", "local"];
 const GATEWAY_SETTING_SOURCES = ["project", "local"];
@@ -50,15 +50,6 @@ export function stripMacAppIdentityEnv<T extends Record<string, string | undefin
     delete next[key];
   }
   return next;
-}
-
-/**
- * Full subprocess env for spawning Claude. When a gateway/default override wins,
- * purge inherited ANTHROPIC_* (from process.env or ~/.claude) before applying the
- * override so the resolved upstream fully controls auth.
- */
-export function claudeSpawnEnv(): Record<string, string | undefined> {
-  return ensureClaudeCodeGitBashEnv(buildClaudeSpawnEnv());
 }
 
 export async function prepareClaudeSpawnEnv(paths?: {

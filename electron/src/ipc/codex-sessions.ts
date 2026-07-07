@@ -9,7 +9,6 @@
 import { app, BrowserWindow, ipcMain } from "electron";
 import { spawn } from "child_process";
 import crypto from "crypto";
-import os from "os";
 import { log } from "../lib/logger";
 import { safeSend } from "../lib/safe-send";
 import { CodexRpcClient } from "../lib/codex-rpc";
@@ -26,6 +25,7 @@ import { captureEvent } from "../lib/posthog";
 import { codexUpstreamThreadParams } from "../lib/codex-upstream";
 import { buildCodexAppServerEnv } from "../lib/codex-home-isolation";
 import { reclaimMacDockFocus } from "../lib/macos-dock-focus";
+import { normalizeSessionCwd } from "../lib/session-cwd";
 import { codexPermissionOptionsFromMode, codexSandboxPolicyFromMode, normalizeAppPermissionMode } from "@shared/lib/codex-permissions";
 
 import type {
@@ -69,10 +69,6 @@ type CodexImageInput = Extract<CodexUserInput, { type: "image" | "localImage" }>
 type CodexMentionInput = Extract<CodexUserInput, { type: "mention" }>;
 
 const codexSessions = new Map<string, CodexSession>();
-
-function normalizeSessionCwd(cwd: string | null | undefined): string {
-  return cwd?.trim() || os.homedir();
-}
 
 /** Expose the currently selected model for utility prompts (title/commit generation). */
 export function getCodexSessionModel(internalId: string): string | undefined {

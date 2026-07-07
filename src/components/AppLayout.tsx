@@ -83,6 +83,7 @@ import {
 } from "@/lib/workspace/drag";
 import { AgentProvider, type AgentContextValue } from "./AgentContext";
 import { toastText } from "@/lib/toast-i18n";
+import { resolveComposerClearProjectId } from "@/hooks/app-layout/session-utils";
 import {
   CHAT_MODULE_PROJECT_ID,
   isChatModuleProjectId,
@@ -235,9 +236,11 @@ export function AppLayout() {
   const handleComposerClear = useCallback(
     async () => {
       clearGrabbedElements();
-      await handleOpenNewChat(CHAT_MODULE_PROJECT_ID);
+      await handleOpenNewChat(resolveComposerClearProjectId(
+        manager.activeSession?.projectId ?? activeSpaceProject?.id ?? activeProjectId,
+      ));
     },
-    [clearGrabbedElements, handleOpenNewChat],
+    [activeProjectId, activeSpaceProject?.id, clearGrabbedElements, handleOpenNewChat, manager.activeSession?.projectId],
   );
 
   // Claude-only: toggle whether Claude may delegate to a visible Codex split pane.

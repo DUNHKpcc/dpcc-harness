@@ -78,9 +78,9 @@ describe("claude gateway env", () => {
       ANTHROPIC_DEFAULT_OPUS_MODEL_NAME: "deepseek-v4-pro",
       KEEP_ME: "1",
     });
-    const { claudeSpawnEnv } = await loadModule();
+    const { prepareClaudeSpawnEnv } = await loadModule();
 
-    const env = claudeSpawnEnv();
+    const env = await prepareClaudeSpawnEnv();
 
     expect(env.ANTHROPIC_BASE_URL).toBe("https://api.dpcc.example");
     expect(env.ANTHROPIC_AUTH_TOKEN).toBe("sk-dpcc");
@@ -100,9 +100,9 @@ describe("claude gateway env", () => {
       XPC_SERVICE_NAME: "application.com.pccagent.app.123",
       KEEP_ME: "1",
     });
-    const { claudeSpawnEnv } = await loadModule();
+    const { prepareClaudeSpawnEnv } = await loadModule();
 
-    const env = claudeSpawnEnv();
+    const env = await prepareClaudeSpawnEnv();
 
     expect(env.__CFBundleIdentifier).toBeUndefined();
     expect(env.XPC_FLAGS).toBeUndefined();
@@ -114,13 +114,13 @@ describe("claude gateway env", () => {
     mockLoadLocalClaudeEnv.mockReturnValue({
       KEEP_ME: "1",
     });
-    const { claudeSpawnEnv } = await loadModule();
+    const { prepareClaudeSpawnEnv } = await loadModule();
 
-    const env = claudeSpawnEnv();
+    const env = await prepareClaudeSpawnEnv();
 
-    expect(mockEnsureClaudeCodeGitBashEnv).toHaveBeenCalledWith(expect.objectContaining({
+    expect(mockPrepareClaudeCodeGitBashEnv).toHaveBeenCalledWith(expect.objectContaining({
       KEEP_ME: "1",
-    }));
+    }), undefined);
     expect(env.CLAUDE_CODE_GIT_BASH_PATH).toBe("C:\\Program Files\\Git\\bin\\bash.exe");
   });
 
@@ -155,9 +155,9 @@ describe("claude gateway env", () => {
       token: "sk-local",
       model: "local-sonnet",
     });
-    const { claudeSpawnEnv } = await loadModule();
+    const { prepareClaudeSpawnEnv } = await loadModule();
 
-    const env = claudeSpawnEnv();
+    const env = await prepareClaudeSpawnEnv();
 
     expect(env.ANTHROPIC_BASE_URL).toBe("https://local.example");
     expect(env.ANTHROPIC_AUTH_TOKEN).toBe("sk-local");
@@ -175,6 +175,12 @@ describe("claude gateway env", () => {
     const { claudeResolvedModel } = await loadModule();
 
     expect(claudeResolvedModel("deepseek-v4-pro")).toBe("claude-sonnet-4-6");
+  });
+
+  it("does not expose the legacy synchronous spawn env helper", async () => {
+    const module = await loadModule();
+
+    expect(module).not.toHaveProperty("claudeSpawnEnv");
   });
 });
 

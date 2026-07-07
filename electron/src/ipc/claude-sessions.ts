@@ -1,7 +1,6 @@
 import { app, BrowserWindow, ipcMain } from "electron";
 import crypto from "crypto";
 import fs from "fs";
-import os from "os";
 import path from "path";
 import { log } from "../lib/logger";
 import { safeSend } from "../lib/safe-send";
@@ -29,9 +28,10 @@ import {
 } from "../lib/claude-binary";
 import { captureEvent } from "../lib/posthog";
 import { prepareClaudeSpawnEnv, claudeResolvedModel, claudeSettingSources } from "../lib/claude-gateway-env";
+import { normalizeSessionCwd } from "../lib/session-cwd";
 
 /** SDK options for file checkpointing — enables Write/Edit/NotebookEdit revert support.
- *  Env is resolved by claudeSpawnEnv from the selected Current Config source,
+ *  Env is resolved from the selected Current Config source,
  *  purging inherited ANTHROPIC_* for non-local upstreams. */
 function claudePortableGitPaths(): { userDataPath: string; resourcesPath: string | undefined } {
   return {
@@ -489,7 +489,7 @@ async function revalidateClaudeModelsCache(cwd?: string): Promise<ClaudeModelsCa
         const spawnEnv = await prepareClaudeSpawnEnv(claudePortableGitPaths());
 
         const queryOptions: Record<string, unknown> = {
-          cwd: cwd?.trim() || os.homedir(),
+          cwd: normalizeSessionCwd(cwd),
           includePartialMessages: true,
           thinking: buildThinkingConfig(),
           settingSources: claudeSettingSources(),
@@ -609,7 +609,7 @@ async function restartSession(
   const opts = session.startOptions;
   const mcpServers = mcpServersOverride ?? opts.mcpServers;
   const bridgeEnabled = bridgeEnabledOverride ?? opts.claudeCodexBridgeEnabled === true;
-  const cwd = cwdOverride || opts.cwd || process.cwd();
+  const cwd = normalizeSessionCwd(cwdOverride ?? opts.cwd);
   const query = await getSDK();
   const newChannel = new AsyncChannel<SDKUserMessage>();
   const cliPath = await getClaudeBinaryPath();
@@ -773,7 +773,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       reclaimMacDockFocus(getMainWindow, "claude-start");
       const spawnEnv = await prepareClaudeSpawnEnv(claudePortableGitPaths());
       const queryOptions: Record<string, unknown> = {
-        cwd: options.cwd || process.cwd(),
+        cwd: normalizeSessionCwd(options.cwd),
         includePartialMessages: true,
         thinking: buildThinkingConfig(),
         canUseTool,

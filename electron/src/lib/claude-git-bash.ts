@@ -5,17 +5,18 @@ import path from "path";
 import https from "https";
 import { execFile } from "child_process";
 import { promisify } from "util";
+import portableGitAssets from "@shared/portable-git-assets.json";
 
 export const CLAUDE_CODE_GIT_BASH_PATH = "CLAUDE_CODE_GIT_BASH_PATH";
 export const CLAUDE_CODE_GIT_BASH_MISSING_MESSAGE =
   "Claude Code on Windows requires Git Bash. PccAgent can use system Git, bundled PortableGit, or managed PortableGit. If automatic setup fails, set CLAUDE_CODE_GIT_BASH_PATH to your bash.exe path, for example C:\\Program Files\\Git\\bin\\bash.exe.";
 
 const PORTABLE_GIT_TARGET = "win32-x64";
-const PORTABLE_GIT_FILE_NAME = "PortableGit-2.55.0.2-64-bit.7z.exe";
-const PORTABLE_GIT_DOWNLOAD_URL =
-  `https://github.com/git-for-windows/git/releases/download/v2.55.0.windows.2/${PORTABLE_GIT_FILE_NAME}`;
-const PORTABLE_GIT_SHA256 = "b20d42da3afa228e9fa6174480de820282667e799440d655e308f700dfa0d0df";
-const PORTABLE_GIT_SIZE = 59_005_448;
+const PORTABLE_GIT_ASSET = portableGitAssets[PORTABLE_GIT_TARGET];
+const PORTABLE_GIT_FILE_NAME = PORTABLE_GIT_ASSET.fileName;
+const PORTABLE_GIT_DOWNLOAD_URL = PORTABLE_GIT_ASSET.url;
+const PORTABLE_GIT_SHA256 = PORTABLE_GIT_ASSET.sha256;
+const PORTABLE_GIT_SIZE = PORTABLE_GIT_ASSET.size;
 let portableGitSetupInFlight: Promise<void> | null = null;
 
 type EnvLike = Record<string, string | undefined>;

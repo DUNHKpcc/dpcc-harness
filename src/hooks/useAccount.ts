@@ -3,6 +3,7 @@ import type { AppSettings } from "@shared/types/settings";
 import type {
   AccountConfig,
   AccountBalance,
+  AccountBalanceResult,
   AccountModelsResult,
   AccountStatus,
 } from "@shared/types/account";
@@ -58,6 +59,20 @@ export function shouldLoadAccountModels(config: AccountConfig): boolean {
   return config.hasToken;
 }
 
+let cachedConfig: AccountConfig | null = null;
+let cachedStatus: AccountStatus | null = null;
+let cachedBalance: AccountBalance | null = null;
+
+export function resolveBalanceResult(
+  previous: AccountBalance | null,
+  result: AccountBalanceResult,
+): { balance: AccountBalance | null; error: string | null } {
+  if ("error" in result) {
+    return { balance: previous, error: result.error };
+  }
+  return { balance: result, error: null };
+}
+
 /**
  * Reads the upstream (new-api) account: effective config, balance, and per-engine
  * model lists when requested. Loads lazily — only fetches while `active` is true
@@ -66,9 +81,9 @@ export function shouldLoadAccountModels(config: AccountConfig): boolean {
  */
 export function useAccount(active: boolean, options: UseAccountOptions = {}): UseAccountResult {
   const loadModels = options.loadModels ?? true;
-  const [config, setConfig] = useState<AccountConfig | null>(null);
-  const [status, setStatus] = useState<AccountStatus | null>(null);
-  const [balance, setBalance] = useState<AccountBalance | null>(null);
+  const [config, setConfig] = useState<AccountConfig | null>(() => cachedConfig);
+  const [status, setStatus] = useState<AccountStatus | null>(() => cachedStatus);
+  const [balance, setBalance] = useState<AccountBalance | null>(() => cachedBalance);
   const [claudeModels, setClaudeModels] = useState<string[]>([]);
   const [codexModels, setCodexModels] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -76,7 +91,9 @@ export function useAccount(active: boolean, options: UseAccountOptions = {}): Us
 
   const loadStatus = useCallback(async () => {
     try {
-      setStatus(await window.claude.account.getStatus());
+      const nextStatus = await window.claude.account.getStatus();
+      cachedStatus = nextStatus;
+      setStatus(nextStatus);
     } catch {
       // branding is best-effort; ignore failures
     }
@@ -88,8 +105,10 @@ export function useAccount(active: boolean, options: UseAccountOptions = {}): Us
     void loadStatus();
     try {
       const cfg = await window.claude.account.getConfig();
+      cachedConfig = cfg;
       setConfig(cfg);
       if (!shouldLoadAccountDetails(cfg)) {
+        cachedBalance = null;
         setBalance(null);
         setClaudeModels([]);
         setCodexModels([]);
@@ -102,12 +121,10 @@ export function useAccount(active: boolean, options: UseAccountOptions = {}): Us
         window.claude.account.getBalance(),
         modelsPromise,
       ]);
-      if ("error" in bal) {
-        setBalance(null);
-        setError(bal.error);
-      } else {
-        setBalance(bal);
-      }
+      const resolvedBalance = resolveBalanceResult(cachedBalance, bal);
+      cachedBalance = resolvedBalance.balance;
+      setBalance(resolvedBalance.balance);
+      setError(resolvedBalance.error);
       if (mdl === null) {
         setClaudeModels([]);
         setCodexModels([]);

@@ -1496,7 +1496,6 @@ export function AppLayout() {
           },
           canOpenSessionInSplitView: (sessionId) => splitView.canShowSessionSplitAction(sessionId, manager.activeSessionId),
         }}
-        onOpenMcpPanel={() => handleToolPickerToggle("mcp")}
       />
 
       {sidebar.isOpen && (

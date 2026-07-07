@@ -9,7 +9,6 @@ interface SidebarTopActionsProps {
   onCreateChat: () => void;
   onNavigateToMessage: (sessionId: string, messageId: string) => void;
   onSelectSession: (sessionId: string) => void;
-  onOpenMcpPanel?: () => void;
 }
 
 export const SidebarTopActions = memo(function SidebarTopActions({
@@ -17,7 +16,6 @@ export const SidebarTopActions = memo(function SidebarTopActions({
   onCreateChat,
   onNavigateToMessage,
   onSelectSession,
-  onOpenMcpPanel,
 }: SidebarTopActionsProps) {
   const { t } = useTranslation("sidebar");
 
@@ -40,7 +38,7 @@ export const SidebarTopActions = memo(function SidebarTopActions({
           onSelectSession={onSelectSession}
         />
 
-        <SidebarPluginEntry onOpenMcpPanel={onOpenMcpPanel} />
+        <SidebarPluginEntry />
       </div>
     </div>
   );

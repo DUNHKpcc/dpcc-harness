@@ -154,7 +154,6 @@ interface AppSidebarProps {
   spaceState: AppSidebarSpaceState;
   spaceActions: AppSidebarSpaceActions;
   sessionActions: AppSidebarSessionActions;
-  onOpenMcpPanel?: () => void;
 }
 
 export const AppSidebar = memo(function AppSidebar({
@@ -163,7 +162,6 @@ export const AppSidebar = memo(function AppSidebar({
   spaceState,
   spaceActions,
   sessionActions,
-  onOpenMcpPanel,
 }: AppSidebarProps) {
   const { t } = useTranslation("sidebar");
   const {
@@ -637,7 +635,6 @@ export const AppSidebar = memo(function AppSidebar({
             onCreateChat={() => onNewChat(CHAT_MODULE_PROJECT_ID)}
             onNavigateToMessage={onNavigateToMessage}
             onSelectSession={onSelectSession}
-            onOpenMcpPanel={onOpenMcpPanel}
           />
 
           <div
@@ -651,6 +648,7 @@ export const AppSidebar = memo(function AppSidebar({
                   activeSessionId={activeSessionId}
                   islandLayout={islandLayout}
                   agents={agents}
+                  onCreateChat={() => onNewChat(CHAT_MODULE_PROJECT_ID)}
                 />
                 <WeChatSection
                   sessions={sessions}

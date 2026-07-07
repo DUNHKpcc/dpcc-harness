@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { ChevronRight, Smartphone } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { ChatSession, InstalledAgent, Project } from "@/types";
 import { SessionItem } from "./SessionItem";
 import { useSidebarActions } from "./SidebarActionsContext";
@@ -23,6 +24,7 @@ export function WeChatSection({
   islandLayout: boolean;
   agents?: InstalledAgent[];
 }) {
+  const { t } = useTranslation("sidebar");
   const { selectSession, deleteSession, renameSession } = useSidebarActions();
   const [collapsed, setCollapsed] = useState(false);
 
@@ -44,8 +46,6 @@ export function WeChatSection({
         .sort((a, b) => (b.lastMessageAt ?? b.createdAt) - (a.lastMessageAt ?? a.createdAt)),
     }));
   }, [sessions, projects]);
-
-  if (groups.length === 0) return null;
 
   const total = groups.reduce((n, g) => n + g.sessions.length, 0);
   const showProjectHeaders = groups.length > 1;
@@ -69,27 +69,33 @@ export function WeChatSection({
 
       {!collapsed && (
         <div className="mt-0.5">
-          {groups.map((group) => (
-            <div key={group.projectId} className="mb-1">
-              {showProjectHeaders && (
-                <div className="px-2.5 py-0.5 text-[11px] font-medium text-sidebar-foreground/50 wrap-break-word">
-                  {group.name}
-                </div>
-              )}
-              {group.sessions.map((session) => (
-                <SessionItem
-                  key={session.id}
-                  islandLayout={islandLayout}
-                  session={session}
-                  isActive={session.id === activeSessionId}
-                  onSelect={() => selectSession(session.id)}
-                  onDelete={() => deleteSession(session.id)}
-                  onRename={(title) => renameSession(session.id, title)}
-                  agents={agents}
-                />
-              ))}
+          {groups.length === 0 ? (
+            <div className="px-4 py-1.5 text-xs text-sidebar-foreground/45">
+              {t("empty.noConversations")}
             </div>
-          ))}
+          ) : (
+            groups.map((group) => (
+              <div key={group.projectId} className="mb-1">
+                {showProjectHeaders && (
+                  <div className="px-2.5 py-0.5 text-[11px] font-medium text-sidebar-foreground/50 wrap-break-word">
+                    {group.name}
+                  </div>
+                )}
+                {group.sessions.map((session) => (
+                  <SessionItem
+                    key={session.id}
+                    islandLayout={islandLayout}
+                    session={session}
+                    isActive={session.id === activeSessionId}
+                    onSelect={() => selectSession(session.id)}
+                    onDelete={() => deleteSession(session.id)}
+                    onRename={(title) => renameSession(session.id, title)}
+                    agents={agents}
+                  />
+                ))}
+              </div>
+            ))
+          )}
         </div>
       )}
     </div>

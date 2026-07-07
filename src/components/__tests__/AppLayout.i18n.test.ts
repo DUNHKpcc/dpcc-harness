@@ -25,4 +25,16 @@ describe("AppLayout i18n", () => {
     expect(appLayout).not.toContain('className="fixed inset-0 z-50 flex bg-background"');
     expect(appLayout).not.toContain('className={showSettings ? "hidden" : "flex min-h-0 flex-1 flex-col"}');
   });
+
+  it("does not render an empty titlebar above settings navigation", () => {
+    const settingsView = fs.readFileSync(path.join(repoRoot, "src/components/SettingsView.tsx"), "utf8");
+
+    expect(settingsView).not.toContain("drag-region flex h-[3.25rem] shrink-0 items-center");
+  });
+
+  it("keeps macOS window controls from overlapping the settings nav", () => {
+    const settingsView = fs.readFileSync(path.join(repoRoot, "src/components/SettingsView.tsx"), "utf8");
+
+    expect(settingsView).toContain('isMac ? "pt-[3.25rem]" : "pt-2"');
+  });
 });

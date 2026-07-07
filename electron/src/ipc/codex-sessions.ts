@@ -26,6 +26,7 @@ import { codexUpstreamThreadParams } from "../lib/codex-upstream";
 import { buildCodexAppServerEnv } from "../lib/codex-home-isolation";
 import { reclaimMacDockFocus } from "../lib/macos-dock-focus";
 import { normalizeSessionCwd } from "../lib/session-cwd";
+import { formatCodexResumeError } from "../lib/codex-resume-error";
 import { codexPermissionOptionsFromMode, codexSandboxPolicyFromMode, normalizeAppPermissionMode } from "@shared/lib/codex-permissions";
 
 import type {
@@ -800,7 +801,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
           session.rpc.destroy();
           codexSessions.delete(internalId);
         }
-        return { error: errMsg };
+        return { error: formatCodexResumeError(errMsg, data.threadId) };
       }
     },
   );

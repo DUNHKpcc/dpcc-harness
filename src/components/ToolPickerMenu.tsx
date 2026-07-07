@@ -18,6 +18,8 @@ const CONTEXTUAL_TOOLS: ToolDef[] = [
   { id: "agents", label: "Background Agents", icon: Bot },
 ];
 
+export const TOOL_PICKER_MENU_CONTENT_CLASS = "no-drag min-w-[180px]";
+
 const TOOL_LABEL_KEYS: Record<string, string> = {
   terminal: "picker.terminal",
   browser: "picker.browser",
@@ -94,7 +96,7 @@ export const ToolPickerMenu = memo(function ToolPickerMenu({
           {t("picker.togglePanels")}
         </TooltipContent>
       </Tooltip>
-      <DropdownMenuContent align="end" sideOffset={8} className="min-w-[180px]">
+      <DropdownMenuContent align="end" sideOffset={8} className={TOOL_PICKER_MENU_CONTENT_CLASS}>
         {contextualTools.length > 0 && (
           <>
             {contextualTools.map((tool) => {

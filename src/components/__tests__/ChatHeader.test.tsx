@@ -1,4 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { ComponentProps } from "react";
 import { UPSTREAM_REQUEST_SCROLL_AREA_CLASS } from "@/components/lib/chat-header-layout";
@@ -6,6 +8,7 @@ import { ChatHeader } from "../ChatHeader";
 import { ChatSection } from "../sidebar/ChatSection";
 import { SidebarActionsProvider, type SidebarActions } from "../sidebar/SidebarActionsContext";
 import { SidebarPluginEntry } from "../sidebar/SidebarPluginEntry";
+import { TOOL_PICKER_MENU_CONTENT_CLASS } from "../ToolPickerMenu";
 
 type ChatHeaderProps = ComponentProps<typeof ChatHeader>;
 
@@ -96,5 +99,18 @@ describe("SidebarPluginEntry", () => {
     expect(markup).not.toContain("aria-haspopup");
     expect(markup).not.toContain("MCP Servers");
     expect(markup).not.toContain("Skills");
+  });
+});
+
+describe("ToolPickerMenu", () => {
+  it("marks the dropdown content as no-drag so Electron can dispatch item clicks", () => {
+    expect(TOOL_PICKER_MENU_CONTENT_CLASS).toContain("no-drag");
+  });
+
+  it("keeps Windows titlebar drag regions disabled so panel menu clicks remain interactive", () => {
+    const css = readFileSync(resolve(process.cwd(), "src/index.css"), "utf8");
+
+    expect(css).toContain("html.platform-win32 .drag-region");
+    expect(css).toContain("-webkit-app-region: none");
   });
 });

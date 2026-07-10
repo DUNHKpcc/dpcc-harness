@@ -55,7 +55,7 @@ async function loadDpccModelIds(baseUrl: string, token: string): Promise<string[
 }
 
 function claudeModelSignature(value: string): ClaudeModelSignature | null {
-  const normalized = value.trim().toLowerCase();
+  const normalized = value.trim().toLowerCase().replace(/[\[\]]/g, "-");
   const family = normalized.match(/(?:^|[-_])(opus|sonnet|haiku)(?:[-_]|$)/)?.[1];
   if (family !== "opus" && family !== "sonnet" && family !== "haiku") return null;
 
@@ -68,6 +68,7 @@ function claudeModelSignature(value: string): ClaudeModelSignature | null {
 function mergeClaudeModelsForUpstream(
   sdkModels: CachedModelInfo[],
   dpccModelIds: string[],
+  preferredModel: string,
 ): CachedModelInfo[] {
   const exactMetadata = new Map<string, CachedModelInfo>();
   for (const model of sdkModels) {
@@ -75,6 +76,8 @@ function mergeClaudeModelsForUpstream(
     if (value && !exactMetadata.has(value)) exactMetadata.set(value, model);
   }
 
+  const preferredModelId = preferredModel.trim();
+  const defaultMetadata = preferredModelId ? exactMetadata.get("default") : undefined;
   const emittedIds = new Set<string>();
   const models: CachedModelInfo[] = [];
   for (const rawId of dpccModelIds) {
@@ -85,6 +88,11 @@ function mergeClaudeModelsForUpstream(
     const exact = exactMetadata.get(id);
     if (exact) {
       models.push({ ...exact, value: id });
+      continue;
+    }
+
+    if (defaultMetadata && id === preferredModelId) {
+      models.push({ ...defaultMetadata, value: id });
       continue;
     }
 
@@ -121,5 +129,5 @@ export async function resolveEffectiveClaudeModels(
 
   const modelIds = await loadDpccModelIds(upstream.baseUrl, upstream.token);
   if (modelIds === null) return sdkModels;
-  return mergeClaudeModelsForUpstream(sdkModels, modelIds);
+  return mergeClaudeModelsForUpstream(sdkModels, modelIds, upstream.model);
 }

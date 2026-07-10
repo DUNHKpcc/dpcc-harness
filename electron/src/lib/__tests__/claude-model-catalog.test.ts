@@ -103,6 +103,93 @@ describe("Claude DPCC model catalog", () => {
     expect(sdkModels).toEqual(originalSdkModels);
   });
 
+  it("maps bracketed 1M SDK aliases only to 1M DPCC variants", async () => {
+    mocks.fetchUpstreamModels.mockResolvedValue({
+      models: ["claude-sonnet-4-6-1m", "claude-sonnet-4-6"],
+      error: null,
+    });
+    const bracketedModel: CachedModelInfo = {
+      value: "sonnet[1m]",
+      displayName: "Sonnet 1M",
+      description: "Extended context",
+      supportsEffort: true,
+    };
+
+    const result = await resolveEffectiveClaudeModels([bracketedModel]);
+
+    expect(result).toEqual([
+      {
+        value: "claude-sonnet-4-6-1m",
+        displayName: "Sonnet 1M",
+        description: "Extended context",
+        supportsEffort: true,
+      },
+      { value: "claude-sonnet-4-6", displayName: "claude-sonnet-4-6", description: "" },
+    ]);
+  });
+
+  it("uses configured default metadata before family alias metadata", async () => {
+    mocks.fetchUpstreamModels.mockResolvedValue({
+      models: ["claude-sonnet-4-6"],
+      error: null,
+    });
+    const defaultModel: CachedModelInfo = {
+      value: "default",
+      displayName: "Configured default",
+      description: "Preferred upstream model",
+      supportsFastMode: true,
+    };
+
+    const [result] = await resolveEffectiveClaudeModels([sdkModels[0], defaultModel]);
+
+    expect(result).toEqual({
+      value: "claude-sonnet-4-6",
+      displayName: "Configured default",
+      description: "Preferred upstream model",
+      supportsFastMode: true,
+    });
+  });
+
+  it("uses exact SDK metadata before configured default metadata", async () => {
+    mocks.resolveClaudeUpstream.mockReturnValue(defaultUpstream({ model: "claude-opus-4-6" }));
+    mocks.fetchUpstreamModels.mockResolvedValue({
+      models: ["claude-opus-4-6"],
+      error: null,
+    });
+    const defaultModel: CachedModelInfo = {
+      value: "default",
+      displayName: "Configured default",
+      description: "Must not replace exact metadata",
+    };
+
+    const [result] = await resolveEffectiveClaudeModels([defaultModel, sdkModels[1]]);
+
+    expect(result).toEqual(sdkModels[1]);
+  });
+
+  it.each(["", "claude-opus-4-6"])(
+    "does not guess default metadata when configured model is %j",
+    async (model) => {
+      mocks.resolveClaudeUpstream.mockReturnValue(defaultUpstream({ model }));
+      mocks.fetchUpstreamModels.mockResolvedValue({
+        models: ["claude-sonnet-4-6"],
+        error: null,
+      });
+      const defaultModel: CachedModelInfo = {
+        value: "default",
+        displayName: "SDK default",
+        description: "Must remain unassigned",
+        supportsEffort: true,
+      };
+
+      const result = await resolveEffectiveClaudeModels([defaultModel]);
+
+      expect(result).toEqual([
+        { value: "claude-sonnet-4-6", displayName: "claude-sonnet-4-6", description: "" },
+      ]);
+    },
+  );
+
   it("uses plain fallback metadata for unknown, cross-family, and 1M-mismatched IDs", async () => {
     mocks.fetchUpstreamModels.mockResolvedValue({
       models: ["claude-dpcc-only", "claude-opus-4-6", "claude-sonnet-4-6-1m", "claude-haiku-4-5"],
@@ -202,6 +289,25 @@ describe("Claude DPCC model catalog", () => {
     expect(second.map((model) => model.value)).toEqual(["claude-two"]);
     expect(third.map((model) => model.value)).toEqual(["claude-three"]);
     expect(mocks.fetchUpstreamModels).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not reuse stale model IDs across credentials", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(0));
+    let upstream = defaultUpstream({ baseUrl: "https://one.example", token: "token-one" });
+    mocks.resolveClaudeUpstream.mockImplementation(() => upstream);
+    mocks.fetchUpstreamModels
+      .mockResolvedValueOnce({ models: ["claude-account-one"], error: null })
+      .mockResolvedValueOnce({ models: [], error: "unavailable" });
+
+    await resolveEffectiveClaudeModels(sdkModels);
+    vi.setSystemTime(new Date(60_000));
+    upstream = defaultUpstream({ baseUrl: "https://two.example", token: "token-two" });
+    const failedSecondAccount = await resolveEffectiveClaudeModels(sdkModels);
+
+    expect(failedSecondAccount).toBe(sdkModels);
+    expect(mocks.fetchUpstreamModels).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
   });
 
   it("deduplicates concurrent requests for the same credentials", async () => {

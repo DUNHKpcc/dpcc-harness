@@ -10,7 +10,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import {
-  shouldLoadAccountDetails,
+  shouldShowAccountDetails,
   useAccount,
   type UseAccountResult,
   type SaveAccountInput,
@@ -370,7 +370,7 @@ export const AccountPopover = memo(function AccountPopover({
   }, [onOpenSettings]);
 
   const cfg = account.config;
-  const needsSetup = !cfg || !shouldLoadAccountDetails(cfg);
+  const needsSetup = !shouldShowAccountDetails(cfg, account.balance);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -393,7 +393,7 @@ export const AccountPopover = memo(function AccountPopover({
         </TooltipContent>
       </Tooltip>
       <PopoverContent side="top" align="start" sideOffset={12} className="w-80 p-0">
-        {account.loading && !cfg ? (
+        {account.loading && !cfg && !account.balance ? (
           <div className="p-4 text-xs text-muted-foreground">{t("account.loading")}</div>
         ) : needsSetup ? (
           <SetupCard t={t} onSave={account.saveAccount} />

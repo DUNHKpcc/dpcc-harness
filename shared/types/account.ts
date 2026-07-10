@@ -21,6 +21,8 @@ export const DEFAULT_NEWAPI_BASE_URL = "https://api.dpccgaming.xyz";
 export interface AccountConfig {
   /** Shared host root, e.g. https://my-newapi.com (may be empty when unconfigured) */
   baseUrl: string;
+  /** Non-secret fingerprint used only to prevent showing another account's cached balance. */
+  cacheKey: string;
   /** Whether any gateway token is available (claude or codex) */
   hasToken: boolean;
   /** Whether the Claude-group sk token is configured */

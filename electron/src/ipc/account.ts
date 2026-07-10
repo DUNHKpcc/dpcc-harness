@@ -12,6 +12,7 @@
  */
 
 import { ipcMain } from "electron";
+import { createHash } from "crypto";
 import fs from "fs";
 import path from "path";
 import { getAppSetting } from "../lib/app-settings";
@@ -89,6 +90,21 @@ function resolveUpstream(): ResolvedUpstream {
     userId: (getAppSetting("accountUserId") ?? "").trim(),
     source,
   };
+}
+
+export function accountCacheKey(
+  upstream: Pick<ResolvedUpstream, "host" | "claudeToken" | "codexToken" | "accessToken" | "userId">,
+): string {
+  return createHash("sha256")
+    .update([
+      upstream.host,
+      upstream.claudeToken,
+      upstream.codexToken,
+      upstream.accessToken,
+      upstream.userId,
+    ].join("\0"))
+    .digest("hex")
+    .slice(0, 24);
 }
 
 async function upstreamGet<T>(
@@ -350,9 +366,11 @@ function writeUsageCache(data: UsageStats): void {
 
 export function register(): void {
   ipcMain.handle("account:config", async (): Promise<AccountConfig> => {
-    const { host, claudeToken, codexToken, accessToken, userId, source } = resolveUpstream();
+    const upstream = resolveUpstream();
+    const { host, claudeToken, codexToken, accessToken, userId, source } = upstream;
     return {
       baseUrl: host,
+      cacheKey: accountCacheKey(upstream),
       hasToken: claudeToken.length > 0 || codexToken.length > 0,
       hasClaudeToken: claudeToken.length > 0,
       hasCodexToken: codexToken.length > 0,

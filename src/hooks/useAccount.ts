@@ -45,6 +45,15 @@ export interface UseAccountOptions {
   loadModels?: boolean;
 }
 
+export const ACCOUNT_BALANCE_CACHE_KEY = "pcc-agent-account-balance-v1";
+
+type AccountBalanceCacheStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+
+export interface CachedAccountBalance {
+  accountKey: string;
+  balance: AccountBalance;
+}
+
 /** Normalize a host to a bare root (no trailing slash or /v1); falls back to the DPCC default. */
 function normalizeHost(raw: string): string {
   const n = raw.trim().replace(/\/+$/, "").replace(/\/v1$/, "");
@@ -59,9 +68,78 @@ export function shouldLoadAccountModels(config: AccountConfig): boolean {
   return config.hasToken;
 }
 
+export function shouldShowAccountDetails(
+  config: AccountConfig | null,
+  balance: AccountBalance | null,
+): boolean {
+  return config ? shouldLoadAccountDetails(config) : balance !== null;
+}
+
+function isAccountBalance(value: unknown): value is AccountBalance {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<AccountBalance>;
+  return typeof candidate.unlimited === "boolean"
+    && [candidate.totalUsd, candidate.usedUsd, candidate.remainingUsd].every(
+      (amount) => typeof amount === "number" && Number.isFinite(amount) && amount >= 0,
+    );
+}
+
+export function readCachedAccountBalance(
+  storage: AccountBalanceCacheStorage | null,
+): CachedAccountBalance | null {
+  if (!storage) return null;
+  try {
+    const raw = storage.getItem(ACCOUNT_BALANCE_CACHE_KEY);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    const candidate = parsed as Partial<CachedAccountBalance>;
+    return typeof candidate.accountKey === "string"
+      && candidate.accountKey.length > 0
+      && isAccountBalance(candidate.balance)
+      ? { accountKey: candidate.accountKey, balance: candidate.balance }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+export function writeCachedAccountBalance(
+  storage: AccountBalanceCacheStorage | null,
+  cached: CachedAccountBalance | null,
+): void {
+  if (!storage) return;
+  try {
+    if (cached) {
+      storage.setItem(ACCOUNT_BALANCE_CACHE_KEY, JSON.stringify(cached));
+    } else {
+      storage.removeItem(ACCOUNT_BALANCE_CACHE_KEY);
+    }
+  } catch {
+    // Cache persistence is best-effort and must not affect account refreshes.
+  }
+}
+
+export function resolveCachedBalanceForAccount(
+  cached: CachedAccountBalance | null,
+  accountKey: string,
+): AccountBalance | null {
+  return cached?.accountKey === accountKey ? cached.balance : null;
+}
+
+function getAccountBalanceStorage(): AccountBalanceCacheStorage | null {
+  try {
+    return typeof window === "undefined" ? null : window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
 let cachedConfig: AccountConfig | null = null;
 let cachedStatus: AccountStatus | null = null;
-let cachedBalance: AccountBalance | null = null;
+const accountBalanceStorage = getAccountBalanceStorage();
+let cachedBalanceSnapshot = readCachedAccountBalance(accountBalanceStorage);
+let cachedBalance: AccountBalance | null = cachedBalanceSnapshot?.balance ?? null;
 
 export function resolveBalanceResult(
   previous: AccountBalance | null,
@@ -107,8 +185,16 @@ export function useAccount(active: boolean, options: UseAccountOptions = {}): Us
       const cfg = await window.claude.account.getConfig();
       cachedConfig = cfg;
       setConfig(cfg);
-      if (!shouldLoadAccountDetails(cfg)) {
+      if (cachedBalanceSnapshot && !resolveCachedBalanceForAccount(cachedBalanceSnapshot, cfg.cacheKey)) {
+        cachedBalanceSnapshot = null;
         cachedBalance = null;
+        writeCachedAccountBalance(accountBalanceStorage, null);
+        setBalance(null);
+      }
+      if (!shouldLoadAccountDetails(cfg)) {
+        cachedBalanceSnapshot = null;
+        cachedBalance = null;
+        writeCachedAccountBalance(accountBalanceStorage, null);
         setBalance(null);
         setClaudeModels([]);
         setCodexModels([]);
@@ -123,6 +209,12 @@ export function useAccount(active: boolean, options: UseAccountOptions = {}): Us
       ]);
       const resolvedBalance = resolveBalanceResult(cachedBalance, bal);
       cachedBalance = resolvedBalance.balance;
+      if (!resolvedBalance.error) {
+        cachedBalanceSnapshot = resolvedBalance.balance
+          ? { accountKey: cfg.cacheKey, balance: resolvedBalance.balance }
+          : null;
+        writeCachedAccountBalance(accountBalanceStorage, cachedBalanceSnapshot);
+      }
       setBalance(resolvedBalance.balance);
       setError(resolvedBalance.error);
       if (mdl === null) {

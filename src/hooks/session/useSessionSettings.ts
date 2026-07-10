@@ -297,13 +297,13 @@ export function useSessionSettings({
       const preStartedId = preStartedSessionIdRef.current;
       if (!preStartedId) return;
 
+      const modelsGeneration = ++claudeModelCatalogRequestGenerationRef.current;
       const restartResult = await window.claude.restartSession(preStartedId, undefined, undefined, effort);
       if (restartResult?.error) {
         toast.error(toastText("session.effortUpdateFailed"), { description: restartResult.error });
         return;
       }
 
-      const modelsGeneration = ++claudeModelCatalogRequestGenerationRef.current;
       const [statusResult, modelsResult] = await Promise.all([
         window.claude.mcpStatus(preStartedId),
         window.claude.supportedModels(preStartedId),
@@ -355,6 +355,7 @@ export function useSessionSettings({
       const draftEngine = startOptionsRef.current.engine ?? "claude";
       if (!preStartedId || draftEngine !== "claude") return;
 
+      const modelsGeneration = ++claudeModelCatalogRequestGenerationRef.current;
       const restartResult = await window.claude.restartSession(
         preStartedId,
         undefined,
@@ -367,7 +368,6 @@ export function useSessionSettings({
         return;
       }
 
-      const modelsGeneration = ++claudeModelCatalogRequestGenerationRef.current;
       const [statusResult, modelsResult] = await Promise.all([
         window.claude.mcpStatus(preStartedId),
         window.claude.supportedModels(preStartedId),

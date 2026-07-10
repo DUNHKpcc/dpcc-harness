@@ -370,18 +370,18 @@ describe("Claude DPCC model catalog", () => {
     expect(result).toBe(sdkModels);
   });
 
-  it("reuses a stale successful catalog for the same credentials after a request failure", async () => {
+  it("falls back to SDK metadata when an expired DPCC catalog cannot be refreshed", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(0));
     mocks.fetchUpstreamModels
       .mockResolvedValueOnce({ models: ["claude-sonnet-4-6"], error: null })
       .mockResolvedValueOnce({ models: [], error: "unavailable" });
 
-    const initial = await resolveEffectiveClaudeModels(sdkModels);
+    await resolveEffectiveClaudeModels(sdkModels);
     vi.setSystemTime(new Date(60_000));
-    const afterFailure = await resolveEffectiveClaudeModels(sdkModels);
+    const afterFailure = await resolveEffectiveClaudeModelsResult(sdkModels);
 
-    expect(afterFailure).toEqual(initial);
+    expect(afterFailure).toEqual({ models: sdkModels, authoritative: false });
     expect(mocks.fetchUpstreamModels).toHaveBeenCalledTimes(2);
   });
 

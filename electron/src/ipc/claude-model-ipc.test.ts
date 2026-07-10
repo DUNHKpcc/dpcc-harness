@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   getClaudeModelsCache: vi.fn(),
   setClaudeModelsCache: vi.fn(),
   getSDK: vi.fn(),
+  getCliPath: vi.fn(),
+  getClaudeBinaryMetadata: vi.fn(),
   reportError: vi.fn(),
   resolveClaudeUpstream: vi.fn(),
 }));
@@ -25,7 +27,7 @@ vi.mock("electron", () => ({
 
 vi.mock("../lib/sdk", () => ({
   getSDK: mocks.getSDK,
-  getCliPath: vi.fn(() => undefined),
+  getCliPath: mocks.getCliPath,
 }));
 
 vi.mock("../lib/claude-model-cache", () => ({
@@ -53,7 +55,7 @@ vi.mock("../lib/async-channel", () => ({
 vi.mock("../lib/claude-binary", () => ({
   downloadClaudeUpdate: vi.fn(),
   getClaudeBinaryInfo: vi.fn(),
-  getClaudeBinaryMetadata: vi.fn(() => undefined),
+  getClaudeBinaryMetadata: mocks.getClaudeBinaryMetadata,
   getClaudeBinaryPath: vi.fn(),
   getClaudeSdkProcessOptions: vi.fn(() => ({ env: {} })),
   getClaudeBinaryStatus: vi.fn(),
@@ -108,6 +110,7 @@ const defaultUpstream = (overrides: Partial<{
 
 describe("Claude model IPC catalog", () => {
   beforeEach(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
     mocks.handlers.clear();
     mocks.resolveEffectiveClaudeModels.mockReset();
     mocks.resolveEffectiveClaudeModelsResult.mockReset();
@@ -115,6 +118,8 @@ describe("Claude model IPC catalog", () => {
     mocks.getClaudeModelsCache.mockReset();
     mocks.setClaudeModelsCache.mockReset();
     mocks.getSDK.mockReset();
+    mocks.getCliPath.mockReset();
+    mocks.getClaudeBinaryMetadata.mockReset();
     mocks.reportError.mockReset();
     mocks.resolveClaudeUpstream.mockReset();
 
@@ -126,6 +131,8 @@ describe("Claude model IPC catalog", () => {
     mocks.getClaudeModelsCache.mockReturnValue({ models: rawModels, updatedAt: 100 });
     mocks.setClaudeModelsCache.mockImplementation((models) => ({ models, updatedAt: 200 }));
     mocks.reportError.mockImplementation((code: string, error: unknown) => `${code}: ${String(error)}`);
+    mocks.getCliPath.mockReturnValue(undefined);
+    mocks.getClaudeBinaryMetadata.mockReturnValue(undefined);
     mocks.resolveClaudeUpstream.mockReturnValue(defaultUpstream());
 
     const { register, sessions } = await import("./claude-sessions");
@@ -192,8 +199,26 @@ describe("Claude model IPC catalog", () => {
     const result = await mocks.handlers.get("claude:supported-models")?.({}, "session-1");
 
     expect(mocks.setClaudeModelsCache).not.toHaveBeenCalled();
-    expect(mocks.resolveEffectiveClaudeModelsResult).toHaveBeenCalledWith([], expect.any(String));
+    expect(mocks.resolveEffectiveClaudeModelsResult).toHaveBeenCalledWith(rawModels, expect.any(String));
     expect(result).toEqual({ models: effectiveModels, authoritative: true });
+  });
+
+  it("preserves SDK metadata when DPCC resolution fails after an empty live SDK response", async () => {
+    mocks.resolveEffectiveClaudeModelsResult.mockImplementation(async (models) => ({
+      models,
+      authoritative: false,
+    }));
+    const { sessions } = await import("./claude-sessions");
+    sessions.set("session-1", {
+      channel: {} as never,
+      queryHandle: { supportedModels: vi.fn(async () => []) } as never,
+      eventCounter: 0,
+      pendingPermissions: new Map(),
+    });
+
+    const result = await mocks.handlers.get("claude:supported-models")?.({}, "session-1");
+
+    expect(result).toEqual({ models: rawModels, authoritative: false });
   });
 
   it.each(["local", "gateway"] as const)("keeps the existing SDK fallback when %s supported models are empty", async (tier) => {
@@ -290,8 +315,22 @@ describe("Claude model IPC catalog", () => {
     const result = await mocks.handlers.get("claude:models-cache:revalidate")?.({}, { cwd: "/tmp/project" });
 
     expect(mocks.setClaudeModelsCache).not.toHaveBeenCalled();
-    expect(mocks.resolveEffectiveClaudeModelsResult).toHaveBeenCalledWith([], expect.any(String));
+    expect(mocks.resolveEffectiveClaudeModelsResult).toHaveBeenCalledWith(rawModels, expect.any(String));
     expect(result).toEqual({ models: effectiveModels, updatedAt: 100, authoritative: true });
+    expect(close).toHaveBeenCalled();
+  });
+
+  it("preserves SDK metadata when DPCC resolution fails after an empty revalidation", async () => {
+    mocks.resolveEffectiveClaudeModelsResult.mockImplementation(async (models) => ({
+      models,
+      authoritative: false,
+    }));
+    const close = vi.fn();
+    mocks.getSDK.mockResolvedValue(() => ({ supportedModels: vi.fn(async () => []), close }));
+
+    const result = await mocks.handlers.get("claude:models-cache:revalidate")?.({}, { cwd: "/tmp/project" });
+
+    expect(result).toEqual({ models: rawModels, updatedAt: 100, authoritative: false });
     expect(close).toHaveBeenCalled();
   });
 
@@ -355,6 +394,42 @@ describe("Claude model IPC catalog", () => {
         updatedAt: 200,
         authoritative: false,
       },
+    ]);
+    expect(query).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not reuse an in-flight model request after the Claude binary changes", async () => {
+    let binaryPath = "/old/claude";
+    mocks.getClaudeBinaryMetadata.mockImplementation(() => ({
+      path: binaryPath,
+      source: "custom",
+      strategy: "custom",
+    }));
+    const close = vi.fn();
+    let resolveFirst!: (models: typeof rawModels) => void;
+    const firstSupportedModels = vi.fn(() => new Promise<typeof rawModels>((resolve) => { resolveFirst = resolve; }));
+    const freshModels = [{ value: "fresh", displayName: "Fresh", description: "" }];
+    const secondSupportedModels = vi.fn(async () => freshModels);
+    const query = vi
+      .fn()
+      .mockReturnValueOnce({ supportedModels: firstSupportedModels, close })
+      .mockReturnValueOnce({ supportedModels: secondSupportedModels, close });
+    mocks.getSDK.mockResolvedValue(query);
+    mocks.setClaudeModelsCache.mockImplementation((models) => ({ models, updatedAt: 200 }));
+    mocks.resolveEffectiveClaudeModelsResult.mockImplementation(async (models) => ({
+      models,
+      authoritative: false,
+    }));
+
+    const first = mocks.handlers.get("claude:models-cache:revalidate")?.({}, { cwd: "/tmp/project" });
+    await vi.waitFor(() => expect(firstSupportedModels).toHaveBeenCalledTimes(1));
+    binaryPath = "/new/claude";
+    const second = mocks.handlers.get("claude:models-cache:revalidate")?.({}, { cwd: "/tmp/project" });
+    resolveFirst(rawModels);
+
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      { models: freshModels, updatedAt: 200, authoritative: false },
+      { models: freshModels, updatedAt: 200, authoritative: false },
     ]);
     expect(query).toHaveBeenCalledTimes(2);
   });

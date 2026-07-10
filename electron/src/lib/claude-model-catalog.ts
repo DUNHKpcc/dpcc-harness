@@ -48,20 +48,19 @@ async function loadDpccModelIds(baseUrl: string, token: string): Promise<string[
   const pending = inFlight.get(key);
   if (pending) return pending;
 
-  const staleModelIds = cached?.modelIds ?? null;
   const requestGeneration = cacheGeneration;
   const request = fetchUpstreamModels(baseUrl, token)
     .then(
       ({ models, error }) => {
         if (requestGeneration !== cacheGeneration) return null;
-        if (error !== null) return staleModelIds;
+        if (error !== null) return null;
         caches.set(key, {
           expiresAt: Date.now() + MODEL_CACHE_TTL_MS,
           modelIds: models,
         });
         return models;
       },
-      () => requestGeneration === cacheGeneration ? staleModelIds : null,
+      () => null,
     )
     .finally(() => {
       if (inFlight.get(key) === request) inFlight.delete(key);

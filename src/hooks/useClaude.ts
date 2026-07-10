@@ -79,6 +79,7 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
 
   const [mcpServerStatuses, setMcpServerStatuses] = useState<McpServerStatus[]>([]);
   const [supportedModels, setSupportedModels] = useState<ModelInfo[]>([]);
+  const [supportedModelsLoaded, setSupportedModelsLoaded] = useState(false);
   const [slashCommands, setSlashCommands] = useState<SlashCommand[]>([]);
 
   const buffer = useRef(new StreamingBuffer());
@@ -96,6 +97,8 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
 
   // Engine-specific reset — runs after base reset via the same sessionId dependency
   useEffect(() => {
+    setSupportedModels([]);
+    setSupportedModelsLoaded(false);
     buffer.current.reset();
     parentToolMap.current.clear();
     permissionQueue.current = [];
@@ -349,8 +352,9 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
             const modelsSid = sessionIdRef.current;
             if (modelsSid) {
               window.claude.supportedModels(modelsSid).then((result) => {
-                if (result.models?.length) {
+                if (!result.error) {
                   setSupportedModels(result.models);
+                  setSupportedModelsLoaded(true);
                 }
               }).catch(() => { /* session may have been stopped */ });
             }
@@ -1107,6 +1111,7 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
     reconnectMcpServer,
     restartWithMcpServers,
     supportedModels,
+    supportedModelsLoaded,
     slashCommands,
     revertFiles,
     flushNow,

@@ -87,4 +87,28 @@ describe("useSessionCache", () => {
     expect(window.claude.codex.binaryInfo).not.toHaveBeenCalled();
     expect(window.claude.codex.listModels).not.toHaveBeenCalled();
   });
+
+  it("clears cached models when the model cache successfully returns an empty catalog", async () => {
+    const { useSessionCache } = await import("../useSessionCache");
+    const params = makeParams();
+
+    useSessionCache(params as unknown as Parameters<typeof useSessionCache>[0]);
+    await Promise.resolve();
+
+    expect(params.setters.setCachedModels).toHaveBeenCalledWith([]);
+  });
+
+  it("keeps cached models when the model cache response reports an error", async () => {
+    const { useSessionCache } = await import("../useSessionCache");
+    const params = makeParams();
+    vi.mocked(window.claude.modelsCacheGet).mockResolvedValue({
+      models: [{ value: "stale-model", displayName: "Stale model", description: "" }],
+      error: "cache unavailable",
+    });
+
+    useSessionCache(params as unknown as Parameters<typeof useSessionCache>[0]);
+    await Promise.resolve();
+
+    expect(params.setters.setCachedModels).not.toHaveBeenCalled();
+  });
 });

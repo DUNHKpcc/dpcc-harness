@@ -162,7 +162,7 @@ export function useSessionCache({
 
     window.claude.modelsCacheGet().then((result) => {
       if (cancelled) return;
-      if (result.models?.length) {
+      if (!result.error) {
         setCachedModels(result.models);
       }
     }).catch(() => { /* cache read is optional */ });
@@ -173,7 +173,7 @@ export function useSessionCache({
     const revalidateTimer = setTimeout(() => {
       window.claude.modelsCacheRevalidate(preferredCwd ? { cwd: preferredCwd } : undefined).then((result) => {
         if (cancelled) return;
-        if (result.models?.length) {
+        if (!result.error) {
           setCachedModels(result.models);
           return;
         }

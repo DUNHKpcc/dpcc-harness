@@ -312,7 +312,7 @@ export function useSessionSettings({
           status: toMcpStatusState(server.status),
         })));
       }
-      if (modelsResult.models?.length) {
+      if (!modelsResult.error) {
         setCachedModels(modelsResult.models);
       }
       return;
@@ -370,7 +370,7 @@ export function useSessionSettings({
           status: toMcpStatusState(server.status),
         })));
       }
-      if (modelsResult.models?.length) {
+      if (!modelsResult.error) {
         setCachedModels(modelsResult.models);
       }
       return;

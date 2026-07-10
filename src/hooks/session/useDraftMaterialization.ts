@@ -116,7 +116,7 @@ export function useDraftMaterialization({
 
       // Same pattern for models — fetch directly since system/init already fired
       const modelsResult = await window.claude.supportedModels(result.sessionId);
-      if (modelsResult.models?.length && preStartedSessionIdRef.current === result.sessionId) {
+      if (!modelsResult.error && preStartedSessionIdRef.current === result.sessionId) {
         setCachedModels(modelsResult.models);
       }
     } else {

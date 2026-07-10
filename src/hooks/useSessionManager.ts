@@ -725,7 +725,7 @@ export function useSessionManager(
       ? codex.codexModels
       : isACP
         ? []
-        : claude.supportedModels.length > 0 ? claude.supportedModels : cachedModels,
+        : claude.supportedModelsLoaded ? claude.supportedModels : cachedModels,
     cachedClaudeModels: cachedModels,
     restartWithMcpServers: isACP
       ? isDraft

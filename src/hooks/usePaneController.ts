@@ -130,14 +130,14 @@ export function usePaneController(
           : ctx.manager.codexRawModels.length > 0
             ? buildCodexModelCatalog(ctx.manager.codexRawModels)
             : buildPaneModelFallback(rawPaneModel))
-        : ensureCurrentClaudeModel(
-          paneState.claude.supportedModels.length > 0
-            ? paneState.claude.supportedModels
-            : ctx.manager.cachedClaudeModels.length > 0
+        : paneState.claude.supportedModelsLoaded
+          ? paneState.claude.supportedModels
+          : ensureCurrentClaudeModel(
+            ctx.manager.cachedClaudeModels.length > 0
               ? ctx.manager.cachedClaudeModels
               : buildPaneModelFallback(rawPaneModel),
-          rawPaneModel,
-        );
+            rawPaneModel,
+          );
     const paneModel = paneEngine === "claude"
       ? (canonicalizeModelValue(rawPaneModel, paneSupportedModels) ?? rawPaneModel)
       : rawPaneModel;

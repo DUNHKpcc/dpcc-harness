@@ -14,12 +14,14 @@ vi.mock("../upstream-models", () => ({
 }));
 
 import {
+  claudeUpstreamFingerprint,
   clearClaudeModelCatalogCache,
   resolveEffectiveClaudeModels,
 } from "../claude-model-catalog";
 import type { CachedModelInfo } from "../claude-model-cache";
 
 const defaultUpstream = (overrides: Partial<{
+  tier: "default" | "gateway" | "local";
   baseUrl: string;
   token: string;
   model: string;
@@ -60,6 +62,20 @@ describe("Claude DPCC model catalog", () => {
   afterEach(() => {
     vi.clearAllTimers();
     vi.useRealTimers();
+  });
+
+  it("uses an opaque fingerprint that includes source, credential, and model identity", () => {
+    const upstream = defaultUpstream({ token: "secret-token" });
+    const fingerprint = claudeUpstreamFingerprint(upstream);
+
+    expect(fingerprint).toMatch(/^[a-f0-9]{64}$/);
+    expect(fingerprint).not.toContain("secret-token");
+    expect(new Set([
+      fingerprint,
+      claudeUpstreamFingerprint(defaultUpstream({ tier: "gateway" })),
+      claudeUpstreamFingerprint(defaultUpstream({ token: "other-token" })),
+      claudeUpstreamFingerprint(defaultUpstream({ model: "claude-opus-4-6" })),
+    ]).size).toBe(4);
   });
 
   it("uses successful DPCC ids as the authoritative visible set", async () => {

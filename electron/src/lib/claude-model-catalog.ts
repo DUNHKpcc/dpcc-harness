@@ -25,6 +25,13 @@ function upstreamCacheKey(baseUrl: string, token: string): string {
   return crypto.createHash("sha256").update(`${baseUrl}\0${token}`).digest("hex");
 }
 
+/** Opaque identity for associating SDK metadata with its effective upstream. */
+export function claudeUpstreamFingerprint(upstream: ClaudeUpstream): string {
+  return crypto.createHash("sha256")
+    .update(`${upstream.tier}\0${upstream.baseUrl}\0${upstream.token}\0${upstream.model}`)
+    .digest("hex");
+}
+
 async function loadDpccModelIds(baseUrl: string, token: string): Promise<string[] | null> {
   const key = upstreamCacheKey(baseUrl, token);
   const cached = caches.get(key);
@@ -86,10 +93,7 @@ function findClaudeAlias(
 }
 
 function isSameClaudeUpstream(left: ClaudeUpstream, right: ClaudeUpstream): boolean {
-  return left.tier === right.tier
-    && left.baseUrl === right.baseUrl
-    && left.token === right.token
-    && left.model === right.model;
+  return claudeUpstreamFingerprint(left) === claudeUpstreamFingerprint(right);
 }
 
 function mergeClaudeModelsForUpstream(
@@ -145,14 +149,26 @@ export function clearClaudeModelCatalogCache(): void {
 /** Resolve the Claude picker catalog for the currently effective upstream. */
 export async function resolveEffectiveClaudeModels(
   sdkModels: CachedModelInfo[],
+  expectedUpstreamFingerprint?: string,
 ): Promise<CachedModelInfo[]> {
-  while (true) {
+  for (let attempt = 0; attempt < 2; attempt++) {
     const upstream = resolveClaudeUpstream();
+    if (expectedUpstreamFingerprint
+      && claudeUpstreamFingerprint(upstream) !== expectedUpstreamFingerprint) {
+      return [];
+    }
     if (upstream.tier !== "default") return sdkModels;
 
     const modelIds = await loadDpccModelIds(upstream.baseUrl, upstream.token);
-    if (!isSameClaudeUpstream(upstream, resolveClaudeUpstream())) continue;
+    const currentUpstream = resolveClaudeUpstream();
+    if (expectedUpstreamFingerprint
+      && claudeUpstreamFingerprint(currentUpstream) !== expectedUpstreamFingerprint) {
+      return [];
+    }
+    if (!isSameClaudeUpstream(upstream, currentUpstream)) continue;
     if (modelIds === null) return sdkModels;
     return mergeClaudeModelsForUpstream(sdkModels, modelIds, upstream.model);
   }
+
+  return [];
 }

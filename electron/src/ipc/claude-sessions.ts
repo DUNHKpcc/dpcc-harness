@@ -10,7 +10,9 @@ import type { PermissionMode, SDKUserMessage } from "@anthropic-ai/claude-agent-
 import type { QueryHandle } from "../lib/sdk";
 import { getMcpAuthHeaders } from "../lib/mcp-oauth-flow";
 import { getClaudeModelsCache, setClaudeModelsCache } from "../lib/claude-model-cache";
-import { resolveEffectiveClaudeModels } from "../lib/claude-model-catalog";
+import type { CachedModelInfo } from "../lib/claude-model-cache";
+import { claudeUpstreamFingerprint, resolveEffectiveClaudeModels } from "../lib/claude-model-catalog";
+import { resolveClaudeUpstream } from "../lib/upstream-resolver";
 import { reportError } from "../lib/error-utils";
 import { buildSdkMcpConfig } from "@shared/lib/mcp-config";
 import type { McpServerInput } from "@shared/lib/mcp-config";
@@ -441,14 +443,45 @@ function logSdkCliPath(context: string, cliPath?: string): void {
 type ClaudeModelsCacheResult = ReturnType<typeof getClaudeModelsCache> & { error?: string };
 
 let modelsRevalidationPromise: Promise<ClaudeModelsCacheResult> | null = null;
+const rawModelsByUpstream = new Map<string, CachedModelInfo[]>();
+
+function currentClaudeUpstreamFingerprint(): string {
+  return claudeUpstreamFingerprint(resolveClaudeUpstream());
+}
+
+function currentRawClaudeModels(): CachedModelInfo[] {
+  return rawModelsByUpstream.get(currentClaudeUpstreamFingerprint()) ?? [];
+}
+
+function persistRawClaudeModels(
+  models: CachedModelInfo[],
+  upstreamFingerprint: string,
+): ReturnType<typeof setClaudeModelsCache> {
+  const next = setClaudeModelsCache(models);
+  rawModelsByUpstream.set(upstreamFingerprint, next.models);
+  return next;
+}
+
+async function resolveCurrentEffectiveClaudeModels(): Promise<CachedModelInfo[]> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const upstreamFingerprint = currentClaudeUpstreamFingerprint();
+    const models = await resolveEffectiveClaudeModels(
+      rawModelsByUpstream.get(upstreamFingerprint) ?? [],
+      upstreamFingerprint,
+    );
+    if (upstreamFingerprint === currentClaudeUpstreamFingerprint()) return models;
+  }
+  return [];
+}
 
 async function resolveEffectiveClaudeModelsCache(
   result: ClaudeModelsCacheResult,
 ): Promise<ClaudeModelsCacheResult> {
   try {
+    const upstreamFingerprint = currentClaudeUpstreamFingerprint();
     return {
       ...result,
-      models: await resolveEffectiveClaudeModels(result.models),
+      models: await resolveEffectiveClaudeModels(result.models, upstreamFingerprint),
     };
   } catch (err) {
     const resolverError = reportError("CLAUDE_MODEL_CATALOG_RESOLVE_ERR", err, { engine: "claude" });
@@ -526,15 +559,20 @@ async function revalidateRawClaudeModelsCache(cwd?: string): Promise<ClaudeModel
           return { models: existing.models, updatedAt: existing.updatedAt };
         }
 
+        const supportedModelsUpstream = currentClaudeUpstreamFingerprint();
         const models = await queryHandle.supportedModels();
         if (Array.isArray(models)) {
+          if (supportedModelsUpstream !== currentClaudeUpstreamFingerprint()) {
+            return { models: currentRawClaudeModels(), updatedAt: existing.updatedAt };
+          }
           if (models.length > 0) {
-            const next = setClaudeModelsCache(models);
+            const next = persistRawClaudeModels(models, supportedModelsUpstream);
             if (index > 0) {
               log("MODELS_CACHE_REVALIDATE_FALLBACK", `Recovered via ${attempt.label}`);
             }
             return { models: next.models, updatedAt: next.updatedAt };
           }
+          rawModelsByUpstream.set(supportedModelsUpstream, []);
           return { models: [], updatedAt: existing.updatedAt };
         }
 
@@ -1136,13 +1174,20 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     const session = sessions.get(sessionId);
     let rawModels: ClaudeModelsCacheResult["models"] = [];
     try {
+      const supportedModelsUpstream = currentClaudeUpstreamFingerprint();
       const models = session?.queryHandle?.supportedModels
         ? await session.queryHandle.supportedModels()
         : [];
-      rawModels = Array.isArray(models) && models.length > 0
-        ? setClaudeModelsCache(models).models
-        : [];
-      return { models: await resolveEffectiveClaudeModels(rawModels) };
+      if (supportedModelsUpstream !== currentClaudeUpstreamFingerprint()) {
+        return { models: await resolveCurrentEffectiveClaudeModels() };
+      }
+      if (Array.isArray(models)) {
+        rawModels = models.length > 0
+          ? persistRawClaudeModels(models, supportedModelsUpstream).models
+          : [];
+        rawModelsByUpstream.set(supportedModelsUpstream, rawModels);
+      }
+      return { models: await resolveEffectiveClaudeModels(rawModels, supportedModelsUpstream) };
     } catch (err) {
       const errMsg = reportError("SUPPORTED_MODELS_ERR", err, { engine: "claude", sessionId });
       return { models: rawModels, error: errMsg };

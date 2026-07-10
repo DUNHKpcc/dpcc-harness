@@ -73,15 +73,47 @@ describe("sdk path resolution", () => {
     );
   });
 
-  it("prefers embed resolution when the candidate exists", async () => {
-    const embedEntry = require.resolve("@anthropic-ai/claude-agent-sdk/embed");
-    const embedCliPath = path.join(path.dirname(embedEntry), "cli.js");
-    mockExistsSync.mockImplementation((candidate: unknown) => candidate === embedCliPath);
+  it("maps supported targets to the latest SDK native packages", async () => {
+    const mod = await loadSdkModule();
+
+    expect(mod.nativeSdkPackageForTarget("darwin", "arm64")).toEqual({
+      packageName: "@anthropic-ai/claude-agent-sdk-darwin-arm64",
+      binaryName: "claude",
+    });
+    expect(mod.nativeSdkPackageForTarget("win32", "x64")).toEqual({
+      packageName: "@anthropic-ai/claude-agent-sdk-win32-x64",
+      binaryName: "claude.exe",
+    });
+  });
+
+  it("maps packaged native binaries to app.asar.unpacked", async () => {
+    const mod = await loadSdkModule();
+
+    expect(mod.resolveNativeCliPathFromPackageJson(
+      "/Applications/PccAgent.app/Contents/Resources/app.asar/node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/package.json",
+      "claude",
+      true,
+    )).toBe(
+      "/Applications/PccAgent.app/Contents/Resources/app.asar.unpacked/node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64/claude",
+    );
+  });
+
+  it("prefers the target native SDK binary when it exists", async () => {
+    const sdkEntry = require.resolve("@anthropic-ai/claude-agent-sdk");
+    const target = process.platform === "win32"
+      ? `@anthropic-ai/claude-agent-sdk-win32-${process.arch}`
+      : `@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}`;
+    const packageJsonPath = require.resolve(`${target}/package.json`, {
+      paths: [path.dirname(sdkEntry)],
+    });
+    const binaryName = process.platform === "win32" ? "claude.exe" : "claude";
+    const nativePath = path.join(path.dirname(packageJsonPath), binaryName);
+    mockExistsSync.mockImplementation((candidate: unknown) => candidate === nativePath);
 
     const mod = await loadSdkModule();
 
-    expect(mod.getCliPath()).toBe(embedCliPath);
-    expect(mockLog).toHaveBeenCalledWith("CLI_PATH_SELECTED", `strategy=embed path=${embedCliPath}`);
+    expect(mod.getCliPath()).toBe(nativePath);
+    expect(mockLog).toHaveBeenCalledWith("CLI_PATH_SELECTED", `strategy=native path=${nativePath}`);
   });
 
   it("falls back to package entry resolution when embed resolution is unavailable", async () => {

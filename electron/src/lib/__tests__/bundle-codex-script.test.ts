@@ -28,6 +28,12 @@ describe("bundle-codex script", () => {
     expect(codexTagForTriple("aarch64-pc-windows-msvc")).toBe("win32-arm64");
   });
 
+  it("refreshes requested vendor triples instead of retaining a stale SDK bundle", () => {
+    const script = fs.readFileSync(path.resolve(__dirname, "../../../../scripts/bundle-codex.js"), "utf8");
+
+    expect(script).not.toContain("already bundled, skipping");
+  });
+
   it("removes stale vendor triples that were not requested for this build", async () => {
     const { pruneForeignTriples } = await import("../../../../scripts/bundle-codex.js");
     const outputDir = makeVendorDir(

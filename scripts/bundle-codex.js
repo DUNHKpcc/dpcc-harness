@@ -17,9 +17,9 @@
 //   node scripts/bundle-codex.js --triples <a>,<b>     # explicit triples
 //   TARGET_TRIPLES=<a>,<b> node scripts/bundle-codex.js
 //
-// Each run prunes stale output triples that were not requested. This keeps
-// build/codex-vendor aligned with the current packaging target and avoids
-// copying old platform binaries into electron-builder's staging area.
+// Each run refreshes requested triples from their moving platform dist-tags,
+// then prunes triples that were not requested. This keeps release artifacts on
+// the latest Codex SDK instead of reusing a stale local vendor directory.
 //
 // Triples: aarch64-apple-darwin, x86_64-apple-darwin,
 //          x86_64-pc-windows-msvc, aarch64-pc-windows-msvc,
@@ -90,11 +90,6 @@ function bundleTriple(triple) {
   if (!tag) throw new Error(`Unknown Codex target triple: ${triple}`);
 
   const destDir = path.join(OUTPUT_DIR, triple);
-  if (fs.existsSync(path.join(destDir, "bin"))) {
-    console.log(`  • ${triple}: already bundled, skipping`);
-    return;
-  }
-
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `codex-bundle-${tag}-`));
   try {
     const spec = `@openai/codex@${tag}`;

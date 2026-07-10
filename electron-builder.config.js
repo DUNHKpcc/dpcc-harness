@@ -81,6 +81,49 @@ function stripForeignPortableGitResources(resourcesDir, context) {
   }
 }
 
+function claudeSdkPackageForBuild(platformName, archEnum) {
+  const platform = platformName === "mas" ? "darwin" : platformName;
+  const arch = archEnum === 3 ? "arm64" : archEnum === 1 ? "x64" : null;
+  if (!arch || !["darwin", "win32", "linux"].includes(platform)) return null;
+  return `claude-agent-sdk-${platform}-${arch}`;
+}
+
+function stripForeignClaudeSdkPackages(resourcesDir, context) {
+  const scopeDir = path.join(resourcesDir, "app.asar.unpacked", "node_modules", "@anthropic-ai");
+  if (!fs.existsSync(scopeDir)) return;
+
+  const wantPackage = claudeSdkPackageForBuild(context.electronPlatformName, context.arch);
+  if (!wantPackage) return;
+
+  for (const entry of fs.readdirSync(scopeDir)) {
+    if (entry.startsWith("claude-agent-sdk-") && entry !== wantPackage) {
+      console.log(`  • afterPack: stripping non-target Claude SDK package ${entry}`);
+      fs.rmSync(path.join(scopeDir, entry), { recursive: true, force: true });
+    }
+  }
+}
+
+function pruneClaudeSdkPackagesFromAsarTemp(tmpDir, context) {
+  const scopeDir = path.join(tmpDir, "node_modules", "@anthropic-ai");
+  if (!fs.existsSync(scopeDir)) return;
+
+  const wantPackage = claudeSdkPackageForBuild(context.electronPlatformName, context.arch);
+  if (!wantPackage) return;
+  const binaryName = context.electronPlatformName === "win32" ? "claude.exe" : "claude";
+
+  for (const entry of fs.readdirSync(scopeDir)) {
+    if (!entry.startsWith("claude-agent-sdk-")) continue;
+    const packageDir = path.join(scopeDir, entry);
+    if (entry !== wantPackage) {
+      fs.rmSync(packageDir, { recursive: true, force: true });
+      continue;
+    }
+    // Keep package.json in ASAR so Node can resolve the package, while the
+    // executable remains only in app.asar.unpacked where spawn() can use it.
+    fs.rmSync(path.join(packageDir, binaryName), { force: true });
+  }
+}
+
 function extraResourcesConfig() {
   const resources = [
     {
@@ -111,13 +154,17 @@ async function afterPackHook(context) {
   stripForeignPortableGitResources(resourcesDir, context);
 
   const asarPath = path.join(resourcesDir, "app.asar");
-  if (!fs.existsSync(asarPath)) return;
+  if (!fs.existsSync(asarPath)) {
+    stripForeignClaudeSdkPackages(resourcesDir, context);
+    return;
+  }
 
   // @electron/asar is a transitive dep of electron-builder, always available
   const asar = require("@electron/asar");
   const tmpDir = path.join(resourcesDir, "_asar_tmp");
 
   console.log("  \u2022 afterPack: extracting asar to strip bloat...");
+  fs.rmSync(tmpDir, { recursive: true, force: true });
   asar.extractAll(asarPath, tmpDir);
 
   // Remove everything not in the whitelist
@@ -138,10 +185,13 @@ async function afterPackHook(context) {
     }
   }
 
+  pruneClaudeSdkPackagesFromAsarTemp(tmpDir, context);
+
   console.log("  \u2022 afterPack: repacking asar...");
   fs.rmSync(asarPath, { force: true });
   await asar.createPackage(tmpDir, asarPath);
   fs.rmSync(tmpDir, { recursive: true, force: true });
+  stripForeignClaudeSdkPackages(resourcesDir, context);
 
   // Log final size for visibility
   const finalSize = fs.statSync(asarPath).size;
@@ -184,9 +234,7 @@ module.exports = {
   asarUnpack: [
     "node_modules/node-pty/**",
     "node_modules/electron-liquid-glass/**",
-    "node_modules/@anthropic-ai/claude-agent-sdk/cli.js",
-    "node_modules/@anthropic-ai/claude-agent-sdk/*.wasm",
-    "node_modules/@anthropic-ai/claude-agent-sdk/vendor/**",
+    "node_modules/@anthropic-ai/claude-agent-sdk-*/claude*",
     "node_modules/@anthropic-ai/claude-agent-sdk/manifest*.json",
   ],
 
@@ -240,10 +288,6 @@ module.exports = {
     icon: "build/icon.ico",
     files: [
       "!node_modules/electron-liquid-glass/**",
-      "!node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep/arm64-darwin/**",
-      "!node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep/x64-darwin/**",
-      "!node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep/arm64-linux/**",
-      "!node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep/x64-linux/**",
       "!node_modules/node-pty/prebuilds/darwin-*/**",
       "!node_modules/node-pty/prebuilds/linux-*/**",
     ],
@@ -268,10 +312,6 @@ module.exports = {
     icon: "build/icon.png",
     files: [
       "!node_modules/electron-liquid-glass/**",
-      "!node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep/arm64-darwin/**",
-      "!node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep/x64-darwin/**",
-      "!node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep/arm64-win32/**",
-      "!node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep/x64-win32/**",
       "!node_modules/node-pty/prebuilds/darwin-*/**",
       "!node_modules/node-pty/prebuilds/win32-*/**",
     ],
@@ -299,6 +339,9 @@ if (process.env.NODE_ENV === "test" || process.env.VITEST) {
       stripForeignCodexTriples,
       portableGitTargetForBuild,
       stripForeignPortableGitResources,
+      claudeSdkPackageForBuild,
+      stripForeignClaudeSdkPackages,
+      pruneClaudeSdkPackagesFromAsarTemp,
       extraResourcesConfig,
       shouldRebuildNativeDeps,
     },

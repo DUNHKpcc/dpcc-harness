@@ -26,6 +26,29 @@ function makePortableGitResourcesDir(...targets: string[]): string {
   return root;
 }
 
+function makeClaudeSdkResourcesDir(...packages: string[]): string {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "builder-config-test-"));
+  tempDirs.push(root);
+  const scopeDir = path.join(root, "app.asar.unpacked", "node_modules", "@anthropic-ai");
+  for (const packageName of packages) {
+    fs.mkdirSync(path.join(scopeDir, packageName), { recursive: true });
+    fs.writeFileSync(path.join(scopeDir, packageName, packageName.includes("win32") ? "claude.exe" : "claude"), "binary");
+  }
+  return root;
+}
+
+function makeClaudeSdkAsarTemp(...packages: string[]): string {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "builder-config-test-"));
+  tempDirs.push(root);
+  const scopeDir = path.join(root, "node_modules", "@anthropic-ai");
+  for (const packageName of packages) {
+    fs.mkdirSync(path.join(scopeDir, packageName), { recursive: true });
+    fs.writeFileSync(path.join(scopeDir, packageName, "package.json"), "{}");
+    fs.writeFileSync(path.join(scopeDir, packageName, packageName.includes("win32") ? "claude.exe" : "claude"), "binary");
+  }
+  return root;
+}
+
 afterEach(() => {
   for (const dir of tempDirs.splice(0)) {
     fs.rmSync(dir, { recursive: true, force: true });
@@ -33,6 +56,31 @@ afterEach(() => {
 });
 
 describe("electron-builder config", () => {
+  it("declares every latest Claude SDK native package for electron-builder discovery", () => {
+    const packageJson = JSON.parse(fs.readFileSync(
+      path.resolve(__dirname, "../../../../package.json"),
+      "utf8",
+    )) as {
+      dependencies: Record<string, string>;
+      optionalDependencies?: Record<string, string>;
+    };
+    const sdkVersion = packageJson.dependencies["@anthropic-ai/claude-agent-sdk"].replace(/^\^/, "");
+    const expectedPackages = [
+      "darwin-arm64",
+      "darwin-x64",
+      "linux-arm64",
+      "linux-arm64-musl",
+      "linux-x64",
+      "linux-x64-musl",
+      "win32-arm64",
+      "win32-x64",
+    ].map((target) => `@anthropic-ai/claude-agent-sdk-${target}`);
+
+    expect(packageJson.optionalDependencies).toMatchObject(Object.fromEntries(
+      expectedPackages.map((packageName) => [packageName, sdkVersion]),
+    ));
+  });
+
   it("does not expose test helpers in production config loads", () => {
     const script = [
       "process.env.NODE_ENV = 'production';",
@@ -118,6 +166,63 @@ describe("electron-builder config", () => {
     expect(fs.readdirSync(path.join(resourcesDir, "portable-git")).sort()).toEqual([
       "win32-x64",
     ]);
+  });
+
+  it("unpacks the latest platform-package Claude SDK binary instead of legacy cli.js", async () => {
+    const config = await import("../../../../electron-builder.config.js");
+
+    expect(config.default.asarUnpack).toContain("node_modules/@anthropic-ai/claude-agent-sdk-*/claude*");
+    expect(config.default.asarUnpack).not.toContain("node_modules/@anthropic-ai/claude-agent-sdk/cli.js");
+    expect(config.default.asarUnpack).not.toContain("node_modules/@anthropic-ai/claude-agent-sdk/vendor/**");
+  });
+
+  it("keeps only the target Claude SDK native package in each packed app", async () => {
+    const config = await import("../../../../electron-builder.config.js");
+    const resourcesDir = makeClaudeSdkResourcesDir(
+      "claude-agent-sdk-darwin-arm64",
+      "claude-agent-sdk-darwin-x64",
+      "claude-agent-sdk-win32-x64",
+    );
+
+    config.__test.stripForeignClaudeSdkPackages(resourcesDir, {
+      electronPlatformName: "darwin",
+      arch: 3,
+    });
+
+    expect(fs.readdirSync(path.join(
+      resourcesDir,
+      "app.asar.unpacked",
+      "node_modules",
+      "@anthropic-ai",
+    ))).toEqual(["claude-agent-sdk-darwin-arm64"]);
+  });
+
+  it("keeps target metadata but excludes native binaries from the repacked asar", async () => {
+    const config = await import("../../../../electron-builder.config.js");
+    const tempDir = makeClaudeSdkAsarTemp(
+      "claude-agent-sdk-darwin-arm64",
+      "claude-agent-sdk-darwin-x64",
+    );
+
+    config.__test.pruneClaudeSdkPackagesFromAsarTemp(tempDir, {
+      electronPlatformName: "darwin",
+      arch: 3,
+    });
+
+    const targetDir = path.join(
+      tempDir,
+      "node_modules",
+      "@anthropic-ai",
+      "claude-agent-sdk-darwin-arm64",
+    );
+    expect(fs.existsSync(path.join(targetDir, "package.json"))).toBe(true);
+    expect(fs.existsSync(path.join(targetDir, "claude"))).toBe(false);
+    expect(fs.existsSync(path.join(
+      tempDir,
+      "node_modules",
+      "@anthropic-ai",
+      "claude-agent-sdk-darwin-x64",
+    ))).toBe(false);
   });
 
   it("removes PortableGit from non-Windows packages", async () => {

@@ -37,6 +37,7 @@ import { createSystemMessage, createUserMessage, formatResultError, nextId } fro
 import { bgAgentStore } from "../lib/background/agent-store";
 import { suppressNextSessionCompletion } from "../lib/notification-utils";
 import { advancePermissionQueue, enqueuePermissionRequest } from "../lib/engine/permission-queue";
+import { isClaudeModelRequestCurrent } from "../lib/engine/claude-model-request";
 import { normalizeTodoToolInput } from "../lib/chat/todo-utils";
 import { markInFlightToolCallsFailed } from "../lib/chat/in-flight-tools";
 import { capture } from "../lib/analytics/analytics";
@@ -88,6 +89,7 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
   const permissionResponseInFlight = useRef(false);
   const respondingPermissionIds = useRef<Set<string>>(new Set());
   const completedPermissionIds = useRef<Set<string>>(new Set());
+  const supportedModelsRequestGeneration = useRef(0);
   const upstreamRequestCountRef = useRef(upstreamRequestCount);
   upstreamRequestCountRef.current = upstreamRequestCount;
   // Throttle timer for thinking-only flushes (invisible content → 250ms instead of 60fps)
@@ -97,6 +99,7 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
 
   // Engine-specific reset — runs after base reset via the same sessionId dependency
   useEffect(() => {
+    supportedModelsRequestGeneration.current += 1;
     setSupportedModels([]);
     setSupportedModelsLoaded(false);
     buffer.current.reset();
@@ -351,8 +354,15 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
           {
             const modelsSid = sessionIdRef.current;
             if (modelsSid) {
+              const modelsGeneration = ++supportedModelsRequestGeneration.current;
               window.claude.supportedModels(modelsSid).then((result) => {
-                if (!result.error) {
+                if (!result.error && isClaudeModelRequestCurrent(
+                  { sessionId: modelsSid, generation: modelsGeneration },
+                  {
+                    sessionId: sessionIdRef.current,
+                    generation: supportedModelsRequestGeneration.current,
+                  },
+                )) {
                   setSupportedModels(result.models);
                   setSupportedModelsLoaded(true);
                 }

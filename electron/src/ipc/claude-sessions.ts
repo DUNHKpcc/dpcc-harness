@@ -11,8 +11,12 @@ import type { QueryHandle } from "../lib/sdk";
 import { getMcpAuthHeaders } from "../lib/mcp-oauth-flow";
 import { getClaudeModelsCache, setClaudeModelsCache } from "../lib/claude-model-cache";
 import type { CachedModelInfo } from "../lib/claude-model-cache";
-import { claudeUpstreamFingerprint, resolveEffectiveClaudeModels } from "../lib/claude-model-catalog";
+import {
+  claudeUpstreamFingerprint,
+  resolveEffectiveClaudeModelsResult,
+} from "../lib/claude-model-catalog";
 import { resolveClaudeUpstream } from "../lib/upstream-resolver";
+import type { ClaudeUpstream } from "../lib/upstream-resolver";
 import { reportError } from "../lib/error-utils";
 import { buildSdkMcpConfig } from "@shared/lib/mcp-config";
 import type { McpServerInput } from "@shared/lib/mcp-config";
@@ -440,21 +444,49 @@ function logSdkCliPath(context: string, cliPath?: string): void {
   log("SDK_CLI_PATH", `${context} unresolved; relying on SDK fallback`);
 }
 
-type ClaudeModelsCacheResult = ReturnType<typeof getClaudeModelsCache> & { error?: string };
+type ClaudeModelsCacheResult = ReturnType<typeof getClaudeModelsCache> & {
+  authoritative: boolean;
+  stale?: boolean;
+  error?: string;
+};
 
-let modelsRevalidationPromise: Promise<ClaudeModelsCacheResult> | null = null;
+type RawClaudeModelsCacheResult = ReturnType<typeof getClaudeModelsCache> & {
+  sourceFingerprint: string;
+  stale?: boolean;
+  error?: string;
+};
+
+type ClaudeModelsCacheInput = ReturnType<typeof getClaudeModelsCache> & {
+  sourceFingerprint?: string;
+  stale?: boolean;
+  error?: string;
+};
+
+let modelsRevalidationPromise: Promise<RawClaudeModelsCacheResult> | null = null;
 const rawModelsByUpstream = new Map<string, CachedModelInfo[]>();
 
-function currentClaudeUpstreamFingerprint(): string {
-  return claudeUpstreamFingerprint(resolveClaudeUpstream());
+function currentClaudeUpstream(): { upstream: ClaudeUpstream; fingerprint: string } {
+  const upstream = resolveClaudeUpstream();
+  return { upstream, fingerprint: claudeUpstreamFingerprint(upstream) };
 }
 
-function currentRawClaudeModels(): CachedModelInfo[] {
-  return rawModelsByUpstream.get(currentClaudeUpstreamFingerprint()) ?? [];
+function currentClaudeUpstreamFingerprint(): string {
+  return currentClaudeUpstream().fingerprint;
+}
+
+function rawClaudeModelsForUpstream(
+  upstreamFingerprint: string,
+  fallback: CachedModelInfo[] = [],
+): CachedModelInfo[] {
+  return rawModelsByUpstream.get(upstreamFingerprint) ?? fallback;
+}
+
+function currentRawClaudeModels(fallback: CachedModelInfo[] = []): CachedModelInfo[] {
+  return rawClaudeModelsForUpstream(currentClaudeUpstreamFingerprint(), fallback);
 }
 
 function persistRawClaudeModels(
-  models: CachedModelInfo[],
+  models: unknown,
   upstreamFingerprint: string,
 ): ReturnType<typeof setClaudeModelsCache> {
   const next = setClaudeModelsCache(models);
@@ -462,41 +494,49 @@ function persistRawClaudeModels(
   return next;
 }
 
-async function resolveCurrentEffectiveClaudeModels(): Promise<CachedModelInfo[]> {
+async function resolveCurrentEffectiveClaudeModels(): Promise<{
+  models: CachedModelInfo[];
+  authoritative: boolean;
+  stale?: boolean;
+}> {
   for (let attempt = 0; attempt < 2; attempt++) {
     const upstreamFingerprint = currentClaudeUpstreamFingerprint();
-    const models = await resolveEffectiveClaudeModels(
-      rawModelsByUpstream.get(upstreamFingerprint) ?? [],
+    const result = await resolveEffectiveClaudeModelsResult(
+      rawClaudeModelsForUpstream(upstreamFingerprint),
       upstreamFingerprint,
     );
-    if (upstreamFingerprint === currentClaudeUpstreamFingerprint()) return models;
+    if (upstreamFingerprint === currentClaudeUpstreamFingerprint()) return result;
   }
-  return [];
+  return { models: [], authoritative: false, stale: true };
 }
 
 async function resolveEffectiveClaudeModelsCache(
-  result: ClaudeModelsCacheResult,
+  result: ClaudeModelsCacheInput,
 ): Promise<ClaudeModelsCacheResult> {
+  const { sourceFingerprint: _sourceFingerprint, stale: _stale, ...cache } = result;
   try {
     const upstreamFingerprint = currentClaudeUpstreamFingerprint();
+    const catalog = await resolveEffectiveClaudeModelsResult(cache.models, upstreamFingerprint);
     return {
-      ...result,
-      models: await resolveEffectiveClaudeModels(result.models, upstreamFingerprint),
+      ...cache,
+      ...catalog,
     };
   } catch (err) {
     const resolverError = reportError("CLAUDE_MODEL_CATALOG_RESOLVE_ERR", err, { engine: "claude" });
     return {
-      ...result,
-      error: result.error ?? resolverError,
+      ...cache,
+      authoritative: false,
+      error: cache.error ?? resolverError,
     };
   }
 }
 
-async function revalidateRawClaudeModelsCache(cwd?: string): Promise<ClaudeModelsCacheResult> {
+async function revalidateRawClaudeModelsCache(cwd?: string): Promise<RawClaudeModelsCacheResult> {
   if (modelsRevalidationPromise) return modelsRevalidationPromise;
 
   modelsRevalidationPromise = (async () => {
     const existing = getClaudeModelsCache();
+    const initialSource = currentClaudeUpstream();
     const query = await getSDK();
     const binary = getClaudeBinaryMetadata({ installIfMissing: false, allowSdkFallback: true });
     const sdkCliPath = getCliPath();
@@ -556,27 +596,39 @@ async function revalidateRawClaudeModelsCache(cwd?: string): Promise<ClaudeModel
 
         queryHandle = query({ prompt: channel, options: queryOptions });
         if (!queryHandle.supportedModels) {
-          return { models: existing.models, updatedAt: existing.updatedAt };
+          return { ...existing, sourceFingerprint: initialSource.fingerprint };
         }
 
-        const supportedModelsUpstream = currentClaudeUpstreamFingerprint();
+        const supportedModelsSource = currentClaudeUpstream();
         const models = await queryHandle.supportedModels();
         if (Array.isArray(models)) {
-          if (supportedModelsUpstream !== currentClaudeUpstreamFingerprint()) {
-            return { models: currentRawClaudeModels(), updatedAt: existing.updatedAt };
+          if (supportedModelsSource.fingerprint !== currentClaudeUpstreamFingerprint()) {
+            return {
+              models: currentRawClaudeModels(existing.models),
+              updatedAt: existing.updatedAt,
+              sourceFingerprint: supportedModelsSource.fingerprint,
+              stale: true,
+            };
           }
           if (models.length > 0) {
-            const next = persistRawClaudeModels(models, supportedModelsUpstream);
+            const next = persistRawClaudeModels(models, supportedModelsSource.fingerprint);
             if (index > 0) {
               log("MODELS_CACHE_REVALIDATE_FALLBACK", `Recovered via ${attempt.label}`);
             }
-            return { models: next.models, updatedAt: next.updatedAt };
+            return { ...next, sourceFingerprint: supportedModelsSource.fingerprint };
           }
-          rawModelsByUpstream.set(supportedModelsUpstream, []);
-          return { models: [], updatedAt: existing.updatedAt };
+          const fallbackModels = supportedModelsSource.upstream.tier === "default"
+            ? []
+            : rawClaudeModelsForUpstream(supportedModelsSource.fingerprint, existing.models);
+          rawModelsByUpstream.set(supportedModelsSource.fingerprint, fallbackModels);
+          return {
+            models: fallbackModels,
+            updatedAt: existing.updatedAt,
+            sourceFingerprint: supportedModelsSource.fingerprint,
+          };
         }
 
-        return { models: existing.models, updatedAt: existing.updatedAt };
+        return { ...existing, sourceFingerprint: supportedModelsSource.fingerprint };
       } catch (err) {
         lastError = reportError("MODELS_CACHE_REVALIDATE_ERR", err, {
           engine: "claude",
@@ -584,7 +636,7 @@ async function revalidateRawClaudeModelsCache(cwd?: string): Promise<ClaudeModel
           cliStrategy: attempt.label,
         });
         if (index === attempts.length - 1) {
-          return { models: existing.models, updatedAt: existing.updatedAt, error: lastError };
+          return { ...existing, sourceFingerprint: initialSource.fingerprint, error: lastError };
         }
       } finally {
         channel.close();
@@ -598,11 +650,15 @@ async function revalidateRawClaudeModelsCache(cwd?: string): Promise<ClaudeModel
       }
     }
 
-    return { models: existing.models, updatedAt: existing.updatedAt, error: lastError || "Failed to load Claude models" };
+    return {
+      ...existing,
+      sourceFingerprint: initialSource.fingerprint,
+      error: lastError || "Failed to load Claude models",
+    };
   })().catch((err) => {
     const message = reportError("MODELS_CACHE_REVALIDATE_ERR", err, { engine: "claude" });
     const existing = getClaudeModelsCache();
-    return { models: existing.models, updatedAt: existing.updatedAt, error: message };
+    return { ...existing, sourceFingerprint: currentClaudeUpstreamFingerprint(), error: message };
   }).finally(() => {
     modelsRevalidationPromise = null;
   });
@@ -611,7 +667,11 @@ async function revalidateRawClaudeModelsCache(cwd?: string): Promise<ClaudeModel
 }
 
 async function revalidateClaudeModelsCache(cwd?: string): Promise<ClaudeModelsCacheResult> {
-  return resolveEffectiveClaudeModelsCache(await revalidateRawClaudeModelsCache(cwd));
+  let result = await revalidateRawClaudeModelsCache(cwd);
+  if (result.stale || result.sourceFingerprint !== currentClaudeUpstreamFingerprint()) {
+    result = await revalidateRawClaudeModelsCache(cwd);
+  }
+  return resolveEffectiveClaudeModelsCache(result);
 }
 
 /** Shared MCP config options — injects auth header resolution and diagnostic logging. */
@@ -1174,23 +1234,25 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     const session = sessions.get(sessionId);
     let rawModels: ClaudeModelsCacheResult["models"] = [];
     try {
-      const supportedModelsUpstream = currentClaudeUpstreamFingerprint();
+      const supportedModelsSource = currentClaudeUpstream();
       const models = session?.queryHandle?.supportedModels
         ? await session.queryHandle.supportedModels()
         : [];
-      if (supportedModelsUpstream !== currentClaudeUpstreamFingerprint()) {
-        return { models: await resolveCurrentEffectiveClaudeModels() };
+      if (supportedModelsSource.fingerprint !== currentClaudeUpstreamFingerprint()) {
+        return await resolveCurrentEffectiveClaudeModels();
       }
       if (Array.isArray(models)) {
         rawModels = models.length > 0
-          ? persistRawClaudeModels(models, supportedModelsUpstream).models
-          : [];
-        rawModelsByUpstream.set(supportedModelsUpstream, rawModels);
+          ? persistRawClaudeModels(models, supportedModelsSource.fingerprint).models
+          : supportedModelsSource.upstream.tier === "default"
+            ? []
+            : rawClaudeModelsForUpstream(supportedModelsSource.fingerprint, getClaudeModelsCache().models);
+        rawModelsByUpstream.set(supportedModelsSource.fingerprint, rawModels);
       }
-      return { models: await resolveEffectiveClaudeModels(rawModels, supportedModelsUpstream) };
+      return await resolveEffectiveClaudeModelsResult(rawModels, supportedModelsSource.fingerprint);
     } catch (err) {
       const errMsg = reportError("SUPPORTED_MODELS_ERR", err, { engine: "claude", sessionId });
-      return { models: rawModels, error: errMsg };
+      return { models: rawModels, authoritative: false, error: errMsg };
     }
   });
 

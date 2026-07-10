@@ -17,6 +17,7 @@ import {
   claudeUpstreamFingerprint,
   clearClaudeModelCatalogCache,
   resolveEffectiveClaudeModels,
+  resolveEffectiveClaudeModelsResult,
 } from "../claude-model-catalog";
 import type { CachedModelInfo } from "../claude-model-cache";
 
@@ -328,6 +329,24 @@ describe("Claude DPCC model catalog", () => {
     await expect(resolveEffectiveClaudeModels(sdkModels)).resolves.toEqual([]);
   });
 
+  it("marks a successful empty DPCC catalog as authoritative in the resolver result", async () => {
+    mocks.fetchUpstreamModels.mockResolvedValue({ models: [], error: null });
+
+    await expect(resolveEffectiveClaudeModelsResult(sdkModels)).resolves.toEqual({
+      models: [],
+      authoritative: true,
+    });
+  });
+
+  it("marks a failed DPCC request that falls back to SDK metadata as non-authoritative", async () => {
+    mocks.fetchUpstreamModels.mockResolvedValue({ models: [], error: "unavailable" });
+
+    await expect(resolveEffectiveClaudeModelsResult(sdkModels)).resolves.toEqual({
+      models: sdkModels,
+      authoritative: false,
+    });
+  });
+
   it("caches a successful catalog for 60 seconds", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(0));
@@ -469,5 +488,34 @@ describe("Claude DPCC model catalog", () => {
 
     expect(result).toBe(sdkModels);
     expect(mocks.fetchUpstreamModels).not.toHaveBeenCalled();
+  });
+
+  it.each(["local", "gateway"] as const)("marks an empty SDK catalog as non-authoritative for %s sources", async (tier) => {
+    mocks.resolveClaudeUpstream.mockReturnValue({ ...defaultUpstream(), tier });
+
+    await expect(resolveEffectiveClaudeModelsResult([])).resolves.toEqual({
+      models: [],
+      authoritative: false,
+    });
+    expect(mocks.fetchUpstreamModels).not.toHaveBeenCalled();
+  });
+
+  it("marks a source change during a DPCC request as stale rather than authoritative empty", async () => {
+    let upstream = defaultUpstream({ baseUrl: "https://a.example", token: "token-a" });
+    mocks.resolveClaudeUpstream.mockImplementation(() => upstream);
+    let resolveRequest!: (value: { models: string[]; error: null }) => void;
+    mocks.fetchUpstreamModels.mockReturnValue(new Promise((resolve) => {
+      resolveRequest = resolve;
+    }));
+
+    const result = resolveEffectiveClaudeModelsResult([], claudeUpstreamFingerprint(upstream));
+    upstream = defaultUpstream({ baseUrl: "https://b.example", token: "token-b" });
+    resolveRequest({ models: [], error: null });
+
+    await expect(result).resolves.toEqual({
+      models: [],
+      authoritative: false,
+      stale: true,
+    });
   });
 });

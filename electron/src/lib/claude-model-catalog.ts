@@ -17,6 +17,14 @@ interface ClaudeModelSignature {
   version: string | null;
 }
 
+export interface EffectiveClaudeModelsResult {
+  models: CachedModelInfo[];
+  /** True only when the active DPCC `/v1/models` request succeeded. */
+  authoritative: boolean;
+  /** The upstream changed while this result was being resolved. */
+  stale?: boolean;
+}
+
 const caches = new Map<string, ModelIdCache>();
 const inFlight = new Map<string, Promise<string[] | null>>();
 let cacheGeneration = 0;
@@ -146,29 +154,40 @@ export function clearClaudeModelCatalogCache(): void {
   inFlight.clear();
 }
 
-/** Resolve the Claude picker catalog for the currently effective upstream. */
-export async function resolveEffectiveClaudeModels(
+/** Resolve the Claude picker catalog and whether it is authoritative for the current upstream. */
+export async function resolveEffectiveClaudeModelsResult(
   sdkModels: CachedModelInfo[],
   expectedUpstreamFingerprint?: string,
-): Promise<CachedModelInfo[]> {
+): Promise<EffectiveClaudeModelsResult> {
   for (let attempt = 0; attempt < 2; attempt++) {
     const upstream = resolveClaudeUpstream();
     if (expectedUpstreamFingerprint
       && claudeUpstreamFingerprint(upstream) !== expectedUpstreamFingerprint) {
-      return [];
+      return { models: [], authoritative: false, stale: true };
     }
-    if (upstream.tier !== "default") return sdkModels;
+    if (upstream.tier !== "default") return { models: sdkModels, authoritative: false };
 
     const modelIds = await loadDpccModelIds(upstream.baseUrl, upstream.token);
     const currentUpstream = resolveClaudeUpstream();
     if (expectedUpstreamFingerprint
       && claudeUpstreamFingerprint(currentUpstream) !== expectedUpstreamFingerprint) {
-      return [];
+      return { models: [], authoritative: false, stale: true };
     }
     if (!isSameClaudeUpstream(upstream, currentUpstream)) continue;
-    if (modelIds === null) return sdkModels;
-    return mergeClaudeModelsForUpstream(sdkModels, modelIds, upstream.model);
+    if (modelIds === null) return { models: sdkModels, authoritative: false };
+    return {
+      models: mergeClaudeModelsForUpstream(sdkModels, modelIds, upstream.model),
+      authoritative: true,
+    };
   }
 
-  return [];
+  return { models: [], authoritative: false, stale: true };
+}
+
+/** Resolve the Claude picker catalog for callers that only need the model list. */
+export async function resolveEffectiveClaudeModels(
+  sdkModels: CachedModelInfo[],
+  expectedUpstreamFingerprint?: string,
+): Promise<CachedModelInfo[]> {
+  return (await resolveEffectiveClaudeModelsResult(sdkModels, expectedUpstreamFingerprint)).models;
 }

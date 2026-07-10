@@ -5,6 +5,7 @@ import { toMcpStatusState } from "../../lib/mcp-utils";
 import { capture, captureException } from "../../lib/analytics/analytics";
 import { suppressNextSessionCompletion } from "../../lib/notification-utils";
 import { toastText } from "../../lib/toast-i18n";
+import { isClaudeModelCacheRequestCurrent } from "../../lib/engine/claude-model-request";
 import {
   DRAFT_ID,
   DEFAULT_PERMISSION_MODE,
@@ -54,6 +55,7 @@ export function useSessionSettings({
     startOptionsRef,
     sessionInfoRef,
     codexRawModelsRef,
+    claudeModelCatalogRequestGenerationRef,
   } = refs;
 
   // ── Shared helper: persist a partial session update to state + disk ──
@@ -301,6 +303,7 @@ export function useSessionSettings({
         return;
       }
 
+      const modelsGeneration = ++claudeModelCatalogRequestGenerationRef.current;
       const [statusResult, modelsResult] = await Promise.all([
         window.claude.mcpStatus(preStartedId),
         window.claude.supportedModels(preStartedId),
@@ -312,7 +315,12 @@ export function useSessionSettings({
           status: toMcpStatusState(server.status),
         })));
       }
-      if (!modelsResult.error) {
+      if (!modelsResult.error
+        && preStartedSessionIdRef.current === preStartedId
+        && isClaudeModelCacheRequestCurrent(
+          modelsGeneration,
+          claudeModelCatalogRequestGenerationRef.current,
+        )) {
         setCachedModels(modelsResult.models);
       }
       return;
@@ -359,6 +367,7 @@ export function useSessionSettings({
         return;
       }
 
+      const modelsGeneration = ++claudeModelCatalogRequestGenerationRef.current;
       const [statusResult, modelsResult] = await Promise.all([
         window.claude.mcpStatus(preStartedId),
         window.claude.supportedModels(preStartedId),
@@ -370,7 +379,12 @@ export function useSessionSettings({
           status: toMcpStatusState(server.status),
         })));
       }
-      if (!modelsResult.error) {
+      if (!modelsResult.error
+        && preStartedSessionIdRef.current === preStartedId
+        && isClaudeModelCacheRequestCurrent(
+          modelsGeneration,
+          claudeModelCatalogRequestGenerationRef.current,
+        )) {
         setCachedModels(modelsResult.models);
       }
       return;

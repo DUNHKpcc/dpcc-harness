@@ -23,6 +23,14 @@ function setter() {
   return vi.fn((value: unknown) => value);
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve;
+  });
+  return { promise, resolve };
+}
+
 function makeParams() {
   const sessions = [{
     id: DRAFT_ID,
@@ -42,6 +50,7 @@ function makeParams() {
       sessionsRef: { current: sessions },
       backgroundStoreRef: { current: new Map() },
       projectsRef: { current: [] },
+      claudeModelCatalogRequestGenerationRef: { current: 0 },
     },
     setters: {
       setSessions: setter(),
@@ -110,5 +119,29 @@ describe("useSessionCache", () => {
     await Promise.resolve();
 
     expect(params.setters.setCachedModels).not.toHaveBeenCalled();
+  });
+
+  it("ignores an older cache result that resolves after a newer revalidation", async () => {
+    const { useSessionCache } = await import("../useSessionCache");
+    const params = makeParams();
+    const cachedResult = deferred<{ models: Array<{ value: string; displayName: string; description: string }> }>();
+    vi.mocked(window.claude.modelsCacheGet).mockReturnValue(cachedResult.promise);
+    vi.mocked(window.claude.modelsCacheRevalidate).mockResolvedValue({
+      models: [{ value: "fresh-model", displayName: "Fresh model", description: "" }],
+    });
+
+    useSessionCache(params as unknown as Parameters<typeof useSessionCache>[0]);
+    await vi.advanceTimersByTimeAsync(3000);
+
+    expect(params.setters.setCachedModels).toHaveBeenCalledWith([
+      { value: "fresh-model", displayName: "Fresh model", description: "" },
+    ]);
+
+    cachedResult.resolve({
+      models: [{ value: "stale-model", displayName: "Stale model", description: "" }],
+    });
+    await Promise.resolve();
+
+    expect(params.setters.setCachedModels).toHaveBeenCalledTimes(1);
   });
 });

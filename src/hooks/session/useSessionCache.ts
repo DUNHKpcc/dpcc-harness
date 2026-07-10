@@ -4,6 +4,7 @@ import type { PersistedSession, Project } from "../../types";
 import { toChatSession } from "../../lib/session/records";
 import { withChatModuleProjectIds } from "../../lib/session/chat-module";
 import { toastText } from "../../lib/toast-i18n";
+import { isClaudeModelCacheRequestCurrent } from "../../lib/engine/claude-model-request";
 import { DRAFT_ID } from "./types";
 import type { SharedSessionRefs, SharedSessionSetters } from "./types";
 
@@ -39,6 +40,7 @@ export function useSessionCache({
     activeSessionIdRef,
     sessionsRef,
     backgroundStoreRef,
+    claudeModelCatalogRequestGenerationRef,
   } = refs;
 
   const sessionPayloadCacheRef = useRef<Map<string, PersistedSession>>(new Map());
@@ -160,8 +162,12 @@ export function useSessionCache({
     const firstProject = refs.projectsRef.current[0];
     const preferredCwd = firstProject ? getProjectCwd(firstProject) : undefined;
 
+    const cacheGetGeneration = ++claudeModelCatalogRequestGenerationRef.current;
     window.claude.modelsCacheGet().then((result) => {
-      if (cancelled) return;
+      if (cancelled || !isClaudeModelCacheRequestCurrent(
+        cacheGetGeneration,
+        claudeModelCatalogRequestGenerationRef.current,
+      )) return;
       if (!result.error) {
         setCachedModels(result.models);
       }
@@ -171,8 +177,12 @@ export function useSessionCache({
     // the startup IPC burst. The cached models from modelsCacheGet() above are
     // sufficient for the initial render.
     const revalidateTimer = setTimeout(() => {
+      const revalidateGeneration = ++claudeModelCatalogRequestGenerationRef.current;
       window.claude.modelsCacheRevalidate(preferredCwd ? { cwd: preferredCwd } : undefined).then((result) => {
-        if (cancelled) return;
+        if (cancelled || !isClaudeModelCacheRequestCurrent(
+          revalidateGeneration,
+          claudeModelCatalogRequestGenerationRef.current,
+        )) return;
         if (!result.error) {
           setCachedModels(result.models);
           return;

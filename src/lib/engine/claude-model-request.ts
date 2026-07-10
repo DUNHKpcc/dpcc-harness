@@ -10,3 +10,10 @@ export function isClaudeModelRequestCurrent(
   return captured.sessionId === current.sessionId
     && captured.generation === current.generation;
 }
+
+export function isClaudeModelCacheRequestCurrent(
+  capturedGeneration: number,
+  currentGeneration: number,
+): boolean {
+  return capturedGeneration === currentGeneration;
+}

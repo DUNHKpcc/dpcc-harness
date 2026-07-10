@@ -13,7 +13,7 @@ import type { ACPConfigOption, ChatSession, ClaudeEffort, EngineId, FileReferenc
 import type { SessionPaneState } from "@/hooks/session/useSessionPane";
 import type { CodexModelSummary } from "@/hooks/session/types";
 import { buildCodexCollabMode, DEFAULT_PERMISSION_MODE } from "@/hooks/session/types";
-import { canonicalizeModelValue, findEquivalentModel } from "@/lib/model-utils";
+import { canonicalizeModelValue } from "@/lib/model-utils";
 import { toastText } from "@/lib/toast-i18n";
 import { continueWeChatSession } from "@/lib/session/wechat-continue";
 import type { PaneController } from "@/types";
@@ -33,19 +33,6 @@ function buildCodexModelCatalog(rawModels: CodexModelSummary[]): ModelInfo[] {
     supportsEffort: model.supportedReasoningEfforts.length > 0,
     supportedEffortLevels: model.supportedReasoningEfforts.map((entry) => entry.reasoningEffort as ClaudeEffort),
   }));
-}
-
-function ensureCurrentClaudeModel(
-  models: ModelInfo[],
-  currentModel: string | undefined,
-): ModelInfo[] {
-  const normalizedModel = currentModel?.trim();
-  if (!normalizedModel) return models;
-  if (findEquivalentModel(normalizedModel, models)) return models;
-  return [
-    ...models,
-    { value: normalizedModel, displayName: normalizedModel, description: "" },
-  ];
 }
 
 // ── Context bundle — values from the orchestrator that the pane controller needs ──
@@ -80,6 +67,7 @@ export interface PaneControllerContext {
     codexRawModels: CodexModelSummary[];
     codexModelsLoadingMessage: string | null;
     cachedClaudeModels: ModelInfo[];
+    cachedClaudeModelsLoaded: boolean;
     acpConfigOptions: ACPConfigOption[];
     acpConfigOptionsLoading: boolean;
     setACPConfig: (key: string, value: string) => void;
@@ -132,12 +120,9 @@ export function usePaneController(
             : buildPaneModelFallback(rawPaneModel))
         : paneState.claude.supportedModelsLoaded
           ? paneState.claude.supportedModels
-          : ensureCurrentClaudeModel(
-            ctx.manager.cachedClaudeModels.length > 0
-              ? ctx.manager.cachedClaudeModels
-              : buildPaneModelFallback(rawPaneModel),
-            rawPaneModel,
-          );
+          : ctx.manager.cachedClaudeModelsLoaded
+            ? ctx.manager.cachedClaudeModels
+            : buildPaneModelFallback(rawPaneModel);
     const paneModel = paneEngine === "claude"
       ? (canonicalizeModelValue(rawPaneModel, paneSupportedModels) ?? rawPaneModel)
       : rawPaneModel;

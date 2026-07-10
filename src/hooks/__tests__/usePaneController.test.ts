@@ -31,7 +31,7 @@ function makePaneState(supportedModelsLoaded: boolean): SessionPaneState {
   } as unknown as SessionPaneState;
 }
 
-function makeContext(): PaneControllerContext {
+function makeContext(cachedClaudeModelsLoaded = true, models = cachedModels): PaneControllerContext {
   return {
     agents: [],
     selectedAgent: null,
@@ -59,7 +59,8 @@ function makeContext(): PaneControllerContext {
       codexEffort: "",
       codexRawModels: [],
       codexModelsLoadingMessage: null,
-      cachedClaudeModels: cachedModels,
+      cachedClaudeModels: models,
+      cachedClaudeModelsLoaded,
       acpConfigOptions: [],
       acpConfigOptionsLoading: false,
       setACPConfig: vi.fn(),
@@ -80,7 +81,33 @@ describe("usePaneController", () => {
     expect(controller.paneSupportedModels).toEqual([]);
   });
 
-  it("uses cached Claude models before the live catalog has loaded", () => {
+  it("keeps a loaded-empty cached Claude catalog empty before the live catalog has loaded", () => {
+    const controller = usePaneController(
+      "session-1",
+      { id: "session-1", engine: "claude", model: "current-model" } as never,
+      makePaneState(false),
+      false,
+      makeContext(true, []),
+    );
+
+    expect(controller.paneSupportedModels).toEqual([]);
+  });
+
+  it("falls back to the current Claude model when neither catalog has loaded", () => {
+    const controller = usePaneController(
+      "session-1",
+      { id: "session-1", engine: "claude", model: "current-model" } as never,
+      makePaneState(false),
+      false,
+      makeContext(false, []),
+    );
+
+    expect(controller.paneSupportedModels).toEqual([
+      { value: "current-model", displayName: "current-model", description: "" },
+    ]);
+  });
+
+  it("uses cached Claude models when the cache has loaded before the live catalog", () => {
     const controller = usePaneController(
       "session-1",
       { id: "session-1", engine: "claude", model: "current-model" } as never,

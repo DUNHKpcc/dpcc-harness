@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, type Dispatch, type SetStateAction } from "react";
 import type { ChatSession, UIMessage, PermissionRequest, McpServerStatus, McpServerConfig, ModelInfo, AcpPermissionBehavior, EngineId, Project, ACPAuthenticateResult, ACPConfigOption, ACPPermissionEvent } from "@/types";
 import { toMcpStatusState } from "../lib/mcp-utils";
 import { toChatSession } from "../lib/session/records";
@@ -55,6 +55,7 @@ export function useSessionManager(
   const [draftAcpSessionId, setDraftAcpSessionId] = useState<string | null>(null);
   const [draftMcpStatuses, setDraftMcpStatuses] = useState<McpServerStatus[]>([]);
   const [cachedModels, setCachedModels] = useState<ModelInfo[]>([]);
+  const [cachedModelsLoaded, setCachedModelsLoaded] = useState(false);
   const [codexRawModels, setCodexRawModels] = useState<CodexModelSummary[]>([]);
   const [codexModelsLoadingMessage, setCodexModelsLoadingMessage] = useState<string | null>(null);
   const [queuedCount, setQueuedCount] = useState(0);
@@ -63,6 +64,12 @@ export function useSessionManager(
   const sessionsRef = useRef(sessions);
   sessionsRef.current = sessions;
   const backgroundStoreRef = useRef(new BackgroundSessionStore());
+  const claudeModelCatalogRequestGenerationRef = useRef(0);
+
+  const setCachedModelsWithLoaded = useCallback<Dispatch<SetStateAction<ModelInfo[]>>>((models) => {
+    setCachedModels(models);
+    setCachedModelsLoaded(true);
+  }, []);
 
   useEffect(() => {
     if (visibleSplitSessionIds.length === 0) return;
@@ -259,6 +266,7 @@ export function useSessionManager(
     acpPermissionBehaviorRef,
     currentBranchRef,
     visibleSplitSessionIdsRef,
+    claudeModelCatalogRequestGenerationRef,
   };
 
   const setters: SharedSessionSetters = {
@@ -278,7 +286,7 @@ export function useSessionManager(
     setDraftMcpStatuses,
     setAcpMcpStatuses,
     setQueuedCount,
-    setCachedModels,
+    setCachedModels: setCachedModelsWithLoaded,
     setCodexRawModels,
     setCodexModelsLoadingMessage,
   };
@@ -727,6 +735,7 @@ export function useSessionManager(
         ? []
         : claude.supportedModelsLoaded ? claude.supportedModels : cachedModels,
     cachedClaudeModels: cachedModels,
+    cachedClaudeModelsLoaded: cachedModelsLoaded,
     restartWithMcpServers: isACP
       ? isDraft
         ? async (servers: McpServerConfig[]) => {

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { isClaudeModelRequestCurrent } from "../claude-model-request";
+import {
+  isClaudeModelCacheRequestCurrent,
+  isClaudeModelRequestCurrent,
+} from "../claude-model-request";
 
 describe("isClaudeModelRequestCurrent", () => {
   it("accepts the same session and generation", () => {
@@ -21,5 +24,15 @@ describe("isClaudeModelRequestCurrent", () => {
       { sessionId: "session-a", generation: 2 },
       { sessionId: "session-a", generation: 3 },
     )).toBe(false);
+  });
+});
+
+describe("isClaudeModelCacheRequestCurrent", () => {
+  it("accepts an exact cache generation match", () => {
+    expect(isClaudeModelCacheRequestCurrent(4, 4)).toBe(true);
+  });
+
+  it("rejects an older cache generation", () => {
+    expect(isClaudeModelCacheRequestCurrent(4, 5)).toBe(false);
   });
 });

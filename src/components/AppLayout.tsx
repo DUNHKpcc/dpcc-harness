@@ -1262,6 +1262,7 @@ export function AppLayout() {
       codexRawModels: manager.codexRawModels,
       codexModelsLoadingMessage: manager.codexModelsLoadingMessage,
       cachedClaudeModels: manager.cachedClaudeModels,
+      cachedClaudeModelsLoaded: manager.cachedClaudeModelsLoaded,
       acpConfigOptions: manager.acpConfigOptions,
       acpConfigOptionsLoading: manager.acpConfigOptionsLoading,
       setACPConfig: manager.setACPConfig,

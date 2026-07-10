@@ -5,6 +5,7 @@ import { toMcpStatusState } from "../../lib/mcp-utils";
 import { suppressNextSessionCompletion } from "../../lib/notification-utils";
 import { captureException } from "../../lib/analytics/analytics";
 import { toastText } from "../../lib/toast-i18n";
+import { isClaudeModelCacheRequestCurrent } from "../../lib/engine/claude-model-request";
 import { createSystemMessage, createUserMessage } from "../../lib/message-factory";
 import {
   DRAFT_ID,
@@ -70,6 +71,7 @@ export function useDraftMaterialization({
     acpAgentIdRef,
     acpAgentSessionIdRef,
     codexRawModelsRef,
+    claudeModelCatalogRequestGenerationRef,
   } = refs;
 
   // Eagerly start a Claude SDK session for immediate MCP status display
@@ -115,8 +117,14 @@ export function useDraftMaterialization({
       }
 
       // Same pattern for models — fetch directly since system/init already fired
+      const modelsGeneration = ++claudeModelCatalogRequestGenerationRef.current;
       const modelsResult = await window.claude.supportedModels(result.sessionId);
-      if (!modelsResult.error && preStartedSessionIdRef.current === result.sessionId) {
+      if (!modelsResult.error
+        && preStartedSessionIdRef.current === result.sessionId
+        && isClaudeModelCacheRequestCurrent(
+          modelsGeneration,
+          claudeModelCatalogRequestGenerationRef.current,
+        )) {
         setCachedModels(modelsResult.models);
       }
     } else {

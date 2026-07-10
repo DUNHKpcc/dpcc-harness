@@ -72,13 +72,17 @@ export function useDraftMaterialization({
     acpAgentSessionIdRef,
     codexRawModelsRef,
     claudeModelCatalogRequestGenerationRef,
+    claudeEagerStartGenerationRef,
   } = refs;
 
   // Eagerly start a Claude SDK session for immediate MCP status display
   const eagerStartSession = useCallback(async (projectId: string, options?: StartOptions) => {
+    const eagerStartGeneration = ++claudeEagerStartGenerationRef.current;
+    const isCurrentEagerStart = () => eagerStartGeneration === claudeEagerStartGenerationRef.current;
     const project = refs.projectsRef.current.find((p) => p.id === projectId);
     if (!project) return;
     const mcpServers = await window.claude.mcp.list(projectId);
+    if (!isCurrentEagerStart()) return;
     let result;
     try {
       result = await window.claude.start({
@@ -99,38 +103,45 @@ export function useDraftMaterialization({
       console.warn("[eagerStartSession] start() returned error:", result.error);
       return;
     }
-    // Only commit if still in draft for the same project
-    if (activeSessionIdRef.current === DRAFT_ID && draftProjectIdRef.current === projectId) {
-      liveSessionIdsRef.current.add(result.sessionId);
-      preStartedSessionIdRef.current = result.sessionId;
-      setPreStartedSessionId(result.sessionId);
-
-      // The system init event fires BEFORE start() returns, so the event router
-      // couldn't match it (preStartedSessionIdRef was still null). Query MCP
-      // status directly now that the session is initialized.
-      const statusResult = await window.claude.mcpStatus(result.sessionId);
-      if (statusResult.servers?.length && preStartedSessionIdRef.current === result.sessionId) {
-        setDraftMcpStatuses(statusResult.servers.map(s => ({
-          name: s.name,
-          status: toMcpStatusState(s.status),
-        })));
-      }
-
-      // Same pattern for models — fetch directly since system/init already fired
-      const modelsGeneration = ++claudeModelCatalogRequestGenerationRef.current;
-      const modelsResult = await window.claude.supportedModels(result.sessionId);
-      if (!modelsResult.error
-        && preStartedSessionIdRef.current === result.sessionId
-        && isClaudeModelCacheRequestCurrent(
-          modelsGeneration,
-          claudeModelCatalogRequestGenerationRef.current,
-        )) {
-        setCachedModels(modelsResult.models);
-      }
-    } else {
-      // Draft was abandoned before eager start completed
+    const isCurrentDraft = activeSessionIdRef.current === DRAFT_ID
+      && draftProjectIdRef.current === projectId;
+    if (!isCurrentEagerStart() || !isCurrentDraft) {
+      // The draft was abandoned or superseded before eager start completed.
       suppressNextSessionCompletion(result.sessionId);
       window.claude.stop(result.sessionId, "draft_abandoned");
+      return;
+    }
+
+    liveSessionIdsRef.current.add(result.sessionId);
+    preStartedSessionIdRef.current = result.sessionId;
+    setPreStartedSessionId(result.sessionId);
+
+    // The system init event fires BEFORE start() returns, so the event router
+    // couldn't match it (preStartedSessionIdRef was still null). Query MCP
+    // status directly now that the session is initialized.
+    const statusResult = await window.claude.mcpStatus(result.sessionId);
+    if (statusResult.servers?.length
+      && isCurrentEagerStart()
+      && preStartedSessionIdRef.current === result.sessionId) {
+      setDraftMcpStatuses(statusResult.servers.map(s => ({
+        name: s.name,
+        status: toMcpStatusState(s.status),
+      })));
+    }
+
+    // Same pattern for models — fetch directly since system/init already fired.
+    // Catalog ordering remains independent from eager start transaction ordering.
+    if (!isCurrentEagerStart() || preStartedSessionIdRef.current !== result.sessionId) return;
+    const modelsGeneration = ++claudeModelCatalogRequestGenerationRef.current;
+    const modelsResult = await window.claude.supportedModels(result.sessionId);
+    if (!modelsResult.error
+      && isCurrentEagerStart()
+      && preStartedSessionIdRef.current === result.sessionId
+      && isClaudeModelCacheRequestCurrent(
+        modelsGeneration,
+        claudeModelCatalogRequestGenerationRef.current,
+      )) {
+      setCachedModels(modelsResult.models);
     }
   }, []);
 
@@ -323,6 +334,7 @@ export function useDraftMaterialization({
 
   // Clean up a pre-started eager session
   const abandonEagerSession = useCallback((reason = "cleanup") => {
+    ++claudeEagerStartGenerationRef.current;
     const id = preStartedSessionIdRef.current;
     if (!id) return;
     suppressNextSessionCompletion(id);

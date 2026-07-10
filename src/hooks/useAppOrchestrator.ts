@@ -13,7 +13,7 @@ import { useFolderManager } from "@/hooks/useFolderManager";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { canonicalizeModelValue, resolveModelValue } from "@/lib/model-utils";
 import type { ToolId } from "@/types/tools";
-import type { AcpPermissionBehavior, EngineId, InstalledAgent } from "@/types";
+import type { AcpPermissionBehavior, EngineId, InstalledAgent, ModelInfo } from "@/types";
 import { getSyncedPlanMode } from "@/hooks/app-layout/session-utils";
 import { useAppEnvironmentState } from "@/hooks/app-layout/useAppEnvironmentState";
 import { useAppSessionActions } from "@/hooks/app-layout/useAppSessionActions";
@@ -47,6 +47,14 @@ export function planToolToggle(toolId: ToolId, activeTools: ReadonlySet<ToolId>)
     suppressPanel: null,
     unsuppressPanel: isContextual ? toolId : null,
   };
+}
+
+export function getCanonicalClaudeModelForCatalog(
+  currentModel: string | null | undefined,
+  supportedModels: ModelInfo[],
+): string | undefined {
+  if (supportedModels.length === 0) return undefined;
+  return canonicalizeModelValue(currentModel, supportedModels);
 }
 
 export function useAppOrchestrator() {
@@ -161,17 +169,12 @@ export function useAppOrchestrator() {
   });
 
   useEffect(() => {
-    const claudeModels = manager.supportedModels.length > 0
-      ? manager.supportedModels
-      : manager.cachedClaudeModels;
-    if (claudeModels.length === 0) return;
-
     const currentModel = settings.getModelForEngine("claude");
-    const canonicalModel = canonicalizeModelValue(currentModel, claudeModels);
+    const canonicalModel = getCanonicalClaudeModelForCatalog(currentModel, manager.supportedModels);
     if (canonicalModel && canonicalModel !== currentModel) {
       settings.setModelForEngine("claude", canonicalModel);
     }
-  }, [manager.cachedClaudeModels, manager.supportedModels, settings.getModelForEngine, settings.setModelForEngine]);
+  }, [manager.supportedModels, settings.getModelForEngine, settings.setModelForEngine]);
 
   // Sync model from loaded session (canonical runtime names -> picker values)
   useEffect(() => {

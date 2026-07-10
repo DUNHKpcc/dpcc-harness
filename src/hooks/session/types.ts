@@ -107,6 +107,7 @@ export interface SharedSessionRefs {
   /** Split view: session IDs currently visible in extra panes. */
   visibleSplitSessionIdsRef: React.MutableRefObject<readonly string[]>;
   claudeModelCatalogRequestGenerationRef: React.MutableRefObject<number>;
+  claudeEagerStartGenerationRef: React.MutableRefObject<number>;
 }
 
 /** State setters from the orchestrator that sub-hooks need */

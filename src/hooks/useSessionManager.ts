@@ -65,6 +65,7 @@ export function useSessionManager(
   sessionsRef.current = sessions;
   const backgroundStoreRef = useRef(new BackgroundSessionStore());
   const claudeModelCatalogRequestGenerationRef = useRef(0);
+  const claudeEagerStartGenerationRef = useRef(0);
 
   const setCachedModelsWithLoaded = useCallback<Dispatch<SetStateAction<ModelInfo[]>>>((models) => {
     setCachedModels(models);
@@ -267,6 +268,7 @@ export function useSessionManager(
     currentBranchRef,
     visibleSplitSessionIdsRef,
     claudeModelCatalogRequestGenerationRef,
+    claudeEagerStartGenerationRef,
   };
 
   const setters: SharedSessionSetters = {

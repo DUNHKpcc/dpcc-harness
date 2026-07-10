@@ -147,6 +147,20 @@ describe("DPCC Codex model catalog", () => {
     expect(resolveCodexReasoningEffort(undefined, "medium")).toBeUndefined();
   });
 
+  it("treats spark as a synthesized upstream-only model with no reasoning effort options", async () => {
+    const nativeModels = [{ id: "another-native", isDefault: false }];
+
+    const { mergeCodexModelsForUpstream, resolveCodexReasoningEffort } = await import("@shared/lib/codex-helpers");
+    const [spark] = mergeCodexModelsForUpstream(nativeModels as never[], ["gpt-5.3-codex-spark"], "gpt-5.3-codex-spark");
+
+    expect(spark).toMatchObject({
+      id: "gpt-5.3-codex-spark",
+      defaultReasoningEffort: "none",
+      supportedReasoningEfforts: [],
+    });
+    expect(resolveCodexReasoningEffort(spark, "medium")).toBeUndefined();
+  });
+
   it("fetches and caches DPCC ids but leaves local Codex catalogs unchanged", async () => {
     const nativeModels = [{ id: "native", displayName: "Native", isDefault: true }];
     mockResolveCodexUpstream.mockReturnValue({

@@ -211,6 +211,11 @@ describe("Claude model IPC catalog", () => {
   });
 
   it("reports resolver failures without replacing the raw cache with effective models", async () => {
+    const normalizedRawModels = [{
+      value: "sonnet",
+      displayName: "Sonnet",
+      description: "",
+    }];
     const { sessions } = await import("./claude-sessions");
     sessions.set("session-1", {
       channel: {} as never,
@@ -218,6 +223,7 @@ describe("Claude model IPC catalog", () => {
       eventCounter: 0,
       pendingPermissions: new Map(),
     });
+    mocks.setClaudeModelsCache.mockReturnValue({ models: normalizedRawModels, updatedAt: 200 });
     mocks.resolveEffectiveClaudeModels.mockRejectedValue(new Error("resolver failed"));
 
     const result = await mocks.handlers.get("claude:supported-models")?.({}, "session-1");
@@ -230,7 +236,7 @@ describe("Claude model IPC catalog", () => {
       { engine: "claude", sessionId: "session-1" },
     );
     expect(result).toEqual({
-      models: [],
+      models: normalizedRawModels,
       error: "SUPPORTED_MODELS_ERR: Error: resolver failed",
     });
   });

@@ -1134,17 +1134,18 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
 
   ipcMain.handle("claude:supported-models", async (_event, sessionId: string) => {
     const session = sessions.get(sessionId);
+    let rawModels: ClaudeModelsCacheResult["models"] = [];
     try {
       const models = session?.queryHandle?.supportedModels
         ? await session.queryHandle.supportedModels()
         : [];
-      const rawModels = Array.isArray(models) && models.length > 0
+      rawModels = Array.isArray(models) && models.length > 0
         ? setClaudeModelsCache(models).models
         : [];
       return { models: await resolveEffectiveClaudeModels(rawModels) };
     } catch (err) {
       const errMsg = reportError("SUPPORTED_MODELS_ERR", err, { engine: "claude", sessionId });
-      return { models: [], error: errMsg };
+      return { models: rawModels, error: errMsg };
     }
   });
 

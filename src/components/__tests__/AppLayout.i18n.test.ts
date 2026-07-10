@@ -37,4 +37,34 @@ describe("AppLayout i18n", () => {
 
     expect(settingsView).toContain('isMac ? "pt-[3.25rem]" : "pt-2"');
   });
+
+  it("keeps the settings navigation draggable without swallowing button clicks", () => {
+    const settingsView = fs.readFileSync(path.join(repoRoot, "src/components/SettingsView.tsx"), "utf8");
+
+    expect(settingsView).toContain("drag-region flex flex-1 flex-col");
+    expect(settingsView).toContain('className="no-drag mb-1 flex w-full');
+    expect(settingsView).toContain('className={`no-drag flex w-full');
+  });
+
+  it("adds shared top spacing to every settings option page", () => {
+    const settingsView = fs.readFileSync(path.join(repoRoot, "src/components/SettingsView.tsx"), "utf8");
+
+    expect(settingsView).toContain(
+      'const settingsContentTopPaddingClass = isMac ? "pt-[3.25rem]" : "pt-2"',
+    );
+    expect(settingsView).toContain(
+      "drag-region flex min-w-0 flex-1 justify-center overflow-hidden",
+    );
+    expect(settingsView).toContain(
+      'className="no-drag flex min-h-0 w-full max-w-3xl flex-1 flex-col"',
+    );
+  });
+
+  it("rebinds workspace width observation when the content node is replaced", () => {
+    const appLayout = fs.readFileSync(path.join(repoRoot, "src/components/AppLayout.tsx"), "utf8");
+
+    expect(appLayout).toContain("const handleContentContainerRef = useCallback(");
+    expect(appLayout).toContain("availableSplitWidthObserverRef.current?.disconnect()");
+    expect(appLayout).toContain("ref={handleContentContainerRef}");
+  });
 });

@@ -89,6 +89,7 @@ export const SettingsView = memo(function SettingsView({
   const { agents, saveAgent, deleteAgent } = useAgentContext();
   const [activeSection, setActiveSection] = useState<SettingsSection>(initialSection ?? "account");
   const settingsNavTopPaddingClass = isMac ? "pt-[3.25rem]" : "pt-2";
+  const settingsContentTopPaddingClass = isMac ? "pt-[3.25rem]" : "pt-2";
 
   // ── Main-process app settings (loaded once, updated optimistically) ──
   const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
@@ -221,11 +222,11 @@ export const SettingsView = memo(function SettingsView({
         {/* Settings nav sidebar */}
         <div className="flex w-44 shrink-0 flex-col border-e border-foreground/[0.06]">
           {/* Nav items */}
-          <nav className={`flex flex-1 flex-col gap-0.5 px-1.5 pb-2 ${settingsNavTopPaddingClass}`}>
+          <nav className={`drag-region flex flex-1 flex-col gap-0.5 px-1.5 pb-2 ${settingsNavTopPaddingClass}`}>
             <button
               aria-label={t("nav.backHome")}
               onClick={onClose}
-              className="mb-1 flex w-full items-center justify-start gap-2 rounded-md px-2 py-1.5 text-[13px] font-medium text-start text-muted-foreground transition-colors hover:bg-foreground/[0.03] hover:text-foreground"
+              className="no-drag mb-1 flex w-full items-center justify-start gap-2 rounded-md px-2 py-1.5 text-[13px] font-medium text-start text-muted-foreground transition-colors hover:bg-foreground/[0.03] hover:text-foreground"
             >
               <ArrowLeft className="h-4 w-4 shrink-0" />
               <span className="flex-1">{t("nav.backHome")}</span>
@@ -237,7 +238,7 @@ export const SettingsView = memo(function SettingsView({
                 <button
                   key={item.id}
                   onClick={() => setActiveSection(item.id)}
-                  className={`flex w-full items-center justify-start gap-2 rounded-md px-2 py-1.5 text-[13px] text-start transition-colors ${
+                  className={`no-drag flex w-full items-center justify-start gap-2 rounded-md px-2 py-1.5 text-[13px] text-start transition-colors ${
                     isActive
                       ? "bg-foreground/[0.06] font-medium text-foreground"
                       : "text-muted-foreground hover:bg-foreground/[0.03] hover:text-foreground"
@@ -257,8 +258,8 @@ export const SettingsView = memo(function SettingsView({
         </div>
 
         {/* Content area — centered container with max width */}
-        <div className="flex min-w-0 flex-1 justify-center overflow-hidden">
-          <div className="flex h-full w-full max-w-3xl flex-col">
+        <div className={`drag-region flex min-w-0 flex-1 justify-center overflow-hidden ${settingsContentTopPaddingClass}`}>
+          <div className="no-drag flex min-h-0 w-full max-w-3xl flex-1 flex-col">
             {renderSection()}
           </div>
         </div>

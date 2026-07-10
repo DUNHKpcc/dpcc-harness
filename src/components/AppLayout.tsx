@@ -443,22 +443,26 @@ export function AppLayout() {
   const splitContainerRef = useRef<HTMLDivElement>(null);
   const topRowRef = useRef<HTMLDivElement>(null);
   const [availableSplitWidth, setAvailableSplitWidth] = useState(0);
-
-  useLayoutEffect(() => {
-    const element = contentRef.current;
+  const availableSplitWidthObserverRef = useRef<ResizeObserver | null>(null);
+  const handleContentContainerRef = useCallback((element: HTMLDivElement | null) => {
+    contentRef.current = element;
+    availableSplitWidthObserverRef.current?.disconnect();
+    availableSplitWidthObserverRef.current = null;
     if (!element) return;
-
     const updateAvailableSplitWidth = () => {
       setAvailableSplitWidth(element.getBoundingClientRect().width);
     };
-
     updateAvailableSplitWidth();
     const resizeObserver = new ResizeObserver(updateAvailableSplitWidth);
     resizeObserver.observe(element);
-    return () => {
-      resizeObserver.disconnect();
-    };
+    availableSplitWidthObserverRef.current = resizeObserver;
   }, [contentRef]);
+
+  useEffect(() => {
+    return () => {
+      availableSplitWidthObserverRef.current?.disconnect();
+    };
+  }, []);
 
   const maxSplitPaneCount = useMemo(
     () => getMaxVisibleSplitPaneCount(availableSplitWidth),
@@ -1513,7 +1517,7 @@ export function AppLayout() {
         </div>
       )}
 
-      <div ref={contentRef} className={`flex min-w-0 flex-1 flex-col ${settings.islandLayout ? "m-[var(--island-gap)]" : sidebar.isOpen ? "flat-divider-s" : ""} ${isResizing || sidebar.isResizing ? "select-none" : ""}`}>
+      <div ref={handleContentContainerRef} className={`flex min-w-0 flex-1 flex-col ${settings.islandLayout ? "m-[var(--island-gap)]" : sidebar.isOpen ? "flat-divider-s" : ""} ${isResizing || sidebar.isResizing ? "select-none" : ""}`}>
         <div className="flex min-h-0 flex-1 flex-col">
         {/* ── Top row: Split View OR (Chat | Right Panel | Tools Column | ToolPicker) ── */}
         <div

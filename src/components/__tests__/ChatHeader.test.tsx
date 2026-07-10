@@ -114,3 +114,13 @@ describe("ToolPickerMenu", () => {
     expect(css).toContain("-webkit-app-region: none");
   });
 });
+
+describe("ToolsPanel", () => {
+  it("places terminal tabs in a horizontal bar above the terminal viewport", () => {
+    const source = readFileSync(resolve(process.cwd(), "src/components/ToolsPanel.tsx"), "utf8");
+
+    expect(source).toContain('className="flex h-9 shrink-0');
+    expect(source).toContain("overflow-x-auto");
+    expect(source).not.toContain('className="flex w-[38px] shrink-0 flex-col items-center py-1.5"');
+  });
+});

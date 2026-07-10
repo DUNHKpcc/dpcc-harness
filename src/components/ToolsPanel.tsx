@@ -139,110 +139,104 @@ export function ToolsPanel({
         )}
         {headerControls}
       </PanelHeader>
-      <div className="flex min-h-0 flex-1">
-        <div className="relative min-h-0 min-w-0 flex-1">
-          {tabs.map((tab) => (
-            <div
-              key={tab.id}
-              className={`absolute inset-0 ${tab.id === activeTabId ? "visible" : "invisible"}`}
-            >
-              <TerminalInstance
-                terminalId={tab.terminalId}
-                isVisible={tab.id === activeTabId}
-                resolvedTheme={resolvedTheme}
-              />
-            </div>
-          ))}
+      {hasTabs && (
+        <div className="flex h-9 shrink-0 items-center gap-1 border-b border-foreground/[0.06] px-2">
+          <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto scrollbar-none">
+            {tabs.map((tab, index) => {
+              const isActive = tab.id === activeTabId;
+              return (
+                <Tooltip key={tab.id}>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => onSetActiveTab(tab.id)}
+                      className={`group/term relative flex h-7 w-7 cursor-pointer items-center justify-center rounded-md transition-all duration-150 ${
+                        isActive
+                          ? "bg-foreground/[0.08] text-foreground"
+                          : "text-foreground/30 hover:bg-foreground/[0.04] hover:text-foreground/60"
+                      }`}
+                    >
+                      <span className="text-[10px] font-semibold leading-none tabular-nums">
+                        {index + 1}
+                      </span>
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void onCloseTerminal(tab.id);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.stopPropagation();
+                            void onCloseTerminal(tab.id);
+                          }
+                        }}
+                        className="absolute -top-0.5 -end-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-foreground/10 text-foreground/50 opacity-0 transition-opacity hover:bg-foreground/20 hover:text-foreground group-hover/term:opacity-100"
+                      >
+                        <X className="h-2 w-2" />
+                      </span>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" sideOffset={6}>
+                    <p className="text-xs font-medium">{tab.label}</p>
+                  </TooltipContent>
+                </Tooltip>
+              );
+            })}
+          </div>
 
-          {!hasTabs && terminalsReady && (
-            <div className="flex h-full flex-col items-center justify-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-foreground/[0.03]">
-                <TerminalIcon className="h-5 w-5 text-emerald-600/70 dark:text-emerald-200/50" />
-              </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
               <button
                 type="button"
                 onClick={() => { void handleCreateTerminal(); }}
-                className="group flex cursor-pointer items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-medium text-foreground/35 transition-all duration-200 hover:bg-foreground/[0.05] hover:text-foreground/60"
+                className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-foreground/25 transition-all duration-150 hover:bg-foreground/[0.05] hover:text-foreground/50 active:scale-90"
               >
-                <Plus className="h-3.5 w-3.5 transition-transform duration-200 group-hover:scale-110" />
-                {t("terminal.newTerminal")}
+                <Plus className="h-3.5 w-3.5" />
               </button>
-            </div>
-          )}
-          {!hasTabs && !terminalsReady && (
-            <div className="flex h-full flex-col items-center justify-center gap-2.5">
-              <Loader2 className="h-4 w-4 animate-spin text-foreground/20" />
-              <span className="text-xs text-foreground/30">{t("terminal.restoring")}</span>
-            </div>
-          )}
+            </TooltipTrigger>
+            <TooltipContent side="bottom" sideOffset={6}>
+              <p className="text-xs font-medium">{t("terminal.newTerminal")}</p>
+            </TooltipContent>
+          </Tooltip>
         </div>
+      )}
 
-        {hasTabs && (
-          <>
-            <div className="my-2 w-px bg-foreground/[0.06]" />
+      <div className="relative min-h-0 min-w-0 flex-1">
+        {tabs.map((tab) => (
+          <div
+            key={tab.id}
+            className={`absolute inset-0 ${tab.id === activeTabId ? "visible" : "invisible"}`}
+          >
+            <TerminalInstance
+              terminalId={tab.terminalId}
+              isVisible={tab.id === activeTabId}
+              resolvedTheme={resolvedTheme}
+            />
+          </div>
+        ))}
 
-            <div className="flex w-[38px] shrink-0 flex-col items-center py-1.5">
-              <div className="flex flex-1 flex-col items-center gap-0.5 overflow-y-auto scrollbar-none">
-                {tabs.map((tab, index) => {
-                  const isActive = tab.id === activeTabId;
-                  return (
-                    <Tooltip key={tab.id}>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={() => onSetActiveTab(tab.id)}
-                          className={`group/term relative flex h-7 w-7 cursor-pointer items-center justify-center rounded-md transition-all duration-150 ${
-                            isActive
-                              ? "bg-foreground/[0.08] text-foreground"
-                              : "text-foreground/30 hover:bg-foreground/[0.04] hover:text-foreground/60"
-                          }`}
-                        >
-                          <span className="text-[10px] font-semibold leading-none tabular-nums">
-                            {index + 1}
-                          </span>
-                          <span
-                            role="button"
-                            tabIndex={0}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              void onCloseTerminal(tab.id);
-                            }}
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter") {
-                                event.stopPropagation();
-                                void onCloseTerminal(tab.id);
-                              }
-                            }}
-                            className="absolute -top-0.5 -end-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-foreground/10 text-foreground/50 opacity-0 transition-opacity hover:bg-foreground/20 hover:text-foreground group-hover/term:opacity-100"
-                          >
-                            <X className="h-2 w-2" />
-                          </span>
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="left" sideOffset={6}>
-                        <p className="text-xs font-medium">{tab.label}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  );
-                })}
-              </div>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    onClick={() => { void handleCreateTerminal(); }}
-                    className="mt-1 flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-foreground/25 transition-all duration-150 hover:bg-foreground/[0.05] hover:text-foreground/50 active:scale-90"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="left" sideOffset={6}>
-                  <p className="text-xs font-medium">{t("terminal.newTerminal")}</p>
-                </TooltipContent>
-              </Tooltip>
+        {!hasTabs && terminalsReady && (
+          <div className="flex h-full flex-col items-center justify-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-foreground/[0.03]">
+              <TerminalIcon className="h-5 w-5 text-emerald-600/70 dark:text-emerald-200/50" />
             </div>
-          </>
+            <button
+              type="button"
+              onClick={() => { void handleCreateTerminal(); }}
+              className="group flex cursor-pointer items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-medium text-foreground/35 transition-all duration-200 hover:bg-foreground/[0.05] hover:text-foreground/60"
+            >
+              <Plus className="h-3.5 w-3.5 transition-transform duration-200 group-hover:scale-110" />
+              {t("terminal.newTerminal")}
+            </button>
+          </div>
+        )}
+        {!hasTabs && !terminalsReady && (
+          <div className="flex h-full flex-col items-center justify-center gap-2.5">
+            <Loader2 className="h-4 w-4 animate-spin text-foreground/20" />
+            <span className="text-xs text-foreground/30">{t("terminal.restoring")}</span>
+          </div>
         )}
       </div>
     </div>

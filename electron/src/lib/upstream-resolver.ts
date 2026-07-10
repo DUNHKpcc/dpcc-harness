@@ -18,6 +18,7 @@
 import { getAppSetting } from "./app-settings";
 import { loadLocalClaudeEnv, loadLocalCodexProvider } from "./local-cli-config";
 import { DEFAULT_NEWAPI_BASE_URL } from "@shared/types/account";
+import { isActiveThirdPartyGateway } from "@shared/lib/upstream-routing";
 
 export type UpstreamTier = "gateway" | "local" | "default";
 
@@ -90,7 +91,11 @@ function resolveGatewayClaudeUpstream(): ClaudeUpstream {
 
 function hasConfiguredClaudeGateway(): boolean {
   const g = getAppSetting("claudeGateway");
-  return Boolean(g.baseUrl.trim());
+  return isActiveThirdPartyGateway({
+    enabled: g.enabled,
+    baseUrl: g.baseUrl,
+    credential: g.authToken,
+  });
 }
 
 function resolveDefaultClaudeUpstream(): ClaudeUpstream {
@@ -129,7 +134,11 @@ function resolveGatewayCodexUpstream(): CodexUpstream {
 
 function hasConfiguredCodexGateway(): boolean {
   const c = getAppSetting("codexGateway");
-  return Boolean(c.baseUrl.trim());
+  return isActiveThirdPartyGateway({
+    enabled: c.enabled,
+    baseUrl: c.baseUrl,
+    credential: c.apiKey,
+  });
 }
 
 function resolveDefaultCodexUpstream(): CodexUpstream {

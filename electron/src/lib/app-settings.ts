@@ -24,6 +24,7 @@ import {
   CODEX_GATEWAY_MODEL_PRESETS,
   buildGatewayModelMappings,
 } from "@shared/lib/gateway-models";
+import { isActiveThirdPartyGateway, isDpccUpstreamUrl } from "@shared/lib/upstream-routing";
 
 // Re-export shared types so existing `import from "./app-settings"` consumers still work
 export type { AppSettings, MacBackgroundEffect, PreferredEditor, VoiceDictationMode, NotificationTrigger, NotificationEventSettings, NotificationSettings, CodexBinarySource, ClaudeBinarySource, ClaudeGatewaySettings, CodexGatewaySettings, DpccUpstreamSettings, UpdateSource, CliConfigSource } from "@shared/types/settings";
@@ -62,16 +63,8 @@ const DEFAULTS: AppSettings = {
   accountUserId: "",
 };
 
-const DPCC_HOST_RE = /dpccgaming\.xyz/i;
-
-/** A gateway base URL is "DPCC-shaped" when it's empty or points at the DPCC host. */
-function looksLikeDpcc(baseUrl: string | undefined): boolean {
-  const u = (baseUrl ?? "").trim();
-  return u === "" || DPCC_HOST_RE.test(u);
-}
-
 /**
- * One-time migration for settings written before `dpccUpstream` existed.
+ * Normalizes DPCC credentials into the default upstream tier.
  *
  * Previously the DPCC API account entry stored its key in claudeGateway/
  * codexGateway with `enabled=true`. Those gateways now mean "custom third-party
@@ -81,31 +74,40 @@ function looksLikeDpcc(baseUrl: string | undefined): boolean {
  * `dpccUpstream` and clear them from the gateway fields so a DPCC account isn't
  * mistaken for a custom gateway. Custom (non-DPCC) gateways are left untouched.
  */
-function migrateLegacyDpcc(parsed: Partial<AppSettings>): {
+function migrateDpccGatewaySettings(parsed: Partial<AppSettings>): {
   dpccUpstream: DpccUpstreamSettings;
   claudeGateway: ClaudeGatewaySettings;
   codexGateway: CodexGatewaySettings;
+  claudeGatewayWasDpcc: boolean;
+  codexGatewayWasDpcc: boolean;
 } {
   const cg: ClaudeGatewaySettings = { ...DEFAULTS.claudeGateway, ...parsed.claudeGateway };
   const xg: CodexGatewaySettings = { ...DEFAULTS.codexGateway, ...parsed.codexGateway };
-  const claudeIsDpcc = !!(cg.enabled && cg.authToken.trim() && looksLikeDpcc(cg.baseUrl));
-  const codexIsDpcc = !!(xg.enabled && xg.apiKey.trim() && looksLikeDpcc(xg.baseUrl));
+  const dpcc = { ...DEFAULTS.dpccUpstream, ...parsed.dpccUpstream };
+  const claudeGatewayWasDpcc = Boolean(
+    (cg.baseUrl.trim() || cg.authToken.trim()) && isDpccUpstreamUrl(cg.baseUrl),
+  );
+  const codexGatewayWasDpcc = Boolean(
+    (xg.baseUrl.trim() || xg.apiKey.trim()) && isDpccUpstreamUrl(xg.baseUrl),
+  );
 
   const dpccBaseUrl =
-    (claudeIsDpcc && cg.baseUrl.trim()) ||
-    (codexIsDpcc && xg.baseUrl.trim().replace(/\/v1$/, "")) ||
-    "";
+    dpcc.baseUrl.trim() ||
+    (claudeGatewayWasDpcc && cg.baseUrl.trim()) ||
+    (codexGatewayWasDpcc && xg.baseUrl.trim().replace(/\/v1$/, "")) || "";
 
   return {
     dpccUpstream: {
       baseUrl: dpccBaseUrl,
-      claudeToken: claudeIsDpcc ? cg.authToken.trim() : "",
-      codexToken: codexIsDpcc ? xg.apiKey.trim() : "",
-      claudeModel: claudeIsDpcc ? cg.model.trim() : "",
-      codexModel: codexIsDpcc ? xg.model.trim() : "",
+      claudeToken: dpcc.claudeToken.trim() || (claudeGatewayWasDpcc ? cg.authToken.trim() : ""),
+      codexToken: dpcc.codexToken.trim() || (codexGatewayWasDpcc ? xg.apiKey.trim() : ""),
+      claudeModel: dpcc.claudeModel.trim() || (claudeGatewayWasDpcc ? cg.model.trim() : ""),
+      codexModel: dpcc.codexModel.trim() || (codexGatewayWasDpcc ? xg.model.trim() : ""),
     },
-    claudeGateway: claudeIsDpcc ? { ...DEFAULTS.claudeGateway } : cg,
-    codexGateway: codexIsDpcc ? { ...DEFAULTS.codexGateway } : xg,
+    claudeGateway: claudeGatewayWasDpcc ? { ...DEFAULTS.claudeGateway } : cg,
+    codexGateway: codexGatewayWasDpcc ? { ...DEFAULTS.codexGateway } : xg,
+    claudeGatewayWasDpcc,
+    codexGatewayWasDpcc,
   };
 }
 
@@ -131,16 +133,16 @@ function hasLegacyThirdPartyGatewaySelection(parsed: Partial<AppSettings>): bool
 
   const cg: ClaudeGatewaySettings = { ...DEFAULTS.claudeGateway, ...parsed.claudeGateway };
   const xg: CodexGatewaySettings = { ...DEFAULTS.codexGateway, ...parsed.codexGateway };
-  const claudeCustomGateway = !!(
-    cg.enabled &&
-    (cg.baseUrl.trim() || cg.authToken.trim()) &&
-    !looksLikeDpcc(cg.baseUrl)
-  );
-  const codexCustomGateway = !!(
-    xg.enabled &&
-    xg.baseUrl.trim() &&
-    !looksLikeDpcc(xg.baseUrl)
-  );
+  const claudeCustomGateway = isActiveThirdPartyGateway({
+    enabled: cg.enabled,
+    baseUrl: cg.baseUrl,
+    credential: cg.authToken,
+  });
+  const codexCustomGateway = isActiveThirdPartyGateway({
+    enabled: xg.enabled,
+    baseUrl: xg.baseUrl,
+    credential: xg.apiKey,
+  });
   return claudeCustomGateway || codexCustomGateway;
 }
 
@@ -163,14 +165,14 @@ function resolveCliConfigSources(parsed: Partial<AppSettings>): Pick<AppSettings
   };
 }
 
-function migrateLegacyCliConfigSource(
+function migrateCliConfigSources(
   parsed: Partial<AppSettings>,
   sources: Pick<AppSettings, "cliConfigSource" | "claudeCliConfigSource" | "codexCliConfigSource">,
 ): Partial<Pick<AppSettings, "cliConfigSource" | "claudeCliConfigSource" | "codexCliConfigSource">> | null {
   const patch: Partial<Pick<AppSettings, "cliConfigSource" | "claudeCliConfigSource" | "codexCliConfigSource">> = {};
-  if (!normalizeCliConfigSource(parsed.cliConfigSource)) patch.cliConfigSource = sources.cliConfigSource;
-  if (!normalizeCliConfigSource(parsed.claudeCliConfigSource)) patch.claudeCliConfigSource = sources.claudeCliConfigSource;
-  if (!normalizeCliConfigSource(parsed.codexCliConfigSource)) patch.codexCliConfigSource = sources.codexCliConfigSource;
+  if (normalizeCliConfigSource(parsed.cliConfigSource) !== sources.cliConfigSource) patch.cliConfigSource = sources.cliConfigSource;
+  if (normalizeCliConfigSource(parsed.claudeCliConfigSource) !== sources.claudeCliConfigSource) patch.claudeCliConfigSource = sources.claudeCliConfigSource;
+  if (normalizeCliConfigSource(parsed.codexCliConfigSource) !== sources.codexCliConfigSource) patch.codexCliConfigSource = sources.codexCliConfigSource;
   return Object.keys(patch).length > 0 ? patch : null;
 }
 
@@ -224,13 +226,23 @@ export function getAppSettings(): AppSettings {
   try {
     const raw = fs.readFileSync(filePath(), "utf-8");
     const parsed = JSON.parse(raw) as Partial<AppSettings>;
-    // Settings predating the dpccUpstream field need a one-time migration that
-    // splits DPCC account creds out of the gateway fields (see migrateLegacyDpcc).
-    const needsDpccMigration = parsed.dpccUpstream === undefined;
-    const migrated = needsDpccMigration ? migrateLegacyDpcc(parsed) : null;
+    const dpccGatewayMigration = migrateDpccGatewaySettings(parsed);
+    const hasDpccGatewayMigration =
+      dpccGatewayMigration.claudeGatewayWasDpcc || dpccGatewayMigration.codexGatewayWasDpcc;
     const binarySourceMigration = migrateBinarySourceDefaults(parsed);
-    const cliConfigSources = resolveCliConfigSources(parsed);
-    const cliConfigSourceMigration = migrateLegacyCliConfigSource(parsed, cliConfigSources);
+    const resolvedCliConfigSources = resolveCliConfigSources(parsed);
+    const cliConfigSources = {
+      ...resolvedCliConfigSources,
+      claudeCliConfigSource:
+        dpccGatewayMigration.claudeGatewayWasDpcc && resolvedCliConfigSources.claudeCliConfigSource === "gateway"
+          ? "default"
+          : resolvedCliConfigSources.claudeCliConfigSource,
+      codexCliConfigSource:
+        dpccGatewayMigration.codexGatewayWasDpcc && resolvedCliConfigSources.codexCliConfigSource === "gateway"
+          ? "default"
+          : resolvedCliConfigSources.codexCliConfigSource,
+    };
+    const cliConfigSourceMigration = migrateCliConfigSources(parsed, cliConfigSources);
     // Merge with defaults so newly added keys are always present.
     // Deep-merge `notifications` so upgrading users get defaults for each event type
     // even if their settings.json has a partial or missing notifications object.
@@ -244,18 +256,20 @@ export function getAppSettings(): AppSettings {
         askUserQuestion: { ...NOTIFICATION_DEFAULTS.askUserQuestion, ...parsedNotif?.askUserQuestion },
         sessionComplete: { ...NOTIFICATION_DEFAULTS.sessionComplete, ...parsedNotif?.sessionComplete },
       },
-      // Deep-merge dpccUpstream so a hand-edited partial object can't leave string
-      // fields undefined — the resolver calls .trim() on them. (migrated, when set,
-      // already contains a complete object and overrides this below.)
-      dpccUpstream: { ...DEFAULTS.dpccUpstream, ...parsed.dpccUpstream },
-      claudeGateway: normalizeClaudeGateway(parsed.claudeGateway),
-      codexGateway: normalizeCodexGateway(parsed.codexGateway),
+      dpccUpstream: hasDpccGatewayMigration
+        ? dpccGatewayMigration.dpccUpstream
+        : { ...DEFAULTS.dpccUpstream, ...parsed.dpccUpstream },
+      claudeGateway: hasDpccGatewayMigration
+        ? normalizeClaudeGateway(dpccGatewayMigration.claudeGateway)
+        : normalizeClaudeGateway(parsed.claudeGateway),
+      codexGateway: hasDpccGatewayMigration
+        ? normalizeCodexGateway(dpccGatewayMigration.codexGateway)
+        : normalizeCodexGateway(parsed.codexGateway),
       ...cliConfigSources,
-      ...(migrated ?? {}),
       ...(binarySourceMigration ?? {}),
       ...(cliConfigSourceMigration ?? {}),
     };
-    if (migrated || binarySourceMigration || cliConfigSourceMigration) {
+    if (hasDpccGatewayMigration || binarySourceMigration || cliConfigSourceMigration) {
       // Persist the migration once so the legacy gateway creds are physically
       // moved and one-time default normalizations never run again for this user.
       try {

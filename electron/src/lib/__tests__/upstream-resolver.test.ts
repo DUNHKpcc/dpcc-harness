@@ -117,7 +117,7 @@ describe("upstream resolver", () => {
       claudeCliConfigSource: "local",
       codexCliConfigSource: "gateway",
       codexGateway: {
-        enabled: false,
+        enabled: true,
         name: "Gateway Provider",
         baseUrl: "https://responses-gateway.example/v1",
         apiKey: "sk-gateway-codex",
@@ -145,13 +145,13 @@ describe("upstream resolver", () => {
     mockSettings({
       cliConfigSource: "gateway",
       claudeGateway: {
-        enabled: false,
+        enabled: true,
         baseUrl: "https://anthropic-gateway.example",
         authToken: "sk-gateway-claude",
         model: "gateway-claude-model",
       },
       codexGateway: {
-        enabled: false,
+        enabled: true,
         name: "Gateway Provider",
         baseUrl: "https://responses-gateway.example/v1",
         apiKey: "sk-gateway-codex",
@@ -206,6 +206,26 @@ describe("upstream resolver", () => {
       baseUrl: "https://api.dpcc.example/v1",
       apiKey: "sk-dpcc-codex",
       model: "dpcc-codex-model",
+    });
+  });
+
+  it("falls back to DPCC default when the selected gateway is disabled", async () => {
+    mockSettings({
+      cliConfigSource: "gateway",
+      claudeGateway: {
+        enabled: false,
+        baseUrl: "https://anthropic-gateway.example",
+        authToken: "sk-gateway-claude",
+        model: "gateway-claude-model",
+      },
+    });
+    const { resolveClaudeUpstream } = await loadModule();
+
+    expect(resolveClaudeUpstream()).toEqual({
+      tier: "default",
+      baseUrl: "https://api.dpcc.example",
+      token: "sk-dpcc-claude",
+      model: "dpcc-claude-model",
     });
   });
 

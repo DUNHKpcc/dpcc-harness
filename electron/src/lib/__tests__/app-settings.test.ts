@@ -197,6 +197,47 @@ describe("app settings", () => {
     });
   });
 
+  it("cleans DPCC-shaped gateway settings even after dpccUpstream has been created", async () => {
+    fs.writeFileSync(path.join(dataDirRef.current, "settings.json"), JSON.stringify({
+      binarySourceDefaultsMigrated: true,
+      cliConfigSource: "default",
+      claudeCliConfigSource: "local",
+      codexCliConfigSource: "gateway",
+      claudeGateway: {
+        enabled: false,
+        baseUrl: "https://api.dpccgaming.xyz",
+        authToken: "sk-legacy-claude",
+        model: "",
+      },
+      codexGateway: {
+        enabled: true,
+        name: "DPCC API",
+        baseUrl: "https://api.dpccgaming.xyz/v1",
+        apiKey: "sk-legacy-codex",
+        model: "",
+      },
+      dpccUpstream: {
+        baseUrl: "https://api.dpccgaming.xyz",
+        claudeToken: "sk-current-claude",
+        codexToken: "sk-current-codex",
+        claudeModel: "",
+        codexModel: "",
+      },
+    }), "utf-8");
+
+    const { getAppSettings } = await loadModule();
+
+    const settings = getAppSettings();
+    expect(settings.claudeGateway).toMatchObject({ enabled: false, baseUrl: "", authToken: "" });
+    expect(settings.codexGateway).toMatchObject({ enabled: false, baseUrl: "", apiKey: "" });
+    expect(settings.claudeCliConfigSource).toBe("local");
+    expect(settings.codexCliConfigSource).toBe("default");
+    expect(settings.dpccUpstream).toMatchObject({
+      claudeToken: "sk-current-claude",
+      codexToken: "sk-current-codex",
+    });
+  });
+
   it("preserves explicit per-engine config sources over the legacy shared source", async () => {
     const settingsPath = path.join(dataDirRef.current, "settings.json");
     fs.writeFileSync(settingsPath, JSON.stringify({

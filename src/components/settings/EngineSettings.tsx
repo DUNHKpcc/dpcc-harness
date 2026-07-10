@@ -13,6 +13,7 @@ import {
   type GatewayEngine,
 } from "@/lib/gateway-models";
 import { isImeComposing } from "@/lib/utils";
+import { resolveGatewayConfigSource } from "@shared/lib/upstream-routing";
 import type { AppSettings, ClaudeGatewaySettings, CodexGatewaySettings, GatewayModelMapping } from "@/types";
 
 interface EngineSettingsProps {
@@ -386,7 +387,14 @@ export const EngineSettings = memo(function EngineSettings({
     async (patch: Partial<ClaudeGatewaySettings>) => {
       const next = { ...claudeGateway, ...patch };
       setClaudeGateway(next);
-      await onUpdateAppSettings({ claudeGateway: next });
+      await onUpdateAppSettings({
+        claudeGateway: next,
+        claudeCliConfigSource: resolveGatewayConfigSource({
+          enabled: next.enabled,
+          baseUrl: next.baseUrl,
+          credential: next.authToken,
+        }),
+      });
     },
     [claudeGateway, onUpdateAppSettings],
   );
@@ -404,7 +412,14 @@ export const EngineSettings = memo(function EngineSettings({
     async (patch: Partial<CodexGatewaySettings>) => {
       const next = { ...codexGateway, ...patch };
       setCodexGateway(next);
-      await onUpdateAppSettings({ codexGateway: next });
+      await onUpdateAppSettings({
+        codexGateway: next,
+        codexCliConfigSource: resolveGatewayConfigSource({
+          enabled: next.enabled,
+          baseUrl: next.baseUrl,
+          credential: next.apiKey,
+        }),
+      });
     },
     [codexGateway, onUpdateAppSettings],
   );

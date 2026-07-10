@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   fetchUpstreamModels: vi.fn(),
@@ -57,6 +57,11 @@ describe("Claude DPCC model catalog", () => {
     mocks.resolveClaudeUpstream.mockReturnValue(defaultUpstream());
   });
 
+  afterEach(() => {
+    vi.clearAllTimers();
+    vi.useRealTimers();
+  });
+
   it("uses successful DPCC ids as the authoritative visible set", async () => {
     mocks.fetchUpstreamModels.mockResolvedValue({
       models: ["claude-opus-4-6", "claude-dpcc-only"],
@@ -101,6 +106,82 @@ describe("Claude DPCC model catalog", () => {
       supportsFastMode: true,
     });
     expect(sdkModels).toEqual(originalSdkModels);
+  });
+
+  it("prefers same-version metadata across SDK value, display name, and description", async () => {
+    mocks.fetchUpstreamModels.mockResolvedValue({
+      models: ["claude-sonnet-4-6"],
+      error: null,
+    });
+    const versionedModels: CachedModelInfo[] = [
+      {
+        value: "sonnet-old",
+        displayName: "Sonnet 4.5",
+        description: "Previous Sonnet metadata",
+        supportsFastMode: false,
+      },
+      {
+        value: "sonnet-current",
+        displayName: "Current Sonnet",
+        description: "Claude Sonnet 4.6 metadata",
+        supportsFastMode: true,
+      },
+    ];
+
+    const [result] = await resolveEffectiveClaudeModels(versionedModels);
+
+    expect(result).toEqual({
+      value: "claude-sonnet-4-6",
+      displayName: "Current Sonnet",
+      description: "Claude Sonnet 4.6 metadata",
+      supportsFastMode: true,
+    });
+  });
+
+  it("uses a generic family alias instead of a different concrete version", async () => {
+    mocks.fetchUpstreamModels.mockResolvedValue({
+      models: ["claude-sonnet-4-6"],
+      error: null,
+    });
+    const versionedModels: CachedModelInfo[] = [
+      {
+        value: "sonnet-4-5",
+        displayName: "Sonnet 4.5",
+        description: "Wrong concrete version",
+      },
+      {
+        value: "sonnet",
+        displayName: "Generic Sonnet",
+        description: "Versionless fallback",
+      },
+    ];
+
+    const [result] = await resolveEffectiveClaudeModels(versionedModels);
+
+    expect(result).toEqual({
+      value: "claude-sonnet-4-6",
+      displayName: "Generic Sonnet",
+      description: "Versionless fallback",
+    });
+  });
+
+  it("does not use metadata from a different concrete family version", async () => {
+    mocks.fetchUpstreamModels.mockResolvedValue({
+      models: ["claude-sonnet-4-6"],
+      error: null,
+    });
+    const oldModel: CachedModelInfo = {
+      value: "sonnet-4-5",
+      displayName: "Sonnet 4.5",
+      description: "Wrong concrete version",
+      supportsEffort: true,
+    };
+
+    const result = await resolveEffectiveClaudeModels([oldModel]);
+
+    expect(result).toEqual([
+      { value: "claude-sonnet-4-6", displayName: "claude-sonnet-4-6", description: "" },
+    ]);
   });
 
   it("maps bracketed 1M SDK aliases only to 1M DPCC variants", async () => {
@@ -244,7 +325,6 @@ describe("Claude DPCC model catalog", () => {
     await resolveEffectiveClaudeModels(sdkModels);
 
     expect(mocks.fetchUpstreamModels).toHaveBeenCalledTimes(1);
-    vi.useRealTimers();
   });
 
   it("falls back to the exact SDK array when the first DPCC request fails", async () => {
@@ -268,7 +348,6 @@ describe("Claude DPCC model catalog", () => {
 
     expect(afterFailure).toEqual(initial);
     expect(mocks.fetchUpstreamModels).toHaveBeenCalledTimes(2);
-    vi.useRealTimers();
   });
 
   it("isolates cached catalogs by base URL and token", async () => {
@@ -307,7 +386,31 @@ describe("Claude DPCC model catalog", () => {
 
     expect(failedSecondAccount).toBe(sdkModels);
     expect(mocks.fetchUpstreamModels).toHaveBeenCalledTimes(2);
-    vi.useRealTimers();
+  });
+
+  it("resolves against the current upstream when the source changes during a request", async () => {
+    let upstream = defaultUpstream({ baseUrl: "https://a.example", token: "token-a" });
+    mocks.resolveClaudeUpstream.mockImplementation(() => upstream);
+    let resolveA!: (value: { models: string[]; error: null }) => void;
+    let resolveB!: (value: { models: string[]; error: null }) => void;
+    mocks.fetchUpstreamModels.mockImplementation((baseUrl: string) => new Promise((resolve) => {
+      if (baseUrl === "https://a.example") resolveA = resolve;
+      if (baseUrl === "https://b.example") resolveB = resolve;
+    }));
+
+    const fromA = resolveEffectiveClaudeModels(sdkModels);
+    upstream = defaultUpstream({ baseUrl: "https://b.example", token: "token-b" });
+    const fromB = resolveEffectiveClaudeModels(sdkModels);
+
+    resolveB({ models: ["claude-account-b"], error: null });
+    await expect(fromB).resolves.toEqual([
+      { value: "claude-account-b", displayName: "claude-account-b", description: "" },
+    ]);
+    resolveA({ models: ["claude-account-a"], error: null });
+    await expect(fromA).resolves.toEqual([
+      { value: "claude-account-b", displayName: "claude-account-b", description: "" },
+    ]);
+    expect(mocks.fetchUpstreamModels).toHaveBeenCalledTimes(2);
   });
 
   it("deduplicates concurrent requests for the same credentials", async () => {

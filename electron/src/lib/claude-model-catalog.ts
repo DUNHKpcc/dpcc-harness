@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import type { CachedModelInfo } from "./claude-model-cache";
+import type { ClaudeUpstream } from "./upstream-resolver";
 import { resolveClaudeUpstream } from "./upstream-resolver";
 import { fetchUpstreamModels } from "./upstream-models";
 
@@ -13,6 +14,7 @@ interface ModelIdCache {
 interface ClaudeModelSignature {
   family: "opus" | "sonnet" | "haiku";
   context: "base" | "1m";
+  version: string | null;
 }
 
 const caches = new Map<string, ModelIdCache>();
@@ -54,15 +56,40 @@ async function loadDpccModelIds(baseUrl: string, token: string): Promise<string[
   return request;
 }
 
-function claudeModelSignature(value: string): ClaudeModelSignature | null {
-  const normalized = value.trim().toLowerCase().replace(/[\[\]]/g, "-");
-  const family = normalized.match(/(?:^|[-_])(opus|sonnet|haiku)(?:[-_]|$)/)?.[1];
+function claudeModelSignature(...values: string[]): ClaudeModelSignature | null {
+  const metadata = values.join(" ").trim().toLowerCase();
+  const family = metadata.match(/(?:^|[^a-z])(opus|sonnet|haiku)(?:[^a-z]|$)/)?.[1];
   if (family !== "opus" && family !== "sonnet" && family !== "haiku") return null;
+  const version = metadata.match(/(?:^|[^0-9])([1-9])[.-]([0-9])(?=[^0-9]|$)/);
 
   return {
     family,
-    context: /(?:^|[-_])1m(?:[-_]|$)/.test(normalized) ? "1m" : "base",
+    context: /(?:^|[^a-z0-9])1m(?:[^a-z0-9]|$)/.test(metadata) ? "1m" : "base",
+    version: version ? `${version[1]}.${version[2]}` : null,
   };
+}
+
+function findClaudeAlias(
+  sdkModels: CachedModelInfo[],
+  target: ClaudeModelSignature,
+): CachedModelInfo | undefined {
+  const candidates = sdkModels.flatMap((model) => {
+    if (model.value.trim() === "default") return [];
+    const signature = claudeModelSignature(model.value, model.displayName, model.description);
+    if (signature?.family !== target.family || signature.context !== target.context) return [];
+    return [{ model, signature }];
+  });
+
+  if (!target.version) return candidates[0]?.model;
+  return candidates.find(({ signature }) => signature.version === target.version)?.model
+    ?? candidates.find(({ signature }) => signature.version === null)?.model;
+}
+
+function isSameClaudeUpstream(left: ClaudeUpstream, right: ClaudeUpstream): boolean {
+  return left.tier === right.tier
+    && left.baseUrl === right.baseUrl
+    && left.token === right.token
+    && left.model === right.model;
 }
 
 function mergeClaudeModelsForUpstream(
@@ -97,12 +124,7 @@ function mergeClaudeModelsForUpstream(
     }
 
     const signature = claudeModelSignature(id);
-    const alias = signature
-      ? sdkModels.find((model) => {
-        const candidate = claudeModelSignature(model.value);
-        return candidate?.family === signature.family && candidate.context === signature.context;
-      })
-      : undefined;
+    const alias = signature ? findClaudeAlias(sdkModels, signature) : undefined;
     if (alias) {
       models.push({ ...alias, value: id });
       continue;
@@ -124,10 +146,13 @@ export function clearClaudeModelCatalogCache(): void {
 export async function resolveEffectiveClaudeModels(
   sdkModels: CachedModelInfo[],
 ): Promise<CachedModelInfo[]> {
-  const upstream = resolveClaudeUpstream();
-  if (upstream.tier !== "default") return sdkModels;
+  while (true) {
+    const upstream = resolveClaudeUpstream();
+    if (upstream.tier !== "default") return sdkModels;
 
-  const modelIds = await loadDpccModelIds(upstream.baseUrl, upstream.token);
-  if (modelIds === null) return sdkModels;
-  return mergeClaudeModelsForUpstream(sdkModels, modelIds, upstream.model);
+    const modelIds = await loadDpccModelIds(upstream.baseUrl, upstream.token);
+    if (!isSameClaudeUpstream(upstream, resolveClaudeUpstream())) continue;
+    if (modelIds === null) return sdkModels;
+    return mergeClaudeModelsForUpstream(sdkModels, modelIds, upstream.model);
+  }
 }

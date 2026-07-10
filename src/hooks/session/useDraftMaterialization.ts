@@ -228,23 +228,28 @@ export function useDraftMaterialization({
   }, [acp, getProjectCwd, setAcpConfigOptionsLoading, setDraftAcpSessionId, setDraftMcpStatuses, setInitialConfigOptions, setInitialSlashCommands]);
 
   // Load Codex models ahead of first message so the model picker is usable in draft mode.
-  const prefetchCodexModels = useCallback(async (preferredModel?: string) => {
+  const prefetchCodexModels = useCallback(async (
+    preferredModel?: string,
+    isCurrent: () => boolean = () => true,
+  ) => {
     setCodexModelsLoadingMessage("Checking Codex CLI...");
     try {
       const status = await window.claude.codex.binaryStatus();
+      if (!isCurrent()) return false;
       if (!status.installed) {
         setCodexModelsLoadingMessage("Codex CLI not found. Downloading it now...");
       }
 
       const result = await window.claude.codex.listModels();
+      if (!isCurrent()) return false;
       if (result.error) {
         setCodexModelsLoadingMessage(`Codex model load failed: ${result.error}`);
-        return;
+        return false;
       }
       const models = normalizeCodexModels(result.models ?? []);
       if (models.length === 0) {
         setCodexModelsLoadingMessage("No Codex models available yet.");
-        return;
+        return false;
       }
 
       setCodexRawModels(models);
@@ -252,25 +257,34 @@ export function useDraftMaterialization({
         value: m.id,
         displayName: m.displayName,
         description: m.description,
+        supportsEffort: m.supportedReasoningEfforts.length > 0,
       })));
 
       const selected = pickCodexModel(preferredModel, models);
       const selectedModel = selected
         ? models.find((m) => m.id === selected)
         : undefined;
-      applyCodexModelDefaultEffort(selectedModel?.defaultReasoningEffort);
+      applyCodexModelDefaultEffort(
+        selectedModel && selectedModel.supportedReasoningEfforts.length > 0
+          ? selectedModel.defaultReasoningEffort
+          : undefined,
+      );
 
       setStartOptions((prev) => {
         if ((prev.engine ?? "claude") !== "codex") return prev;
+        if (preferredModel && prev.model && prev.model !== preferredModel) return prev;
         if (!selected || prev.model === selected) return prev;
         return { ...prev, model: selected };
       });
       setCodexModelsLoadingMessage(null);
+      return true;
     } catch (err) {
+      if (!isCurrent()) return false;
       // Model prefetch is optional — draft session can still start on first send.
       captureException(err instanceof Error ? err : new Error(String(err)), { label: "CODEX_MODELS_PREFETCH_ERR" });
       const message = err instanceof Error ? err.message : String(err);
       setCodexModelsLoadingMessage(`Failed to initialize Codex CLI: ${message}`);
+      return false;
     }
   }, [applyCodexModelDefaultEffort, codex.setCodexModels, setCodexModelsLoadingMessage, setCodexRawModels, setStartOptions]);
 
@@ -539,6 +553,7 @@ export function useDraftMaterialization({
               value: m.id,
               displayName: m.displayName,
               description: m.description,
+              supportsEffort: m.supportedReasoningEfforts.length > 0,
             })));
             setCodexRawModels(models);
             const selectedId = pickCodexModel(result.selectedModel ?? options.model, models);
@@ -546,7 +561,11 @@ export function useDraftMaterialization({
               ? models.find((m) => m.id === selectedId)
               : undefined;
             resolvedCodexModel = selectedId ?? resolvedCodexModel;
-            applyCodexModelDefaultEffort(selectedModel?.defaultReasoningEffort);
+            applyCodexModelDefaultEffort(
+              selectedModel && selectedModel.supportedReasoningEfforts.length > 0
+                ? selectedModel.defaultReasoningEffort
+                : undefined,
+            );
           }
         }
         if (!resolvedCodexModel) {

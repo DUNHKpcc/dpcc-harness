@@ -96,7 +96,7 @@ export interface SharedSessionRefs {
   acpAgentIdRef: React.MutableRefObject<string | null>;
   acpAgentSessionIdRef: React.MutableRefObject<string | null>;
   codexRawModelsRef: React.MutableRefObject<CodexModelSummary[]>;
-  codexEffortRef: React.MutableRefObject<string>;
+  codexEffortRef: React.MutableRefObject<string | undefined>;
   codexEffortManualOverrideRef: React.MutableRefObject<boolean>;
   lastMessageSyncSessionRef: React.MutableRefObject<string | null>;
   switchSessionRef: React.MutableRefObject<((id: string) => Promise<void>) | undefined>;

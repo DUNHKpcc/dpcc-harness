@@ -975,11 +975,13 @@ export function useCodex({
       if (!sessionId) return false;
       setIsProcessing(true);
       try {
+        const selectedModelId = sessionInfo?.model?.trim() || sessionModelRef.current?.trim();
+        const selectedModel = codexModels.find((model) => model.value === selectedModelId);
         const result = await window.claude.codex.send(
           sessionId,
           text,
           imageAttachmentsToCodexInputs(images),
-          codexEffort,
+          selectedModel?.supportsEffort ? codexEffort : undefined,
           collaborationMode,
           fileReferencesToCodexMentions(fileReferences),
         );
@@ -994,7 +996,7 @@ export function useCodex({
         return false;
       }
     },
-    [sessionId, codexEffort],
+    [sessionId, codexEffort, codexModels, sessionInfo?.model],
   );
 
   const send = useCallback(

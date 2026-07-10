@@ -26,8 +26,10 @@ import { useSessionPane } from "./session/useSessionPane";
 import { useMessageQueue } from "./session/useMessageQueue";
 import { useSessionPersistence } from "./session/useSessionPersistence";
 import { useDraftMaterialization } from "./session/useDraftMaterialization";
+import { useCodexModelCatalogSync } from "./session/useCodexModelCatalogSync";
 import { useSessionRevival } from "./session/useSessionRevival";
 import { useSessionLifecycle } from "./session/useSessionLifecycle";
+import { resolveCodexReasoningEffort } from "@shared/lib/codex-helpers";
 
 export function useSessionManager(
   projects: Project[],
@@ -168,8 +170,12 @@ export function useSessionManager(
   const acpAgentSessionIdRef = useRef<string | null>(null);
   const codexRawModelsRef = useRef(codexRawModels);
   codexRawModelsRef.current = codexRawModels;
-  const codexEffortRef = useRef(codex.codexEffort);
-  codexEffortRef.current = codex.codexEffort;
+  const codexEffortModelId = codexSessionModel ?? startOptions.model;
+  const codexEffortModel = codexRawModels.find((model) => model.id === codexEffortModelId);
+  const codexEffortRef = useRef<string | undefined>(
+    resolveCodexReasoningEffort(codexEffortModel, codex.codexEffort),
+  );
+  codexEffortRef.current = resolveCodexReasoningEffort(codexEffortModel, codex.codexEffort);
   // Tracks whether current Codex effort was explicitly chosen by the user.
   const codexEffortManualOverrideRef = useRef(false);
   const acpPermissionBehaviorRef = useRef<AcpPermissionBehavior>(acpPermissionBehavior);
@@ -185,15 +191,22 @@ export function useSessionManager(
   // ── Codex effort helpers (kept in orchestrator — too small to extract) ──
   const setCodexEffortFromUser = useCallback((effort: string) => {
     codexEffortManualOverrideRef.current = true;
+    codexEffortRef.current = effort;
     codex.setCodexEffort(effort);
   }, [codex.setCodexEffort]);
   const applyCodexModelDefaultEffort = useCallback((effort: string | undefined) => {
-    if (!effort || codexEffortManualOverrideRef.current) return;
+    if (!effort) {
+      codexEffortRef.current = undefined;
+      return;
+    }
+    if (codexEffortManualOverrideRef.current) return;
+    codexEffortRef.current = effort;
     codex.setCodexEffort(effort);
   }, [codex.setCodexEffort]);
   const resetCodexEffortToModelDefault = useCallback((effort: string | undefined) => {
     if (!effort) return;
     codexEffortManualOverrideRef.current = false;
+    codexEffortRef.current = effort;
     codex.setCodexEffort(effort);
   }, [codex.setCodexEffort]);
 
@@ -298,6 +311,7 @@ export function useSessionManager(
   const {
     eagerStartSession,
     eagerStartAcpSession,
+    prefetchCodexModels,
     probeMcpServers,
     abandonEagerSession,
     abandonDraftAcpSession,
@@ -312,6 +326,20 @@ export function useSessionManager(
       generateSessionTitle,
       applyCodexModelDefaultEffort,
     });
+
+  const clearCodexModelCatalog = useCallback(() => {
+    setCodexRawModels([]);
+    codex.setCodexModels([]);
+  }, [codex.setCodexModels]);
+
+  useCodexModelCatalogSync({
+    isCodex,
+    rawModelCount: codexRawModels.length,
+    activeSessionId,
+    preferredModel: codexSessionModel ?? startOptions.model,
+    prefetchCodexModels,
+    clearModels: clearCodexModelCatalog,
+  });
 
   const { reviveSession, reviveAcpSession, reviveCodexSession } = useSessionRevival({
     refs,

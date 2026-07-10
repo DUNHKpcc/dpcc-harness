@@ -31,7 +31,7 @@ export async function fetchUpstreamModels(
     });
     if (!res.ok) return { models: [], error: `${res.status} ${res.statusText}` };
     const body = (await res.json()) as { data?: Array<{ id?: string }> };
-    if (!Array.isArray(body.data)) return { models: [], error: null };
+    if (!Array.isArray(body.data)) return { models: [], error: "invalid_response" };
     const models = body.data
       .map((m) => (typeof m?.id === "string" ? m.id : ""))
       .filter(Boolean);

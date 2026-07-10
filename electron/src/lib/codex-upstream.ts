@@ -19,11 +19,11 @@ export function codexUpstreamEnv(): Record<string, string> {
  * override table (base_url / env_key / wire_api) plus provider + model selection.
  * Covers both the explicit custom gateway and the DPCC official default upstream.
  */
-export function codexUpstreamThreadParams(modelFallback?: string): Record<string, unknown> {
+export function codexUpstreamThreadParams(selectedModel?: string): Record<string, unknown> {
   const u = resolveCodexUpstream();
   if (u.tier === "local") return {};
   if (!u.baseUrl) return {};
-  const model = u.model.trim() || modelFallback?.trim() || "";
+  const model = selectedModel?.trim() || u.model.trim() || "";
   const name = u.providerName || (u.tier === "default" ? "DPCC API" : "PccAgent Gateway");
   const params: Record<string, unknown> = {
     modelProvider: CODEX_GATEWAY_PROVIDER_ID,

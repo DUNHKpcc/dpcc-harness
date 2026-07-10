@@ -24,6 +24,7 @@ import { reportError } from "../lib/error-utils";
 import { captureEvent } from "../lib/posthog";
 import { codexUpstreamThreadParams } from "../lib/codex-upstream";
 import { buildCodexAppServerEnv } from "../lib/codex-home-isolation";
+import { resolveEffectiveCodexModels } from "../lib/codex-model-catalog";
 import { reclaimMacDockFocus } from "../lib/macos-dock-focus";
 import { normalizeSessionCwd } from "../lib/session-cwd";
 import { formatCodexResumeError } from "../lib/codex-resume-error";
@@ -324,7 +325,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         let selectedModel: string | undefined;
         try {
           const modelResult = await rpc.request<CodexModelListResponse>("model/list", { includeHidden: false });
-          models = modelResult.data ?? [];
+          models = await resolveEffectiveCodexModels(modelResult.data ?? []);
           selectedModel = pickModelId(options.model, models);
           if (options.model && selectedModel !== options.model) {
             log("codex", ` Requested model ${options.model} not found; using ${selectedModel ?? "server default"}`);
@@ -638,7 +639,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       if (session.rpc.isAlive) {
         try {
           const result = await session.rpc.request<CodexModelListResponse>("model/list", { includeHidden: false });
-          return { models: result.data ?? [] };
+          return { models: await resolveEffectiveCodexModels(result.data ?? []) };
         } catch {
           continue;
         }
@@ -665,7 +666,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         });
         rpc.notify("initialized", {});
         const result = await rpc.request<CodexModelListResponse>("model/list", { includeHidden: false });
-        return { models: result.data ?? [] };
+        return { models: await resolveEffectiveCodexModels(result.data ?? []) };
       } finally {
         rpc.destroy();
       }

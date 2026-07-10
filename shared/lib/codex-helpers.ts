@@ -31,3 +31,68 @@ export function pickModelId(
   const first = models[0];
   return first?.id;
 }
+
+function createUpstreamCodexModel(id: string): CodexModel {
+  return {
+    id,
+    model: id,
+    upgrade: null,
+    displayName: id,
+    description: "",
+    hidden: false,
+    supportedReasoningEfforts: [],
+    defaultReasoningEffort: "none",
+    inputModalities: ["text"],
+    supportsPersonality: false,
+    isDefault: false,
+  };
+}
+
+/**
+ * Build the Codex catalog for an authoritative upstream model-id list.
+ * Native entries only contribute metadata; they do not make an unavailable
+ * model visible when the upstream omits it.
+ */
+export function mergeCodexModelsForUpstream(
+  nativeModels: CodexModel[],
+  upstreamModelIds: string[],
+  preferredModel?: string,
+): CodexModel[] {
+  const ids = Array.from(new Set(upstreamModelIds.map((id) => id.trim()).filter(Boolean)));
+  const nativeById = new Map<string, CodexModel>();
+  for (const model of nativeModels) {
+    nativeById.set(model.id, model);
+    nativeById.set(model.model, model);
+  }
+
+  const preferred = preferredModel?.trim();
+  const defaultId = preferred && ids.includes(preferred)
+    ? preferred
+    : nativeModels.find((model) => model.isDefault && ids.includes(model.id))?.id ?? ids[0];
+
+  return ids.map((id) => ({
+    ...(nativeById.get(id) ?? createUpstreamCodexModel(id)),
+    id,
+    model: id,
+    hidden: false,
+    isDefault: id === defaultId,
+  }));
+}
+
+/** Never send a guessed reasoning effort for a model that does not advertise one. */
+export function resolveCodexReasoningEffort(
+  model: {
+    supportedReasoningEfforts: Array<{ reasoningEffort: string }>;
+    defaultReasoningEffort: string;
+  } | undefined,
+  requestedEffort: string | undefined,
+): string | undefined {
+  const requested = requestedEffort?.trim();
+  if (!model) return undefined;
+
+  const supported = model.supportedReasoningEfforts.map((option) => option.reasoningEffort);
+  if (supported.length === 0) return undefined;
+  if (requested && supported.includes(requested)) return requested;
+  if (supported.includes(model.defaultReasoningEffort)) return model.defaultReasoningEffort;
+  return supported[0];
+}

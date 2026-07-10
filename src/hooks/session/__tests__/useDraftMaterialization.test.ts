@@ -123,4 +123,31 @@ describe("useDraftMaterialization", () => {
     expect(params.setters.setPreStartedSessionId).not.toHaveBeenCalled();
     expect(window.claude.stop).toHaveBeenCalledWith("abandoned-session", "draft_abandoned");
   });
+
+  it("stops an installed eager session superseded while its metadata is loading", async () => {
+    const { useDraftMaterialization } = await import("../useDraftMaterialization");
+    const params = makeParams();
+    const oldStatus = deferred<{ servers: [] }>();
+    vi.mocked(window.claude.start)
+      .mockResolvedValueOnce({ sessionId: "older-session", pid: 1 })
+      .mockResolvedValueOnce({ sessionId: "newer-session", pid: 2 });
+    vi.mocked(window.claude.mcpStatus)
+      .mockReturnValueOnce(oldStatus.promise)
+      .mockResolvedValueOnce({ servers: [] });
+
+    const materialization = useDraftMaterialization(
+      params as unknown as Parameters<typeof useDraftMaterialization>[0],
+    );
+    const first = materialization.eagerStartSession("project-1");
+    await flushAsync();
+    expect(params.refs.preStartedSessionIdRef.current).toBe("older-session");
+
+    await materialization.eagerStartSession("project-1");
+    oldStatus.resolve({ servers: [] });
+    await first;
+
+    expect(params.refs.preStartedSessionIdRef.current).toBe("newer-session");
+    expect(params.refs.liveSessionIdsRef.current).toEqual(new Set(["newer-session"]));
+    expect(window.claude.stop).toHaveBeenCalledWith("older-session", "draft_abandoned");
+  });
 });

@@ -79,6 +79,17 @@ export function useDraftMaterialization({
   const eagerStartSession = useCallback(async (projectId: string, options?: StartOptions) => {
     const eagerStartGeneration = ++claudeEagerStartGenerationRef.current;
     const isCurrentEagerStart = () => eagerStartGeneration === claudeEagerStartGenerationRef.current;
+    const discardStartedSession = (sessionId: string) => {
+      suppressNextSessionCompletion(sessionId);
+      window.claude.stop(sessionId, "draft_abandoned");
+      liveSessionIdsRef.current.delete(sessionId);
+      backgroundStoreRef.current.delete(sessionId);
+      if (preStartedSessionIdRef.current === sessionId) {
+        preStartedSessionIdRef.current = null;
+        setPreStartedSessionId(null);
+        setDraftMcpStatuses([]);
+      }
+    };
     const project = refs.projectsRef.current.find((p) => p.id === projectId);
     if (!project) return;
     const mcpServers = await window.claude.mcp.list(projectId);
@@ -107,8 +118,7 @@ export function useDraftMaterialization({
       && draftProjectIdRef.current === projectId;
     if (!isCurrentEagerStart() || !isCurrentDraft) {
       // The draft was abandoned or superseded before eager start completed.
-      suppressNextSessionCompletion(result.sessionId);
-      window.claude.stop(result.sessionId, "draft_abandoned");
+      discardStartedSession(result.sessionId);
       return;
     }
 
@@ -120,8 +130,11 @@ export function useDraftMaterialization({
     // couldn't match it (preStartedSessionIdRef was still null). Query MCP
     // status directly now that the session is initialized.
     const statusResult = await window.claude.mcpStatus(result.sessionId);
+    if (!isCurrentEagerStart()) {
+      discardStartedSession(result.sessionId);
+      return;
+    }
     if (statusResult.servers?.length
-      && isCurrentEagerStart()
       && preStartedSessionIdRef.current === result.sessionId) {
       setDraftMcpStatuses(statusResult.servers.map(s => ({
         name: s.name,

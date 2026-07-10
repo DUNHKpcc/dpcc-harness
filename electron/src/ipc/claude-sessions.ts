@@ -445,10 +445,18 @@ let modelsRevalidationPromise: Promise<ClaudeModelsCacheResult> | null = null;
 async function resolveEffectiveClaudeModelsCache(
   result: ClaudeModelsCacheResult,
 ): Promise<ClaudeModelsCacheResult> {
-  return {
-    ...result,
-    models: await resolveEffectiveClaudeModels(result.models),
-  };
+  try {
+    return {
+      ...result,
+      models: await resolveEffectiveClaudeModels(result.models),
+    };
+  } catch (err) {
+    const resolverError = reportError("CLAUDE_MODEL_CATALOG_RESOLVE_ERR", err, { engine: "claude" });
+    return {
+      ...result,
+      error: result.error ?? resolverError,
+    };
+  }
 }
 
 async function revalidateRawClaudeModelsCache(cwd?: string): Promise<ClaudeModelsCacheResult> {
@@ -519,12 +527,15 @@ async function revalidateRawClaudeModelsCache(cwd?: string): Promise<ClaudeModel
         }
 
         const models = await queryHandle.supportedModels();
-        if (Array.isArray(models) && models.length > 0) {
-          const next = setClaudeModelsCache(models);
-          if (index > 0) {
-            log("MODELS_CACHE_REVALIDATE_FALLBACK", `Recovered via ${attempt.label}`);
+        if (Array.isArray(models)) {
+          if (models.length > 0) {
+            const next = setClaudeModelsCache(models);
+            if (index > 0) {
+              log("MODELS_CACHE_REVALIDATE_FALLBACK", `Recovered via ${attempt.label}`);
+            }
+            return { models: next.models, updatedAt: next.updatedAt };
           }
-          return { models: next.models, updatedAt: next.updatedAt };
+          return { models: [], updatedAt: existing.updatedAt };
         }
 
         return { models: existing.models, updatedAt: existing.updatedAt };

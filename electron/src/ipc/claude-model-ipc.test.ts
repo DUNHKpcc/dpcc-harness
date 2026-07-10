@@ -142,6 +142,24 @@ describe("Claude model IPC catalog", () => {
     expect(result).toEqual({ models: effectiveModels, updatedAt: 100 });
   });
 
+  it("returns the raw cache with a structured catalog error when cache resolution fails", async () => {
+    mocks.resolveEffectiveClaudeModels.mockRejectedValue(new Error("resolver failed"));
+
+    const resultPromise = mocks.handlers.get("claude:models-cache:get")?.({});
+
+    await expect(resultPromise).resolves.toEqual({
+      models: rawModels,
+      updatedAt: 100,
+      error: "CLAUDE_MODEL_CATALOG_RESOLVE_ERR: Error: resolver failed",
+    });
+    expect(mocks.setClaudeModelsCache).not.toHaveBeenCalled();
+    expect(mocks.reportError).toHaveBeenCalledWith(
+      "CLAUDE_MODEL_CATALOG_RESOLVE_ERR",
+      expect.any(Error),
+      { engine: "claude" },
+    );
+  });
+
   it("persists a revalidated raw SDK list while returning the effective catalog", async () => {
     const close = vi.fn();
     const supportedModels = vi.fn(async () => rawModels);
@@ -152,6 +170,43 @@ describe("Claude model IPC catalog", () => {
     expect(mocks.setClaudeModelsCache).toHaveBeenCalledWith(rawModels);
     expect(mocks.resolveEffectiveClaudeModels).toHaveBeenCalledWith(rawModels);
     expect(result).toEqual({ models: effectiveModels, updatedAt: 200 });
+    expect(close).toHaveBeenCalled();
+  });
+
+  it("resolves an empty revalidated SDK list without enriching it from the raw cache", async () => {
+    const close = vi.fn();
+    const supportedModels = vi.fn(async () => []);
+    mocks.getSDK.mockResolvedValue(() => ({ supportedModels, close }));
+
+    const result = await mocks.handlers.get("claude:models-cache:revalidate")?.({}, { cwd: "/tmp/project" });
+
+    expect(mocks.setClaudeModelsCache).not.toHaveBeenCalled();
+    expect(mocks.resolveEffectiveClaudeModels).toHaveBeenCalledWith([]);
+    expect(result).toEqual({ models: effectiveModels, updatedAt: 100 });
+    expect(close).toHaveBeenCalled();
+  });
+
+  it("preserves a revalidation error when catalog resolution also fails", async () => {
+    const close = vi.fn();
+    const supportedModels = vi.fn(async () => {
+      throw new Error("SDK failed");
+    });
+    mocks.getSDK.mockResolvedValue(() => ({ supportedModels, close }));
+    mocks.resolveEffectiveClaudeModels.mockRejectedValue(new Error("resolver failed"));
+
+    const resultPromise = mocks.handlers.get("claude:models-cache:revalidate")?.({}, { cwd: "/tmp/project" });
+
+    await expect(resultPromise).resolves.toEqual({
+      models: rawModels,
+      updatedAt: 100,
+      error: "MODELS_CACHE_REVALIDATE_ERR: Error: SDK failed",
+    });
+    expect(mocks.setClaudeModelsCache).not.toHaveBeenCalled();
+    expect(mocks.reportError).toHaveBeenCalledWith(
+      "CLAUDE_MODEL_CATALOG_RESOLVE_ERR",
+      expect.any(Error),
+      { engine: "claude" },
+    );
     expect(close).toHaveBeenCalled();
   });
 

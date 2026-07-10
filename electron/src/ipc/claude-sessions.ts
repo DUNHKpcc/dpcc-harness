@@ -10,6 +10,7 @@ import type { PermissionMode, SDKUserMessage } from "@anthropic-ai/claude-agent-
 import type { QueryHandle } from "../lib/sdk";
 import { getMcpAuthHeaders } from "../lib/mcp-oauth-flow";
 import { getClaudeModelsCache, setClaudeModelsCache } from "../lib/claude-model-cache";
+import { resolveEffectiveClaudeModels } from "../lib/claude-model-catalog";
 import { reportError } from "../lib/error-utils";
 import { buildSdkMcpConfig } from "@shared/lib/mcp-config";
 import type { McpServerInput } from "@shared/lib/mcp-config";
@@ -441,7 +442,16 @@ type ClaudeModelsCacheResult = ReturnType<typeof getClaudeModelsCache> & { error
 
 let modelsRevalidationPromise: Promise<ClaudeModelsCacheResult> | null = null;
 
-async function revalidateClaudeModelsCache(cwd?: string): Promise<ClaudeModelsCacheResult> {
+async function resolveEffectiveClaudeModelsCache(
+  result: ClaudeModelsCacheResult,
+): Promise<ClaudeModelsCacheResult> {
+  return {
+    ...result,
+    models: await resolveEffectiveClaudeModels(result.models),
+  };
+}
+
+async function revalidateRawClaudeModelsCache(cwd?: string): Promise<ClaudeModelsCacheResult> {
   if (modelsRevalidationPromise) return modelsRevalidationPromise;
 
   modelsRevalidationPromise = (async () => {
@@ -549,6 +559,10 @@ async function revalidateClaudeModelsCache(cwd?: string): Promise<ClaudeModelsCa
   });
 
   return modelsRevalidationPromise;
+}
+
+async function revalidateClaudeModelsCache(cwd?: string): Promise<ClaudeModelsCacheResult> {
+  return resolveEffectiveClaudeModelsCache(await revalidateRawClaudeModelsCache(cwd));
 }
 
 /** Shared MCP config options — injects auth header resolution and diagnostic logging. */
@@ -1109,13 +1123,14 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
 
   ipcMain.handle("claude:supported-models", async (_event, sessionId: string) => {
     const session = sessions.get(sessionId);
-    if (!session?.queryHandle?.supportedModels) return { models: [] };
     try {
-      const models = await session.queryHandle.supportedModels();
-      if (Array.isArray(models) && models.length > 0) {
-        setClaudeModelsCache(models);
-      }
-      return { models };
+      const models = session?.queryHandle?.supportedModels
+        ? await session.queryHandle.supportedModels()
+        : [];
+      const rawModels = Array.isArray(models) && models.length > 0
+        ? setClaudeModelsCache(models).models
+        : [];
+      return { models: await resolveEffectiveClaudeModels(rawModels) };
     } catch (err) {
       const errMsg = reportError("SUPPORTED_MODELS_ERR", err, { engine: "claude", sessionId });
       return { models: [], error: errMsg };
@@ -1136,7 +1151,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
 
   ipcMain.handle("claude:models-cache:get", async () => {
     const cached = getClaudeModelsCache();
-    return { models: cached.models, updatedAt: cached.updatedAt };
+    return resolveEffectiveClaudeModelsCache(cached);
   });
 
   ipcMain.handle("claude:models-cache:revalidate", async (_event, options?: { cwd?: string }) => {

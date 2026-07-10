@@ -316,12 +316,13 @@ export function useSessionSettings({
         })));
       }
       if (!modelsResult.error
+        && !modelsResult.stale
         && preStartedSessionIdRef.current === preStartedId
         && isClaudeModelCacheRequestCurrent(
           modelsGeneration,
           claudeModelCatalogRequestGenerationRef.current,
         )) {
-        setCachedModels(modelsResult.models);
+        setCachedModels(modelsResult.models, modelsResult.authoritative);
       }
       return;
     }
@@ -380,12 +381,13 @@ export function useSessionSettings({
         })));
       }
       if (!modelsResult.error
+        && !modelsResult.stale
         && preStartedSessionIdRef.current === preStartedId
         && isClaudeModelCacheRequestCurrent(
           modelsGeneration,
           claudeModelCatalogRequestGenerationRef.current,
         )) {
-        setCachedModels(modelsResult.models);
+        setCachedModels(modelsResult.models, modelsResult.authoritative);
       }
       return;
     }

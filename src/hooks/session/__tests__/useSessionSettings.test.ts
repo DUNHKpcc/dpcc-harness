@@ -91,6 +91,6 @@ describe("useSessionSettings", () => {
     await firstUpdate;
 
     expect(params.setters.setCachedModels).toHaveBeenCalledTimes(1);
-    expect(params.setters.setCachedModels).toHaveBeenCalledWith(secondModels);
+    expect(params.setters.setCachedModels).toHaveBeenCalledWith(secondModels, undefined);
   });
 });

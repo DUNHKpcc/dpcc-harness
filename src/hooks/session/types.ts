@@ -128,7 +128,8 @@ export interface SharedSessionSetters {
   setDraftMcpStatuses: React.Dispatch<React.SetStateAction<McpServerStatus[]>>;
   setAcpMcpStatuses: React.Dispatch<React.SetStateAction<McpServerStatus[]>>;
   setQueuedCount: React.Dispatch<React.SetStateAction<number>>;
-  setCachedModels: React.Dispatch<React.SetStateAction<ModelInfo[]>>;
+  setCachedModels: (models: ModelInfo[], authoritative?: boolean) => void;
+  invalidateCachedModels: () => void;
   setCodexRawModels: React.Dispatch<React.SetStateAction<CodexModelSummary[]>>;
   setCodexModelsLoadingMessage: React.Dispatch<React.SetStateAction<string | null>>;
 }

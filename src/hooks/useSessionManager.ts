@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, type Dispatch, type SetStateAction } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import type { ChatSession, UIMessage, PermissionRequest, McpServerStatus, McpServerConfig, ModelInfo, AcpPermissionBehavior, EngineId, Project, ACPAuthenticateResult, ACPConfigOption, ACPPermissionEvent } from "@/types";
 import { toMcpStatusState } from "../lib/mcp-utils";
 import { toChatSession } from "../lib/session/records";
@@ -67,9 +67,14 @@ export function useSessionManager(
   const claudeModelCatalogRequestGenerationRef = useRef(0);
   const claudeEagerStartGenerationRef = useRef(0);
 
-  const setCachedModelsWithLoaded = useCallback<Dispatch<SetStateAction<ModelInfo[]>>>((models) => {
+  const setCachedModelCatalog = useCallback((models: ModelInfo[], authoritative = false) => {
     setCachedModels(models);
-    setCachedModelsLoaded(true);
+    setCachedModelsLoaded(models.length > 0 || authoritative);
+  }, []);
+
+  const invalidateCachedModels = useCallback(() => {
+    setCachedModels([]);
+    setCachedModelsLoaded(false);
   }, []);
 
   useEffect(() => {
@@ -288,7 +293,8 @@ export function useSessionManager(
     setDraftMcpStatuses,
     setAcpMcpStatuses,
     setQueuedCount,
-    setCachedModels: setCachedModelsWithLoaded,
+    setCachedModels: setCachedModelCatalog,
+    invalidateCachedModels,
     setCodexRawModels,
     setCodexModelsLoadingMessage,
   };

@@ -148,13 +148,14 @@ export function useDraftMaterialization({
     const modelsGeneration = ++claudeModelCatalogRequestGenerationRef.current;
     const modelsResult = await window.claude.supportedModels(result.sessionId);
     if (!modelsResult.error
+      && !modelsResult.stale
       && isCurrentEagerStart()
       && preStartedSessionIdRef.current === result.sessionId
       && isClaudeModelCacheRequestCurrent(
         modelsGeneration,
         claudeModelCatalogRequestGenerationRef.current,
       )) {
-      setCachedModels(modelsResult.models);
+      setCachedModels(modelsResult.models, modelsResult.authoritative);
     }
   }, []);
 

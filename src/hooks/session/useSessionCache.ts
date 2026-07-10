@@ -4,7 +4,10 @@ import type { PersistedSession, Project } from "../../types";
 import { toChatSession } from "../../lib/session/records";
 import { withChatModuleProjectIds } from "../../lib/session/chat-module";
 import { toastText } from "../../lib/toast-i18n";
-import { isClaudeModelCacheRequestCurrent } from "../../lib/engine/claude-model-request";
+import {
+  claudeModelCatalogSettingsFingerprint,
+  isClaudeModelCacheRequestCurrent,
+} from "../../lib/engine/claude-model-request";
 import { DRAFT_ID } from "./types";
 import type { SharedSessionRefs, SharedSessionSetters } from "./types";
 
@@ -35,6 +38,7 @@ export function useSessionCache({
     setActiveSessionId,
     setDraftProjectId,
     setCachedModels,
+    invalidateCachedModels,
   } = setters;
   const {
     activeSessionIdRef,
@@ -158,6 +162,7 @@ export function useSessionCache({
   // Hydrate Claude model cache at app startup and refresh it in the background.
   useEffect(() => {
     let cancelled = false;
+    let settingsFingerprint: string | null = null;
 
     const firstProject = refs.projectsRef.current[0];
     const preferredCwd = firstProject ? getProjectCwd(firstProject) : undefined;
@@ -168,34 +173,56 @@ export function useSessionCache({
         cacheGetGeneration,
         claudeModelCatalogRequestGenerationRef.current,
       )) return;
-      if (!result.error) {
-        setCachedModels(result.models);
+      if (!result.error && !result.stale) {
+        setCachedModels(result.models, result.authoritative);
       }
     }).catch(() => { /* cache read is optional */ });
+
+    const revalidateModels = () => {
+      const revalidateGeneration = ++claudeModelCatalogRequestGenerationRef.current;
+      return window.claude.modelsCacheRevalidate(preferredCwd ? { cwd: preferredCwd } : undefined).then((result) => {
+        if (cancelled || !isClaudeModelCacheRequestCurrent(
+          revalidateGeneration,
+          claudeModelCatalogRequestGenerationRef.current,
+        )) return;
+        if (!result.error && !result.stale) {
+          setCachedModels(result.models, result.authoritative);
+          return;
+        }
+        if (result.error && !result.stale) {
+          toast.error(toastText("claude.modelsLoadFailed"), { description: result.error });
+        }
+      }).catch(() => { /* keep stale cache if revalidation fails */ });
+    };
 
     // Defer revalidation (spawns a Claude SDK subprocess) to avoid competing with
     // the startup IPC burst. The cached models from modelsCacheGet() above are
     // sufficient for the initial render.
     const revalidateTimer = setTimeout(() => {
-      const revalidateGeneration = ++claudeModelCatalogRequestGenerationRef.current;
-      window.claude.modelsCacheRevalidate(preferredCwd ? { cwd: preferredCwd } : undefined).then((result) => {
-        if (cancelled || !isClaudeModelCacheRequestCurrent(
-          revalidateGeneration,
-          claudeModelCatalogRequestGenerationRef.current,
-        )) return;
-        if (!result.error) {
-          setCachedModels(result.models);
-          return;
-        }
-        if (result.error) {
-          toast.error(toastText("claude.modelsLoadFailed"), { description: result.error });
-        }
-      }).catch(() => { /* keep stale cache if revalidation fails */ });
+      void revalidateModels();
     }, 3000);
+
+    void window.claude.settings.get().then((settings) => {
+      if (!cancelled && settingsFingerprint === null) {
+        settingsFingerprint = claudeModelCatalogSettingsFingerprint(settings);
+      }
+    });
+    const unsubscribeSettings = window.claude.settings.onChanged((settings) => {
+      const nextFingerprint = claudeModelCatalogSettingsFingerprint(settings);
+      const previousFingerprint = settingsFingerprint;
+      settingsFingerprint = nextFingerprint;
+      if (previousFingerprint === null || previousFingerprint === nextFingerprint) return;
+
+      claudeModelCatalogRequestGenerationRef.current += 1;
+      clearTimeout(revalidateTimer);
+      invalidateCachedModels();
+      void revalidateModels();
+    });
 
     return () => {
       cancelled = true;
       clearTimeout(revalidateTimer);
+      unsubscribeSettings();
     };
   }, [getProjectCwd]);
 

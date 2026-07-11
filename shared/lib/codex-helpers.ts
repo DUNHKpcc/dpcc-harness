@@ -2,7 +2,7 @@
  * Pure helpers shared between Electron and CLI Codex engine implementations.
  */
 
-import type { CodexModel } from "../types/codex";
+import type { CodexModel, CodexModelCapability } from "../types/codex";
 
 export const SUPPORTED_SERVER_REQUESTS = new Set([
   "item/commandExecution/requestApproval",
@@ -32,7 +32,24 @@ export function pickModelId(
   return first?.id;
 }
 
-function createUpstreamCodexModel(id: string): CodexModel {
+const REASONING_EFFORT_DESCRIPTIONS = {
+  none: "None",
+  minimal: "Minimal",
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+  xhigh: "Extra High",
+} as const;
+
+function createUpstreamCodexModel(
+  id: string,
+  capability: CodexModelCapability | undefined,
+): CodexModel {
+  const supportedReasoningEfforts = capability?.supportedReasoningEfforts ?? [];
+  const defaultReasoningEffort = capability?.defaultReasoningEffort;
+  const hasAdvertisedDefault = defaultReasoningEffort
+    && supportedReasoningEfforts.includes(defaultReasoningEffort);
+
   return {
     id,
     model: id,
@@ -40,8 +57,13 @@ function createUpstreamCodexModel(id: string): CodexModel {
     displayName: id,
     description: "",
     hidden: false,
-    supportedReasoningEfforts: [],
-    defaultReasoningEffort: "none",
+    supportedReasoningEfforts: supportedReasoningEfforts.map((reasoningEffort) => ({
+      reasoningEffort,
+      description: REASONING_EFFORT_DESCRIPTIONS[reasoningEffort],
+    })),
+    defaultReasoningEffort: hasAdvertisedDefault
+      ? defaultReasoningEffort
+      : supportedReasoningEfforts[0] ?? "none",
     inputModalities: ["text"],
     supportsPersonality: false,
     isDefault: false,
@@ -57,6 +79,7 @@ export function mergeCodexModelsForUpstream(
   nativeModels: CodexModel[],
   upstreamModelIds: string[],
   preferredModel?: string,
+  capabilities: Readonly<Record<string, CodexModelCapability>> = {},
 ): CodexModel[] {
   const ids = Array.from(new Set(upstreamModelIds.map((id) => id.trim()).filter(Boolean)));
   const nativeById = new Map<string, CodexModel>();
@@ -71,7 +94,7 @@ export function mergeCodexModelsForUpstream(
     : nativeModels.find((model) => model.isDefault && ids.includes(model.id))?.id ?? ids[0];
 
   return ids.map((id) => ({
-    ...(nativeById.get(id) ?? createUpstreamCodexModel(id)),
+    ...(nativeById.get(id) ?? createUpstreamCodexModel(id, capabilities[id])),
     id,
     model: id,
     hidden: false,

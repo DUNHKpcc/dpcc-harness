@@ -147,18 +147,103 @@ describe("DPCC Codex model catalog", () => {
     expect(resolveCodexReasoningEffort(undefined, "medium")).toBeUndefined();
   });
 
-  it("treats spark as a synthesized upstream-only model with no reasoning effort options", async () => {
-    const nativeModels = [{ id: "another-native", isDefault: false }];
-
-    const { mergeCodexModelsForUpstream, resolveCodexReasoningEffort } = await import("@shared/lib/codex-helpers");
-    const [spark] = mergeCodexModelsForUpstream(nativeModels as never[], ["gpt-5.3-codex-spark"], "gpt-5.3-codex-spark");
+  it("uses upstream capabilities for an upstream-only Spark model", async () => {
+    const { mergeCodexModelsForUpstream } = await import("@shared/lib/codex-helpers");
+    const [spark] = mergeCodexModelsForUpstream(
+      [] as never[],
+      ["gpt-5.3-codex-spark"],
+      "gpt-5.3-codex-spark",
+      {
+        "gpt-5.3-codex-spark": {
+          supportedReasoningEfforts: ["low", "medium", "high", "xhigh"],
+          defaultReasoningEffort: "high",
+        },
+      },
+    );
 
     expect(spark).toMatchObject({
       id: "gpt-5.3-codex-spark",
+      defaultReasoningEffort: "high",
+      supportedReasoningEfforts: [
+        { reasoningEffort: "low", description: "Low" },
+        { reasoningEffort: "medium", description: "Medium" },
+        { reasoningEffort: "high", description: "High" },
+        { reasoningEffort: "xhigh", description: "Extra High" },
+      ],
+    });
+  });
+
+  it("preserves native Spark efforts when upstream capabilities differ", async () => {
+    const nativeSpark = {
+      id: "gpt-5.3-codex-spark",
+      model: "gpt-5.3-codex-spark",
+      upgrade: null,
+      displayName: "Native Spark",
+      description: "Native metadata",
+      hidden: false,
+      supportedReasoningEfforts: [{ reasoningEffort: "minimal", description: "Native Minimal" }],
+      defaultReasoningEffort: "minimal",
+      inputModalities: ["text"],
+      supportsPersonality: false,
+      isDefault: false,
+    };
+    const { mergeCodexModelsForUpstream } = await import("@shared/lib/codex-helpers");
+    const [spark] = mergeCodexModelsForUpstream(
+      [nativeSpark] as never[],
+      ["gpt-5.3-codex-spark"],
+      undefined,
+      {
+        "gpt-5.3-codex-spark": {
+          supportedReasoningEfforts: ["low", "medium", "high", "xhigh"],
+          defaultReasoningEffort: "high",
+        },
+      },
+    );
+
+    expect(spark).toMatchObject({
+      displayName: "Native Spark",
+      description: "Native metadata",
+      defaultReasoningEffort: "minimal",
+      supportedReasoningEfforts: [{ reasoningEffort: "minimal", description: "Native Minimal" }],
+    });
+  });
+
+  it("does not infer Spark capabilities for a different upstream model id", async () => {
+    const { mergeCodexModelsForUpstream } = await import("@shared/lib/codex-helpers");
+    const [sparkPreview] = mergeCodexModelsForUpstream(
+      [] as never[],
+      ["gpt-5.3-codex-spark-preview"],
+      undefined,
+      {
+        "gpt-5.3-codex-spark": {
+          supportedReasoningEfforts: ["low", "medium", "high", "xhigh"],
+          defaultReasoningEffort: "high",
+        },
+      },
+    );
+
+    expect(sparkPreview).toMatchObject({
+      id: "gpt-5.3-codex-spark-preview",
       defaultReasoningEffort: "none",
       supportedReasoningEfforts: [],
     });
-    expect(resolveCodexReasoningEffort(spark, "medium")).toBeUndefined();
+  });
+
+  it("falls back to the Spark capability default for an unsupported requested effort", async () => {
+    const { mergeCodexModelsForUpstream, resolveCodexReasoningEffort } = await import("@shared/lib/codex-helpers");
+    const [spark] = mergeCodexModelsForUpstream(
+      [] as never[],
+      ["gpt-5.3-codex-spark"],
+      undefined,
+      {
+        "gpt-5.3-codex-spark": {
+          supportedReasoningEfforts: ["low", "medium", "high", "xhigh"],
+          defaultReasoningEffort: "high",
+        },
+      },
+    );
+
+    expect(resolveCodexReasoningEffort(spark, "minimal")).toBe("high");
   });
 
   it("fetches and caches DPCC ids but leaves local Codex catalogs unchanged", async () => {

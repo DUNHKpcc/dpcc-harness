@@ -41,6 +41,13 @@ const REASONING_EFFORT_DESCRIPTIONS = {
   xhigh: "Extra High",
 } as const;
 
+const BUILTIN_UPSTREAM_CAPABILITIES: Readonly<Record<string, CodexModelCapability>> = {
+  "gpt-5.3-codex-spark": {
+    supportedReasoningEfforts: ["low", "medium", "high", "xhigh"],
+    defaultReasoningEffort: "high",
+  },
+};
+
 function createUpstreamCodexModel(
   id: string,
   capability: CodexModelCapability | undefined,
@@ -94,7 +101,10 @@ export function mergeCodexModelsForUpstream(
     : nativeModels.find((model) => model.isDefault && ids.includes(model.id))?.id ?? ids[0];
 
   return ids.map((id) => ({
-    ...(nativeById.get(id) ?? createUpstreamCodexModel(id, capabilities[id])),
+    ...(nativeById.get(id) ?? createUpstreamCodexModel(
+      id,
+      BUILTIN_UPSTREAM_CAPABILITIES[id] ?? capabilities[id],
+    )),
     id,
     model: id,
     hidden: false,

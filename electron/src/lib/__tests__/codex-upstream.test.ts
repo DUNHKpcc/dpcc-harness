@@ -195,6 +195,24 @@ describe("DPCC Codex model catalog", () => {
     });
   });
 
+  it("exposes the supported Spark efforts when DPCC returns only the model id", async () => {
+    const { mergeCodexModelsForUpstream, resolveCodexReasoningEffort } = await loadCodexHelpers();
+    const [spark] = mergeCodexModelsForUpstream([], [SPARK_MODEL_ID]);
+
+    expect(spark).toMatchObject({
+      id: SPARK_MODEL_ID,
+      defaultReasoningEffort: "high",
+      supportedReasoningEfforts: [
+        { reasoningEffort: "low", description: "Low" },
+        { reasoningEffort: "medium", description: "Medium" },
+        { reasoningEffort: "high", description: "High" },
+        { reasoningEffort: "xhigh", description: "Extra High" },
+      ],
+    });
+    expect(resolveCodexReasoningEffort(spark, "low")).toBe("low");
+    expect(resolveCodexReasoningEffort(spark, "xhigh")).toBe("xhigh");
+  });
+
   it("preserves native Spark efforts when upstream capabilities differ", async () => {
     const nativeSpark = createCodexModel({
       id: SPARK_MODEL_ID,
@@ -251,43 +269,43 @@ describe("DPCC Codex model catalog", () => {
 
   it("uses the first supported upstream effort when no default is advertised", async () => {
     const { mergeCodexModelsForUpstream } = await loadCodexHelpers();
-    const [spark] = mergeCodexModelsForUpstream(
+    const [model] = mergeCodexModelsForUpstream(
       [],
-      [SPARK_MODEL_ID],
+      ["dpcc-custom"],
       undefined,
-      { [SPARK_MODEL_ID]: { supportedReasoningEfforts: ["medium", "high"] } },
+      { "dpcc-custom": { supportedReasoningEfforts: ["medium", "high"] } },
     );
 
-    expect(spark.defaultReasoningEffort).toBe("medium");
+    expect(model.defaultReasoningEffort).toBe("medium");
   });
 
   it("uses the first supported upstream effort when its advertised default is unsupported", async () => {
     const { mergeCodexModelsForUpstream } = await loadCodexHelpers();
-    const [spark] = mergeCodexModelsForUpstream(
+    const [model] = mergeCodexModelsForUpstream(
       [],
-      [SPARK_MODEL_ID],
+      ["dpcc-custom"],
       undefined,
       {
-        [SPARK_MODEL_ID]: {
+        "dpcc-custom": {
           supportedReasoningEfforts: ["low", "medium"],
           defaultReasoningEffort: "high",
         },
       },
     );
 
-    expect(spark.defaultReasoningEffort).toBe("low");
+    expect(model.defaultReasoningEffort).toBe("low");
   });
 
   it("keeps empty upstream effort capabilities empty with a none default", async () => {
     const { mergeCodexModelsForUpstream } = await loadCodexHelpers();
-    const [spark] = mergeCodexModelsForUpstream(
+    const [model] = mergeCodexModelsForUpstream(
       [],
-      [SPARK_MODEL_ID],
+      ["dpcc-custom"],
       undefined,
-      { [SPARK_MODEL_ID]: { supportedReasoningEfforts: [] } },
+      { "dpcc-custom": { supportedReasoningEfforts: [] } },
     );
 
-    expect(spark).toMatchObject({
+    expect(model).toMatchObject({
       defaultReasoningEffort: "none",
       supportedReasoningEfforts: [],
     });

@@ -1,40 +1,50 @@
 import crypto from "crypto";
 import { mergeCodexModelsForUpstream } from "@shared/lib/codex-helpers";
-import type { CodexModel } from "@shared/types/codex";
+import type { CodexModel, CodexModelCapability } from "@shared/types/codex";
 import { resolveCodexUpstream } from "./upstream-resolver";
 import { fetchUpstreamModels } from "./upstream-models";
 
 const MODEL_CACHE_TTL_MS = 60_000;
 
-interface ModelIdCache {
-  expiresAt: number;
+interface UpstreamCodexCatalog {
   modelIds: string[];
+  capabilities: Record<string, CodexModelCapability>;
 }
 
-const caches = new Map<string, ModelIdCache>();
-const inFlight = new Map<string, Promise<string[] | null>>();
+interface CachedUpstreamCodexCatalog extends UpstreamCodexCatalog {
+  expiresAt: number;
+}
+
+const caches = new Map<string, CachedUpstreamCodexCatalog>();
+const inFlight = new Map<string, Promise<UpstreamCodexCatalog | null>>();
 let cacheGeneration = 0;
 
 function upstreamCacheKey(baseUrl: string, apiKey: string): string {
   return crypto.createHash("sha256").update(`${baseUrl}\0${apiKey}`).digest("hex");
 }
 
-async function loadDpccModelIds(baseUrl: string, apiKey: string): Promise<string[] | null> {
+async function loadDpccModelCatalog(
+  baseUrl: string,
+  apiKey: string,
+): Promise<UpstreamCodexCatalog | null> {
   const key = upstreamCacheKey(baseUrl, apiKey);
   const now = Date.now();
-  const cached = caches.get(key);
-  if (cached && cached.expiresAt > now) return cached.modelIds;
+  const cachedEntry = caches.get(key);
+  if (cachedEntry && cachedEntry.expiresAt > now) return cachedEntry;
   const pending = inFlight.get(key);
   if (pending) return pending;
-  const staleModelIds = cached?.modelIds ?? null;
+  const staleCatalog: UpstreamCodexCatalog | null = cachedEntry
+    ? { modelIds: cachedEntry.modelIds, capabilities: cachedEntry.capabilities }
+    : null;
   const requestGeneration = cacheGeneration;
 
   const request = fetchUpstreamModels(baseUrl, apiKey)
-    .then(({ models, error }) => {
+    .then(({ models, capabilities, error }) => {
       if (requestGeneration !== cacheGeneration) return null;
-      if (error) return staleModelIds;
-      caches.set(key, { expiresAt: Date.now() + MODEL_CACHE_TTL_MS, modelIds: models });
-      return models;
+      if (error) return staleCatalog;
+      const catalog: UpstreamCodexCatalog = { modelIds: models, capabilities: capabilities ?? {} };
+      caches.set(key, { expiresAt: Date.now() + MODEL_CACHE_TTL_MS, ...catalog });
+      return catalog;
     })
     .finally(() => {
       if (inFlight.get(key) === request) inFlight.delete(key);
@@ -54,7 +64,12 @@ export async function resolveEffectiveCodexModels(nativeModels: CodexModel[]): P
   const upstream = resolveCodexUpstream();
   if (upstream.tier !== "default") return nativeModels;
 
-  const modelIds = await loadDpccModelIds(upstream.baseUrl, upstream.apiKey);
-  if (!modelIds) return nativeModels;
-  return mergeCodexModelsForUpstream(nativeModels, modelIds, upstream.model);
+  const catalog = await loadDpccModelCatalog(upstream.baseUrl, upstream.apiKey);
+  if (!catalog) return nativeModels;
+  return mergeCodexModelsForUpstream(
+    nativeModels,
+    catalog.modelIds,
+    upstream.model,
+    catalog.capabilities,
+  );
 }

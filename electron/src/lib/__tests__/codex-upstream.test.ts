@@ -293,24 +293,38 @@ describe("DPCC Codex model catalog", () => {
     });
   });
 
-  it("fetches and caches DPCC ids but leaves local Codex catalogs unchanged", async () => {
+  it("fetches and caches the DPCC catalog capabilities for upstream-only models", async () => {
     const nativeModels = [createCodexModel({ displayName: "Native", isDefault: true })];
     mockResolveCodexUpstream.mockReturnValue({
       tier: "default",
       providerName: "DPCC API",
       baseUrl: "https://api.dpcc.example/v1",
       apiKey: "sk-dpcc",
-      model: "dpcc-new",
+      model: SPARK_MODEL_ID,
     });
-    mockFetchUpstreamModels.mockResolvedValue({ models: ["dpcc-new"], error: null });
+    mockFetchUpstreamModels.mockResolvedValue({
+      models: [SPARK_MODEL_ID],
+      capabilities: SPARK_CAPABILITIES,
+      error: null,
+    });
 
     const { clearCodexModelCatalogCache, resolveEffectiveCodexModels } = await import("../codex-model-catalog");
     clearCodexModelCatalogCache();
     const first = await resolveEffectiveCodexModels(nativeModels);
     const second = await resolveEffectiveCodexModels(nativeModels);
 
-    expect(first.map((model) => model.id)).toEqual(["dpcc-new"]);
-    expect(second.map((model) => model.id)).toEqual(["dpcc-new"]);
+    expect(first).toMatchObject([{
+      id: SPARK_MODEL_ID,
+      isDefault: true,
+      defaultReasoningEffort: "high",
+      supportedReasoningEfforts: [
+        { reasoningEffort: "low", description: "Low" },
+        { reasoningEffort: "medium", description: "Medium" },
+        { reasoningEffort: "high", description: "High" },
+        { reasoningEffort: "xhigh", description: "Extra High" },
+      ],
+    }]);
+    expect(second).toEqual(first);
     expect(mockFetchUpstreamModels).toHaveBeenCalledTimes(1);
 
     mockResolveCodexUpstream.mockReturnValue({

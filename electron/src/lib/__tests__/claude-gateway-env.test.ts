@@ -60,12 +60,6 @@ describe("claude gateway env", () => {
     });
   });
 
-  it("clears stale picker models when a resolved upstream has no configured model", async () => {
-    const { claudeResolvedModel } = await loadModule();
-
-    expect(claudeResolvedModel("deepseek-v4-pro")).toBeUndefined();
-  });
-
   it("purges local Claude default model env when a gateway upstream is active", async () => {
     mockLoadLocalClaudeEnv.mockReturnValue({
       ANTHROPIC_BASE_URL: "https://local.example",
@@ -163,18 +157,6 @@ describe("claude gateway env", () => {
     expect(env.ANTHROPIC_AUTH_TOKEN).toBe("sk-local");
     expect(env.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe("local-sonnet");
     expect(env.KEEP_ME).toBe("1");
-  });
-
-  it("uses the resolved upstream model when configured", async () => {
-    mockResolveClaudeUpstream.mockReturnValue({
-      tier: "default",
-      baseUrl: "https://api.dpcc.example",
-      token: "sk-dpcc",
-      model: "claude-sonnet-4-6",
-    });
-    const { claudeResolvedModel } = await loadModule();
-
-    expect(claudeResolvedModel("deepseek-v4-pro")).toBe("claude-sonnet-4-6");
   });
 
   it("does not expose the legacy synchronous spawn env helper", async () => {

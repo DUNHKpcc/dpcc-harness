@@ -4,7 +4,8 @@ import { getSDK } from "../lib/sdk";
 import { reportError } from "../lib/error-utils";
 import { gitExec } from "../lib/git-exec";
 import { getClaudeBinaryPath, getClaudeSdkProcessOptions } from "../lib/claude-binary";
-import { prepareClaudeSpawnEnv, claudeResolvedModel, claudeSettingSources } from "../lib/claude-gateway-env";
+import { prepareClaudeSpawnEnv, claudeSettingSources } from "../lib/claude-gateway-env";
+import { resolveClaudeModelForRequest } from "../lib/claude-model-catalog";
 import { applyClaudeMcpIsolation } from "../lib/claude-mcp-isolation";
 import { normalizeSessionCwd } from "../lib/session-cwd";
 
@@ -33,7 +34,7 @@ async function oneShotSdkQuery(
   // The effective upstream (gateway or DPCC default) may serve its own models.
   // Use that configured model so utility queries authenticate and resolve instead
   // of returning "not login" (B5b).
-  const model = claudeResolvedModel(options?.model ?? "haiku");
+  const model = await resolveClaudeModelForRequest(options?.model ?? "haiku");
   const startedAt = Date.now();
   log(logLabel, `one-shot:start cwd=${cwd} model=${model} prompt_len=${prompt.length} timeout_ms=${timeoutMs}`);
 

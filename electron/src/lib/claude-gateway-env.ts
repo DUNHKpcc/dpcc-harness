@@ -94,10 +94,3 @@ export function claudeGatewayModel(): string | undefined {
   const u = resolveClaudeUpstream();
   return u.model || undefined;
 }
-
-export function claudeResolvedModel(requestedModel?: string | null): string | undefined {
-  if (hasClaudeUpstreamOverride()) {
-    return resolveClaudeUpstream().model || undefined;
-  }
-  return requestedModel?.trim() || undefined;
-}

@@ -99,6 +99,51 @@ function findClaudeAlias(
     ?? candidates.find(({ signature }) => signature.version === null)?.model;
 }
 
+function findClaudeCapabilityMetadata(
+  sdkModels: CachedModelInfo[],
+  target: ClaudeModelSignature,
+): CachedModelInfo | undefined {
+  return sdkModels.find((model) => {
+    const signature = claudeModelSignature(model.value);
+    return signature?.family === target.family
+      && signature.context === target.context
+      && (signature.version === target.version || signature.version === null)
+      && isCustomClaudeMetadata(model);
+  });
+}
+
+function claudeCapabilityFields(model: CachedModelInfo | undefined): Partial<CachedModelInfo> {
+  if (!model) return {};
+  return {
+    ...(model.supportsEffort === undefined ? {} : { supportsEffort: model.supportsEffort }),
+    ...(model.supportedEffortLevels === undefined
+      ? {}
+      : { supportedEffortLevels: [...model.supportedEffortLevels] }),
+    ...(model.supportsAdaptiveThinking === undefined
+      ? {}
+      : { supportsAdaptiveThinking: model.supportsAdaptiveThinking }),
+  };
+}
+
+function isCustomClaudeMetadata(model: CachedModelInfo): boolean {
+  if (/custom/i.test(model.description)) return true;
+  const valueFamily = claudeModelSignature(model.value)?.family;
+  if (!valueFamily) return false;
+  return claudeModelSignature(model.displayName)?.family !== valueFamily;
+}
+
+function fallbackClaudeModel(
+  id: string,
+  capabilityMetadata?: CachedModelInfo,
+): CachedModelInfo {
+  return {
+    value: id,
+    displayName: id,
+    description: "",
+    ...claudeCapabilityFields(capabilityMetadata),
+  };
+}
+
 function isSameClaudeUpstream(left: ClaudeUpstream, right: ClaudeUpstream): boolean {
   return claudeUpstreamFingerprint(left) === claudeUpstreamFingerprint(right);
 }
@@ -125,26 +170,59 @@ function mergeClaudeModelsForUpstream(
 
     const exact = exactMetadata.get(id);
     if (exact) {
-      models.push({ ...exact, value: id });
-      continue;
-    }
-
-    if (defaultMetadata && id === preferredModelId) {
-      models.push({ ...defaultMetadata, value: id });
+      models.push(isCustomClaudeMetadata(exact)
+        ? fallbackClaudeModel(id, exact)
+        : { ...exact, value: id });
       continue;
     }
 
     const signature = claudeModelSignature(id);
-    const alias = signature ? findClaudeAlias(sdkModels, signature) : undefined;
-    if (alias) {
-      models.push({ ...alias, value: id });
+    const capabilityMetadata = signature
+      ? findClaudeCapabilityMetadata(sdkModels, signature)
+      : undefined;
+
+    if (defaultMetadata && id === preferredModelId) {
+      models.push(isCustomClaudeMetadata(defaultMetadata)
+        ? fallbackClaudeModel(id, defaultMetadata)
+        : { ...defaultMetadata, value: id });
       continue;
     }
 
-    models.push({ value: id, displayName: id, description: "" });
+    const alias = signature ? findClaudeAlias(sdkModels, signature) : undefined;
+    if (alias) {
+      models.push(isCustomClaudeMetadata(alias)
+        ? fallbackClaudeModel(id, alias)
+        : { ...alias, value: id });
+      continue;
+    }
+
+    models.push(fallbackClaudeModel(id, capabilityMetadata));
   }
 
   return models;
+}
+
+/** Resolve a request model without allowing a stale local picker value onto DPCC. */
+export async function resolveClaudeModelForRequest(
+  requestedModel?: string | null,
+): Promise<string | undefined> {
+  const requested = requestedModel?.trim();
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const upstream = resolveClaudeUpstream();
+    if (upstream.tier === "local") return requested || undefined;
+    if (upstream.tier === "gateway") return upstream.model.trim() || requested || undefined;
+
+    const fingerprint = claudeUpstreamFingerprint(upstream);
+    const modelIds = await loadDpccModelIds(upstream.baseUrl, upstream.token);
+    if (fingerprint !== claudeUpstreamFingerprint(resolveClaudeUpstream())) continue;
+    if (modelIds === null) return upstream.model.trim() || undefined;
+    const ids = modelIds.map((id) => id.trim()).filter(Boolean);
+    const configured = upstream.model.trim();
+    if (configured && ids.includes(configured)) return configured;
+    if (requested && ids.includes(requested)) return requested;
+    return ids[0];
+  }
+  return undefined;
 }
 
 export function clearClaudeModelCatalogCache(): void {

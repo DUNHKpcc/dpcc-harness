@@ -52,6 +52,10 @@ async function loadModule() {
   return import("../codex-upstream");
 }
 
+async function loadCodexHelpers() {
+  return import("@shared/lib/codex-helpers");
+}
+
 describe("codexUpstreamThreadParams", () => {
   beforeEach(() => {
     mockResolveCodexUpstream.mockReset();
@@ -144,7 +148,7 @@ describe("DPCC Codex model catalog", () => {
       }),
     ];
 
-    const { mergeCodexModelsForUpstream, resolveCodexReasoningEffort } = await import("@shared/lib/codex-helpers");
+    const { mergeCodexModelsForUpstream, resolveCodexReasoningEffort } = await loadCodexHelpers();
     const models = mergeCodexModelsForUpstream(
       nativeModels,
       ["dpcc-new", "native-supported", "dpcc-new"],
@@ -171,7 +175,7 @@ describe("DPCC Codex model catalog", () => {
   });
 
   it("uses upstream capabilities for an upstream-only Spark model", async () => {
-    const { mergeCodexModelsForUpstream } = await import("@shared/lib/codex-helpers");
+    const { mergeCodexModelsForUpstream } = await loadCodexHelpers();
     const [spark] = mergeCodexModelsForUpstream(
       [],
       [SPARK_MODEL_ID],
@@ -201,7 +205,7 @@ describe("DPCC Codex model catalog", () => {
       supportsPersonality: false,
       isDefault: false,
     });
-    const { mergeCodexModelsForUpstream } = await import("@shared/lib/codex-helpers");
+    const { mergeCodexModelsForUpstream } = await loadCodexHelpers();
     const [spark] = mergeCodexModelsForUpstream(
       [nativeSpark],
       [SPARK_MODEL_ID],
@@ -218,7 +222,7 @@ describe("DPCC Codex model catalog", () => {
   });
 
   it("does not infer Spark capabilities for a different upstream model id", async () => {
-    const { mergeCodexModelsForUpstream } = await import("@shared/lib/codex-helpers");
+    const { mergeCodexModelsForUpstream } = await loadCodexHelpers();
     const [sparkPreview] = mergeCodexModelsForUpstream(
       [],
       [`${SPARK_MODEL_ID}-preview`],
@@ -234,7 +238,7 @@ describe("DPCC Codex model catalog", () => {
   });
 
   it("falls back to the Spark capability default for an unsupported requested effort", async () => {
-    const { mergeCodexModelsForUpstream, resolveCodexReasoningEffort } = await import("@shared/lib/codex-helpers");
+    const { mergeCodexModelsForUpstream, resolveCodexReasoningEffort } = await loadCodexHelpers();
     const [spark] = mergeCodexModelsForUpstream(
       [],
       [SPARK_MODEL_ID],
@@ -246,7 +250,7 @@ describe("DPCC Codex model catalog", () => {
   });
 
   it("uses the first supported upstream effort when no default is advertised", async () => {
-    const { mergeCodexModelsForUpstream } = await import("@shared/lib/codex-helpers");
+    const { mergeCodexModelsForUpstream } = await loadCodexHelpers();
     const [spark] = mergeCodexModelsForUpstream(
       [],
       [SPARK_MODEL_ID],
@@ -258,7 +262,7 @@ describe("DPCC Codex model catalog", () => {
   });
 
   it("uses the first supported upstream effort when its advertised default is unsupported", async () => {
-    const { mergeCodexModelsForUpstream } = await import("@shared/lib/codex-helpers");
+    const { mergeCodexModelsForUpstream } = await loadCodexHelpers();
     const [spark] = mergeCodexModelsForUpstream(
       [],
       [SPARK_MODEL_ID],
@@ -275,7 +279,7 @@ describe("DPCC Codex model catalog", () => {
   });
 
   it("keeps empty upstream effort capabilities empty with a none default", async () => {
-    const { mergeCodexModelsForUpstream } = await import("@shared/lib/codex-helpers");
+    const { mergeCodexModelsForUpstream } = await loadCodexHelpers();
     const [spark] = mergeCodexModelsForUpstream(
       [],
       [SPARK_MODEL_ID],

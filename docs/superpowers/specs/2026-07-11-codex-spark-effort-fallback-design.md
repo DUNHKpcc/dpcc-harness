@@ -1,72 +1,125 @@
-# Codex Spark Effort Fallback Design
+# DPCC Codex Capability Metadata Design
 
 ## Goal
 
-Expose reasoning effort controls for the upstream-only `gpt-5.3-codex-spark`
-model when the bundled Codex SDK `model/list` response does not contain native
-metadata for that exact model ID.
+Make Codex reasoning effort controls work for DPCC models even when the bundled
+Codex `app-server model/list` omits entitlement-gated metadata in the isolated
+DPCC `CODEX_HOME`.
+
+## Verified Root Cause
+
+The bundled `codex-cli 0.144.1` returns native metadata for
+`gpt-5.3-codex-spark` under a normal authenticated `CODEX_HOME`, including
+`low`, `medium`, `high`, and `xhigh` with `high` as default. The same binary
+omits Spark under PccAgent's isolated, unauthenticated DPCC `CODEX_HOME`.
+
+The problem is therefore not a stale bundled binary. Spark metadata is filtered
+by Codex login state or entitlement. Copying `models_cache.json` into an
+unauthenticated isolated home does not make `model/list` return Spark.
 
 ## Scope
 
-- Add one exact-ID fallback for `gpt-5.3-codex-spark`.
-- Advertise `low`, `medium`, `high`, and `xhigh` reasoning effort levels.
-- Use `medium` as the fallback default effort.
-- Keep native Codex `model/list` metadata authoritative whenever it contains
-  an exact Spark entry.
-- Leave every other upstream-only model without effort metadata.
-- Let future models, including GPT-5.6 variants, obtain effort capabilities
-  only from updated bundled Codex SDK metadata.
+- Keep DPCC `/v1/models` authoritative for visible Codex model IDs.
+- Keep exact native `model/list` metadata as the first metadata source.
+- Allow DPCC `/v1/models` entries to carry optional reasoning capability
+  metadata for models missing from native `model/list`.
+- Do not read the user's local OpenAI login for DPCC sessions or metadata.
+- Do not hardcode Spark or infer capabilities from model names.
+- Let future bundled Codex updates supply native metadata automatically.
 
-## Explicit Exception
+## DPCC Response Extension
 
-The Spark fallback is a user-approved, product-specific exception. It is not a
-general inference from a model family or alias. No capability is inherited from
-`gpt-5.3-codex`, and no other model ID may match this fallback by prefix,
-substring, version, or family.
+The client remains compatible with ordinary OpenAI-style model objects that
+only contain `id`. DPCC may additionally return:
 
-## Data Flow
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "gpt-5.3-codex-spark",
+      "supported_reasoning_efforts": ["low", "medium", "high", "xhigh"],
+      "default_reasoning_effort": "high"
+    }
+  ]
+}
+```
 
-1. DPCC `/v1/models` remains authoritative for the visible Codex model IDs.
-2. `mergeCodexModelsForUpstream()` looks for exact native metadata by `id` or
-   `model`, as it does today.
-3. If exact native metadata exists, it is used unchanged apart from the existing
-   visibility, ID, model, and default-selection normalization.
-4. If native metadata is absent and the upstream ID is exactly
-   `gpt-5.3-codex-spark`, the synthesized model receives the four fallback
-   effort options and `medium` default.
-5. All other synthesized models retain an empty effort list and `none` default.
+Only recognized, non-empty effort strings are retained. The default is retained
+only when it is present in the supported list. Invalid optional metadata is
+ignored without invalidating an otherwise valid model ID.
 
-## Implementation Boundary
+## Data Model
 
-Keep the fallback in `shared/lib/codex-helpers.ts`, next to synthesized Codex
-model creation and upstream merge logic. Do not add renderer-specific checks.
-This keeps IPC, drafts, split panes, composer controls, and request validation on
-the same normalized `CodexModel` metadata.
+`fetchUpstreamModels()` continues returning the existing `models: string[]`
+projection for account and settings consumers. It additionally returns parsed
+per-model capability records so existing callers remain source-compatible.
 
-## Safety Rules
+The Codex catalog cache stores the complete parsed upstream entries, not only
+IDs, for the existing 60-second credential-scoped lifetime.
 
-- Exact model ID only.
-- Native metadata always wins.
-- No family or alias inheritance.
-- No runtime documentation fetch.
-- No changes to Codex model visibility, upstream routing, or request protocol.
-- `resolveCodexReasoningEffort()` continues to reject values not advertised by
-  the selected model.
+## Merge Order
+
+For each model ID returned by DPCC:
+
+1. Use an exact native `model/list` entry when present. Native display name,
+   description, effort options, default effort, modalities, and other metadata
+   remain authoritative.
+2. If native metadata is absent, synthesize the model and apply exact DPCC
+   capability metadata for that same ID.
+3. If both metadata sources are absent, keep the synthesized model without
+   effort controls.
+
+DPCC metadata never overrides an exact native entry. No prefix, alias, family,
+or version inheritance is allowed.
+
+## Effort Descriptions
+
+DPCC supplies capability values, while the client maps recognized effort IDs to
+the existing neutral UI descriptions. Descriptions do not determine support;
+only the DPCC-provided supported list does.
+
+## Failure Behavior
+
+- A successful DPCC response, including an empty list, remains authoritative.
+- A failed DPCC request retains the existing catalog fallback behavior.
+- Missing or malformed optional capability fields do not hide the model.
+- Unknown effort values are ignored rather than sent to Codex.
+- No local OpenAI auth files are copied into the isolated DPCC home.
+
+## Components
+
+- `electron/src/lib/upstream-models.ts`: parse IDs and optional capability
+  metadata from `/v1/models`.
+- `electron/src/lib/codex-model-catalog.ts`: cache and pass complete DPCC model
+  entries to the merge layer.
+- `shared/lib/codex-helpers.ts`: preserve native-first exact-ID merge semantics
+  and enrich only synthesized models with DPCC capabilities.
+- Existing renderer and request code consume the normalized `CodexModel` and do
+  not need model-specific conditions.
 
 ## Tests
 
-- An upstream-only Spark model exposes `low`, `medium`, `high`, and `xhigh`, with
-  `medium` as default.
-- A native Spark entry remains authoritative and is not overwritten by the
-  fallback.
-- Similar IDs such as `gpt-5.3-codex-spark-preview` do not inherit capabilities.
-- Other future upstream-only IDs remain effortless.
-- Spark accepts an advertised requested effort and falls back to `medium` for an
-  unsupported requested value.
+- Parse ID-only responses unchanged.
+- Parse valid Spark capability metadata.
+- Ignore malformed effort metadata while retaining the ID.
+- Enrich an upstream-only model from exact DPCC capabilities.
+- Preserve exact native metadata over conflicting DPCC metadata.
+- Do not transfer capabilities to similar model IDs.
+- Keep an upstream-only ID without effort when DPCC sends no capabilities.
+- Validate requested effort through the existing
+  `resolveCodexReasoningEffort()` path.
+
+## Deployment Dependency
+
+The client implementation enables the protocol but cannot create missing
+capabilities. Production Spark effort controls appear only after the DPCC
+`/v1/models` service emits the optional fields above for the Codex token.
 
 ## Success Criteria
 
-- The composer displays all four Spark effort options when Spark is returned by
-  DPCC but absent from native `model/list`.
-- Existing native model behavior remains unchanged.
-- No other synthesized model gains inferred effort capability.
+- DPCC users do not need an OpenAI login to receive trustworthy effort metadata.
+- Spark displays native-equivalent effort controls when DPCC publishes them.
+- Native metadata automatically wins after a bundled Codex update exposes a
+  model in the isolated environment.
+- No model capability is guessed or hardcoded in the client.

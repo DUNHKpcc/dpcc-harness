@@ -6,13 +6,18 @@ import { fetchUpstreamModels } from "./upstream-models";
 
 const MODEL_CACHE_TTL_MS = 60_000;
 
+interface ReadonlyCodexModelCapability {
+  readonly supportedReasoningEfforts: readonly CodexModelCapability["supportedReasoningEfforts"][number][];
+  readonly defaultReasoningEffort?: CodexModelCapability["defaultReasoningEffort"];
+}
+
 interface UpstreamCodexCatalog {
-  modelIds: string[];
-  capabilities: Record<string, CodexModelCapability>;
+  readonly modelIds: readonly string[];
+  readonly capabilities: Readonly<Record<string, ReadonlyCodexModelCapability>>;
 }
 
 interface CachedUpstreamCodexCatalog extends UpstreamCodexCatalog {
-  expiresAt: number;
+  readonly expiresAt: number;
 }
 
 const caches = new Map<string, CachedUpstreamCodexCatalog>();
@@ -21,6 +26,36 @@ let cacheGeneration = 0;
 
 function upstreamCacheKey(baseUrl: string, apiKey: string): string {
   return crypto.createHash("sha256").update(`${baseUrl}\0${apiKey}`).digest("hex");
+}
+
+function cloneUpstreamCodexCatalog(
+  modelIds: readonly string[],
+  capabilities: Readonly<Record<string, CodexModelCapability>> | undefined,
+): UpstreamCodexCatalog {
+  return {
+    modelIds: [...modelIds],
+    capabilities: Object.fromEntries(
+      Object.entries(capabilities ?? {}).map(([modelId, capability]) => [modelId, {
+        supportedReasoningEfforts: [...capability.supportedReasoningEfforts],
+        ...(capability.defaultReasoningEffort === undefined
+          ? {}
+          : { defaultReasoningEffort: capability.defaultReasoningEffort }),
+      }]),
+    ),
+  };
+}
+
+function cloneCapabilitiesForMerge(
+  capabilities: UpstreamCodexCatalog["capabilities"],
+): Record<string, CodexModelCapability> {
+  return Object.fromEntries(
+    Object.entries(capabilities).map(([modelId, capability]) => [modelId, {
+      supportedReasoningEfforts: [...capability.supportedReasoningEfforts],
+      ...(capability.defaultReasoningEffort === undefined
+        ? {}
+        : { defaultReasoningEffort: capability.defaultReasoningEffort }),
+    }]),
+  );
 }
 
 async function loadDpccModelCatalog(
@@ -42,7 +77,7 @@ async function loadDpccModelCatalog(
     .then(({ models, capabilities, error }) => {
       if (requestGeneration !== cacheGeneration) return null;
       if (error) return staleCatalog;
-      const catalog: UpstreamCodexCatalog = { modelIds: models, capabilities: capabilities ?? {} };
+      const catalog = cloneUpstreamCodexCatalog(models, capabilities);
       caches.set(key, { expiresAt: Date.now() + MODEL_CACHE_TTL_MS, ...catalog });
       return catalog;
     })
@@ -68,8 +103,8 @@ export async function resolveEffectiveCodexModels(nativeModels: CodexModel[]): P
   if (!catalog) return nativeModels;
   return mergeCodexModelsForUpstream(
     nativeModels,
-    catalog.modelIds,
+    [...catalog.modelIds],
     upstream.model,
-    catalog.capabilities,
+    cloneCapabilitiesForMerge(catalog.capabilities),
   );
 }

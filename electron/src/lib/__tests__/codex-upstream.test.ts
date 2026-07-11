@@ -337,6 +337,55 @@ describe("DPCC Codex model catalog", () => {
     expect(await resolveEffectiveCodexModels(nativeModels)).toBe(nativeModels);
   });
 
+  it("keeps cloned Spark capabilities when an expired catalog refresh fails", async () => {
+    const nativeModels = [createCodexModel({ displayName: "Native", isDefault: true })];
+    const fetchedCatalog = {
+      models: [SPARK_MODEL_ID],
+      capabilities: {
+        [SPARK_MODEL_ID]: {
+          supportedReasoningEfforts: [...SPARK_CAPABILITY.supportedReasoningEfforts],
+          defaultReasoningEffort: SPARK_CAPABILITY.defaultReasoningEffort,
+        },
+      },
+      error: null,
+    };
+    mockResolveCodexUpstream.mockReturnValue({
+      tier: "default",
+      providerName: "DPCC API",
+      baseUrl: "https://api.dpcc.example/v1",
+      apiKey: "sk-dpcc",
+      model: SPARK_MODEL_ID,
+    });
+    mockFetchUpstreamModels
+      .mockResolvedValueOnce(fetchedCatalog)
+      .mockResolvedValueOnce({ models: [], error: "503" });
+    const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+
+    const { clearCodexModelCatalogCache, resolveEffectiveCodexModels } = await import("../codex-model-catalog");
+    clearCodexModelCatalogCache();
+    await resolveEffectiveCodexModels(nativeModels);
+
+    fetchedCatalog.models.push("mutated-upstream-model");
+    fetchedCatalog.capabilities[SPARK_MODEL_ID].defaultReasoningEffort = "low";
+    fetchedCatalog.capabilities[SPARK_MODEL_ID].supportedReasoningEfforts.splice(0, Infinity, "minimal");
+
+    now.mockReturnValue(62_000);
+    const stale = await resolveEffectiveCodexModels(nativeModels);
+
+    expect(stale).toMatchObject([{
+      id: SPARK_MODEL_ID,
+      defaultReasoningEffort: "high",
+      supportedReasoningEfforts: [
+        { reasoningEffort: "low", description: "Low" },
+        { reasoningEffort: "medium", description: "Medium" },
+        { reasoningEffort: "high", description: "High" },
+        { reasoningEffort: "xhigh", description: "Extra High" },
+      ],
+    }]);
+    expect(stale.map((model) => model.id)).toEqual([SPARK_MODEL_ID]);
+    expect(mockFetchUpstreamModels).toHaveBeenCalledTimes(2);
+  });
+
   it("falls back to the native catalog when DPCC model loading fails", async () => {
     const nativeModels = [createCodexModel({ displayName: "Native", isDefault: true })];
     mockResolveCodexUpstream.mockReturnValue({

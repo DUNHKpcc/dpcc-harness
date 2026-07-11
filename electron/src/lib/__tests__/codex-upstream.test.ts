@@ -1,4 +1,35 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { CodexModel, CodexModelCapability } from "@shared/types/codex";
+
+const SPARK_MODEL_ID = "gpt-5.3-codex-spark";
+const SPARK_CAPABILITY: CodexModelCapability = {
+  supportedReasoningEfforts: ["low", "medium", "high", "xhigh"],
+  defaultReasoningEffort: "high",
+};
+const SPARK_CAPABILITIES: Readonly<Record<string, CodexModelCapability>> = {
+  [SPARK_MODEL_ID]: SPARK_CAPABILITY,
+};
+
+function createCodexModel({
+  id = "native",
+  model = id,
+  ...overrides
+}: Partial<CodexModel> = {}): CodexModel {
+  return {
+    id,
+    model,
+    upgrade: null,
+    displayName: id,
+    description: "",
+    hidden: false,
+    supportedReasoningEfforts: [],
+    defaultReasoningEffort: "none",
+    inputModalities: ["text"],
+    supportsPersonality: false,
+    isDefault: false,
+    ...overrides,
+  };
+}
 
 const {
   mockResolveCodexUpstream,
@@ -93,37 +124,29 @@ describe("DPCC Codex model catalog", () => {
 
   it("uses DPCC model ids as the authoritative set while preserving native metadata", async () => {
     const nativeModels = [
-      {
+      createCodexModel({
         id: "native-supported",
-        model: "native-supported",
-        upgrade: null,
         displayName: "Native Supported",
         description: "Native metadata",
-        hidden: false,
         supportedReasoningEfforts: [{ reasoningEffort: "high", description: "High" }],
         defaultReasoningEffort: "high",
-        inputModalities: ["text"],
         supportsPersonality: true,
         isDefault: false,
-      },
-      {
+      }),
+      createCodexModel({
         id: "native-unavailable",
-        model: "native-unavailable",
-        upgrade: null,
         displayName: "Native Unavailable",
         description: "Must be filtered out",
-        hidden: false,
         supportedReasoningEfforts: [],
         defaultReasoningEffort: "medium",
-        inputModalities: ["text"],
         supportsPersonality: false,
         isDefault: true,
-      },
+      }),
     ];
 
     const { mergeCodexModelsForUpstream, resolveCodexReasoningEffort } = await import("@shared/lib/codex-helpers");
     const models = mergeCodexModelsForUpstream(
-      nativeModels as never[],
+      nativeModels,
       ["dpcc-new", "native-supported", "dpcc-new"],
       "dpcc-new",
     );
@@ -150,15 +173,10 @@ describe("DPCC Codex model catalog", () => {
   it("uses upstream capabilities for an upstream-only Spark model", async () => {
     const { mergeCodexModelsForUpstream } = await import("@shared/lib/codex-helpers");
     const [spark] = mergeCodexModelsForUpstream(
-      [] as never[],
-      ["gpt-5.3-codex-spark"],
-      "gpt-5.3-codex-spark",
-      {
-        "gpt-5.3-codex-spark": {
-          supportedReasoningEfforts: ["low", "medium", "high", "xhigh"],
-          defaultReasoningEffort: "high",
-        },
-      },
+      [],
+      [SPARK_MODEL_ID],
+      SPARK_MODEL_ID,
+      SPARK_CAPABILITIES,
     );
 
     expect(spark).toMatchObject({
@@ -174,30 +192,21 @@ describe("DPCC Codex model catalog", () => {
   });
 
   it("preserves native Spark efforts when upstream capabilities differ", async () => {
-    const nativeSpark = {
-      id: "gpt-5.3-codex-spark",
-      model: "gpt-5.3-codex-spark",
-      upgrade: null,
+    const nativeSpark = createCodexModel({
+      id: SPARK_MODEL_ID,
       displayName: "Native Spark",
       description: "Native metadata",
-      hidden: false,
       supportedReasoningEfforts: [{ reasoningEffort: "minimal", description: "Native Minimal" }],
       defaultReasoningEffort: "minimal",
-      inputModalities: ["text"],
       supportsPersonality: false,
       isDefault: false,
-    };
+    });
     const { mergeCodexModelsForUpstream } = await import("@shared/lib/codex-helpers");
     const [spark] = mergeCodexModelsForUpstream(
-      [nativeSpark] as never[],
-      ["gpt-5.3-codex-spark"],
+      [nativeSpark],
+      [SPARK_MODEL_ID],
       undefined,
-      {
-        "gpt-5.3-codex-spark": {
-          supportedReasoningEfforts: ["low", "medium", "high", "xhigh"],
-          defaultReasoningEffort: "high",
-        },
-      },
+      SPARK_CAPABILITIES,
     );
 
     expect(spark).toMatchObject({
@@ -211,19 +220,14 @@ describe("DPCC Codex model catalog", () => {
   it("does not infer Spark capabilities for a different upstream model id", async () => {
     const { mergeCodexModelsForUpstream } = await import("@shared/lib/codex-helpers");
     const [sparkPreview] = mergeCodexModelsForUpstream(
-      [] as never[],
-      ["gpt-5.3-codex-spark-preview"],
+      [],
+      [`${SPARK_MODEL_ID}-preview`],
       undefined,
-      {
-        "gpt-5.3-codex-spark": {
-          supportedReasoningEfforts: ["low", "medium", "high", "xhigh"],
-          defaultReasoningEffort: "high",
-        },
-      },
+      SPARK_CAPABILITIES,
     );
 
     expect(sparkPreview).toMatchObject({
-      id: "gpt-5.3-codex-spark-preview",
+      id: `${SPARK_MODEL_ID}-preview`,
       defaultReasoningEffort: "none",
       supportedReasoningEfforts: [],
     });
@@ -232,22 +236,61 @@ describe("DPCC Codex model catalog", () => {
   it("falls back to the Spark capability default for an unsupported requested effort", async () => {
     const { mergeCodexModelsForUpstream, resolveCodexReasoningEffort } = await import("@shared/lib/codex-helpers");
     const [spark] = mergeCodexModelsForUpstream(
-      [] as never[],
-      ["gpt-5.3-codex-spark"],
+      [],
+      [SPARK_MODEL_ID],
       undefined,
-      {
-        "gpt-5.3-codex-spark": {
-          supportedReasoningEfforts: ["low", "medium", "high", "xhigh"],
-          defaultReasoningEffort: "high",
-        },
-      },
+      SPARK_CAPABILITIES,
     );
 
     expect(resolveCodexReasoningEffort(spark, "minimal")).toBe("high");
   });
 
+  it("uses the first supported upstream effort when no default is advertised", async () => {
+    const { mergeCodexModelsForUpstream } = await import("@shared/lib/codex-helpers");
+    const [spark] = mergeCodexModelsForUpstream(
+      [],
+      [SPARK_MODEL_ID],
+      undefined,
+      { [SPARK_MODEL_ID]: { supportedReasoningEfforts: ["medium", "high"] } },
+    );
+
+    expect(spark.defaultReasoningEffort).toBe("medium");
+  });
+
+  it("uses the first supported upstream effort when its advertised default is unsupported", async () => {
+    const { mergeCodexModelsForUpstream } = await import("@shared/lib/codex-helpers");
+    const [spark] = mergeCodexModelsForUpstream(
+      [],
+      [SPARK_MODEL_ID],
+      undefined,
+      {
+        [SPARK_MODEL_ID]: {
+          supportedReasoningEfforts: ["low", "medium"],
+          defaultReasoningEffort: "high",
+        },
+      },
+    );
+
+    expect(spark.defaultReasoningEffort).toBe("low");
+  });
+
+  it("keeps empty upstream effort capabilities empty with a none default", async () => {
+    const { mergeCodexModelsForUpstream } = await import("@shared/lib/codex-helpers");
+    const [spark] = mergeCodexModelsForUpstream(
+      [],
+      [SPARK_MODEL_ID],
+      undefined,
+      { [SPARK_MODEL_ID]: { supportedReasoningEfforts: [] } },
+    );
+
+    expect(spark).toMatchObject({
+      defaultReasoningEffort: "none",
+      supportedReasoningEfforts: [],
+    });
+  });
+
   it("fetches and caches DPCC ids but leaves local Codex catalogs unchanged", async () => {
-    const nativeModels = [{ id: "native", displayName: "Native", isDefault: true }];
+    const nativeModels = [createCodexModel({ displayName: "Native", isDefault: true })];
     mockResolveCodexUpstream.mockReturnValue({
       tier: "default",
       providerName: "DPCC API",
@@ -259,8 +302,8 @@ describe("DPCC Codex model catalog", () => {
 
     const { clearCodexModelCatalogCache, resolveEffectiveCodexModels } = await import("../codex-model-catalog");
     clearCodexModelCatalogCache();
-    const first = await resolveEffectiveCodexModels(nativeModels as never[]);
-    const second = await resolveEffectiveCodexModels(nativeModels as never[]);
+    const first = await resolveEffectiveCodexModels(nativeModels);
+    const second = await resolveEffectiveCodexModels(nativeModels);
 
     expect(first.map((model) => model.id)).toEqual(["dpcc-new"]);
     expect(second.map((model) => model.id)).toEqual(["dpcc-new"]);
@@ -273,11 +316,11 @@ describe("DPCC Codex model catalog", () => {
       apiKey: "",
       model: "native",
     });
-    expect(await resolveEffectiveCodexModels(nativeModels as never[])).toBe(nativeModels);
+    expect(await resolveEffectiveCodexModels(nativeModels)).toBe(nativeModels);
   });
 
   it("falls back to the native catalog when DPCC model loading fails", async () => {
-    const nativeModels = [{ id: "native", displayName: "Native", isDefault: true }];
+    const nativeModels = [createCodexModel({ displayName: "Native", isDefault: true })];
     mockResolveCodexUpstream.mockReturnValue({
       tier: "default",
       providerName: "DPCC API",
@@ -290,11 +333,11 @@ describe("DPCC Codex model catalog", () => {
     const { clearCodexModelCatalogCache, resolveEffectiveCodexModels } = await import("../codex-model-catalog");
     clearCodexModelCatalogCache();
 
-    expect(await resolveEffectiveCodexModels(nativeModels as never[])).toBe(nativeModels);
+    expect(await resolveEffectiveCodexModels(nativeModels)).toBe(nativeModels);
   });
 
   it("uses the last successful DPCC catalog when refresh fails", async () => {
-    const nativeModels = [{ id: "native", displayName: "Native", isDefault: true }];
+    const nativeModels = [createCodexModel({ displayName: "Native", isDefault: true })];
     mockResolveCodexUpstream.mockReturnValue({
       tier: "default",
       providerName: "DPCC API",
@@ -309,17 +352,17 @@ describe("DPCC Codex model catalog", () => {
 
     const { clearCodexModelCatalogCache, resolveEffectiveCodexModels } = await import("../codex-model-catalog");
     clearCodexModelCatalogCache();
-    expect((await resolveEffectiveCodexModels(nativeModels as never[])).map((model) => model.id))
+    expect((await resolveEffectiveCodexModels(nativeModels)).map((model) => model.id))
       .toEqual(["dpcc-stable"]);
 
     now.mockReturnValue(62_000);
-    expect((await resolveEffectiveCodexModels(nativeModels as never[])).map((model) => model.id))
+    expect((await resolveEffectiveCodexModels(nativeModels)).map((model) => model.id))
       .toEqual(["dpcc-stable"]);
     expect(mockFetchUpstreamModels).toHaveBeenCalledTimes(2);
   });
 
   it("keeps stale catalogs isolated by upstream fingerprint", async () => {
-    const nativeModels = [{ id: "native", displayName: "Native", isDefault: true }];
+    const nativeModels = [createCodexModel({ displayName: "Native", isDefault: true })];
     const upstreamA = {
       tier: "default",
       providerName: "DPCC API",
@@ -337,21 +380,21 @@ describe("DPCC Codex model catalog", () => {
 
     const { clearCodexModelCatalogCache, resolveEffectiveCodexModels } = await import("../codex-model-catalog");
     clearCodexModelCatalogCache();
-    expect((await resolveEffectiveCodexModels(nativeModels as never[])).map((model) => model.id))
+    expect((await resolveEffectiveCodexModels(nativeModels)).map((model) => model.id))
       .toEqual(["dpcc-a"]);
 
     mockResolveCodexUpstream.mockReturnValue(upstreamB);
-    expect((await resolveEffectiveCodexModels(nativeModels as never[])).map((model) => model.id))
+    expect((await resolveEffectiveCodexModels(nativeModels)).map((model) => model.id))
       .toEqual(["dpcc-b"]);
 
     now.mockReturnValue(62_000);
     mockResolveCodexUpstream.mockReturnValue(upstreamA);
-    expect((await resolveEffectiveCodexModels(nativeModels as never[])).map((model) => model.id))
+    expect((await resolveEffectiveCodexModels(nativeModels)).map((model) => model.id))
       .toEqual(["dpcc-a"]);
   });
 
   it("keeps an empty successful DPCC response authoritative", async () => {
-    const nativeModels = [{ id: "native", displayName: "Native", isDefault: true }];
+    const nativeModels = [createCodexModel({ displayName: "Native", isDefault: true })];
     mockResolveCodexUpstream.mockReturnValue({
       tier: "default",
       providerName: "DPCC API",
@@ -364,6 +407,6 @@ describe("DPCC Codex model catalog", () => {
     const { clearCodexModelCatalogCache, resolveEffectiveCodexModels } = await import("../codex-model-catalog");
     clearCodexModelCatalogCache();
 
-    expect(await resolveEffectiveCodexModels(nativeModels as never[])).toEqual([]);
+    expect(await resolveEffectiveCodexModels(nativeModels)).toEqual([]);
   });
 });

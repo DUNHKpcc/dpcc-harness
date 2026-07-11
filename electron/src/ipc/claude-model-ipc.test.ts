@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   handlers: new Map<string, (...args: any[]) => Promise<any>>(),
   resolveEffectiveClaudeModels: vi.fn(),
   resolveEffectiveClaudeModelsResult: vi.fn(),
+  resolveClaudeModelForRequest: vi.fn(),
   claudeUpstreamFingerprint: vi.fn((upstream: unknown) => JSON.stringify(upstream)),
   getClaudeModelsCache: vi.fn(),
   setClaudeModelsCache: vi.fn(),
@@ -37,6 +38,7 @@ vi.mock("../lib/claude-model-cache", () => ({
 
 vi.mock("../lib/claude-model-catalog", () => ({
   claudeUpstreamFingerprint: mocks.claudeUpstreamFingerprint,
+  resolveClaudeModelForRequest: mocks.resolveClaudeModelForRequest,
   resolveEffectiveClaudeModels: mocks.resolveEffectiveClaudeModels,
   resolveEffectiveClaudeModelsResult: mocks.resolveEffectiveClaudeModelsResult,
 }));
@@ -114,6 +116,7 @@ describe("Claude model IPC catalog", () => {
     mocks.handlers.clear();
     mocks.resolveEffectiveClaudeModels.mockReset();
     mocks.resolveEffectiveClaudeModelsResult.mockReset();
+    mocks.resolveClaudeModelForRequest.mockReset();
     mocks.claudeUpstreamFingerprint.mockClear();
     mocks.getClaudeModelsCache.mockReset();
     mocks.setClaudeModelsCache.mockReset();
@@ -128,6 +131,7 @@ describe("Claude model IPC catalog", () => {
       models: effectiveModels,
       authoritative: true,
     });
+    mocks.resolveClaudeModelForRequest.mockImplementation(async (model) => model);
     mocks.getClaudeModelsCache.mockReturnValue({ models: rawModels, updatedAt: 100 });
     mocks.setClaudeModelsCache.mockImplementation((models) => ({ models, updatedAt: 200 }));
     mocks.reportError.mockImplementation((code: string, error: unknown) => `${code}: ${String(error)}`);
@@ -154,6 +158,74 @@ describe("Claude model IPC catalog", () => {
     expect(mocks.setClaudeModelsCache).toHaveBeenCalledWith(rawModels);
     expect(mocks.resolveEffectiveClaudeModelsResult).toHaveBeenCalledWith(rawModels, expect.any(String));
     expect(result).toEqual({ models: effectiveModels, authoritative: true });
+  });
+
+  it("restarts a live Claude transport before changing models after the upstream changes", async () => {
+    let upstream = defaultUpstream({ tier: "local", baseUrl: "https://local.example" });
+    mocks.resolveClaudeUpstream.mockImplementation(() => upstream);
+    const close = vi.fn();
+    const queryHandle = {
+      close,
+      async *[Symbol.asyncIterator]() {},
+    };
+    const query = vi.fn(() => queryHandle);
+    mocks.getSDK.mockResolvedValue(query);
+    mocks.resolveClaudeModelForRequest.mockResolvedValue("claude-sonnet-4-6");
+    const { sessions } = await import("./claude-sessions");
+    sessions.set("session-1", {
+      channel: { close: vi.fn() } as never,
+      queryHandle: { close } as never,
+      eventCounter: 0,
+      pendingPermissions: new Map(),
+      startOptions: { model: "glm-5.2" },
+      upstreamFingerprint: JSON.stringify(upstream),
+      upstreamTier: "local",
+    });
+
+    upstream = defaultUpstream({ model: "" });
+    const result = await mocks.handlers.get("claude:set-model")?.({}, {
+      sessionId: "session-1",
+      model: "glm-5.2",
+    });
+
+    expect(result).toEqual({ ok: true, restarted: true });
+    expect(query).toHaveBeenCalledWith(expect.objectContaining({
+      options: expect.objectContaining({ model: "claude-sonnet-4-6" }),
+    }));
+    expect(mocks.resolveClaudeModelForRequest).toHaveBeenCalledWith(undefined);
+    expect(close).toHaveBeenCalled();
+  });
+
+  it("does not revive a session when stop cancels a queued upstream restart", async () => {
+    let upstream = defaultUpstream({ tier: "local", baseUrl: "https://local.example" });
+    mocks.resolveClaudeUpstream.mockImplementation(() => upstream);
+    let resolveSdk!: (query: unknown) => void;
+    mocks.getSDK.mockReturnValue(new Promise((resolve) => { resolveSdk = resolve; }));
+    const close = vi.fn();
+    const query = vi.fn(() => ({ close: vi.fn(), async *[Symbol.asyncIterator]() {} }));
+    const { sessions } = await import("./claude-sessions");
+    sessions.set("session-1", {
+      channel: { close: vi.fn() } as never,
+      queryHandle: { close } as never,
+      eventCounter: 0,
+      pendingPermissions: new Map(),
+      startOptions: { model: "glm-5.2" },
+      upstreamFingerprint: JSON.stringify(upstream),
+      upstreamTier: "local",
+    });
+
+    upstream = defaultUpstream({ model: "" });
+    const switching = mocks.handlers.get("claude:set-model")?.({}, {
+      sessionId: "session-1",
+      model: "glm-5.2",
+    });
+    await vi.waitFor(() => expect(close).toHaveBeenCalled());
+    expect(await mocks.handlers.get("claude:stop")?.({}, "session-1")).toEqual({ ok: true });
+    resolveSdk(query);
+
+    await expect(switching).resolves.toEqual({ error: "Session restart cancelled" });
+    expect(query).not.toHaveBeenCalled();
+    expect(sessions.get("session-1")?.stopping).toBe(true);
   });
 
   it.each([

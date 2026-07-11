@@ -13,6 +13,7 @@ import { getClaudeModelsCache, setClaudeModelsCache } from "../lib/claude-model-
 import type { CachedModelInfo } from "../lib/claude-model-cache";
 import {
   claudeUpstreamFingerprint,
+  resolveClaudeModelForRequest,
   resolveEffectiveClaudeModelsResult,
 } from "../lib/claude-model-catalog";
 import { resolveClaudeUpstream } from "../lib/upstream-resolver";
@@ -34,7 +35,7 @@ import {
   getClaudeVersion,
 } from "../lib/claude-binary";
 import { captureEvent } from "../lib/posthog";
-import { prepareClaudeSpawnEnv, claudeResolvedModel, claudeSettingSources } from "../lib/claude-gateway-env";
+import { prepareClaudeSpawnEnv, claudeSettingSources } from "../lib/claude-gateway-env";
 import { normalizeSessionCwd } from "../lib/session-cwd";
 
 /** SDK options for file checkpointing — enables Write/Edit/NotebookEdit revert support.
@@ -88,6 +89,9 @@ interface SessionEntry {
   eventCounter: number;
   pendingPermissions: Map<string, PendingPermission>;
   startOptions?: StartOptions;
+  /** Upstream identity used to build the current Claude subprocess. */
+  upstreamFingerprint?: string;
+  upstreamTier?: ClaudeUpstream["tier"];
   /** When true, the old event loop should NOT send claude:exit on teardown */
   restarting?: boolean;
   /** When true, a stop was requested — suppress expected SDK teardown errors */
@@ -97,6 +101,19 @@ interface SessionEntry {
 }
 
 export const sessions = new Map<string, SessionEntry>();
+const restartQueues = new Map<string, Promise<{ ok?: boolean; error?: string; restarted?: boolean }>>();
+const restartCancellationGenerations = new Map<string, number>();
+
+function cancelPendingRestarts(sessionId: string): void {
+  restartCancellationGenerations.set(
+    sessionId,
+    (restartCancellationGenerations.get(sessionId) ?? 0) + 1,
+  );
+}
+
+function isRestartCancelled(sessionId: string, generation: number): boolean {
+  return (restartCancellationGenerations.get(sessionId) ?? 0) !== generation;
+}
 
 function closeSessionTransport(sessionId: string, session: SessionEntry, context: string): void {
   try {
@@ -757,16 +774,20 @@ function applyCodexBridge(servers: McpServerInput[] | undefined, enabled: boolea
 
 // ── Restart a running session with fresh config (resume = same conversation) ──
 
-async function restartSession(
+async function performRestartSession(
   sessionId: string,
   getMainWindow: () => BrowserWindow | null,
   mcpServersOverride?: McpServerInput[],
   cwdOverride?: string,
   effortOverride?: StartOptions["effort"],
-  modelOverride?: string,
+  modelOverride?: string | null,
   bridgeEnabledOverride?: boolean,
+  cancellationGeneration = restartCancellationGenerations.get(sessionId) ?? 0,
 ): Promise<{ ok?: boolean; error?: string; restarted?: boolean }> {
   const session = sessions.get(sessionId);
+  if (isRestartCancelled(sessionId, cancellationGeneration) || session?.stopping) {
+    return { error: "Session restart cancelled" };
+  }
   if (!session?.queryHandle || !session.startOptions) {
     return { error: "No active session to restart" };
   }
@@ -789,8 +810,10 @@ async function restartSession(
   const bridgeEnabled = bridgeEnabledOverride ?? opts.claudeCodexBridgeEnabled === true;
   const cwd = normalizeSessionCwd(cwdOverride ?? opts.cwd);
   const query = await getSDK();
+  if (isRestartCancelled(sessionId, cancellationGeneration)) return { error: "Session restart cancelled" };
   const newChannel = new AsyncChannel<SDKUserMessage>();
   const cliPath = await getClaudeBinaryPath();
+  if (isRestartCancelled(sessionId, cancellationGeneration)) return { error: "Session restart cancelled" };
   logSdkCliPath(`restart session=${sessionId.slice(0, 8)}`, cliPath);
   reclaimMacDockFocus(getMainWindow, "claude-restart");
 
@@ -799,6 +822,8 @@ async function restartSession(
     queryHandle: null,
     eventCounter: session.eventCounter,
     pendingPermissions: new Map(),
+    upstreamFingerprint: currentClaudeUpstreamFingerprint(),
+    upstreamTier: resolveClaudeUpstream().tier,
     startOptions: {
       ...opts,
       cwd,
@@ -826,6 +851,7 @@ async function restartSession(
   };
 
   const spawnEnv = await prepareClaudeSpawnEnv(claudePortableGitPaths());
+  if (isRestartCancelled(sessionId, cancellationGeneration)) return { error: "Session restart cancelled" };
   const queryOptions: Record<string, unknown> = {
     cwd,
     includePartialMessages: true,
@@ -845,8 +871,12 @@ async function restartSession(
   applyClaudeMcpIsolation(queryOptions);
 
   applyPermissionModeOptions(queryOptions, opts.permissionMode);
-  const restartModel = claudeResolvedModel(toSdkModelOverride(modelOverride ?? opts.model));
+  const restartModel = await resolveClaudeModelForRequest(
+    toSdkModelOverride(modelOverride === null ? undefined : (modelOverride ?? opts.model)),
+  );
+  if (isRestartCancelled(sessionId, cancellationGeneration)) return { error: "Session restart cancelled" };
   if (restartModel) queryOptions.model = restartModel;
+  if (newSession.startOptions) newSession.startOptions.model = restartModel;
   if (effortOverride ?? opts.effort) {
     queryOptions.effort = effortOverride ?? opts.effort;
   }
@@ -854,6 +884,7 @@ async function restartSession(
   const restartMcpServers = applyCodexBridge(mcpServers, bridgeEnabled, sessionId);
   if (restartMcpServers.length) {
     queryOptions.mcpServers = await buildSdkMcpConfig(restartMcpServers, mcpConfigOptions);
+    if (isRestartCancelled(sessionId, cancellationGeneration)) return { error: "Session restart cancelled" };
   }
 
   log("SESSION_RESTART_SPAWN", { sessionId, options: summarizeSpawnOptions(queryOptions) });
@@ -881,6 +912,37 @@ async function restartSession(
   return { ok: true, restarted: true };
 }
 
+function restartSession(
+  sessionId: string,
+  getMainWindow: () => BrowserWindow | null,
+  mcpServersOverride?: McpServerInput[],
+  cwdOverride?: string,
+  effortOverride?: StartOptions["effort"],
+  modelOverride?: string | null,
+  bridgeEnabledOverride?: boolean,
+): Promise<{ ok?: boolean; error?: string; restarted?: boolean }> {
+  const previous = restartQueues.get(sessionId) ?? Promise.resolve({ ok: true });
+  const cancellationGeneration = restartCancellationGenerations.get(sessionId) ?? 0;
+  const queued = previous
+    .catch(() => ({ ok: false }))
+    .then(() => performRestartSession(
+      sessionId,
+      getMainWindow,
+      mcpServersOverride,
+      cwdOverride,
+      effortOverride,
+      modelOverride,
+      bridgeEnabledOverride,
+      cancellationGeneration,
+    ));
+  restartQueues.set(sessionId, queued);
+  const cleanup = () => {
+    if (restartQueues.get(sessionId) === queued) restartQueues.delete(sessionId);
+  };
+  void queued.then(cleanup, cleanup);
+  return queued;
+}
+
 // ── IPC Registration ──
 
 export function register(getMainWindow: () => BrowserWindow | null): void {
@@ -890,6 +952,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     const sessionId = (options.resume && options.forkSession)
       ? crypto.randomUUID()
       : (options.resume || crypto.randomUUID());
+    cancelPendingRestarts(sessionId);
 
     try {
       const query = await getSDK();
@@ -919,6 +982,8 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         eventCounter: 0,
         pendingPermissions: new Map(),
         startOptions: options,
+        upstreamFingerprint: currentClaudeUpstreamFingerprint(),
+        upstreamTier: resolveClaudeUpstream().tier,
       };
       sessions.set(sessionId, session);
 
@@ -980,10 +1045,11 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       }
 
       applyPermissionModeOptions(queryOptions, options.permissionMode);
-      const startModel = claudeResolvedModel(toSdkModelOverride(options.model));
+      const startModel = await resolveClaudeModelForRequest(toSdkModelOverride(options.model));
       if (startModel) {
         queryOptions.model = startModel;
       }
+      session.startOptions = { ...options, model: startModel };
       if (options.effort) {
         queryOptions.effort = options.effort;
       }
@@ -1025,11 +1091,27 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     }
   });
 
-  ipcMain.handle("claude:send", (_event, { sessionId, message }: { sessionId: string; message: { message: { content: ClaudeUserMessageContent } } }) => {
-    const session = sessions.get(sessionId);
+  ipcMain.handle("claude:send", async (_event, { sessionId, message }: { sessionId: string; message: { message: { content: ClaudeUserMessageContent } } }) => {
+    let session = sessions.get(sessionId);
     if (!session) {
       log("SEND", `ERROR: session ${sessionId?.slice(0, 8)} not found`);
       return { error: "Claude session not found" };
+    }
+    const currentFingerprint = currentClaudeUpstreamFingerprint();
+    if (session.upstreamFingerprint && session.upstreamFingerprint !== currentFingerprint) {
+      log("SEND_UPSTREAM_CHANGED", `session=${sessionId.slice(0, 8)} restarting transport`);
+      const currentTier = resolveClaudeUpstream().tier;
+      const restarted = await restartSession(
+        sessionId,
+        getMainWindow,
+        undefined,
+        undefined,
+        undefined,
+        session.upstreamTier && session.upstreamTier !== currentTier ? null : undefined,
+      );
+      if (restarted.error) return restarted;
+      session = sessions.get(sessionId);
+      if (!session) return { error: "Claude session restart did not produce an active session" };
     }
     log("SEND", `session=${sessionId.slice(0, 8)} content=${JSON.stringify(message).slice(0, 500)}`);
     session.channel.push({
@@ -1122,12 +1204,25 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       log("SET_MODEL", "ERROR: session " + sessionId.slice(0, 8) + " not found");
       return { error: "Claude session not found" };
     }
-    if (!session.queryHandle?.setModel) {
-      log("SET_MODEL", "ERROR: session=" + sessionId.slice(0, 8) + " setModel unsupported");
-      return { error: "Model switching is not supported by this Claude SDK version" };
-    }
+    if (!session.queryHandle) return { error: "No active query handle" };
     try {
-      const sdkModel = toSdkModelOverride(model);
+      const currentFingerprint = currentClaudeUpstreamFingerprint();
+      if (session.upstreamFingerprint && session.upstreamFingerprint !== currentFingerprint) {
+        const requestedModel = toSdkModelOverride(model);
+        const previousModel = toSdkModelOverride(session.startOptions?.model);
+        const currentTier = resolveClaudeUpstream().tier;
+        const resetStaleModel = session.upstreamTier !== currentTier
+          && requestedModel === previousModel;
+        const restartModel = resetStaleModel
+          ? null
+          : await resolveClaudeModelForRequest(requestedModel);
+        return restartSession(sessionId, getMainWindow, undefined, undefined, undefined, restartModel);
+      }
+      if (!session.queryHandle.setModel) {
+        log("SET_MODEL", "ERROR: session=" + sessionId.slice(0, 8) + " setModel unsupported");
+        return { error: "Model switching is not supported by this Claude SDK version" };
+      }
+      const sdkModel = await resolveClaudeModelForRequest(toSdkModelOverride(model));
       await session.queryHandle.setModel(sdkModel);
       if (session.startOptions) {
         session.startOptions.model = sdkModel;
@@ -1172,6 +1267,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     "claude:stop",
     (_event, payload: string | { sessionId: string; reason?: string }) => {
       const { sessionId, reason } = parseStopRequest(payload);
+      cancelPendingRestarts(sessionId);
       const session = sessions.get(sessionId);
       if (session) {
         // Mark as requested stop so teardown errors are suppressed
@@ -1408,6 +1504,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
 /** Stop all Claude sessions (called on app quit). Idempotent. */
 export function stopAll(): void {
   for (const [sessionId, session] of sessions) {
+    cancelPendingRestarts(sessionId);
     try {
       log("CLEANUP", `Closing Claude session ${sessionId.slice(0, 8)}`);
       session.stopping = true;
@@ -1426,4 +1523,5 @@ export function stopAll(): void {
     }
   }
   sessions.clear();
+  restartQueues.clear();
 }

@@ -16,6 +16,7 @@ vi.mock("../upstream-models", () => ({
 import {
   claudeUpstreamFingerprint,
   clearClaudeModelCatalogCache,
+  resolveClaudeModelForRequest,
   resolveEffectiveClaudeModels,
   resolveEffectiveClaudeModelsResult,
 } from "../claude-model-catalog";
@@ -123,6 +124,133 @@ describe("Claude DPCC model catalog", () => {
       supportsFastMode: true,
     });
     expect(sdkModels).toEqual(originalSdkModels);
+  });
+
+  it("keeps DPCC model labels authoritative while borrowing only effort metadata from local aliases", async () => {
+    mocks.fetchUpstreamModels.mockResolvedValue({
+      models: ["claude-opus-4-6", "claude-sonnet-4-6", "claude-haiku-4-5"],
+      error: null,
+    });
+    const localAliases: CachedModelInfo[] = [
+      {
+        value: "opus",
+        displayName: "glm-5.2",
+        description: "Custom Opus model (1M context)",
+        supportsEffort: true,
+        supportedEffortLevels: ["low", "medium", "high", "max"],
+        supportsAdaptiveThinking: true,
+      },
+      {
+        value: "sonnet",
+        displayName: "deepseek-v4-pro",
+        description: "Custom Sonnet model",
+        supportsEffort: true,
+        supportedEffortLevels: ["low", "medium", "high", "max"],
+        supportsAdaptiveThinking: true,
+      },
+      {
+        value: "haiku",
+        displayName: "kimi-k2.7-code",
+        description: "Custom Haiku model",
+        supportsEffort: true,
+        supportedEffortLevels: ["low", "medium", "high", "max"],
+        supportsAdaptiveThinking: true,
+      },
+    ];
+
+    const result = await resolveEffectiveClaudeModels(localAliases);
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        value: "claude-opus-4-6",
+        displayName: "claude-opus-4-6",
+        description: "",
+        supportsEffort: true,
+        supportedEffortLevels: ["low", "medium", "high", "max"],
+      }),
+      expect.objectContaining({
+        value: "claude-sonnet-4-6",
+        displayName: "claude-sonnet-4-6",
+        description: "",
+        supportsEffort: true,
+      }),
+      expect.objectContaining({
+        value: "claude-haiku-4-5",
+        displayName: "claude-haiku-4-5",
+        description: "",
+        supportsEffort: true,
+      }),
+    ]);
+  });
+
+  it("uses only DPCC-authoritative model ids for default-upstream requests", async () => {
+    mocks.resolveClaudeUpstream.mockReturnValue(defaultUpstream({ model: "" }));
+    mocks.fetchUpstreamModels.mockResolvedValue({
+      models: ["claude-haiku-4-5", "claude-sonnet-4-6"],
+      error: null,
+    });
+
+    await expect(resolveClaudeModelForRequest("claude-sonnet-4-6"))
+      .resolves.toBe("claude-sonnet-4-6");
+    await expect(resolveClaudeModelForRequest("glm-5.2"))
+      .resolves.toBe("claude-haiku-4-5");
+  });
+
+  it("re-resolves a request when the upstream changes while DPCC models are loading", async () => {
+    let upstream = defaultUpstream({ model: "" });
+    mocks.resolveClaudeUpstream.mockImplementation(() => upstream);
+    let resolveModels!: (value: { models: string[]; error: null }) => void;
+    mocks.fetchUpstreamModels.mockReturnValue(new Promise((resolve) => {
+      resolveModels = resolve;
+    }));
+
+    const result = resolveClaudeModelForRequest("local-sonnet");
+    upstream = defaultUpstream({ tier: "local", baseUrl: "", token: "", model: "" });
+    resolveModels({ models: ["claude-sonnet-4-6"], error: null });
+
+    await expect(result).resolves.toBe("local-sonnet");
+  });
+
+  it("sanitizes exact custom SDK metadata for a DPCC model id", async () => {
+    mocks.fetchUpstreamModels.mockResolvedValue({
+      models: ["claude-sonnet-4-6"],
+      error: null,
+    });
+    const customExact: CachedModelInfo = {
+      value: "claude-sonnet-4-6",
+      displayName: "deepseek-v4-pro",
+      description: "Custom Sonnet model",
+      supportsEffort: true,
+      supportedEffortLevels: ["low", "medium", "high"],
+    };
+
+    await expect(resolveEffectiveClaudeModels([customExact])).resolves.toEqual([{
+      value: "claude-sonnet-4-6",
+      displayName: "claude-sonnet-4-6",
+      description: "",
+      supportsEffort: true,
+      supportedEffortLevels: ["low", "medium", "high"],
+    }]);
+  });
+
+  it("does not borrow custom effort metadata across context variants", async () => {
+    mocks.fetchUpstreamModels.mockResolvedValue({
+      models: ["claude-opus-4-6"],
+      error: null,
+    });
+    const customLongContext: CachedModelInfo = {
+      value: "opus[1m]",
+      displayName: "glm-5.2",
+      description: "Custom Opus model (1M context)",
+      supportsEffort: true,
+      supportedEffortLevels: ["low", "medium", "high", "max"],
+    };
+
+    await expect(resolveEffectiveClaudeModels([customLongContext])).resolves.toEqual([{
+      value: "claude-opus-4-6",
+      displayName: "claude-opus-4-6",
+      description: "",
+    }]);
   });
 
   it("prefers same-version metadata across SDK value, display name, and description", async () => {

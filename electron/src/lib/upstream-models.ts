@@ -8,6 +8,10 @@ import { extractErrorMessage } from "./error-utils";
 
 const REQUEST_TIMEOUT_MS = 8_000;
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 /** Normalize to a host root with no trailing slash or `/v1` suffix. */
 export function normalizeModelsRoot(baseUrl: string): string {
   return baseUrl.trim().replace(/\/+$/, "").replace(/\/v1$/, "");
@@ -17,7 +21,10 @@ export function normalizeModelsRoot(baseUrl: string): string {
 export async function fetchUpstreamModels(
   baseUrl: string,
   token: string,
-): Promise<{ models: string[]; error: string | null }> {
+): Promise<{
+  models: string[];
+  error: string | null;
+}> {
   const root = normalizeModelsRoot(baseUrl);
   if (!root) return { models: [], error: "no_endpoint" };
   if (!token) return { models: [], error: "no_token" };
@@ -30,10 +37,11 @@ export async function fetchUpstreamModels(
       signal: controller.signal,
     });
     if (!res.ok) return { models: [], error: `${res.status} ${res.statusText}` };
-    const body = (await res.json()) as { data?: Array<{ id?: string }> };
-    if (!Array.isArray(body.data)) return { models: [], error: "invalid_response" };
+    const body: unknown = await res.json();
+    if (!isRecord(body) || !Array.isArray(body.data)) return { models: [], error: "invalid_response" };
     const models = body.data
-      .map((m) => (typeof m?.id === "string" ? m.id : ""))
+      .filter(isRecord)
+      .map((model) => (typeof model.id === "string" ? model.id : ""))
       .filter(Boolean);
     return { models, error: null };
   } catch (e) {

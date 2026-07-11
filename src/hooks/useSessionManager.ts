@@ -55,6 +55,7 @@ export function useSessionManager(
   const [draftAcpSessionId, setDraftAcpSessionId] = useState<string | null>(null);
   const [draftMcpStatuses, setDraftMcpStatuses] = useState<McpServerStatus[]>([]);
   const [cachedModels, setCachedModels] = useState<ModelInfo[]>([]);
+  const [cachedModelsLoaded, setCachedModelsLoaded] = useState(false);
   const [codexRawModels, setCodexRawModels] = useState<CodexModelSummary[]>([]);
   const [codexModelsLoadingMessage, setCodexModelsLoadingMessage] = useState<string | null>(null);
   const [queuedCount, setQueuedCount] = useState(0);
@@ -63,6 +64,18 @@ export function useSessionManager(
   const sessionsRef = useRef(sessions);
   sessionsRef.current = sessions;
   const backgroundStoreRef = useRef(new BackgroundSessionStore());
+  const claudeModelCatalogRequestGenerationRef = useRef(0);
+  const claudeEagerStartGenerationRef = useRef(0);
+
+  const setCachedModelCatalog = useCallback((models: ModelInfo[], authoritative = false) => {
+    setCachedModels(models);
+    setCachedModelsLoaded(models.length > 0 || authoritative);
+  }, []);
+
+  const invalidateCachedModels = useCallback(() => {
+    setCachedModels([]);
+    setCachedModelsLoaded(false);
+  }, []);
 
   useEffect(() => {
     if (visibleSplitSessionIds.length === 0) return;
@@ -259,6 +272,8 @@ export function useSessionManager(
     acpPermissionBehaviorRef,
     currentBranchRef,
     visibleSplitSessionIdsRef,
+    claudeModelCatalogRequestGenerationRef,
+    claudeEagerStartGenerationRef,
   };
 
   const setters: SharedSessionSetters = {
@@ -278,7 +293,8 @@ export function useSessionManager(
     setDraftMcpStatuses,
     setAcpMcpStatuses,
     setQueuedCount,
-    setCachedModels,
+    setCachedModels: setCachedModelCatalog,
+    invalidateCachedModels,
     setCodexRawModels,
     setCodexModelsLoadingMessage,
   };
@@ -725,8 +741,9 @@ export function useSessionManager(
       ? codex.codexModels
       : isACP
         ? []
-        : claude.supportedModels.length > 0 ? claude.supportedModels : cachedModels,
+        : claude.supportedModelsLoaded ? claude.supportedModels : cachedModels,
     cachedClaudeModels: cachedModels,
+    cachedClaudeModelsLoaded: cachedModelsLoaded,
     restartWithMcpServers: isACP
       ? isDraft
         ? async (servers: McpServerConfig[]) => {

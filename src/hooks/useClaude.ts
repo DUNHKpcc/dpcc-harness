@@ -37,6 +37,11 @@ import { createSystemMessage, createUserMessage, formatResultError, nextId } fro
 import { bgAgentStore } from "../lib/background/agent-store";
 import { suppressNextSessionCompletion } from "../lib/notification-utils";
 import { advancePermissionQueue, enqueuePermissionRequest } from "../lib/engine/permission-queue";
+import {
+  claudeModelCatalogSettingsFingerprint,
+  isClaudeModelCatalogLoaded,
+  isClaudeModelRequestCurrent,
+} from "../lib/engine/claude-model-request";
 import { normalizeTodoToolInput } from "../lib/chat/todo-utils";
 import { markInFlightToolCallsFailed } from "../lib/chat/in-flight-tools";
 import { capture } from "../lib/analytics/analytics";
@@ -79,6 +84,7 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
 
   const [mcpServerStatuses, setMcpServerStatuses] = useState<McpServerStatus[]>([]);
   const [supportedModels, setSupportedModels] = useState<ModelInfo[]>([]);
+  const [supportedModelsLoaded, setSupportedModelsLoaded] = useState(false);
   const [slashCommands, setSlashCommands] = useState<SlashCommand[]>([]);
 
   const buffer = useRef(new StreamingBuffer());
@@ -87,6 +93,8 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
   const permissionResponseInFlight = useRef(false);
   const respondingPermissionIds = useRef<Set<string>>(new Set());
   const completedPermissionIds = useRef<Set<string>>(new Set());
+  const supportedModelsRequestGeneration = useRef(0);
+  const modelCatalogSettingsFingerprintRef = useRef<string | null>(null);
   const upstreamRequestCountRef = useRef(upstreamRequestCount);
   upstreamRequestCountRef.current = upstreamRequestCount;
   // Throttle timer for thinking-only flushes (invisible content → 250ms instead of 60fps)
@@ -96,6 +104,9 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
 
   // Engine-specific reset — runs after base reset via the same sessionId dependency
   useEffect(() => {
+    supportedModelsRequestGeneration.current += 1;
+    setSupportedModels([]);
+    setSupportedModelsLoaded(false);
     buffer.current.reset();
     parentToolMap.current.clear();
     permissionQueue.current = [];
@@ -122,6 +133,31 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
       );
     }
   }, [sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    let disposed = false;
+    void window.claude.settings.get().then((settings) => {
+      if (!disposed && modelCatalogSettingsFingerprintRef.current === null) {
+        modelCatalogSettingsFingerprintRef.current = claudeModelCatalogSettingsFingerprint(settings);
+      }
+    });
+
+    const unsubscribe = window.claude.settings.onChanged((settings) => {
+      const nextFingerprint = claudeModelCatalogSettingsFingerprint(settings);
+      const previousFingerprint = modelCatalogSettingsFingerprintRef.current;
+      modelCatalogSettingsFingerprintRef.current = nextFingerprint;
+      if (previousFingerprint === null || previousFingerprint === nextFingerprint) return;
+
+      supportedModelsRequestGeneration.current += 1;
+      setSupportedModels([]);
+      setSupportedModelsLoaded(false);
+    });
+
+    return () => {
+      disposed = true;
+      unsubscribe();
+    };
+  }, []);
 
   // Index of the currently streaming message in the messages array — avoids
   // O(n) find/map scans on every rAF flush.
@@ -348,9 +384,20 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
           {
             const modelsSid = sessionIdRef.current;
             if (modelsSid) {
+              const modelsGeneration = ++supportedModelsRequestGeneration.current;
               window.claude.supportedModels(modelsSid).then((result) => {
-                if (result.models?.length) {
+                if (!result.error && !result.stale && isClaudeModelRequestCurrent(
+                  { sessionId: modelsSid, generation: modelsGeneration },
+                  {
+                    sessionId: sessionIdRef.current,
+                    generation: supportedModelsRequestGeneration.current,
+                  },
+                )) {
                   setSupportedModels(result.models);
+                  setSupportedModelsLoaded(isClaudeModelCatalogLoaded(
+                    result.models,
+                    result.authoritative,
+                  ));
                 }
               }).catch(() => { /* session may have been stopped */ });
             }
@@ -1107,6 +1154,7 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
     reconnectMcpServer,
     restartWithMcpServers,
     supportedModels,
+    supportedModelsLoaded,
     slashCommands,
     revertFiles,
     flushNow,

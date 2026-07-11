@@ -106,6 +106,8 @@ export interface SharedSessionRefs {
   currentBranchRef: React.MutableRefObject<string | undefined>;
   /** Split view: session IDs currently visible in extra panes. */
   visibleSplitSessionIdsRef: React.MutableRefObject<readonly string[]>;
+  claudeModelCatalogRequestGenerationRef: React.MutableRefObject<number>;
+  claudeEagerStartGenerationRef: React.MutableRefObject<number>;
 }
 
 /** State setters from the orchestrator that sub-hooks need */
@@ -126,7 +128,8 @@ export interface SharedSessionSetters {
   setDraftMcpStatuses: React.Dispatch<React.SetStateAction<McpServerStatus[]>>;
   setAcpMcpStatuses: React.Dispatch<React.SetStateAction<McpServerStatus[]>>;
   setQueuedCount: React.Dispatch<React.SetStateAction<number>>;
-  setCachedModels: React.Dispatch<React.SetStateAction<ModelInfo[]>>;
+  setCachedModels: (models: ModelInfo[], authoritative?: boolean) => void;
+  invalidateCachedModels: () => void;
   setCodexRawModels: React.Dispatch<React.SetStateAction<CodexModelSummary[]>>;
   setCodexModelsLoadingMessage: React.Dispatch<React.SetStateAction<string | null>>;
 }

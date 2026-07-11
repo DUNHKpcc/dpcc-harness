@@ -105,13 +105,30 @@ declare global {
       interrupt: (sessionId: string) => Promise<IpcResult>;
       stopTask: (sessionId: string, taskId: string) => Promise<IpcResult>;
       readAgentOutput: (outputFile: string) => Promise<{ messages?: unknown[]; error?: string }>;
-      supportedModels: (sessionId: string) => Promise<{ models: ModelInfo[]; error?: string }>;
+      supportedModels: (sessionId: string) => Promise<{
+        models: ModelInfo[];
+        authoritative?: boolean;
+        stale?: boolean;
+        error?: string;
+      }>;
       slashCommands: (sessionId: string) => Promise<{
         commands: Array<{ name: string; description?: string; argumentHint?: string }>;
         error?: string;
       }>;
-      modelsCacheGet: () => Promise<{ models: ModelInfo[]; updatedAt?: number; error?: string }>;
-      modelsCacheRevalidate: (options?: { cwd?: string }) => Promise<{ models: ModelInfo[]; updatedAt?: number; error?: string }>;
+      modelsCacheGet: () => Promise<{
+        models: ModelInfo[];
+        updatedAt?: number;
+        authoritative?: boolean;
+        stale?: boolean;
+        error?: string;
+      }>;
+      modelsCacheRevalidate: (options?: { cwd?: string }) => Promise<{
+        models: ModelInfo[];
+        updatedAt?: number;
+        authoritative?: boolean;
+        stale?: boolean;
+        error?: string;
+      }>;
       mcpStatus: (sessionId: string) => Promise<{ servers: McpServerStatus[]; error?: string }>;
       mcpReconnect: (sessionId: string, serverName: string) => Promise<IpcResult & { restarted?: boolean }>;
       revertFiles: (sessionId: string, checkpointId: string) => Promise<IpcResult>;

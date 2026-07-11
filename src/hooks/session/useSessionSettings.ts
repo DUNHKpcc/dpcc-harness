@@ -5,6 +5,7 @@ import { toMcpStatusState } from "../../lib/mcp-utils";
 import { capture, captureException } from "../../lib/analytics/analytics";
 import { suppressNextSessionCompletion } from "../../lib/notification-utils";
 import { toastText } from "../../lib/toast-i18n";
+import { isClaudeModelCacheRequestCurrent } from "../../lib/engine/claude-model-request";
 import {
   DRAFT_ID,
   DEFAULT_PERMISSION_MODE,
@@ -54,6 +55,7 @@ export function useSessionSettings({
     startOptionsRef,
     sessionInfoRef,
     codexRawModelsRef,
+    claudeModelCatalogRequestGenerationRef,
   } = refs;
 
   // ── Shared helper: persist a partial session update to state + disk ──
@@ -295,6 +297,7 @@ export function useSessionSettings({
       const preStartedId = preStartedSessionIdRef.current;
       if (!preStartedId) return;
 
+      const modelsGeneration = ++claudeModelCatalogRequestGenerationRef.current;
       const restartResult = await window.claude.restartSession(preStartedId, undefined, undefined, effort);
       if (restartResult?.error) {
         toast.error(toastText("session.effortUpdateFailed"), { description: restartResult.error });
@@ -312,8 +315,14 @@ export function useSessionSettings({
           status: toMcpStatusState(server.status),
         })));
       }
-      if (modelsResult.models?.length) {
-        setCachedModels(modelsResult.models);
+      if (!modelsResult.error
+        && !modelsResult.stale
+        && preStartedSessionIdRef.current === preStartedId
+        && isClaudeModelCacheRequestCurrent(
+          modelsGeneration,
+          claudeModelCatalogRequestGenerationRef.current,
+        )) {
+        setCachedModels(modelsResult.models, modelsResult.authoritative);
       }
       return;
     }
@@ -347,6 +356,7 @@ export function useSessionSettings({
       const draftEngine = startOptionsRef.current.engine ?? "claude";
       if (!preStartedId || draftEngine !== "claude") return;
 
+      const modelsGeneration = ++claudeModelCatalogRequestGenerationRef.current;
       const restartResult = await window.claude.restartSession(
         preStartedId,
         undefined,
@@ -370,8 +380,14 @@ export function useSessionSettings({
           status: toMcpStatusState(server.status),
         })));
       }
-      if (modelsResult.models?.length) {
-        setCachedModels(modelsResult.models);
+      if (!modelsResult.error
+        && !modelsResult.stale
+        && preStartedSessionIdRef.current === preStartedId
+        && isClaudeModelCacheRequestCurrent(
+          modelsGeneration,
+          claudeModelCatalogRequestGenerationRef.current,
+        )) {
+        setCachedModels(modelsResult.models, modelsResult.authoritative);
       }
       return;
     }

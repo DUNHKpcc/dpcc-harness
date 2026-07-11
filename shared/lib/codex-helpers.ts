@@ -32,7 +32,25 @@ export function pickModelId(
   return first?.id;
 }
 
+const REASONING_EFFORT_DESCRIPTIONS = {
+  none: "None",
+  minimal: "Minimal",
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+  xhigh: "Extra High",
+} as const;
+
+const CODEX_SPARK_MODEL_ID = "gpt-5.3-codex-spark";
+
 function createUpstreamCodexModel(id: string): CodexModel {
+  const supportedReasoningEfforts = id === CODEX_SPARK_MODEL_ID
+    ? (["low", "medium", "high", "xhigh"] as const).map((reasoningEffort) => ({
+        reasoningEffort,
+        description: REASONING_EFFORT_DESCRIPTIONS[reasoningEffort],
+      }))
+    : [];
+
   return {
     id,
     model: id,
@@ -40,8 +58,8 @@ function createUpstreamCodexModel(id: string): CodexModel {
     displayName: id,
     description: "",
     hidden: false,
-    supportedReasoningEfforts: [],
-    defaultReasoningEffort: "none",
+    supportedReasoningEfforts,
+    defaultReasoningEffort: id === CODEX_SPARK_MODEL_ID ? "high" : "none",
     inputModalities: ["text"],
     supportsPersonality: false,
     isDefault: false,

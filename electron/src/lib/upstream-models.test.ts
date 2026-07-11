@@ -26,4 +26,54 @@ describe("fetchUpstreamModels", () => {
     await expect(fetchUpstreamModels("https://api.dpcc.example/v1", "sk-dpcc"))
       .resolves.toEqual({ models: [], error: null });
   });
+
+  it("parses supported effort capabilities while filtering unknown metadata", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        data: [
+          {
+            id: "codex-dpcc",
+            supported_reasoning_efforts: ["minimal", "unsupported", "high", 42],
+            default_reasoning_effort: "high",
+          },
+          {
+            id: "codex-no-default",
+            supported_reasoning_efforts: ["none"],
+            default_reasoning_effort: "xhigh",
+          },
+          {
+            id: "codex-id-only",
+            supported_reasoning_efforts: ["unsupported"],
+            default_reasoning_effort: "high",
+          },
+        ],
+      }),
+    })));
+
+    await expect(fetchUpstreamModels("https://api.dpcc.example/v1", "sk-dpcc"))
+      .resolves.toEqual({
+        models: ["codex-dpcc", "codex-no-default", "codex-id-only"],
+        capabilities: {
+          "codex-dpcc": {
+            supportedReasoningEfforts: ["minimal", "high"],
+            defaultReasoningEffort: "high",
+          },
+          "codex-no-default": {
+            supportedReasoningEfforts: ["none"],
+          },
+        },
+        error: null,
+      });
+  });
+
+  it("keeps an ID-only response in the original result shape", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ data: [{ id: "codex-dpcc" }] }),
+    })));
+
+    await expect(fetchUpstreamModels("https://api.dpcc.example/v1", "sk-dpcc"))
+      .resolves.toEqual({ models: ["codex-dpcc"], error: null });
+  });
 });

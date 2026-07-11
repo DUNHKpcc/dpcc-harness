@@ -9,17 +9,15 @@ import type { CodexModelCapability } from "@shared/types/codex";
 import type { ReasoningEffort } from "@shared/types/codex-protocol/ReasoningEffort";
 
 const REQUEST_TIMEOUT_MS = 8_000;
-const reasoningEfforts = new Set<ReasoningEffort>(["none", "minimal", "low", "medium", "high", "xhigh"]);
+const REASONING_EFFORTS = new Set<ReasoningEffort>(["none", "minimal", "low", "medium", "high", "xhigh"]);
 
 function isReasoningEffort(value: unknown): value is ReasoningEffort {
-  return typeof value === "string" && reasoningEfforts.has(value as ReasoningEffort);
+  return typeof value === "string" && REASONING_EFFORTS.has(value as ReasoningEffort);
 }
 
-type UpstreamModel = {
-  id?: string;
-  supported_reasoning_efforts?: unknown;
-  default_reasoning_effort?: unknown;
-};
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 /** Normalize to a host root with no trailing slash or `/v1` suffix. */
 export function normalizeModelsRoot(baseUrl: string): string {
@@ -47,14 +45,15 @@ export async function fetchUpstreamModels(
       signal: controller.signal,
     });
     if (!res.ok) return { models: [], error: `${res.status} ${res.statusText}` };
-    const body = (await res.json()) as { data?: UpstreamModel[] };
-    if (!Array.isArray(body.data)) return { models: [], error: "invalid_response" };
-    const models = body.data
-      .map((m) => (typeof m?.id === "string" ? m.id : ""))
+    const body: unknown = await res.json();
+    if (!isRecord(body) || !Array.isArray(body.data)) return { models: [], error: "invalid_response" };
+    const upstreamModels = body.data.filter(isRecord);
+    const models = upstreamModels
+      .map((model) => (typeof model.id === "string" ? model.id : ""))
       .filter(Boolean);
     const capabilities = Object.fromEntries(
-      body.data.flatMap((model) => {
-        if (typeof model?.id !== "string") return [];
+      upstreamModels.flatMap((model) => {
+        if (typeof model.id !== "string") return [];
         const supportedReasoningEfforts = Array.isArray(model.supported_reasoning_efforts)
           ? model.supported_reasoning_efforts.filter(isReasoningEffort)
           : [];

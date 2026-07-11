@@ -17,6 +17,16 @@ describe("fetchUpstreamModels", () => {
       .resolves.toEqual({ models: [], error: "invalid_response" });
   });
 
+  it("rejects a successful response whose outer body is null", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true,
+      json: async () => null,
+    })));
+
+    await expect(fetchUpstreamModels("https://api.dpcc.example/v1", "sk-dpcc"))
+      .resolves.toEqual({ models: [], error: "invalid_response" });
+  });
+
   it("keeps an explicit empty data array as a valid authoritative response", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => ({
       ok: true,
@@ -75,5 +85,29 @@ describe("fetchUpstreamModels", () => {
 
     await expect(fetchUpstreamModels("https://api.dpcc.example/v1", "sk-dpcc"))
       .resolves.toEqual({ models: ["codex-dpcc"], error: null });
+  });
+
+  it("ignores non-object model items and non-array effort metadata", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        data: [
+          null,
+          "not-a-model",
+          42,
+          { id: "codex-id-only", supported_reasoning_efforts: "high" },
+          { id: "codex-capable", supported_reasoning_efforts: ["medium"] },
+        ],
+      }),
+    })));
+
+    await expect(fetchUpstreamModels("https://api.dpcc.example/v1", "sk-dpcc"))
+      .resolves.toEqual({
+        models: ["codex-id-only", "codex-capable"],
+        capabilities: {
+          "codex-capable": { supportedReasoningEfforts: ["medium"] },
+        },
+        error: null,
+      });
   });
 });

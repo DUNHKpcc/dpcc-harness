@@ -6,7 +6,6 @@
  */
 
 import type { ServerNotification as CodexServerNotification } from "./codex-protocol/ServerNotification";
-import type { ReasoningEffort } from "./codex-protocol/ReasoningEffort";
 import type { ToolRequestUserInputQuestion as CodexToolRequestUserInputQuestion } from "./codex-protocol/v2/ToolRequestUserInputQuestion";
 
 // ── Generated protocol types ──
@@ -82,12 +81,6 @@ export type { McpToolCallStatus as CodexMcpToolCallStatus } from "./codex-protoc
 export type { ToolRequestUserInputQuestion as CodexToolRequestUserInputQuestion } from "./codex-protocol/v2/ToolRequestUserInputQuestion";
 
 // ── PccAgent-specific wrappers ──
-
-/** Optional Codex model capability metadata reported by an upstream `/v1/models` endpoint. */
-export interface CodexModelCapability {
-  supportedReasoningEfforts: ReasoningEffort[];
-  defaultReasoningEffort?: ReasoningEffort;
-}
 
 /** Local renderer-only notification emitted before thread start when auth is missing. */
 export interface CodexAuthRequiredNotification {

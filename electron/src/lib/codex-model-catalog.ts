@@ -1,85 +1,40 @@
 import crypto from "crypto";
 import { mergeCodexModelsForUpstream } from "@shared/lib/codex-helpers";
-import type { CodexModel, CodexModelCapability } from "@shared/types/codex";
+import type { CodexModel } from "@shared/types/codex";
 import { resolveCodexUpstream } from "./upstream-resolver";
 import { fetchUpstreamModels } from "./upstream-models";
 
 const MODEL_CACHE_TTL_MS = 60_000;
 
-interface ReadonlyCodexModelCapability {
-  readonly supportedReasoningEfforts: readonly CodexModelCapability["supportedReasoningEfforts"][number][];
-  readonly defaultReasoningEffort?: CodexModelCapability["defaultReasoningEffort"];
+interface ModelIdCache {
+  expiresAt: number;
+  modelIds: string[];
 }
 
-interface UpstreamCodexCatalog {
-  readonly modelIds: readonly string[];
-  readonly capabilities: Readonly<Record<string, ReadonlyCodexModelCapability>>;
-}
-
-interface CachedUpstreamCodexCatalog extends UpstreamCodexCatalog {
-  readonly expiresAt: number;
-}
-
-const caches = new Map<string, CachedUpstreamCodexCatalog>();
-const inFlight = new Map<string, Promise<UpstreamCodexCatalog | null>>();
+const caches = new Map<string, ModelIdCache>();
+const inFlight = new Map<string, Promise<string[] | null>>();
 let cacheGeneration = 0;
 
 function upstreamCacheKey(baseUrl: string, apiKey: string): string {
   return crypto.createHash("sha256").update(`${baseUrl}\0${apiKey}`).digest("hex");
 }
 
-function cloneUpstreamCodexCatalog(
-  modelIds: readonly string[],
-  capabilities: Readonly<Record<string, CodexModelCapability>> | undefined,
-): UpstreamCodexCatalog {
-  return {
-    modelIds: [...modelIds],
-    capabilities: Object.fromEntries(
-      Object.entries(capabilities ?? {}).map(([modelId, capability]) => [modelId, {
-        supportedReasoningEfforts: [...capability.supportedReasoningEfforts],
-        ...(capability.defaultReasoningEffort === undefined
-          ? {}
-          : { defaultReasoningEffort: capability.defaultReasoningEffort }),
-      }]),
-    ),
-  };
-}
-
-function cloneCapabilitiesForMerge(
-  capabilities: UpstreamCodexCatalog["capabilities"],
-): Record<string, CodexModelCapability> {
-  return Object.fromEntries(
-    Object.entries(capabilities).map(([modelId, capability]) => [modelId, {
-      supportedReasoningEfforts: [...capability.supportedReasoningEfforts],
-      ...(capability.defaultReasoningEffort === undefined
-        ? {}
-        : { defaultReasoningEffort: capability.defaultReasoningEffort }),
-    }]),
-  );
-}
-
-async function loadDpccModelCatalog(
-  baseUrl: string,
-  apiKey: string,
-): Promise<UpstreamCodexCatalog | null> {
+async function loadDpccModelIds(baseUrl: string, apiKey: string): Promise<string[] | null> {
   const key = upstreamCacheKey(baseUrl, apiKey);
   const now = Date.now();
-  const cachedEntry = caches.get(key);
-  if (cachedEntry && cachedEntry.expiresAt > now) return cachedEntry;
+  const cached = caches.get(key);
+  if (cached && cached.expiresAt > now) return cached.modelIds;
   const pending = inFlight.get(key);
   if (pending) return pending;
-  const staleCatalog: UpstreamCodexCatalog | null = cachedEntry
-    ? { modelIds: cachedEntry.modelIds, capabilities: cachedEntry.capabilities }
-    : null;
+  const staleModelIds = cached?.modelIds ?? null;
   const requestGeneration = cacheGeneration;
 
   const request = fetchUpstreamModels(baseUrl, apiKey)
-    .then(({ models, capabilities, error }) => {
+    .then(({ models, error }) => {
       if (requestGeneration !== cacheGeneration) return null;
-      if (error) return staleCatalog;
-      const catalog = cloneUpstreamCodexCatalog(models, capabilities);
-      caches.set(key, { expiresAt: Date.now() + MODEL_CACHE_TTL_MS, ...catalog });
-      return catalog;
+      if (error) return staleModelIds;
+      caches.set(key, { expiresAt: Date.now() + MODEL_CACHE_TTL_MS, modelIds: models });
+      return models;
     })
     .finally(() => {
       if (inFlight.get(key) === request) inFlight.delete(key);
@@ -99,12 +54,7 @@ export async function resolveEffectiveCodexModels(nativeModels: CodexModel[]): P
   const upstream = resolveCodexUpstream();
   if (upstream.tier !== "default") return nativeModels;
 
-  const catalog = await loadDpccModelCatalog(upstream.baseUrl, upstream.apiKey);
-  if (!catalog) return nativeModels;
-  return mergeCodexModelsForUpstream(
-    nativeModels,
-    [...catalog.modelIds],
-    upstream.model,
-    cloneCapabilitiesForMerge(catalog.capabilities),
-  );
+  const modelIds = await loadDpccModelIds(upstream.baseUrl, upstream.apiKey);
+  if (!modelIds) return nativeModels;
+  return mergeCodexModelsForUpstream(nativeModels, modelIds, upstream.model);
 }

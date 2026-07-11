@@ -2,7 +2,7 @@
  * Pure helpers shared between Electron and CLI Codex engine implementations.
  */
 
-import type { CodexModel, CodexModelCapability } from "../types/codex";
+import type { CodexModel } from "../types/codex";
 
 export const SUPPORTED_SERVER_REQUESTS = new Set([
   "item/commandExecution/requestApproval",
@@ -41,21 +41,15 @@ const REASONING_EFFORT_DESCRIPTIONS = {
   xhigh: "Extra High",
 } as const;
 
-const BUILTIN_UPSTREAM_CAPABILITIES: Readonly<Record<string, CodexModelCapability>> = {
-  "gpt-5.3-codex-spark": {
-    supportedReasoningEfforts: ["low", "medium", "high", "xhigh"],
-    defaultReasoningEffort: "high",
-  },
-};
+const CODEX_SPARK_MODEL_ID = "gpt-5.3-codex-spark";
 
-function createUpstreamCodexModel(
-  id: string,
-  capability: CodexModelCapability | undefined,
-): CodexModel {
-  const supportedReasoningEfforts = capability?.supportedReasoningEfforts ?? [];
-  const defaultReasoningEffort = capability?.defaultReasoningEffort;
-  const hasAdvertisedDefault = defaultReasoningEffort
-    && supportedReasoningEfforts.includes(defaultReasoningEffort);
+function createUpstreamCodexModel(id: string): CodexModel {
+  const supportedReasoningEfforts = id === CODEX_SPARK_MODEL_ID
+    ? (["low", "medium", "high", "xhigh"] as const).map((reasoningEffort) => ({
+        reasoningEffort,
+        description: REASONING_EFFORT_DESCRIPTIONS[reasoningEffort],
+      }))
+    : [];
 
   return {
     id,
@@ -64,13 +58,8 @@ function createUpstreamCodexModel(
     displayName: id,
     description: "",
     hidden: false,
-    supportedReasoningEfforts: supportedReasoningEfforts.map((reasoningEffort) => ({
-      reasoningEffort,
-      description: REASONING_EFFORT_DESCRIPTIONS[reasoningEffort],
-    })),
-    defaultReasoningEffort: hasAdvertisedDefault
-      ? defaultReasoningEffort
-      : supportedReasoningEfforts[0] ?? "none",
+    supportedReasoningEfforts,
+    defaultReasoningEffort: id === CODEX_SPARK_MODEL_ID ? "high" : "none",
     inputModalities: ["text"],
     supportsPersonality: false,
     isDefault: false,
@@ -86,7 +75,6 @@ export function mergeCodexModelsForUpstream(
   nativeModels: CodexModel[],
   upstreamModelIds: string[],
   preferredModel?: string,
-  capabilities: Readonly<Record<string, CodexModelCapability>> = {},
 ): CodexModel[] {
   const ids = Array.from(new Set(upstreamModelIds.map((id) => id.trim()).filter(Boolean)));
   const nativeById = new Map<string, CodexModel>();
@@ -101,10 +89,7 @@ export function mergeCodexModelsForUpstream(
     : nativeModels.find((model) => model.isDefault && ids.includes(model.id))?.id ?? ids[0];
 
   return ids.map((id) => ({
-    ...(nativeById.get(id) ?? createUpstreamCodexModel(
-      id,
-      BUILTIN_UPSTREAM_CAPABILITIES[id] ?? capabilities[id],
-    )),
+    ...(nativeById.get(id) ?? createUpstreamCodexModel(id)),
     id,
     model: id,
     hidden: false,

@@ -5,15 +5,8 @@
  */
 
 import { extractErrorMessage } from "./error-utils";
-import type { CodexModelCapability } from "@shared/types/codex";
-import type { ReasoningEffort } from "@shared/types/codex-protocol/ReasoningEffort";
 
 const REQUEST_TIMEOUT_MS = 8_000;
-const REASONING_EFFORTS = new Set<ReasoningEffort>(["none", "minimal", "low", "medium", "high", "xhigh"]);
-
-function isReasoningEffort(value: unknown): value is ReasoningEffort {
-  return typeof value === "string" && REASONING_EFFORTS.has(value as ReasoningEffort);
-}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -30,7 +23,6 @@ export async function fetchUpstreamModels(
   token: string,
 ): Promise<{
   models: string[];
-  capabilities?: Record<string, CodexModelCapability>;
   error: string | null;
 }> {
   const root = normalizeModelsRoot(baseUrl);
@@ -47,29 +39,11 @@ export async function fetchUpstreamModels(
     if (!res.ok) return { models: [], error: `${res.status} ${res.statusText}` };
     const body: unknown = await res.json();
     if (!isRecord(body) || !Array.isArray(body.data)) return { models: [], error: "invalid_response" };
-    const upstreamModels = body.data.filter(isRecord);
-    const models = upstreamModels
+    const models = body.data
+      .filter(isRecord)
       .map((model) => (typeof model.id === "string" ? model.id : ""))
       .filter(Boolean);
-    const capabilities = Object.fromEntries(
-      upstreamModels.flatMap((model) => {
-        if (typeof model.id !== "string") return [];
-        const supportedReasoningEfforts = Array.isArray(model.supported_reasoning_efforts)
-          ? model.supported_reasoning_efforts.filter(isReasoningEffort)
-          : [];
-        if (supportedReasoningEfforts.length === 0) return [];
-
-        const capability: CodexModelCapability = { supportedReasoningEfforts };
-        if (isReasoningEffort(model.default_reasoning_effort)
-          && supportedReasoningEfforts.includes(model.default_reasoning_effort)) {
-          capability.defaultReasoningEffort = model.default_reasoning_effort;
-        }
-        return [[model.id, capability]];
-      }),
-    );
-    return Object.keys(capabilities).length > 0
-      ? { models, capabilities, error: null }
-      : { models, error: null };
+    return { models, error: null };
   } catch (e) {
     return { models: [], error: extractErrorMessage(e) };
   } finally {

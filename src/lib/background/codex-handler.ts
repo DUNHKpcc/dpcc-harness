@@ -84,6 +84,7 @@ export function handleCodexEvent(
         finalizeACPStreamingMsg(state);
         const toolName = codexItemToToolName(item);
         if (toolName) {
+          const isCollabAgentTool = item.type === "collabAgentToolCall";
           state.turnSawOutput = true;
           // Deterministic ID matches active hook so completions work after switch-back
           const msgId = `codex-tool-${item.id}`;
@@ -95,6 +96,12 @@ export function handleCodexEvent(
             toolName,
             toolInput: codexItemToToolInput(item),
             timestamp: Date.now(),
+            ...(isCollabAgentTool
+              ? {
+                  subagentId: item.receiverThreadIds[0],
+                  subagentStatus: "running" as const,
+                }
+              : {}),
           });
         }
       }
@@ -172,12 +179,20 @@ export function handleCodexEvent(
         if (msg) {
           msg.toolInput = codexItemToToolInput(item);
           const result = codexItemToToolResult(item);
-          if (result) msg.toolResult = result;
           const isError =
             (item.type === "commandExecution" && (item.status === "failed" || item.status === "declined")) ||
             (item.type === "fileChange" && (item.status === "failed" || item.status === "declined")) ||
-            (item.type === "mcpToolCall" && item.status === "failed");
+            (item.type === "mcpToolCall" && item.status === "failed") ||
+            (item.type === "collabAgentToolCall" && item.status === "failed");
+          msg.toolResult = result ?? msg.toolResult ?? {
+            type: "text",
+            content: isError ? "Tool failed" : "Tool completed",
+            status: isError ? "failed" : "completed",
+          };
           if (isError) msg.toolError = true;
+          if (item.type === "collabAgentToolCall") {
+            msg.subagentStatus = isError ? "failed" : "completed";
+          }
         }
         state.parentToolMap.delete(item.id);
       }

@@ -1,9 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import type { RegistryAgent } from "@/types";
+import { bgAgentStore } from "../agent-store";
 import {
   getPreferredRegistryBinaryTarget,
   getRegistryAgentSetupUrl,
 } from "../agent-store-utils";
+
+const lifecycleSessionId = "agent-store-lifecycle-test";
+
+afterEach(() => {
+  bgAgentStore.clearSession(lifecycleSessionId);
+});
 
 function makeRegistryAgent(overrides: Partial<RegistryAgent> = {}): RegistryAgent {
   return {
@@ -76,5 +83,63 @@ describe("getRegistryAgentSetupUrl", () => {
     });
 
     expect(getRegistryAgentSetupUrl(agent, ["linux-x86_64"])).toBeNull();
+  });
+});
+
+describe("BackgroundAgentStore task lifecycle", () => {
+  it("uses the membership snapshot to clear an agent whose completion edge was missed", () => {
+    bgAgentStore.handleTaskStarted(lifecycleSessionId, {
+      type: "system",
+      subtype: "task_started",
+      task_id: "task-1",
+      tool_use_id: "tool-1",
+      description: "Inspect the project",
+    });
+
+    bgAgentStore.reconcileBackgroundTasks(lifecycleSessionId, {
+      type: "system",
+      subtype: "background_tasks_changed",
+      tasks: [{ task_id: "task-1", task_type: "agent", description: "Inspect the project" }],
+    });
+    expect(bgAgentStore.getAgents(lifecycleSessionId)).toMatchObject([
+      { taskId: "task-1", status: "running", isPending: false },
+    ]);
+
+    const completed = bgAgentStore.reconcileBackgroundTasks(lifecycleSessionId, {
+      type: "system",
+      subtype: "background_tasks_changed",
+      tasks: [],
+    });
+
+    expect(completed).toEqual([
+      { taskId: "task-1", toolUseId: "tool-1", status: "completed" },
+    ]);
+    expect(bgAgentStore.getAgents(lifecycleSessionId)).toMatchObject([
+      { taskId: "task-1", status: "completed" },
+    ]);
+  });
+
+  it("matches a terminal XML notification by task id when tool_use_id is absent", () => {
+    bgAgentStore.reconcileBackgroundTasks(lifecycleSessionId, {
+      type: "system",
+      subtype: "background_tasks_changed",
+      tasks: [{ task_id: "task-xml", task_type: "agent", description: "Run checks" }],
+    });
+
+    const completion = bgAgentStore.handleUserMessage(lifecycleSessionId, [
+      "<task-notification>",
+      "<task-id>task-xml</task-id>",
+      "<status>completed</status>",
+      "<summary>Checks passed</summary>",
+      "<total_tokens>42</total_tokens>",
+      "<tool_uses>2</tool_uses>",
+      "<duration_ms>500</duration_ms>",
+      "</task-notification>",
+    ].join(""));
+
+    expect(completion).toMatchObject({ taskId: "task-xml", status: "completed" });
+    expect(bgAgentStore.getAgents(lifecycleSessionId)).toMatchObject([
+      { taskId: "task-xml", status: "completed", result: "Checks passed" },
+    ]);
   });
 });

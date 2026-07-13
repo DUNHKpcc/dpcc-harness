@@ -51,6 +51,8 @@ export function codexItemToToolName(item: CodexThreadItem): string | null {
       return "WebSearch";
     case "imageView":
       return "Read"; // reuse Read renderer for image display
+    case "collabAgentToolCall":
+      return "Task";
     default:
       return null;
   }
@@ -115,6 +117,13 @@ export function codexItemToToolInput(item: CodexThreadItem): Record<string, unkn
       return codexWebSearchToToolPayload(item);
     case "imageView":
       return { file_path: item.path ?? "" };
+    case "collabAgentToolCall":
+      return {
+        description: item.prompt ?? item.tool,
+        subagent_type: item.tool,
+        receiver_thread_ids: item.receiverThreadIds,
+        agents_states: item.agentsStates,
+      };
     default:
       return {};
   }
@@ -208,6 +217,23 @@ export function codexItemToToolResult(item: CodexThreadItem): ToolUseResult | un
         status: "completed",
         content: describeWebSearchAction(structuredContent),
         structuredContent,
+      };
+    }
+    case "collabAgentToolCall": {
+      const states = Object.entries(item.agentsStates).map(([threadId, state]) => ({
+        threadId,
+        status: state?.status,
+        message: state?.message,
+      }));
+      return {
+        type: "text",
+        status: item.status,
+        content: item.prompt ?? `${item.tool} completed`,
+        structuredContent: {
+          tool: item.tool,
+          receiverThreadIds: item.receiverThreadIds,
+          agentStates: states,
+        },
       };
     }
     default:

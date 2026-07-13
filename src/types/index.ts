@@ -25,6 +25,8 @@ export type {
   TaskStartedEvent,
   TaskProgressEvent,
   TaskNotificationEvent,
+  TaskUpdatedEvent,
+  BackgroundTasksChangedEvent,
   ToolProgressEvent,
   ClaudeEvent,
   AuthStatusEvent,

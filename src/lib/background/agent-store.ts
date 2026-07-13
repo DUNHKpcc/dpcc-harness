@@ -1,5 +1,12 @@
 import type { BackgroundAgent } from "@/types";
-import type { TaskStartedEvent, TaskProgressEvent, TaskNotificationEvent, ToolProgressEvent } from "@/types";
+import type {
+  BackgroundTasksChangedEvent,
+  TaskNotificationEvent,
+  TaskProgressEvent,
+  TaskStartedEvent,
+  TaskUpdatedEvent,
+  ToolProgressEvent,
+} from "@/types";
 import { capture } from "@/lib/analytics/analytics";
 
 type Listener = (sessionId: string) => void;
@@ -9,6 +16,14 @@ interface AsyncAgentInfo {
   agentId: string;
   description: string;
   outputFile: string;
+}
+
+export interface TaskCompletion {
+  taskId: string;
+  toolUseId?: string;
+  status: "completed" | "failed";
+  summary?: string;
+  usage?: BackgroundAgent["usage"];
 }
 
 /**
@@ -58,6 +73,31 @@ class BackgroundAgentStore {
   clearSession(sessionId: string): void {
     if (!this.agents.has(sessionId)) return;
     this.agents.delete(sessionId);
+    this.notify(sessionId);
+  }
+
+  private findAgent(sessionId: string, taskId: string, toolUseId?: string): BackgroundAgent | undefined {
+    const map = this.agents.get(sessionId);
+    if (!map) return undefined;
+    if (toolUseId) {
+      const byToolUseId = map.get(toolUseId);
+      if (byToolUseId) return byToolUseId;
+    }
+    return Array.from(map.values()).find((agent) => agent.taskId === taskId);
+  }
+
+  private applyCompletion(sessionId: string, completion: TaskCompletion): void {
+    const agent = this.findAgent(sessionId, completion.taskId, completion.toolUseId);
+    if (!agent) return;
+
+    agent.status = completion.status === "completed" ? "completed" : "error";
+    agent.result = completion.summary;
+    agent.currentTool = null;
+    if (completion.usage) agent.usage = completion.usage;
+    capture("background_agent_completed", {
+      status: agent.status,
+      duration_ms: completion.usage?.durationMs,
+    });
     this.notify(sessionId);
   }
 
@@ -148,8 +188,7 @@ class BackgroundAgentStore {
   // ── Phase 1: Progress summaries ──
 
   handleTaskProgress(sessionId: string, event: TaskProgressEvent): void {
-    if (!event.tool_use_id) return;
-    const agent = this.agents.get(sessionId)?.get(event.tool_use_id);
+    const agent = this.findAgent(sessionId, event.task_id, event.tool_use_id);
     // Only update agents we've registered (i.e. background agents)
     if (!agent) return;
 
@@ -194,60 +233,123 @@ class BackgroundAgentStore {
     }
   }
 
-  handleTaskNotification(sessionId: string, event: TaskNotificationEvent): void {
-    if (!event.tool_use_id) return;
-    const agent = this.agents.get(sessionId)?.get(event.tool_use_id);
-    if (!agent) return;
-
-    agent.status = event.status === "completed" ? "completed" : "error";
-    agent.result = event.summary || undefined;
-    agent.outputFile = event.output_file;
-    agent.currentTool = null;
-    if (event.usage) {
-      agent.usage = {
+  handleTaskNotification(sessionId: string, event: TaskNotificationEvent): TaskCompletion {
+    const completion: TaskCompletion = {
+      taskId: event.task_id,
+      toolUseId: event.tool_use_id,
+      status: event.status === "completed" ? "completed" : "failed",
+      summary: event.summary || undefined,
+      usage: event.usage && {
         totalTokens: event.usage.total_tokens,
         toolUses: event.usage.tool_uses,
         durationMs: event.usage.duration_ms,
-      };
-    }
-    capture("background_agent_completed", {
-      status: agent.status,
-      duration_ms: event.usage?.duration_ms,
-    });
+      },
+    };
+    const agent = this.findAgent(sessionId, event.task_id, event.tool_use_id);
+    if (agent) agent.outputFile = event.output_file;
+    this.applyCompletion(sessionId, completion);
+    return completion;
+  }
 
-    this.notify(sessionId);
+  handleTaskUpdated(sessionId: string, event: TaskUpdatedEvent): TaskCompletion | undefined {
+    const status = event.patch.status;
+    const agent = this.findAgent(sessionId, event.task_id);
+    if (agent && event.patch.description) {
+      agent.description = event.patch.description;
+      this.notify(sessionId);
+    }
+    if (status !== "completed" && status !== "failed" && status !== "killed") return undefined;
+
+    const completion: TaskCompletion = {
+      taskId: event.task_id,
+      status: status === "completed" ? "completed" : "failed",
+      summary: event.patch.error,
+    };
+    this.applyCompletion(sessionId, completion);
+    return completion;
+  }
+
+  /**
+   * Reconcile against the SDK's authoritative membership signal. This prevents a
+   * dropped completion edge from leaving an agent permanently marked as running.
+   */
+  reconcileBackgroundTasks(
+    sessionId: string,
+    event: BackgroundTasksChangedEvent,
+  ): TaskCompletion[] {
+    let map = this.agents.get(sessionId);
+    if (!map) {
+      map = new Map();
+      this.agents.set(sessionId, map);
+    }
+
+    const activeTaskIds = new Set(event.tasks.map((task) => task.task_id));
+    let changed = false;
+    for (const task of event.tasks) {
+      const agent = this.findAgent(sessionId, task.task_id);
+      if (agent) {
+        if (agent.isPending || agent.description !== task.description) {
+          agent.isPending = false;
+          agent.description = task.description;
+          changed = true;
+        }
+        continue;
+      }
+      const key = `task:${task.task_id}`;
+      map.set(key, {
+        agentId: task.task_id,
+        description: task.description,
+        prompt: "",
+        outputFile: "",
+        launchedAt: Date.now(),
+        status: "running",
+        activity: [],
+        toolUseId: key,
+        taskId: task.task_id,
+      });
+      changed = true;
+    }
+
+    const completed: TaskCompletion[] = [];
+    for (const agent of map.values()) {
+      if (!agent.taskId || agent.isPending || activeTaskIds.has(agent.taskId)) continue;
+      if (agent.status !== "running" && agent.status !== "stopping") continue;
+      agent.status = "completed";
+      agent.currentTool = null;
+      completed.push({ taskId: agent.taskId, toolUseId: agent.toolUseId, status: "completed" });
+      changed = true;
+    }
+    if (changed) this.notify(sessionId);
+    return completed;
   }
 
   /**
    * Parse task completion from user text messages containing <task-notification> XML.
    * The SDK delivers task completion as a user text message, NOT as a system event.
    */
-  handleUserMessage(sessionId: string, content: string): void {
-    if (!content.includes("<task-notification>")) return;
+  handleUserMessage(sessionId: string, content: string): TaskCompletion | undefined {
+    if (!content.includes("<task-notification>")) return undefined;
 
-    const toolUseId = extractXmlTag(content, "tool-use-id");
-    if (!toolUseId) return;
-
-    const agent = this.agents.get(sessionId)?.get(toolUseId);
-    if (!agent) return;
-
+    const taskId = extractXmlTag(content, "task-id");
+    const toolUseId = extractXmlTag(content, "tool-use-id") ?? undefined;
+    if (!taskId && !toolUseId) return undefined;
     const status = extractXmlTag(content, "status");
-    agent.status = status === "completed" ? "completed" : "error";
-    agent.result = extractXmlTag(content, "summary") || undefined;
-    agent.currentTool = null;
-
     const tokens = extractXmlTag(content, "total_tokens");
     const tools = extractXmlTag(content, "tool_uses");
     const duration = extractXmlTag(content, "duration_ms");
-    if (tokens) {
-      agent.usage = {
+    const completion: TaskCompletion = {
+      taskId: taskId ?? toolUseId!,
+      toolUseId,
+      status: status === "completed" ? "completed" : "failed",
+      summary: extractXmlTag(content, "summary") || undefined,
+      ...(tokens ? { usage: {
         totalTokens: parseInt(tokens, 10) || 0,
         toolUses: parseInt(tools ?? "0", 10) || 0,
         durationMs: parseInt(duration ?? "0", 10) || 0,
-      };
-    }
-
-    this.notify(sessionId);
+      } } : {}),
+    };
+    this.applyCompletion(sessionId, completion);
+    return completion;
   }
 
   // ── Phase 2: Stop agent ──

@@ -107,7 +107,8 @@ function shouldLogFullToolEvent(
     item.type === "fileChange" ||
     item.type === "mcpToolCall" ||
     item.type === "webSearch" ||
-    item.type === "imageView"
+    item.type === "imageView" ||
+    item.type === "collabAgentToolCall"
   );
 }
 

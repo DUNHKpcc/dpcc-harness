@@ -480,6 +480,7 @@ export function useCodex({
     // Tool-type item — create a tool_call message
     const toolName = codexItemToToolName(item);
     if (toolName) {
+      const isCollabAgentTool = item.type === "collabAgentToolCall";
       // Deterministic ID so background-restored sessions can still match completions
       const msgId = `codex-tool-${item.id}`;
       itemMapRef.current.set(item.id, msgId);
@@ -492,6 +493,12 @@ export function useCodex({
           toolName,
           toolInput: codexItemToToolInput(item),
           timestamp: Date.now(),
+          ...(isCollabAgentTool
+            ? {
+                subagentId: item.receiverThreadIds[0],
+                subagentStatus: "running" as const,
+              }
+            : {}),
         },
       ]);
     }
@@ -645,7 +652,9 @@ export function useCodex({
     const isError =
       (item.type === "commandExecution" && (item.status === "failed" || item.status === "declined")) ||
       (item.type === "fileChange" && (item.status === "failed" || item.status === "declined")) ||
-      (item.type === "mcpToolCall" && item.status === "failed");
+      (item.type === "mcpToolCall" && item.status === "failed") ||
+      (item.type === "collabAgentToolCall" && item.status === "failed");
+    const isCollabAgentTool = item.type === "collabAgentToolCall";
 
     setMessages((prev) =>
       prev.map((m) =>
@@ -653,8 +662,15 @@ export function useCodex({
           ? {
               ...m,
               toolInput: codexItemToToolInput(item),
-              toolResult: toolResult ?? m.toolResult,
+              toolResult: toolResult ?? m.toolResult ?? {
+                type: "text",
+                content: isError ? "Tool failed" : "Tool completed",
+                status: isError ? "failed" : "completed",
+              },
               toolError: isError || undefined,
+              ...(isCollabAgentTool
+                ? { subagentStatus: isError ? "failed" as const : "completed" as const }
+                : {}),
               // For command execution, also include accumulated output
               ...(item.type === "commandExecution" && commandOutputRef.current.has(item.id)
                 ? {

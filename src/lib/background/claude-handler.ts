@@ -10,6 +10,8 @@ import type {
   TaskStartedEvent,
   TaskProgressEvent,
   TaskNotificationEvent,
+  TaskUpdatedEvent,
+  BackgroundTasksChangedEvent,
   ToolProgressEvent,
   SubagentToolStep,
 } from "../../types";
@@ -21,11 +23,31 @@ import {
   normalizeToolResult,
 } from "@/lib/engine/protocol";
 import { createSystemMessage, formatResultError, nextId } from "@/lib/message-factory";
-import { bgAgentStore } from "./agent-store";
+import { bgAgentStore, type TaskCompletion } from "./agent-store";
 import { mergeStreamingChunk } from "@/lib/engine/streaming-buffer";
 import { normalizeTodoToolInput } from "@/lib/chat/todo-utils";
 import { appendUpstreamRequestRecord, clearClaudeObservedRequests, createClaudeRequestRecord, consumeClaudeObservedRequestCount, trackClaudeApiRetry, trackClaudeAssistantRequest } from "@/lib/usage/upstream-requests";
 import type { InternalState } from "./session-store";
+
+function applyTaskCompletion(message: import("@/types").UIMessage, completion: TaskCompletion) {
+  const matchesToolUse = completion.toolUseId && message.id === `tool-${completion.toolUseId}`;
+  if (!matchesToolUse && message.subagentId !== completion.taskId) return message;
+
+  return {
+    ...message,
+    toolResult: message.toolResult ?? {
+      type: "text",
+      content: completion.summary ?? (completion.status === "completed" ? "Task completed" : "Task failed"),
+      status: completion.status,
+    },
+    toolError: completion.status === "failed" || undefined,
+    subagentStatus: completion.status,
+    ...(completion.usage ? {
+      subagentDurationMs: completion.usage.durationMs,
+      subagentTokens: completion.usage.totalTokens,
+    } : {}),
+  };
+}
 
 // ── Stream event handler ──
 
@@ -165,7 +187,13 @@ export function handleClaudeEvent(
   if (event.type === "system" && "subtype" in event) {
     const sub = (event as { subtype: string }).subtype;
     if (sub === "task_started") {
-      bgAgentStore.handleTaskStarted(sessionId, event as TaskStartedEvent);
+      const taskEvent = event as TaskStartedEvent;
+      bgAgentStore.handleTaskStarted(sessionId, taskEvent);
+      state.messages = state.messages.map((message) =>
+        message.id === `tool-${taskEvent.tool_use_id}`
+          ? { ...message, subagentId: taskEvent.task_id, subagentStatus: "running" as const }
+          : message,
+      );
       return undefined;
     }
     if (sub === "task_progress") {
@@ -173,7 +201,24 @@ export function handleClaudeEvent(
       return undefined;
     }
     if (sub === "task_notification") {
-      bgAgentStore.handleTaskNotification(sessionId, event as TaskNotificationEvent);
+      const completion = bgAgentStore.handleTaskNotification(sessionId, event as TaskNotificationEvent);
+      state.messages = state.messages.map((message) => applyTaskCompletion(message, completion));
+      return undefined;
+    }
+    if (sub === "task_updated") {
+      const completion = bgAgentStore.handleTaskUpdated(sessionId, event as TaskUpdatedEvent);
+      if (completion) {
+        state.messages = state.messages.map((message) => applyTaskCompletion(message, completion));
+      }
+      return undefined;
+    }
+    if (sub === "background_tasks_changed") {
+      const completed = bgAgentStore.reconcileBackgroundTasks(sessionId, event as BackgroundTasksChangedEvent);
+      if (completed.length) {
+        state.messages = state.messages.map((message) =>
+          completed.reduce(applyTaskCompletion, message),
+        );
+      }
       return undefined;
     }
   }
@@ -223,7 +268,9 @@ export function handleClaudeEvent(
         }
         break;
       }
+      if (!("subtype" in event) || event.subtype !== "init") break;
       const init = event as SystemInitEvent;
+      bgAgentStore.clearSession(sessionId);
       state.turnSawCompaction = false;
       state.turnSawOutput = false;
       state.sessionInfo = {
@@ -319,7 +366,10 @@ export function handleClaudeEvent(
 
       // Task completion arrives as user text with <task-notification> XML
       if (typeof uc === "string" && uc.includes("<task-notification>")) {
-        bgAgentStore.handleUserMessage(sessionId, uc);
+        const completion = bgAgentStore.handleUserMessage(sessionId, uc);
+        if (completion) {
+          state.messages = state.messages.map((message) => applyTaskCompletion(message, completion));
+        }
       }
 
       if (Array.isArray(uc) && uc[0]?.type === "tool_result") {

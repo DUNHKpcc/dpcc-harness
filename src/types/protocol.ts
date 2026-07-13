@@ -267,6 +267,30 @@ export interface TaskNotificationEvent {
   session_id?: string;
 }
 
+/** A task state patch. Terminal states are authoritative even if a notification was missed. */
+export interface TaskUpdatedEvent {
+  type: "system";
+  subtype: "task_updated";
+  task_id: string;
+  patch: {
+    status?: "pending" | "running" | "completed" | "failed" | "killed" | "paused";
+    description?: string;
+    end_time?: number;
+    total_paused_ms?: number;
+    error?: string;
+    is_backgrounded?: boolean;
+  };
+  session_id?: string;
+}
+
+/** Full background task membership snapshot. Replace local membership with each payload. */
+export interface BackgroundTasksChangedEvent {
+  type: "system";
+  subtype: "background_tasks_changed";
+  tasks: Array<{ task_id: string; task_type: string; description: string }>;
+  session_id?: string;
+}
+
 export type ClaudeEvent =
   | SystemInitEvent
   | SystemStatusEvent
@@ -275,6 +299,8 @@ export type ClaudeEvent =
   | TaskStartedEvent
   | TaskProgressEvent
   | TaskNotificationEvent
+  | TaskUpdatedEvent
+  | BackgroundTasksChangedEvent
   | ToolProgressEvent
   | StreamEvent
   | AssistantMessageEvent

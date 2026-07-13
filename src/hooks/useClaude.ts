@@ -8,6 +8,8 @@ import type {
   TaskStartedEvent,
   TaskProgressEvent,
   TaskNotificationEvent,
+  TaskUpdatedEvent,
+  BackgroundTasksChangedEvent,
   ToolProgressEvent,
   AuthStatusEvent,
   AssistantMessageEvent,
@@ -34,7 +36,7 @@ import {
   buildSdkContent,
 } from "../lib/engine/protocol";
 import { createSystemMessage, createUserMessage, formatResultError, nextId } from "../lib/message-factory";
-import { bgAgentStore } from "../lib/background/agent-store";
+import { bgAgentStore, type TaskCompletion } from "../lib/background/agent-store";
 import { suppressNextSessionCompletion } from "../lib/notification-utils";
 import { advancePermissionQueue, enqueuePermissionRequest } from "../lib/engine/permission-queue";
 import {
@@ -51,6 +53,26 @@ import { useEngineBase } from "./useEngineBase";
 
 function uiLog(label: string, data: unknown) {
   window.claude.log(label, typeof data === "string" ? data : JSON.stringify(data));
+}
+
+function applyTaskCompletion(message: import("../types").UIMessage, completion: TaskCompletion) {
+  const matchesToolUse = completion.toolUseId && message.id === `tool-${completion.toolUseId}`;
+  if (!matchesToolUse && message.subagentId !== completion.taskId) return message;
+
+  return {
+    ...message,
+    toolResult: message.toolResult ?? {
+      type: "text",
+      content: completion.summary ?? (completion.status === "completed" ? "Task completed" : "Task failed"),
+      status: completion.status,
+    },
+    toolError: completion.status === "failed" || undefined,
+    subagentStatus: completion.status,
+    ...(completion.usage ? {
+      subagentDurationMs: completion.usage.durationMs,
+      subagentTokens: completion.usage.totalTokens,
+    } : {}),
+  };
 }
 
 // Maps a parent_tool_use_id (Task tool_use_id) → the tool_call message id
@@ -296,7 +318,13 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
         const sub = (event as { subtype: string }).subtype;
         if (sub === "task_started") {
           const sid = sessionIdRef.current;
-          if (sid) bgAgentStore.handleTaskStarted(sid, event as TaskStartedEvent);
+          const taskEvent = event as TaskStartedEvent;
+          if (sid) bgAgentStore.handleTaskStarted(sid, taskEvent);
+          setMessages((prev) => prev.map((message) =>
+            message.id === `tool-${taskEvent.tool_use_id}`
+              ? { ...message, subagentId: taskEvent.task_id, subagentStatus: "running" as const }
+              : message,
+          ));
           return;
         }
         if (sub === "task_progress") {
@@ -306,7 +334,32 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
         }
         if (sub === "task_notification") {
           const sid = sessionIdRef.current;
-          if (sid) bgAgentStore.handleTaskNotification(sid, event as TaskNotificationEvent);
+          if (sid) {
+            const completion = bgAgentStore.handleTaskNotification(sid, event as TaskNotificationEvent);
+            setMessages((prev) => prev.map((message) => applyTaskCompletion(message, completion)));
+          }
+          return;
+        }
+        if (sub === "task_updated") {
+          const sid = sessionIdRef.current;
+          if (sid) {
+            const completion = bgAgentStore.handleTaskUpdated(sid, event as TaskUpdatedEvent);
+            if (completion) {
+              setMessages((prev) => prev.map((message) => applyTaskCompletion(message, completion)));
+            }
+          }
+          return;
+        }
+        if (sub === "background_tasks_changed") {
+          const sid = sessionIdRef.current;
+          if (sid) {
+            const completed = bgAgentStore.reconcileBackgroundTasks(sid, event as BackgroundTasksChangedEvent);
+            if (completed.length) {
+              setMessages((prev) => prev.map((message) =>
+                completed.reduce(applyTaskCompletion, message),
+              ));
+            }
+          }
           return;
         }
       }
@@ -326,7 +379,11 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
         if (sid) trackClaudeApiRetry(sid, event);
       } else if (event.type === "system" && event.subtype === "init") {
         const sid = sessionIdRef.current;
-        if (sid) clearClaudeObservedRequests(sid);
+        if (sid) {
+          clearClaudeObservedRequests(sid);
+          // The SDK does not emit an initial membership snapshot after process start.
+          bgAgentStore.clearSession(sid);
+        }
       }
 
       const parentId = getParentId(event);
@@ -364,6 +421,7 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
             }
             break;
           }
+          if (!("subtype" in event) || event.subtype !== "init") break;
           const init = event as SystemInitEvent;
           uiLog("SYSTEM_INIT", { session: init.session_id?.slice(0, 8), model: init.model, mcpServers: init.mcp_servers?.length ?? 0 });
           setSessionInfo({
@@ -640,7 +698,12 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
           // not as a system event — parse it and update the bgAgentStore
           if (typeof rawContent === "string" && rawContent.includes("<task-notification>")) {
             const sid = sessionIdRef.current;
-            if (sid) bgAgentStore.handleUserMessage(sid, rawContent);
+            if (sid) {
+              const completion = bgAgentStore.handleUserMessage(sid, rawContent);
+              if (completion) {
+                setMessages((prev) => prev.map((message) => applyTaskCompletion(message, completion)));
+              }
+            }
           }
 
           // Tool result — update the matching tool_call message

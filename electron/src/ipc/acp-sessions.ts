@@ -5,6 +5,7 @@ import crypto from "crypto";
 import path from "path";
 import { log } from "../lib/logger";
 import { safeSend } from "../lib/safe-send";
+import { startUtilityRequest } from "../lib/upstream-request-tracker";
 import { getAgent } from "../lib/agent-registry";
 import { killProcessTree } from "../lib/process-tree";
 import type { InstalledAgent } from "../lib/agent-registry";
@@ -772,14 +773,25 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     }
     prompt.push({ type: "text", text });
 
+    let finishRequest: ReturnType<typeof startUtilityRequest>;
     try {
       session.lastStderrError = undefined;
+      finishRequest = startUtilityRequest(
+        (requestEvent) => safeSend(getMainWindow, "usage:upstream-request", requestEvent),
+        sessionId,
+        "acp",
+        "prompt",
+      );
       const result = await session.connection.prompt({
         sessionId: acpSessionId,
         prompt,
       });
 
       log("ACP_TURN_COMPLETE", `session=${sessionId.slice(0, 8)} stopReason=${result.stopReason} usage=${JSON.stringify(result.usage ?? null)}`);
+      finishRequest?.(true, {
+        inputTokens: result.usage?.inputTokens,
+        outputTokens: result.usage?.outputTokens,
+      });
 
       safeSend(getMainWindow,"acp:turn_complete", {
         _sessionId: sessionId,
@@ -789,6 +801,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
 
       return { ok: true };
     } catch (err) {
+      finishRequest?.(false);
       const msg = extractErrorMessage(err);
       const surfacedError = msg === "Internal error" && session.lastStderrError ? session.lastStderrError : msg;
       reportError("ACP_PROMPT_ERR", err, { engine: "acp", sessionId, surfacedError });

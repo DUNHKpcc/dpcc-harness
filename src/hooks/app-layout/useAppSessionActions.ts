@@ -4,6 +4,7 @@ import { useSessionManager } from "@/hooks/useSessionManager";
 import { useSettingsCompat } from "@/hooks/useSettingsCompat";
 import type { FileReference, ImageAttachment, InstalledAgent, ClaudeEffort, EngineId } from "@/types";
 import type { SettingsSection } from "@/components/SettingsView";
+import { selectProjectModelForEngine, useSettingsStore } from "@/stores/settings-store";
 import { buildSessionOptions } from "./session-utils";
 
 type SessionManagerState = ReturnType<typeof useSessionManager>;
@@ -93,9 +94,14 @@ export function useAppSessionActions(input: UseAppSessionActionsInput) {
     input.setShowSettings(false);
     input.settings.setPlanMode(false);
     const wantedEngine = input.selectedAgent?.engine ?? "claude";
+    const settingsState = useSettingsStore.getState();
     const options = buildSessionOptions(
       wantedEngine,
-      input.settings.getModelForEngine,
+      (engine) => selectProjectModelForEngine(
+        settingsState,
+        projectId,
+        engine,
+      ),
       input.settings.permissionMode,
       false,
       input.settings.thinking,

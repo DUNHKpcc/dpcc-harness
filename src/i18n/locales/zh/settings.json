@@ -10,7 +10,7 @@
     "analytics": "数据分析",
     "agents": "ACP Agents",
     "mcp": "MCP 服务器",
-    "engines": "引擎",
+    "engines": "SDK",
     "wechat": "微信",
     "currentConfig": "当前配置",
     "skills": "Skills",
@@ -89,8 +89,8 @@
     }
   },
   "engines": {
-    "title": "引擎",
-    "description": "配置引擎级别的运行行为与二进制选择",
+    "title": "SDK",
+    "description": "配置 SDK 的运行行为与二进制选择",
     "claude": {
       "section": "Claude Code",
       "sourceLabel": "Claude SDK来源",
@@ -330,7 +330,7 @@
   },
   "currentConfig": {
     "title": "当前配置",
-    "description": "PccAgent 实际用于运行会话的上游与模型配置。可在此分别切换 Claude Code 与 Codex 的配置来源；具体密钥和网关参数仍在「设置 → 账户 / 引擎」中维护。",
+    "description": "PccAgent 实际用于运行会话的上游与模型配置。可在此分别切换 Claude Code 与 Codex 的配置来源；具体密钥和网关参数仍在「设置 → 账户 / SDK」中维护。",
     "refresh": "刷新",
     "refreshing": "刷新中…",
     "saveFailed": "无法保存配置来源。",
@@ -342,7 +342,7 @@
       "default": "DPCC 官方上游"
     },
     "sourceDesc": {
-      "gateway": "通过「设置 → 引擎」中配置的自定义第三方网关转发。",
+      "gateway": "通过「设置 → SDK」中配置的自定义第三方网关转发。",
       "local": "使用当前本机对应 CLI 配置。",
       "default": "通过 DPCC 官方上游 (api.dpccgaming.xyz) 转发。"
     },
@@ -392,6 +392,131 @@
     "credits": "致谢",
     "builtBy": "由 OpenSource 打造",
     "creditsBody": "PccAgent 基于 MIT 许可证开源。欢迎在 GitHub 上贡献代码、报告问题和提出功能需求。",
+    "releaseHistory": {
+      "title": "版本更新",
+      "description": "查看 PccAgent 每个版本的重要变化与修复。",
+      "current": "当前版本",
+      "viewRelease": "查看完整发布说明",
+      "showOlder": "显示更早版本",
+      "showLess": "收起早期版本",
+      "entries": {
+        "v2_1_5": {
+          "title": "Session 可靠性与准确的请求统计",
+          "requestTracking": "上游请求次数现已覆盖标题生成、commit message、ACP turn 与后台任务，并避免 retry 或重复事件造成重复计数。",
+          "sessionRecovery": "Codex session 可跨隔离配置目录恢复本机历史，新建 Chat 与项目 session 也会保留正确的 model 和 rollout metadata。",
+          "modelControls": "选择相关 model 与 Effort 时菜单保持打开，utility 请求会稳定使用当前 session 所选 model。",
+          "startupLayout": "首次窗口绘制前应用已保存主题，并稳定 chat 标题遮罩，避免正文与顶部标题重叠。",
+          "settingsPolish": "新增离线版本历史，简化 ACP Agent 创建入口，并将中文引擎设置名称调整为 SDK。"
+        },
+        "v2_1_4": {
+          "title": "上游模型同步与 Effort 控制",
+          "modelSync": "Claude 模型列表改为严格跟随当前所选上游，避免混入旧的本地模型。",
+          "upstreamSwitch": "切换 local、DPCC 或 gateway 后，会在下一次请求前重建 Claude session transport。",
+          "sparkEffort": "Codex model 能力与 Effort 控件保持同步，并补全 GPT-5.3 Codex Spark 支持。",
+          "runtimeUpdate": "内置 Claude Agent SDK 更新至 0.3.207，并刷新各平台 Codex CLI。"
+        },
+        "v2_1_3": {
+          "title": "面板交互修复",
+          "panelMenus": "修复 workspace 面板菜单点击被拖拽层拦截的问题。",
+          "interactionRegression": "增加交互回归保护，确保浮层菜单保持可操作。"
+        },
+        "v2_1_2": {
+          "title": "Windows 与 workspace 完善",
+          "portableGit": "Windows 安装包内置 PortableGit，并为 Claude 增加可靠的 Git fallback。",
+          "chatSection": "侧边栏新增独立 Chat 区域与更紧凑的顶部操作入口。",
+          "workspaceState": "保留 contextual panel 开关并统一各 engine 的 cwd 处理。",
+          "settingsPolish": "优化设置页关闭入口、账户余额刷新和日志定期清理。"
+        },
+        "v2_1_1": {
+          "title": "Claude SDK 进程体验修复",
+          "hideClaudeHelper": "防止内置 Claude SDK helper 进程出现在 macOS Dock。",
+          "nodeRuntime": "启动 SDK CLI 脚本时优先使用真实 Node.js runtime，并提供 packaged fallback。"
+        },
+        "v2_1_0": {
+          "title": "内置 agent 配置隔离",
+          "mcpIsolation": "隔离内置 Claude Code 与 Codex 的 MCP 配置，避免加载应用外的 server。",
+          "configOwnership": "由 PccAgent 明确管理 session 使用的 MCP 配置边界。"
+        },
+        "v2_0_9": {
+          "title": "macOS helper 进程修复",
+          "dockHelper": "阻止内置执行 helper 意外显示在 macOS Dock。",
+          "processIdentity": "清理继承的应用身份环境，减少子进程被识别为独立 GUI 应用。"
+        },
+        "v2_0_8": {
+          "title": "上游用量与 Current Config",
+          "requestUsage": "在 session 顶部展示 Claude Code 与 Codex 的上游请求次数。",
+          "currentConfig": "新增 DPCC、local CLI 和第三方 gateway 的 Current Config 来源切换。",
+          "gatewayModels": "支持自定义 gateway model 显示名与上游 model ID 映射。",
+          "codexDownload": "Codex binary 下载改为异步流程，减少设置页阻塞。"
+        },
+        "v2_0_7": {
+          "title": "默认连接与 Git 输出修复",
+          "dpccDefaults": "新建内置 session 优先使用 DPCC 默认上游。",
+          "gitNoise": "减少非 Git 目录和后台状态检查产生的无关日志。"
+        },
+        "v2_0_6": {
+          "title": "Windows 打包与附件支持",
+          "windowsCodex": "补齐 Windows arm64 Codex binary，并收紧 vendor 打包规则。",
+          "fileAttachments": "修复 composer 文件选择器附件，并统一非图片文件引用。",
+          "processCleanup": "加强外部进程启动、permission mode 传递与子进程树清理。"
+        },
+        "v2_0_5": {
+          "title": "启动体验与文件引用",
+          "startupFlicker": "减少 chat、glass 和 Electron 冷启动时的界面闪烁。",
+          "fileReferences": "支持拖入文件并以 typed mention 发送给 Codex。",
+          "engineExit": "engine 退出时正确结束仍处于进行中的 tool card。"
+        },
+        "v2_0_4": {
+          "title": "稳定性与状态同步",
+          "sessionCleanup": "加强 session cleanup、restart、interrupt 与应用退出路径。",
+          "rendererState": "修复 rename、composer、聊天状态和 resize cleanup 的同步问题。",
+          "windowsPath": "改进 Windows Codex path 解析和安装包窗口表现。",
+          "attachmentPicker": "文件选择器可直接附加非图片文件。"
+        },
+        "v2_0_3": {
+          "title": "DPCC 账户与上下文缓存",
+          "dpccAccount": "将 DPCC 账户与第三方 gateway 配置清晰分离并迁移旧设置。",
+          "contextCache": "上下文详情新增 cache hit rate。",
+          "utilityRouting": "Codex 标题和 commit message 请求使用与普通 session 相同的上游。"
+        },
+        "v2_0_2": {
+          "title": "WeChat、内置 binary 与更新恢复",
+          "wechatRecovery": "加强 WeChat bridge 初始化、重连、鉴权和凭据恢复。",
+          "builtinBinaries": "Claude 与 Codex 默认使用内置 binary，并在不可用时安全 fallback。",
+          "updateMirror": "增加国内更新镜像 fallback 与单实例保护。"
+        },
+        "v2_0_1": {
+          "title": "可选择的更新来源",
+          "updateSource": "在常规设置中新增更新来源选择。",
+          "domesticMirror": "支持国内镜像下载并清理失败的安装文件。"
+        },
+        "v2_0_0": {
+          "title": "更轻、更流畅、更可靠",
+          "streamingPerformance": "增量解析 streaming Markdown，降低长回复后段的渲染压力。",
+          "processCleanup": "自动轮换日志，并在 crash 或退出时清理 session 与 terminal 子进程。",
+          "wechatSessions": "WeChat 对话可作为持久 session 在桌面侧边栏继续处理。",
+          "windowsEditor": "Windows 的“在编辑器中打开”可正确启动配置的编辑器并跳转到指定行。"
+        },
+        "v1_0_2": {
+          "title": "通知与更新器本地化",
+          "localizedNotifications": "本地化 permission、split、ACP、Jira 和 restart 等应用通知。",
+          "localizedUpdater": "本地化更新安装错误并增加结构化错误代码。"
+        },
+        "v1_0_1": {
+          "title": "更清晰的安装包与下载页面",
+          "installerNames": "安装包名称明确标注 macOS、Windows 与对应架构。",
+          "releaseAssets": "发布页只保留安装包与 updater manifest，减少无关文件。",
+          "brandingCleanup": "清理遗留品牌、release 链接和 analytics 配置。"
+        },
+        "v1_0_0": {
+          "title": "PccAgent 首个公开版本",
+          "multiEngine": "在一个桌面应用中运行 Claude Code、Codex 与 ACP agent。",
+          "workspaceTools": "内置 terminal、browser、files、Git、Todo 与 MCP 管理工具。",
+          "delegation": "支持 Claude 将任务委派给可见的 Codex split pane。",
+          "firstRelease": "提供持久聊天记录、项目 workspace、后台 agent 和多平台安装包。"
+        }
+      }
+    },
     "builtWith": "技术栈"
   },
   "analytics": {

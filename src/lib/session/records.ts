@@ -30,6 +30,7 @@ export function toChatSession(
     isActive,
     engine: session.engine,
     codexThreadId: session.codexThreadId,
+    codexRolloutPath: session.codexRolloutPath,
     folderId: session.folderId,
     pinned: session.pinned,
     branch: session.branch,
@@ -71,6 +72,7 @@ export function buildPersistedSession(
     ...(session.agentSessionId ? { agentSessionId: session.agentSessionId } : {}),
     ...(session.delegatedFromSessionId ? { delegatedFromSessionId: session.delegatedFromSessionId } : {}),
     ...(session.engine === "codex" && session.codexThreadId ? { codexThreadId: session.codexThreadId } : {}),
+    ...(session.engine === "codex" && session.codexRolloutPath ? { codexRolloutPath: session.codexRolloutPath } : {}),
     ...(session.source ? { source: session.source } : {}),
     ...(session.wechatUserId ? { wechatUserId: session.wechatUserId } : {}),
   };

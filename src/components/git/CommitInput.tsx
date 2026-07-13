@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { EngineId } from "@/types";
+import { DRAFT_ID } from "@/hooks/session/types";
 
 export interface CommitInputProps {
   cwd: string;
@@ -30,6 +31,7 @@ export function CommitInput({
   const { t } = useTranslation("git");
   const [commitMessage, setCommitMessage] = useState("");
   const [generatingMessage, setGeneratingMessage] = useState(false);
+  const hasUsageOwner = !!activeSessionId && activeSessionId !== DRAFT_ID;
 
   const handleCommit = useCallback(async () => {
     if (!commitMessage.trim() || stagedCount === 0) return;
@@ -48,12 +50,13 @@ export function CommitInput({
   );
 
   const handleGenerateMessage = useCallback(async () => {
+    if (!hasUsageOwner) return;
     setGeneratingMessage(true);
     try {
       const result = await window.claude.git.generateCommitMessage(
         cwd,
         activeEngine,
-        activeEngine !== "claude" && activeSessionId ? activeSessionId : undefined,
+        activeSessionId ?? undefined,
       );
       if (result.message) {
         setCommitMessage(result.message);
@@ -65,7 +68,7 @@ export function CommitInput({
     } finally {
       setGeneratingMessage(false);
     }
-  }, [cwd, activeEngine, activeSessionId, onSyncError, t]);
+  }, [cwd, activeEngine, activeSessionId, hasUsageOwner, onSyncError, t]);
 
   const canCommit = commitMessage.trim().length > 0 && stagedCount > 0;
 
@@ -87,7 +90,7 @@ export function CommitInput({
               <button
                 type="button"
                 onClick={handleGenerateMessage}
-                disabled={generatingMessage || totalChanges === 0}
+                disabled={generatingMessage || totalChanges === 0 || !hasUsageOwner}
                 className="flex h-6 w-6 items-center justify-center rounded-md border border-foreground/[0.08] bg-foreground/[0.03] text-foreground/40 transition-colors hover:border-foreground/[0.12] hover:bg-foreground/[0.06] hover:text-foreground/70 disabled:opacity-25 disabled:cursor-not-allowed cursor-pointer"
               >
                 {generatingMessage ? (

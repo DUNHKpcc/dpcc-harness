@@ -211,6 +211,104 @@ describe("background context usage tracking", () => {
     expect((state as any).requestLog.at(-1)?.id).toBe("claude-result-session-1-12");
   });
 
+  it("counts unique Claude assistant request IDs instead of relying only on result num_turns", () => {
+    const state = createState();
+    for (const requestId of ["req-1", "req-2", "req-2"]) {
+      handleClaudeEvent(state, {
+        type: "assistant",
+        _sessionId: "session-1",
+        session_id: "session-1",
+        uuid: `uuid-${requestId}-${Math.random()}`,
+        request_id: requestId,
+        parent_tool_use_id: requestId === "req-2" ? "task-parent" : null,
+        message: {
+          model: "claude-sonnet-4-5",
+          id: `msg-${requestId}`,
+          role: "assistant",
+          content: [],
+        },
+      } satisfies AssistantMessageEvent & { _sessionId: string });
+    }
+
+    handleClaudeEvent(state, {
+      type: "result",
+      subtype: "success",
+      is_error: false,
+      duration_ms: 1,
+      num_turns: 1,
+      result: "ok",
+      total_cost_usd: 0,
+      session_id: "session-1",
+      _sessionId: "session-1",
+    } satisfies ResultEvent & { _sessionId: string });
+
+    expect(state.upstreamRequestCount).toBe(2);
+    expect(state.requestLog[0]).toEqual(expect.objectContaining({ requestCount: 2 }));
+  });
+
+  it("does not double count a utility completion after its pending detail was evicted", () => {
+    const store = new BackgroundSessionStore();
+    store.recordUpstreamRequest("session-1", {
+      id: "utility-1",
+      engine: "acp",
+      status: "pending",
+      startedAt: 1,
+      requestCount: 1,
+    }, 1);
+    for (let index = 0; index < 10; index++) {
+      store.recordUpstreamRequest("session-1", {
+        id: `other-${index}`,
+        engine: "acp",
+        status: "completed",
+        startedAt: index + 2,
+        requestCount: 1,
+      });
+    }
+    store.recordUpstreamRequest("session-1", {
+      id: "utility-1",
+      engine: "acp",
+      status: "completed",
+      startedAt: 1,
+      completedAt: 20,
+      requestCount: 1,
+    }, 0);
+
+    expect(store.get("session-1")).toEqual(expect.objectContaining({
+      upstreamRequestCount: 11,
+      requestLog: expect.arrayContaining([
+        expect.objectContaining({ id: "utility-1", status: "completed" }),
+      ]),
+    }));
+  });
+
+  it("adds API retries on top of reported Claude turns when request IDs are unavailable", () => {
+    const state = createState();
+    handleClaudeEvent(state, {
+      type: "system",
+      subtype: "api_retry",
+      attempt: 1,
+      max_retries: 3,
+      error_status: 529,
+      session_id: "session-1",
+      uuid: "retry-1",
+      _sessionId: "session-1",
+    });
+    handleClaudeEvent(state, {
+      type: "result",
+      subtype: "success",
+      is_error: false,
+      duration_ms: 1,
+      num_turns: 2,
+      result: "ok",
+      total_cost_usd: 0,
+      session_id: "session-1",
+      _sessionId: "session-1",
+    } satisfies ResultEvent & { _sessionId: string });
+
+    expect(state.upstreamRequestCount).toBe(3);
+    expect(state.requestLog[0]).toEqual(expect.objectContaining({ requestCount: 3 }));
+  });
+
   it("updates ACP background state from usage_update events", () => {
     const state = createState();
     const event = {

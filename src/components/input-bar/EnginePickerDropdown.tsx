@@ -116,7 +116,10 @@ export const EnginePickerDropdown = memo(function EnginePickerDropdown({
         modelList.map((m) => (
           <DropdownMenuItem
             key={m.id}
-            onClick={() => onModelChange(m.id)}
+            onSelect={(event) => {
+              event.preventDefault();
+              onModelChange(m.id);
+            }}
             className={m.id === selectedModelId ? "bg-accent" : ""}
           >
             <div>
@@ -140,12 +143,13 @@ export const EnginePickerDropdown = memo(function EnginePickerDropdown({
           {claudeEffortOptions.map((effort) => (
             <DropdownMenuItem
               key={effort}
-              onClick={() =>
+              onSelect={(event) => {
+                event.preventDefault();
                 onClaudeModelEffortChange(
                   selectedModelId,
                   effort as ClaudeEffort,
-                )
-              }
+                );
+              }}
               className={effort === claudeActiveEffort ? "bg-accent" : ""}
             >
               <div>
@@ -188,7 +192,10 @@ export const EnginePickerDropdown = memo(function EnginePickerDropdown({
             {codexEffortOptions.map((opt) => (
               <DropdownMenuItem
                 key={opt.reasoningEffort}
-                onClick={() => onCodexEffortChange(opt.reasoningEffort)}
+                onSelect={(event) => {
+                  event.preventDefault();
+                  onCodexEffortChange(opt.reasoningEffort);
+                }}
                 className={
                   opt.reasoningEffort === codexActiveEffort ? "bg-accent" : ""
                 }

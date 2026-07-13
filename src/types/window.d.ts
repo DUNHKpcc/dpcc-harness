@@ -1,5 +1,5 @@
 import type { ClaudeEvent } from "./protocol";
-import type { CCSessionInfo, ChatFolder, PersistedSession, Project, UIMessage, ClaudeEffort } from "./session";
+import type { CCSessionInfo, ChatFolder, PersistedSession, Project, UIMessage, ClaudeEffort, UpstreamRequestEvent } from "./session";
 import type { Space } from "./spaces";
 import type { SearchMessageResult, SearchSessionResult } from "./search";
 import type { ModelInfo, McpServerConfig, McpServerStatus } from "./mcp";
@@ -170,6 +170,7 @@ declare global {
       }) => Promise<IpcResult>;
       log: (label: string, data: unknown) => void;
       onEvent: (callback: (event: ClaudeEvent & { _sessionId: string }) => void) => () => void;
+      onUpstreamRequest: (callback: (event: UpstreamRequestEvent) => void) => () => void;
       onStderr: (callback: (data: { data: string; _sessionId: string }) => void) => () => void;
       onExit: (callback: (data: { code: number | null; _sessionId: string; error?: string }) => void) => () => void;
       onPermissionRequest: (
@@ -379,6 +380,7 @@ declare global {
           Promise<{
             sessionId?: string;
             threadId?: string;
+            rolloutPath?: string;
             models?: CodexModel[];
             selectedModel?: string;
             account?: unknown;
@@ -414,8 +416,8 @@ declare global {
         listModels: () => Promise<{ models: CodexModel[]; error?: string }>;
         authStatus: () => Promise<{ account: unknown; requiresOpenaiAuth: boolean }>;
         login: (sessionId: string, type: "apiKey" | "chatgpt", apiKey?: string) => Promise<unknown>;
-        resume: (options: { cwd: string; threadId: string; model?: string; permissionMode?: string; approvalPolicy?: string; sandbox?: "read-only" | "workspace-write" | "danger-full-access" }) =>
-          Promise<{ sessionId?: string; threadId?: string; error?: string }>;
+        resume: (options: { cwd: string; threadId: string; rolloutPath?: string; model?: string; permissionMode?: string; approvalPolicy?: string; sandbox?: "read-only" | "workspace-write" | "danger-full-access" }) =>
+          Promise<{ sessionId?: string; threadId?: string; rolloutPath?: string; error?: string }>;
         setModel: (sessionId: string, model: string) => Promise<{ error?: string }>;
         setPermissionMode: (sessionId: string, permissionMode: string) => Promise<{ ok?: boolean; permissionMode?: string; error?: string }>;
         version: () => Promise<{ version?: string; error?: string }>;

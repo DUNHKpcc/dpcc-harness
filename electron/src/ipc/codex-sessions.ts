@@ -23,7 +23,11 @@ import { getAppSetting } from "../lib/app-settings";
 import { reportError } from "../lib/error-utils";
 import { captureEvent } from "../lib/posthog";
 import { codexUpstreamThreadParams } from "../lib/codex-upstream";
-import { buildCodexAppServerEnv } from "../lib/codex-home-isolation";
+import {
+  buildCodexAppServerEnv,
+  findCodexRolloutPath,
+  getCodexRolloutSearchHomes,
+} from "../lib/codex-home-isolation";
 import { resolveEffectiveCodexModels } from "../lib/codex-model-catalog";
 import { reclaimMacDockFocus } from "../lib/macos-dock-focus";
 import { normalizeSessionCwd } from "../lib/session-cwd";
@@ -373,6 +377,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         return {
           sessionId: internalId,
           threadId: session.threadId,
+          rolloutPath: threadResult.thread.path ?? undefined,
           models,
           selectedModel,
           account: authResult.account,
@@ -724,6 +729,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       data: {
         cwd: string;
         threadId: string;
+        rolloutPath?: string;
         model?: string;
         permissionMode?: string;
         approvalPolicy?: string;
@@ -737,10 +743,11 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         const codexPath = await getCodexBinaryPath();
         log("codex",` Resuming thread ${data.threadId} in new process (session=${internalId})`);
 
+        const appServerEnv = buildCodexAppServerEnv();
         const proc = spawn(codexPath, ["app-server"], {
           stdio: ["pipe", "pipe", "pipe"],
           cwd,
-          env: buildCodexAppServerEnv(),
+          env: appServerEnv,
         });
 
         if (!proc.pid) throw new Error("Failed to spawn codex app-server");
@@ -774,6 +781,12 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
           threadId: data.threadId,
           persistExtendedHistory: false,
         };
+        const rolloutPath = findCodexRolloutPath(
+          data.threadId,
+          data.rolloutPath,
+          getCodexRolloutSearchHomes(appServerEnv.CODEX_HOME),
+        );
+        if (rolloutPath) threadParams.path = rolloutPath;
         if (data.approvalPolicy) threadParams.approvalPolicy = data.approvalPolicy;
         if (data.sandbox) threadParams.sandbox = data.sandbox;
         // Non-local selected upstreams override provider + model.
@@ -793,7 +806,11 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         reclaimMacDockFocus(getMainWindow, "codex-thread-resume");
 
         void captureEvent("session_revived", { engine: "codex", success: true });
-        return { sessionId: internalId, threadId: session.threadId };
+        return {
+          sessionId: internalId,
+          threadId: session.threadId,
+          rolloutPath: threadResult.thread.path ?? rolloutPath,
+        };
       } catch (err) {
         void captureEvent("session_revived", { engine: "codex", success: false });
         const errMsg = reportError("CODEX_RESUME_ERR", err, { engine: "codex", sessionId: internalId });

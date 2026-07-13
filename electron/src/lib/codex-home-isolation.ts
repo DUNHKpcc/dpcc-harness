@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
+import os from "os";
 import { getDataDir } from "./data-dir";
 import { CODEX_GATEWAY_ENV_KEY, CODEX_GATEWAY_PROVIDER_ID } from "./codex-upstream";
 import { resolveCodexUpstream, type CodexUpstream } from "./upstream-resolver";
@@ -8,6 +9,100 @@ import { resolveCodexUpstream, type CodexUpstream } from "./upstream-resolver";
 export interface CodexHomeIsolationResult {
   codexHome?: string;
   isolated: boolean;
+}
+
+const CODEX_THREAD_ID_RE = /^[a-zA-Z0-9-]{8,128}$/;
+
+function isPathWithin(root: string, candidate: string): boolean {
+  const relative = path.relative(fs.realpathSync(root), fs.realpathSync(candidate));
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function getSessionRoots(codexHomes: string[]): string[] {
+  const roots: string[] = [];
+  const seen = new Set<string>();
+  const add = (candidate: string) => {
+    const resolved = path.resolve(candidate);
+    if (seen.has(resolved) || !fs.existsSync(resolved)) return;
+    seen.add(resolved);
+    roots.push(resolved);
+  };
+
+  for (const home of codexHomes) {
+    add(path.join(home, "sessions"));
+    try {
+      for (const entry of fs.readdirSync(home, { withFileTypes: true })) {
+        if (entry.isDirectory()) add(path.join(home, entry.name, "sessions"));
+      }
+    } catch {
+      // A missing or unreadable historical home is simply skipped.
+    }
+  }
+  return roots;
+}
+
+function findRolloutInRoot(root: string, filenameSuffix: string): string | undefined {
+  const pending = [root];
+  while (pending.length > 0) {
+    const dir = pending.pop()!;
+    try {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const candidate = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          pending.push(candidate);
+        } else if (entry.isFile() && entry.name.endsWith(filenameSuffix)) {
+          return fs.realpathSync(candidate);
+        }
+      }
+    } catch {
+      // Continue searching other known session roots.
+    }
+  }
+  return undefined;
+}
+
+/** Return current, historical isolated, and legacy homes in lookup priority order. */
+export function getCodexRolloutSearchHomes(currentCodexHome?: string): string[] {
+  return Array.from(new Set([
+    ...(currentCodexHome ? [currentCodexHome] : []),
+    path.join(getDataDir(), "codex-home"),
+    ...(process.env.CODEX_HOME ? [process.env.CODEX_HOME] : []),
+    path.join(os.homedir(), ".codex"),
+  ].map((home) => path.resolve(home))));
+}
+
+/** Resolve a persisted rollout without allowing arbitrary paths outside known Codex homes. */
+export function findCodexRolloutPath(
+  threadId: string,
+  preferredPath?: string,
+  codexHomes?: string[],
+): string | undefined {
+  if (!CODEX_THREAD_ID_RE.test(threadId)) return undefined;
+
+  const homes = codexHomes ?? getCodexRolloutSearchHomes();
+  const sessionRoots = getSessionRoots(homes);
+  const filenameSuffix = `-${threadId}.jsonl`;
+
+  if (
+    preferredPath &&
+    path.basename(preferredPath).endsWith(filenameSuffix) &&
+    fs.existsSync(preferredPath)
+  ) {
+    try {
+      if (
+        fs.statSync(preferredPath).isFile() &&
+        sessionRoots.some((root) => isPathWithin(root, preferredPath))
+      ) return fs.realpathSync(preferredPath);
+    } catch {
+      // Fall through to thread-id lookup when the persisted path is stale.
+    }
+  }
+
+  for (const root of sessionRoots) {
+    const found = findRolloutInRoot(root, filenameSuffix);
+    if (found) return found;
+  }
+  return undefined;
 }
 
 function tomlString(value: string): string {

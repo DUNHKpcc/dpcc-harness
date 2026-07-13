@@ -107,4 +107,22 @@ describe("session records", () => {
 
     expect((session as any).upstreamRequestCount).toBe(2);
   });
+
+  it("keeps Codex rollout metadata when hydrating and persisting sessions", () => {
+    const rolloutPath = "/Users/me/.codex/sessions/rollout-thread-1.jsonl";
+    const session = toChatSession({
+      id: "session-1",
+      projectId: "project-1",
+      title: "Codex chat",
+      createdAt: 100,
+      lastMessageAt: 200,
+      totalCost: 0,
+      engine: "codex",
+      codexThreadId: "thread-1",
+      codexRolloutPath: rolloutPath,
+    }, false);
+
+    expect(session.codexRolloutPath).toBe(rolloutPath);
+    expect(buildPersistedSession(session, [], 0, null).codexRolloutPath).toBe(rolloutPath);
+  });
 });

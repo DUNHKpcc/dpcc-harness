@@ -24,7 +24,7 @@ import { createSystemMessage, formatResultError, nextId } from "@/lib/message-fa
 import { bgAgentStore } from "./agent-store";
 import { mergeStreamingChunk } from "@/lib/engine/streaming-buffer";
 import { normalizeTodoToolInput } from "@/lib/chat/todo-utils";
-import { appendUpstreamRequestRecord, createClaudeRequestRecord } from "@/lib/usage/upstream-requests";
+import { appendUpstreamRequestRecord, clearClaudeObservedRequests, createClaudeRequestRecord, consumeClaudeObservedRequestCount, trackClaudeApiRetry, trackClaudeAssistantRequest } from "@/lib/usage/upstream-requests";
 import type { InternalState } from "./session-store";
 
 // ── Stream event handler ──
@@ -182,6 +182,14 @@ export function handleClaudeEvent(
   if (event.type === "tool_progress") {
     bgAgentStore.handleToolProgress(sessionId, event as ToolProgressEvent);
     return undefined;
+  }
+
+  if (event.type === "assistant") {
+    trackClaudeAssistantRequest(sessionId, event);
+  } else if (event.type === "system" && "subtype" in event && event.subtype === "api_retry") {
+    trackClaudeApiRetry(sessionId, event);
+  } else if (event.type === "system" && event.subtype === "init") {
+    clearClaudeObservedRequests(sessionId);
   }
 
   const parentId = getParentId(event);
@@ -372,7 +380,10 @@ export function handleClaudeEvent(
       const resultEvt = event as ResultEvent;
       state.isProcessing = false;
       state.totalCost += resultEvt.total_cost_usd ?? 0;
-      const requestCount = Math.max(1, resultEvt.num_turns || 1);
+      const requestCount = Math.max(
+        1,
+        consumeClaudeObservedRequestCount(sessionId, resultEvt.num_turns || 1),
+      );
       state.upstreamRequestCount += requestCount;
       state.requestLog = appendUpstreamRequestRecord(
         state.requestLog,
@@ -380,6 +391,8 @@ export function handleClaudeEvent(
           resultEvt,
           state.upstreamRequestCount,
           state.sessionInfo?.model,
+          Date.now(),
+          requestCount,
         ),
       );
 

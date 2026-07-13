@@ -8,8 +8,8 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import type { UIMessage, SessionInfo, PermissionRequest, ContextUsage, BackgroundSessionSnapshot, UpstreamRequestRecord } from "@/types";
-import { getUpstreamRequestCount, trimUpstreamRequestLog } from "@/lib/usage/upstream-requests";
+import type { UIMessage, SessionInfo, PermissionRequest, ContextUsage, BackgroundSessionSnapshot, UpstreamRequestRecord, UpstreamRequestEvent } from "@/types";
+import { getUpstreamRequestCount, trimUpstreamRequestLog, upsertUpstreamRequestRecord } from "@/lib/usage/upstream-requests";
 
 export interface UseEngineBaseOptions {
   sessionId: string | null;
@@ -34,6 +34,7 @@ export interface EngineBaseState {
   setUpstreamRequestCount: Dispatch<SetStateAction<number>>;
   requestLog: UpstreamRequestRecord[];
   setRequestLog: Dispatch<SetStateAction<UpstreamRequestRecord[]>>;
+  recordUpstreamRequest: (record: UpstreamRequestRecord, countDelta?: number) => void;
   pendingPermission: PermissionRequest | null;
   setPendingPermission: Dispatch<SetStateAction<PermissionRequest | null>>;
   contextUsage: ContextUsage | null;
@@ -44,6 +45,8 @@ export interface EngineBaseState {
   // Refs
   sessionIdRef: React.RefObject<string | null>;
   messagesRef: React.RefObject<UIMessage[]>;
+  upstreamRequestCountRef: React.RefObject<number>;
+  requestLogRef: React.RefObject<UpstreamRequestRecord[]>;
 
   // rAF scheduling — engine hooks call scheduleFlush after pushing data to their buffer
   pendingFlush: React.RefObject<boolean>;
@@ -75,6 +78,19 @@ export function useEngineBase({
 
   const sessionIdRef = useRef(sessionId);
   sessionIdRef.current = sessionId;
+  const requestLogRef = useRef(requestLog);
+  requestLogRef.current = requestLog;
+  const upstreamRequestCountRef = useRef(upstreamRequestCount);
+  upstreamRequestCountRef.current = upstreamRequestCount;
+  const requestStateSessionIdRef = useRef(sessionId);
+  if (requestStateSessionIdRef.current !== sessionId) {
+    requestStateSessionIdRef.current = sessionId;
+    requestLogRef.current = trimUpstreamRequestLog(initialMeta?.requestLog);
+    upstreamRequestCountRef.current = getUpstreamRequestCount(
+      initialMeta?.requestLog,
+      initialMeta?.upstreamRequestCount,
+    );
+  }
   const messagesRef = useRef<UIMessage[]>(messages);
   messagesRef.current = messages;
 
@@ -95,16 +111,16 @@ export function useEngineBase({
       setIsConnected(initialMeta.isConnected);
       setSessionInfo(initialMeta.sessionInfo);
       setTotalCost(initialMeta.totalCost);
-      setRequestLog(trimUpstreamRequestLog(initialMeta.requestLog));
-      setUpstreamRequestCount(getUpstreamRequestCount(initialMeta.requestLog, initialMeta.upstreamRequestCount));
+      setRequestLog(requestLogRef.current);
+      setUpstreamRequestCount(upstreamRequestCountRef.current);
       setContextUsage(initialMeta.contextUsage);
     } else {
       setIsProcessing(false);
       setIsConnected(false);
       setSessionInfo(null);
       setTotalCost(0);
-      setRequestLog([]);
-      setUpstreamRequestCount(0);
+      setRequestLog(requestLogRef.current);
+      setUpstreamRequestCount(upstreamRequestCountRef.current);
       setContextUsage(null);
     }
     setPendingPermission(initialPermission ?? null);
@@ -128,6 +144,23 @@ export function useEngineBase({
     }
   }, []);
 
+  const recordUpstreamRequest = useCallback((record: UpstreamRequestRecord, countDelta?: number) => {
+    const merged = upsertUpstreamRequestRecord(requestLogRef.current, record);
+    requestLogRef.current = merged.requestLog;
+    setRequestLog(merged.requestLog);
+    const increment = countDelta ?? (merged.inserted ? Math.max(1, record.requestCount || 1) : 0);
+    if (increment > 0) {
+      const nextCount = upstreamRequestCountRef.current + increment;
+      upstreamRequestCountRef.current = nextCount;
+      setUpstreamRequestCount(nextCount);
+    }
+  }, []);
+
+  useEffect(() => window.claude.onUpstreamRequest((event: UpstreamRequestEvent) => {
+    if (event._sessionId !== sessionIdRef.current) return;
+    recordUpstreamRequest(event.record, event.countDelta);
+  }), [recordUpstreamRequest]);
+
   // Cleanup rAF on unmount
   useEffect(() => {
     return () => {
@@ -144,12 +177,14 @@ export function useEngineBase({
     sessionInfo, setSessionInfo,
     totalCost, setTotalCost,
     upstreamRequestCount, setUpstreamRequestCount,
-    requestLog, setRequestLog,
+    requestLog, setRequestLog, recordUpstreamRequest,
     pendingPermission, setPendingPermission,
     contextUsage, setContextUsage,
     isCompacting, setIsCompacting,
     sessionIdRef,
     messagesRef,
+    upstreamRequestCountRef,
+    requestLogRef,
     pendingFlush,
     rafId,
     scheduleFlush,

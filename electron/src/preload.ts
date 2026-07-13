@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent, webUtils } from "electron";
+import { readStoredThemeSource } from "@shared/lib/theme-storage";
 
 interface PreloadDocument {
   documentElement: {
@@ -30,13 +31,6 @@ function readSystemLocale(): string {
 }
 const systemLocale = readSystemLocale();
 
-function readStoredThemeSource(storage: PreloadStorage | undefined): ThemeSource {
-  const stored = storage?.getItem("pcc-agent-theme");
-  return stored === "light" || stored === "dark" || stored === "system"
-    ? stored
-    : "dark";
-}
-
 // Early setup wrapped in try/catch so contextBridge.exposeInMainWorld always runs
 // even if DOM isn't ready or something else fails above it.
 try {
@@ -65,15 +59,9 @@ try {
     root?.classList.add("glass-enabled");
   }
 
-  // Push stored theme to main process early so glass appearance is correct
-  // before React mounts. Default to "dark" to match useSettings, which falls
-  // back to "dark" when pcc-agent-theme is unset — avoids a system→dark flash.
-  const storedTheme = globals.localStorage?.getItem("pcc-agent-theme");
-  if (storedTheme === "light" || storedTheme === "dark" || storedTheme === "system") {
-    ipcRenderer.send("glass:set-theme", storedTheme);
-  } else {
-    ipcRenderer.send("glass:set-theme", "dark");
-  }
+  // Push the canonical stored theme to main process before React mounts so the
+  // native glass layer and renderer use the same appearance from the first frame.
+  ipcRenderer.send("glass:set-theme", themeSource);
 } catch (e) {
   console.error("[preload] early setup failed:", e);
 }
@@ -106,6 +94,11 @@ contextBridge.exposeInMainWorld("claude", {
     const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);
     ipcRenderer.on("claude:event", listener);
     return () => ipcRenderer.removeListener("claude:event", listener);
+  },
+  onUpstreamRequest: (callback: (data: unknown) => void) => {
+    const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);
+    ipcRenderer.on("usage:upstream-request", listener);
+    return () => ipcRenderer.removeListener("usage:upstream-request", listener);
   },
   onStderr: (callback: (data: unknown) => void) => {
     const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);
@@ -329,7 +322,7 @@ contextBridge.exposeInMainWorld("claude", {
     authStatus: () => ipcRenderer.invoke("codex:auth-status"),
     login: (sessionId: string, type: "apiKey" | "chatgpt", apiKey?: string) =>
       ipcRenderer.invoke("codex:login", { sessionId, type, apiKey }),
-    resume: (options: { cwd: string; threadId: string; model?: string; permissionMode?: string; approvalPolicy?: string; sandbox?: "read-only" | "workspace-write" | "danger-full-access" }) =>
+    resume: (options: { cwd: string; threadId: string; rolloutPath?: string; model?: string; permissionMode?: string; approvalPolicy?: string; sandbox?: "read-only" | "workspace-write" | "danger-full-access" }) =>
       ipcRenderer.invoke("codex:resume", options),
     setModel: (sessionId: string, model: string) =>
       ipcRenderer.invoke("codex:set-model", { sessionId, model }),

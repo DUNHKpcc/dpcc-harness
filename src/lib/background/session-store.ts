@@ -11,7 +11,7 @@ import type { ACPSessionEvent, ACPPermissionEvent, CodexSessionEvent } from "@/t
 import { handleClaudeEvent } from "./claude-handler";
 import { handleACPEvent as acpHandler, handleACPTurnComplete as acpTurnComplete } from "./acp-handler";
 import { handleCodexEvent as codexHandler } from "./codex-handler";
-import { getUpstreamRequestCount, trimUpstreamRequestLog } from "@/lib/usage/upstream-requests";
+import { getUpstreamRequestCount, trimUpstreamRequestLog, upsertUpstreamRequestRecord } from "@/lib/usage/upstream-requests";
 
 export interface BackgroundSessionState {
   messages: UIMessage[];
@@ -119,6 +119,16 @@ export class BackgroundSessionStore {
     if (!state) return;
     acpTurnComplete(state);
     this.onProcessingChange?.(sessionId, false);
+  }
+
+  recordUpstreamRequest(sessionId: string, record: UpstreamRequestRecord, countDelta?: number): void {
+    const state = this.getOrCreate(sessionId);
+    const merged = upsertUpstreamRequestRecord(state.requestLog, record);
+    state.requestLog = merged.requestLog;
+    const increment = countDelta ?? (merged.inserted ? Math.max(1, record.requestCount || 1) : 0);
+    if (increment > 0) {
+      state.upstreamRequestCount += increment;
+    }
   }
 
   /** Handle a Codex notification for a background (non-active) session. */

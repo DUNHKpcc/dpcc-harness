@@ -137,10 +137,12 @@ export function useSessionRevival({
 
       // Resolve thread ID from in-memory session first, then persisted session.
       let codexThreadId: string | undefined = session.codexThreadId;
-      if (!codexThreadId) {
+      let codexRolloutPath: string | undefined = session.codexRolloutPath;
+      if (!codexThreadId || !codexRolloutPath) {
         try {
           const persisted = await window.claude.sessions.load(session.projectId, oldId);
-          codexThreadId = persisted?.codexThreadId;
+          codexThreadId ??= persisted?.codexThreadId;
+          codexRolloutPath ??= persisted?.codexRolloutPath;
         } catch { /* ignore */ }
       }
 
@@ -152,6 +154,7 @@ export function useSessionRevival({
       const result = await window.claude.codex.resume({
         cwd: getProjectCwd(project),
         threadId: codexThreadId,
+        rolloutPath: codexRolloutPath,
         model: session.model,
         permissionMode: session.permissionMode,
         approvalPolicy: getCodexApprovalPolicy({ permissionMode: session.permissionMode }),
@@ -167,7 +170,12 @@ export function useSessionRevival({
       liveSessionIdsRef.current.add(newId);
 
       setSessions((prev) => prev.map((s) =>
-        s.id === oldId ? { ...s, id: newId, codexThreadId: result.threadId ?? codexThreadId } : s,
+        s.id === oldId ? {
+          ...s,
+          id: newId,
+          codexThreadId: result.threadId ?? codexThreadId,
+          codexRolloutPath: result.rolloutPath ?? codexRolloutPath,
+        } : s,
       ));
       setInitialMessages(messagesRef.current);
       setInitialMeta({

@@ -1,8 +1,14 @@
-import { memo, useState, useEffect } from "react";
+import { memo, useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { ExternalLink, Github, Scale, Heart } from "lucide-react";
+import { ChevronDown, ExternalLink, Github, Scale, Heart, History } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SettingsHeader } from "@/components/settings/shared";
+import {
+  INITIAL_RELEASE_HISTORY_LIMIT,
+  RELEASE_HISTORY,
+  isCurrentRelease,
+  releaseTranslationKey,
+} from "@/lib/release-history";
 
 // ── PccAgent logo mark — app icon image ──
 
@@ -50,6 +56,108 @@ function AboutLink({
   );
 }
 
+const ReleaseHistorySection = memo(function ReleaseHistorySection({
+  currentVersion,
+}: {
+  currentVersion: string;
+}) {
+  const { t, i18n } = useTranslation("settings");
+  const [expandedVersion, setExpandedVersion] = useState(RELEASE_HISTORY[0]?.version ?? "");
+  const [showAll, setShowAll] = useState(false);
+  const visibleReleases = showAll
+    ? RELEASE_HISTORY
+    : RELEASE_HISTORY.slice(0, INITIAL_RELEASE_HISTORY_LIMIT);
+  const dateFormatter = useMemo(() => new Intl.DateTimeFormat(i18n.language, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  }), [i18n.language]);
+
+  return (
+    <section className="mt-6 border-t border-foreground/[0.06] pt-4">
+      <div className="flex items-center gap-2">
+        <History className="h-3.5 w-3.5 text-muted-foreground/70" />
+        <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          {t("about.releaseHistory.title")}
+        </span>
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {t("about.releaseHistory.description")}
+      </p>
+
+      <div className="mt-3 border-y border-foreground/[0.06]">
+        {visibleReleases.map((release) => {
+          const isExpanded = expandedVersion === release.version;
+          const current = !!currentVersion && isCurrentRelease(release.version, currentVersion);
+          const releaseKey = releaseTranslationKey(release.version);
+          const panelId = `release-details-${releaseKey}`;
+
+          return (
+            <div key={release.version} className="border-b border-foreground/[0.05] last:border-b-0">
+              <button
+                type="button"
+                className="flex min-h-11 w-full items-center gap-3 px-2 py-2 text-start transition-colors hover:bg-foreground/[0.035]"
+                aria-expanded={isExpanded}
+                aria-controls={panelId}
+                onClick={() => setExpandedVersion((value) => value === release.version ? "" : release.version)}
+              >
+                <span className="text-[13px] font-semibold text-foreground">v{release.version}</span>
+                {current ? (
+                  <span className="rounded border border-foreground/[0.08] bg-foreground/[0.05] px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                    {t("about.releaseHistory.current")}
+                  </span>
+                ) : null}
+                <span className="ms-auto text-[11px] tabular-nums text-muted-foreground/70">
+                  {dateFormatter.format(new Date(`${release.date}T00:00:00Z`))}
+                </span>
+                <ChevronDown
+                  className={`h-4 w-4 shrink-0 text-muted-foreground/60 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                />
+              </button>
+
+              {isExpanded ? (
+                <div id={panelId} className="px-3 pb-4 ps-5">
+                  <p className="text-[13px] font-medium text-foreground/90">
+                    {t(`about.releaseHistory.entries.${releaseKey}.title`)}
+                  </p>
+                  <ul className="mt-2 space-y-1.5">
+                    {release.changeKeys.map((changeKey) => (
+                      <li key={changeKey} className="flex gap-2 text-xs leading-relaxed text-muted-foreground">
+                        <span className="mt-[0.45rem] h-1 w-1 shrink-0 rounded-full bg-foreground/25" />
+                        <span>{t(`about.releaseHistory.entries.${releaseKey}.${changeKey}`)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <button
+                    type="button"
+                    className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-foreground/60 transition-colors hover:text-foreground"
+                    onClick={() => window.open(release.releaseUrl, "_blank")}
+                  >
+                    {t("about.releaseHistory.viewRelease")}
+                    <ExternalLink className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+
+      {RELEASE_HISTORY.length > INITIAL_RELEASE_HISTORY_LIMIT ? (
+        <button
+          type="button"
+          className="mt-2 inline-flex min-h-8 items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+          onClick={() => setShowAll((value) => !value)}
+        >
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showAll ? "rotate-180" : ""}`} />
+          {showAll ? t("about.releaseHistory.showLess") : t("about.releaseHistory.showOlder")}
+        </button>
+      ) : null}
+    </section>
+  );
+});
+
 // ── Component ──
 
 export const AboutSettings = memo(function AboutSettings() {
@@ -57,7 +165,15 @@ export const AboutSettings = memo(function AboutSettings() {
   const [version, setVersion] = useState<string>("");
 
   useEffect(() => {
-    window.claude.updater.currentVersion().then(setVersion);
+    let cancelled = false;
+    window.claude.updater.currentVersion()
+      .then((currentVersion) => {
+        if (!cancelled) setVersion(currentVersion);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
@@ -85,6 +201,8 @@ export const AboutSettings = memo(function AboutSettings() {
               )}
             </div>
           </div>
+
+          <ReleaseHistorySection currentVersion={version} />
 
           {/* ── Links section ── */}
           <div className="mt-6 border-t border-foreground/[0.06] pt-4">

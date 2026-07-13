@@ -77,6 +77,14 @@ function mirrorLegacyTransparency(enabled: boolean): void {
   getRendererLocalStorage()?.setItem("pcc-agent-transparency", String(enabled));
 }
 
+function mirrorLegacyTheme(theme: ThemeOption): void {
+  try {
+    getRendererLocalStorage()?.setItem("pcc-agent-theme", theme);
+  } catch {
+    // The canonical Zustand write must still succeed if this compatibility key is unavailable.
+  }
+}
+
 // ── Shared helpers (also used by compat hook) ──
 
 /** Normalize an array of ratios to sum to 1.0, respecting a per-element minimum. */
@@ -488,7 +496,10 @@ export const useSettingsStore = create<SettingsStore>()(
 
       // ── Global setters ──
 
-      setTheme: (t) => set({ theme: t }),
+      setTheme: (t) => {
+        mirrorLegacyTheme(t);
+        set({ theme: t });
+      },
 
       setLanguage: (l) => set({ language: l }),
 
@@ -741,6 +752,15 @@ export function migrateSettingsIfNeeded(): void {
  */
 export function selectProjectSettings(state: SettingsStore, projectId: string): ProjectSettings {
   return getProjectSettings(state.projects, projectId);
+}
+
+export function selectProjectModelForEngine(
+  state: SettingsStore,
+  projectId: string,
+  engine: EngineId,
+): string {
+  return getProjectSettings(state.projects, projectId).modelsByEngine[engine]
+    ?? DEFAULT_ENGINE_MODELS[engine];
 }
 
 /** Derive macBackgroundEffect from transparency + macNativeBackgroundEffect */

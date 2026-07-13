@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useState, type ReactNode } from "react";
 import type { ThemeOption } from "@/types";
 
 export type ResolvedTheme = "light" | "dark";
@@ -52,7 +52,7 @@ export function useTheme(theme: ThemeOption): ResolvedTheme {
   }, [theme]);
 
   // Apply the dark class on <html>
-  useEffect(() => {
+  useLayoutEffect(() => {
     const root = document.documentElement;
     if (resolved === "dark") {
       root.classList.add("dark");

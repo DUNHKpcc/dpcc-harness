@@ -542,16 +542,28 @@ export const AgentSettings = memo(function AgentSettings({
               {t("agents.description")}
             </p>
           </div>
-          <TabsList variant="line">
-            <TabsTrigger value="store" className="gap-1.5">
-              <Store className="h-3.5 w-3.5" />
-              {t("agents.tabStore")}
-            </TabsTrigger>
-            <TabsTrigger value="my-agents" className="gap-1.5">
-              <Bot className="h-3.5 w-3.5" />
-              {t("agents.tabMyAgents")}
-            </TabsTrigger>
-          </TabsList>
+          <div className="flex h-9 items-center gap-1">
+            <TabsList variant="line">
+              <TabsTrigger value="store" className="gap-1.5">
+                <Store className="h-3.5 w-3.5" />
+                {t("agents.tabStore")}
+              </TabsTrigger>
+              <TabsTrigger value="my-agents" className="gap-1.5">
+                <Bot className="h-3.5 w-3.5" />
+                {t("agents.tabMyAgents")}
+              </TabsTrigger>
+            </TabsList>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 text-foreground/60 hover:bg-transparent hover:text-foreground dark:text-muted-foreground dark:hover:bg-transparent dark:hover:text-foreground"
+              onClick={() => setIsCreating(true)}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              {t("agents.addAgent")}
+            </Button>
+          </div>
         </div>
 
         {/* Store tab */}
@@ -566,17 +578,9 @@ export const AgentSettings = memo(function AgentSettings({
         {/* My Agents tab */}
         <TabsContent value="my-agents" className="min-h-0 flex-1">
           <div className="flex h-full flex-col">
-            {/* Add Agent button bar */}
-            <div className="flex items-center justify-end px-6 py-3">
-              <Button size="sm" onClick={() => setIsCreating(true)}>
-                <Plus className="h-3.5 w-3.5" />
-                {t("agents.addAgent")}
-              </Button>
-            </div>
-
             {/* Agent list */}
             <ScrollArea className="min-h-0 flex-1">
-              <div className="space-y-2 px-6 pb-4">
+              <div className="space-y-2 px-6 py-4">
                 {sorted.map((agent) => (
                   <AgentCard
                     key={agent.id}

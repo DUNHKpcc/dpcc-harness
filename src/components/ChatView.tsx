@@ -287,6 +287,12 @@ export const ChatView = memo(function ChatView(props: ChatViewProps) {
   const { t } = useTranslation("chat");
   const { agents, selectedAgent, handleAgentChange } = useAgentContext();
 
+  useLayoutEffect(() => {
+    if (messages.length === 0) {
+      props.onTopScrollProgress?.(0);
+    }
+  }, [messages.length, props.onTopScrollProgress, props.sessionId]);
+
   if (messages.length === 0) {
     const showAgentPicker = agents.length > 1;
 

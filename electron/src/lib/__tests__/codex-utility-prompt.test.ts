@@ -2,6 +2,7 @@ import { EventEmitter } from "events";
 import fs from "fs";
 import path from "path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { startUtilityRequest, type UtilityRequestEvent } from "../upstream-request-tracker";
 
 const {
   mockSpawn,
@@ -29,6 +30,43 @@ const {
       destroy: ReturnType<typeof vi.fn>;
     }>,
   };
+});
+
+describe("startUtilityRequest", () => {
+  it("emits one pending record and updates the same record on completion", () => {
+    const events: UtilityRequestEvent[] = [];
+    const now = vi.fn().mockReturnValueOnce(10).mockReturnValueOnce(25);
+    const finish = startUtilityRequest(
+      (event) => events.push(event),
+      "session-1",
+      "codex",
+      "title",
+      { id: "utility-1", now },
+    );
+
+    finish?.(true);
+    finish?.(false);
+
+    expect(events).toEqual([
+      expect.objectContaining({
+        _sessionId: "session-1",
+        countDelta: 1,
+        record: expect.objectContaining({ id: "utility-1", status: "pending", requestCount: 1 }),
+      }),
+      expect.objectContaining({
+        _sessionId: "session-1",
+        countDelta: 0,
+        record: expect.objectContaining({ id: "utility-1", status: "completed", completedAt: 25 }),
+      }),
+    ]);
+  });
+
+  it("does not emit when no parent session can own the utility request", () => {
+    const emit = vi.fn();
+
+    expect(startUtilityRequest(emit, undefined, "claude", "commit")).toBeUndefined();
+    expect(emit).not.toHaveBeenCalled();
+  });
 });
 
 vi.mock("child_process", () => ({
@@ -159,6 +197,23 @@ describe("codexUtilityPrompt", () => {
       model: "dpcc-codex",
     });
     expect(turnStart).toMatchObject({ model: "dpcc-codex" });
+  });
+
+  it("uses an explicit session model even when it is absent from the native model list", async () => {
+    const { codexUtilityPrompt } = await loadModule();
+
+    await expect(codexUtilityPrompt("hello", "/tmp/project", "TEST", {
+      model: "selected-upstream-model",
+    })).resolves.toBe("ok");
+
+    expect(mockRequests.some((request) => request.method === "model/list")).toBe(false);
+    const threadStart = mockRequests.find((request) => request.method === "thread/start")?.params;
+    const turnStart = mockRequests.find((request) => request.method === "turn/start")?.params;
+    expect(threadStart).toMatchObject({
+      modelProvider: "pcc-agent-gateway",
+      model: "selected-upstream-model",
+    });
+    expect(turnStart).toMatchObject({ model: "selected-upstream-model" });
   });
 
   it("does not inject a PccAgent provider override when local Codex config is selected", async () => {

@@ -109,6 +109,7 @@ export function useCodex({
     contextUsage, setContextUsage,
     isCompacting, setIsCompacting,
     sessionIdRef, messagesRef,
+    upstreamRequestCountRef, requestLogRef,
     scheduleFlush: scheduleRaf,
     cancelPendingFlush,
   } = base;
@@ -123,10 +124,6 @@ export function useCodex({
   // Refs for rAF streaming flush (avoid React 19 batching issues)
   const bufferRef = useRef(new CodexStreamingBuffer());
   const sessionModelRef = useRef(sessionModel);
-  const requestLogRef = useRef(requestLog);
-  requestLogRef.current = requestLog;
-  const upstreamRequestCountRef = useRef(upstreamRequestCount);
-  upstreamRequestCountRef.current = upstreamRequestCount;
   const serverRequestRef = useRef<CodexServerRequest | null>(null);
   // Map Codex itemId → UIMessage id for updating tool_call messages
   const itemMapRef = useRef(new Map<string, string>());

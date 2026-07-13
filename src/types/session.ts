@@ -96,7 +96,7 @@ export interface SessionInfo {
   agentName?: string;
 }
 
-export type UpstreamRequestEngine = "claude" | "codex";
+export type UpstreamRequestEngine = "claude" | "acp" | "codex";
 export type UpstreamRequestStatus = "pending" | "completed" | "failed";
 
 export interface UpstreamModelUsageBreakdown {
@@ -128,6 +128,13 @@ export interface UpstreamRequestRecord {
   costUSD?: number;
   modelBreakdown?: UpstreamModelUsageBreakdown[];
   note?: string;
+}
+
+export interface UpstreamRequestEvent {
+  _sessionId: string;
+  record: UpstreamRequestRecord;
+  /** Explicit total-count change; completion updates use 0 even if detail was evicted. */
+  countDelta?: number;
 }
 
 export interface Project {
@@ -168,13 +175,14 @@ export interface SessionBase {
   permissionMode?: string;
   planMode?: boolean;
   totalCost: number;
-  /** Total upstream model request/turn count for the session. Detailed records are capped. */
+  /** Total observed model requests; engines without request IDs fall back to prompt/turn boundaries. */
   upstreamRequestCount?: number;
   requestLog?: UpstreamRequestRecord[];
   engine?: EngineId;
   agentSessionId?: string;
   agentId?: string;
   codexThreadId?: string;
+  codexRolloutPath?: string;
   /** Which folder this chat belongs to (undefined = root level). */
   folderId?: string;
   /** Whether this chat is pinned to the top of the sidebar. */

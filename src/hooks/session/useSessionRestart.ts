@@ -146,10 +146,12 @@ export function useSessionRestart({
 
     if (session.engine === "codex") {
       let codexThreadId: string | undefined = session.codexThreadId;
-      if (!codexThreadId) {
+      let codexRolloutPath: string | undefined = session.codexRolloutPath;
+      if (!codexThreadId || !codexRolloutPath) {
         try {
           const persisted = await window.claude.sessions.load(session.projectId, currentId);
-          codexThreadId = persisted?.codexThreadId;
+          codexThreadId ??= persisted?.codexThreadId;
+          codexRolloutPath ??= persisted?.codexRolloutPath;
         } catch {
           // Ignore persistence lookup failure; we'll surface the missing thread below.
         }
@@ -162,6 +164,7 @@ export function useSessionRestart({
       const resumeResult = await window.claude.codex.resume({
         cwd: nextCwd,
         threadId: codexThreadId,
+        rolloutPath: codexRolloutPath,
         model: session.model,
         permissionMode: session.permissionMode,
         approvalPolicy: getCodexApprovalPolicy({ permissionMode: session.permissionMode }),
@@ -176,7 +179,12 @@ export function useSessionRestart({
       liveSessionIdsRef.current.add(newId);
       setSessions((prev) => prev.map((s) =>
         s.id === currentId
-          ? { ...s, id: newId, codexThreadId: resumeResult.threadId ?? codexThreadId }
+          ? {
+              ...s,
+              id: newId,
+              codexThreadId: resumeResult.threadId ?? codexThreadId,
+              codexRolloutPath: resumeResult.rolloutPath ?? codexRolloutPath,
+            }
           : s,
       ));
       setInitialMessages(messagesRef.current);

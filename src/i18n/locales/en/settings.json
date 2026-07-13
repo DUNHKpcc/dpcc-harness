@@ -392,6 +392,131 @@
     "credits": "Credits",
     "builtBy": "Built by OpenSource",
     "creditsBody": "PccAgent is open-source under the MIT License. Contributions, bug reports, and feature requests are welcome on GitHub.",
+    "releaseHistory": {
+      "title": "Release history",
+      "description": "Review the important changes and fixes included in every PccAgent release.",
+      "current": "Current",
+      "viewRelease": "View full release notes",
+      "showOlder": "Show older releases",
+      "showLess": "Hide older releases",
+      "entries": {
+        "v2_1_5": {
+          "title": "Session reliability and accurate request tracking",
+          "requestTracking": "Upstream request counts now include title generation, commit messages, ACP turns, and background work without double-counting retries or repeated events.",
+          "sessionRecovery": "Codex sessions can recover local history across isolated configuration directories, while new Chat and project sessions retain the correct model and rollout metadata.",
+          "modelControls": "Model and effort menus remain open while making related selections, and utility requests consistently use the selected session model.",
+          "startupLayout": "Applied the saved theme before the first window paint and stabilized the chat title mask so content no longer overlaps the header.",
+          "settingsPolish": "Added offline release history, streamlined ACP Agent creation, and renamed the Chinese engine settings section to SDK."
+        },
+        "v2_1_4": {
+          "title": "Upstream model sync and effort controls",
+          "modelSync": "Claude model lists now strictly follow the selected upstream instead of mixing in stale local models.",
+          "upstreamSwitch": "Changing between local, DPCC, and gateway sources rebuilds the Claude session transport before the next request.",
+          "sparkEffort": "Codex model capabilities and effort controls stay aligned, including GPT-5.3 Codex Spark.",
+          "runtimeUpdate": "Updated the bundled Claude Agent SDK to 0.3.207 and refreshed the Codex CLI for each platform."
+        },
+        "v2_1_3": {
+          "title": "Panel interaction fixes",
+          "panelMenus": "Fixed workspace panel menu clicks being intercepted by drag layers.",
+          "interactionRegression": "Added regression protection so overlay menus remain interactive."
+        },
+        "v2_1_2": {
+          "title": "Windows and workspace improvements",
+          "portableGit": "Bundled PortableGit on Windows and added a reliable Git fallback for Claude.",
+          "chatSection": "Added a project-independent Chat section and more compact top-level sidebar actions.",
+          "workspaceState": "Preserved contextual panel toggles and normalized cwd handling across engines.",
+          "settingsPolish": "Improved the settings close action, balance refresh behavior, and periodic log cleanup."
+        },
+        "v2_1_1": {
+          "title": "Claude SDK process experience",
+          "hideClaudeHelper": "Prevented the bundled Claude SDK helper from appearing in the macOS Dock.",
+          "nodeRuntime": "Preferred a real Node.js runtime for SDK CLI scripts with a packaged fallback."
+        },
+        "v2_1_0": {
+          "title": "Bundled agent configuration isolation",
+          "mcpIsolation": "Isolated bundled Claude Code and Codex MCP configuration from servers configured outside the app.",
+          "configOwnership": "Made PccAgent the explicit owner of MCP configuration used by its sessions."
+        },
+        "v2_0_9": {
+          "title": "macOS helper process fixes",
+          "dockHelper": "Prevented the bundled execution helper from unexpectedly appearing in the macOS Dock.",
+          "processIdentity": "Removed inherited app identity variables so child processes are not treated as separate GUI apps."
+        },
+        "v2_0_8": {
+          "title": "Upstream usage and Current Config",
+          "requestUsage": "Added upstream request counts for Claude Code and Codex sessions in the chat header.",
+          "currentConfig": "Added Current Config source selection for DPCC, local CLI, and third-party gateways.",
+          "gatewayModels": "Added editable mappings between gateway display names and upstream model IDs.",
+          "codexDownload": "Moved Codex binary downloads to an asynchronous flow to keep settings responsive."
+        },
+        "v2_0_7": {
+          "title": "Default connection and Git output fixes",
+          "dpccDefaults": "New bundled sessions now prefer the DPCC default upstream.",
+          "gitNoise": "Reduced irrelevant logs from non-Git folders and background status checks."
+        },
+        "v2_0_6": {
+          "title": "Windows packaging and attachments",
+          "windowsCodex": "Added the Windows arm64 Codex binary and tightened vendor packaging rules.",
+          "fileAttachments": "Fixed composer file-picker attachments and normalized non-image file references.",
+          "processCleanup": "Hardened external launches, permission propagation, and child-process cleanup."
+        },
+        "v2_0_5": {
+          "title": "Startup experience and file references",
+          "startupFlicker": "Reduced chat, glass, and Electron cold-start flicker.",
+          "fileReferences": "Added dropped-file references and typed Codex mentions.",
+          "engineExit": "Engine exits now correctly finish tool cards that were still in progress."
+        },
+        "v2_0_4": {
+          "title": "Stability and state synchronization",
+          "sessionCleanup": "Hardened session cleanup, restart, interrupt, and application shutdown paths.",
+          "rendererState": "Fixed synchronization around rename, composer, persisted chat state, and resize cleanup.",
+          "windowsPath": "Improved Windows Codex path discovery and installer-window behavior.",
+          "attachmentPicker": "The file picker can now attach non-image files directly."
+        },
+        "v2_0_3": {
+          "title": "DPCC account and context cache",
+          "dpccAccount": "Separated DPCC account credentials from third-party gateway settings and migrated legacy values.",
+          "contextCache": "Added cache hit rate to context details.",
+          "utilityRouting": "Codex title and commit-message prompts now use the same upstream as normal sessions."
+        },
+        "v2_0_2": {
+          "title": "WeChat, bundled binaries, and update recovery",
+          "wechatRecovery": "Hardened WeChat bridge initialization, reconnection, authentication, and credential recovery.",
+          "builtinBinaries": "Made bundled Claude and Codex binaries the default with safe fallback behavior.",
+          "updateMirror": "Added domestic update-mirror fallback and single-instance protection."
+        },
+        "v2_0_1": {
+          "title": "Selectable update sources",
+          "updateSource": "Added an update-source selector to General settings.",
+          "domesticMirror": "Added domestic mirror downloads and cleanup for failed installations."
+        },
+        "v2_0_0": {
+          "title": "Lighter, smoother, and more reliable",
+          "streamingPerformance": "Incremental streaming Markdown parsing reduced rendering pressure during long responses.",
+          "processCleanup": "Logs rotate automatically, and session or terminal processes are cleaned up after crashes and shutdown.",
+          "wechatSessions": "WeChat conversations became persistent sessions that can be continued from the desktop sidebar.",
+          "windowsEditor": "Open in editor now launches the configured Windows editor and jumps to the requested line."
+        },
+        "v1_0_2": {
+          "title": "Localized notifications and updater",
+          "localizedNotifications": "Localized permission, split, ACP, Jira, restart, and other app notifications.",
+          "localizedUpdater": "Localized update installation errors and added structured error codes."
+        },
+        "v1_0_1": {
+          "title": "Clearer installers and downloads",
+          "installerNames": "Installer names now identify macOS, Windows, and the target architecture clearly.",
+          "releaseAssets": "Release pages now keep only installers and updater manifests instead of noisy extra files.",
+          "brandingCleanup": "Cleaned up legacy branding, release links, and inherited analytics configuration."
+        },
+        "v1_0_0": {
+          "title": "The first public PccAgent release",
+          "multiEngine": "Run Claude Code, Codex, and ACP agents from one desktop app.",
+          "workspaceTools": "Use built-in terminal, browser, files, Git, Todo, and MCP management tools.",
+          "delegation": "Claude can delegate work to a visible Codex split pane.",
+          "firstRelease": "Introduced persistent chat history, project workspaces, background agents, and multi-platform installers."
+        }
+      }
+    },
     "builtWith": "Built with"
   },
   "analytics": {

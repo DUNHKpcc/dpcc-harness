@@ -1,4 +1,4 @@
-import { app, ipcMain } from "electron";
+import { app, ipcMain, type WebContents } from "electron";
 import { log } from "../lib/logger";
 import { getSDK } from "../lib/sdk";
 import { reportError } from "../lib/error-utils";
@@ -8,6 +8,7 @@ import { prepareClaudeSpawnEnv, claudeSettingSources } from "../lib/claude-gatew
 import { resolveClaudeModelForRequest } from "../lib/claude-model-catalog";
 import { applyClaudeMcpIsolation } from "../lib/claude-mcp-isolation";
 import { normalizeSessionCwd } from "../lib/session-cwd";
+import { startUtilityRequest } from "../lib/upstream-request-tracker";
 
 function firstNonEmptyLine(text: string): string | undefined {
   for (const line of text.split(/\r?\n/g)) {
@@ -21,6 +22,23 @@ interface OneShotSdkQueryOptions {
   timeoutMs?: number;
   model?: string;
   extraOptions?: Record<string, unknown>;
+}
+
+function startTrackedUtilityRequest(
+  sender: WebContents,
+  sessionId: string | undefined,
+  engine: "claude" | "acp" | "codex",
+  purpose: "title" | "commit",
+) {
+  if (!sessionId || sender.isDestroyed()) return undefined;
+  return startUtilityRequest(
+    (event) => {
+      if (!sender.isDestroyed()) sender.send("usage:upstream-request", event);
+    },
+    sessionId,
+    engine,
+    purpose,
+  );
 }
 
 /** Fire a one-shot SDK query and return the first-line result. */
@@ -177,7 +195,7 @@ async function oneShotSdkQuery(
 }
 
 export function register(): void {
-  ipcMain.handle("claude:generate-title", async (_event, {
+  ipcMain.handle("claude:generate-title", async (event, {
     message,
     cwd,
     engine,
@@ -186,12 +204,22 @@ export function register(): void {
     message: string;
     cwd?: string;
     engine?: "claude" | "acp" | "codex";
-    sessionId?: string; // ACP internalId when engine === "acp"
+    sessionId?: string; // ACP/Codex internalId
   }) => {
     const truncatedMsg = message.length > 500 ? message.slice(0, 500) + "..." : message;
     const prompt = `Generate a very short title (3-7 words) for a chat that starts with this message. Reply with ONLY the title, no quotes, no punctuation at the end.\n\nMessage: ${truncatedMsg}`;
 
     log("TITLE_GEN", `engine=${engine ?? "claude"} session=${sessionId?.slice(0, 8) ?? "none"} msg="${truncatedMsg.slice(0, 80)}..."`);
+    const finishRequest = startTrackedUtilityRequest(
+      event.sender,
+      sessionId,
+      engine ?? "claude",
+      "title",
+    );
+    const finish = (result: { title?: string; error?: string }) => {
+      finishRequest?.(!!result.title);
+      return result;
+    };
 
     // ACP path: create utility session on existing agent connection
     if (engine === "acp" && sessionId) {
@@ -200,10 +228,10 @@ export function register(): void {
         const raw = await acpUtilityPrompt(sessionId, prompt);
         const title = raw.split("\n")[0].trim();
         log("TITLE_GEN", `ACP generated: "${title}"`);
-        return { title: title || undefined, error: title ? undefined : "empty result" };
+        return finish({ title: title || undefined, error: title ? undefined : "empty result" });
       } catch (err) {
         const msg = reportError("TITLE_GEN_ERR", err, { engine: "acp" });
-        return { error: msg };
+        return finish({ error: msg });
       }
     }
 
@@ -219,10 +247,10 @@ export function register(): void {
         });
         const title = firstNonEmptyLine(raw) ?? "";
         log("TITLE_GEN", `Codex generated: "${title}"`);
-        return { title: title || undefined, error: title ? undefined : "empty result" };
+        return finish({ title: title || undefined, error: title ? undefined : "empty result" });
       } catch (err) {
         const msg = reportError("TITLE_GEN_ERR", err, { engine: "codex" });
-        return { error: msg };
+        return finish({ error: msg });
       }
     }
 
@@ -232,18 +260,19 @@ export function register(): void {
       timeoutMs: 20000,
       model: "haiku",
     });
-    return { title: result, error };
+    return finish({ title: result, error });
   });
 
-  ipcMain.handle("git:generate-commit-message", async (_event, {
+  ipcMain.handle("git:generate-commit-message", async (event, {
     cwd,
     engine,
     sessionId,
   }: {
     cwd: string;
     engine?: "claude" | "acp" | "codex";
-    sessionId?: string; // ACP internalId when engine === "acp"
+    sessionId?: string; // ACP/Codex internalId
   }) => {
+    let finishRequest: ((success: boolean) => void) | undefined;
     try {
       let diff = "";
       let diffSource: "staged" | "working" | "status" | "none" = "none";
@@ -275,6 +304,16 @@ export function register(): void {
       const truncated = diff.length > maxChars ? diff.slice(0, maxChars) + "\n... (truncated)" : diff;
 
       const prompt = `Generate a commit message for the following diff. Follow any CLAUDE.md instructions for commit message format and style. Reply with ONLY the commit message, nothing else.\n\n${truncated}`;
+      finishRequest = startTrackedUtilityRequest(
+        event.sender,
+        sessionId,
+        engine ?? "claude",
+        "commit",
+      );
+      const finish = (result: { message?: string; error?: string }) => {
+        finishRequest?.(!!result.message);
+        return result;
+      };
 
       log(
         "COMMIT_MSG_GEN",
@@ -288,10 +327,10 @@ export function register(): void {
           const raw = await acpUtilityPrompt(sessionId, prompt);
           const message = firstNonEmptyLine(raw) ?? "";
           log("COMMIT_MSG_GEN", `ACP generated: "${message}"`);
-          return { message: message || undefined, error: message ? undefined : "empty result" };
+          return finish({ message: message || undefined, error: message ? undefined : "empty result" });
         } catch (err) {
           const msg = reportError("COMMIT_MSG_GEN_ERR", err, { engine: "acp" });
-          return { error: msg };
+          return finish({ error: msg });
         }
       }
 
@@ -307,10 +346,10 @@ export function register(): void {
           });
           const message = firstNonEmptyLine(raw) ?? "";
           log("COMMIT_MSG_GEN", `Codex generated: "${message}"`);
-          return { message: message || undefined, error: message ? undefined : "empty result" };
+          return finish({ message: message || undefined, error: message ? undefined : "empty result" });
         } catch (err) {
           const msg = reportError("COMMIT_MSG_GEN_ERR", err, { engine: "codex" });
-          return { error: msg };
+          return finish({ error: msg });
         }
       }
 
@@ -322,8 +361,9 @@ export function register(): void {
           systemPrompt: { type: "preset", preset: "claude_code" },
         },
       });
-      return { message: result, error };
+      return finish({ message: result, error });
     } catch (err) {
+      finishRequest?.(false);
       const errMsg = reportError("COMMIT_MSG_GEN_ERR", err, { context: "spawn" });
       return { error: errMsg };
     }

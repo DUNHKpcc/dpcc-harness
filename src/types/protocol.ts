@@ -78,6 +78,7 @@ export interface AssistantMessageEvent {
   type: "assistant";
   session_id: string;
   uuid: string;
+  request_id?: string;
   parent_tool_use_id?: string | null;
   message: {
     model: string;
@@ -93,6 +94,16 @@ export interface AssistantMessageUsage {
   output_tokens?: number;
   cache_read_input_tokens?: number;
   cache_creation_input_tokens?: number;
+}
+
+export interface ApiRetryEvent {
+  type: "system";
+  subtype: "api_retry";
+  attempt: number;
+  max_retries: number;
+  error_status: number | null;
+  session_id: string;
+  uuid: string;
 }
 
 export type ContentBlock =
@@ -260,6 +271,7 @@ export type ClaudeEvent =
   | SystemInitEvent
   | SystemStatusEvent
   | SystemCompactBoundaryEvent
+  | ApiRetryEvent
   | TaskStartedEvent
   | TaskProgressEvent
   | TaskNotificationEvent

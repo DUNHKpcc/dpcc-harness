@@ -156,12 +156,14 @@ export async function codexUtilityPrompt(
     });
     rpc.notify("initialized", {});
 
-    let selectedModel: string | undefined;
-    try {
-      const models = await rpc.request<CodexModelListResponse>("model/list", { includeHidden: false });
-      selectedModel = pickModelId(options?.model, models.data ?? []);
-    } catch (err) {
-      reportError("CODEX_UTILITY", err, { context: "model/list", logLabel });
+    let selectedModel = options?.model?.trim() || undefined;
+    if (!selectedModel) {
+      try {
+        const models = await rpc.request<CodexModelListResponse>("model/list", { includeHidden: false });
+        selectedModel = pickModelId(undefined, models.data ?? []);
+      } catch (err) {
+        reportError("CODEX_UTILITY", err, { context: "model/list", logLabel });
+      }
     }
 
     const threadParams: Record<string, unknown> = {

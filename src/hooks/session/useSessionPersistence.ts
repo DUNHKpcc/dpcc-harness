@@ -8,6 +8,7 @@ import { toMcpStatusState } from "../../lib/mcp-utils";
 import { buildPersistedSession, toChatSession } from "../../lib/session/records";
 import { normalizeToolInput as acpNormalizeToolInput, pickAutoResponseOption } from "../../lib/engine/acp-adapter";
 import { DRAFT_ID } from "./types";
+import { clearClaudeObservedRequests } from "@/lib/usage/upstream-requests";
 import type { SharedSessionRefs, SharedSessionSetters, EngineHooks } from "./types";
 
 interface UseSessionPersistenceParams {
@@ -60,13 +61,19 @@ export function useSessionPersistence({
   } = refs;
   const activeClaudeModels = claude.supportedModels;
 
-  // Persist session with Codex thread ID fallback
+  // Preserve Codex resume metadata when a transient renderer state omits it.
   const persistSessionWithCodexFallback = useCallback(async (data: PersistedSession) => {
     let payload = data;
-    if (data.engine === "codex" && !data.codexThreadId) {
+    if (data.engine === "codex" && (!data.codexThreadId || !data.codexRolloutPath)) {
       try {
         const existing = await window.claude.sessions.load(data.projectId, data.id);
-        if (existing?.codexThreadId) payload = { ...data, codexThreadId: existing.codexThreadId };
+        if (existing) {
+          payload = {
+            ...data,
+            codexThreadId: data.codexThreadId ?? existing.codexThreadId,
+            codexRolloutPath: data.codexRolloutPath ?? existing.codexRolloutPath,
+          };
+        }
       } catch {
         // Best-effort fallback only.
       }
@@ -149,6 +156,7 @@ export function useSessionPersistence({
   // Handle session exits across all engines
   useEffect(() => {
     const handleSessionExit = (sid: string) => {
+      clearClaudeObservedRequests(sid);
       liveSessionIdsRef.current.delete(sid);
 
       // If the pre-started eager session crashed, clear it
@@ -182,6 +190,7 @@ export function useSessionPersistence({
             bgState.totalCost,
             bgState.contextUsage,
             bgState.requestLog ?? [],
+            bgState.upstreamRequestCount,
           );
           window.claude.sessions.save(persisted);
         }
@@ -307,6 +316,12 @@ export function useSessionPersistence({
       backgroundStoreRef.current.handleACPTurnComplete(sid);
     });
 
+    const unsubBgUpstreamRequest = window.claude.onUpstreamRequest((event) => {
+      const sid = event._sessionId;
+      if (!sid || sid === activeSessionIdRef.current || visibleSplitSessionIdsRef.current.includes(sid)) return;
+      backgroundStoreRef.current.recordUpstreamRequest(sid, event.record, event.countDelta);
+    });
+
     // Route Codex events for non-active sessions to the background store
     const unsubCodex = window.claude.codex.onEvent((event) => {
       const sid = event._sessionId;
@@ -350,7 +365,7 @@ export function useSessionPersistence({
       });
     });
 
-    return () => { unsub(); unsubAcp(); unsubBgPerm(); unsubBgAcpPerm(); unsubBgAcpTurn(); unsubCodex(); unsubCodexApproval(); };
+    return () => { unsub(); unsubAcp(); unsubBgPerm(); unsubBgAcpPerm(); unsubBgAcpTurn(); unsubBgUpstreamRequest(); unsubCodex(); unsubCodexApproval(); };
   }, []);
 
   // Debounced auto-save
@@ -382,6 +397,7 @@ export function useSessionPersistence({
         ...(session.agentSessionId ? { agentSessionId: session.agentSessionId } : {}),
         ...(session.delegatedFromSessionId ? { delegatedFromSessionId: session.delegatedFromSessionId } : {}),
         ...(session.engine === "codex" && session.codexThreadId ? { codexThreadId: session.codexThreadId } : {}),
+        ...(session.engine === "codex" && session.codexRolloutPath ? { codexRolloutPath: session.codexRolloutPath } : {}),
       };
       void persistSessionWithCodexFallback(data);
     }, 2000);
@@ -537,7 +553,7 @@ export function useSessionPersistence({
           message,
           projectPath,
           titleEngine,
-          titleEngine === "acp" ? sessionId : undefined,
+          sessionId,
         );
 
         // Guard: session may have been deleted or manually renamed while generating

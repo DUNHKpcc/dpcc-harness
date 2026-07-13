@@ -13,11 +13,29 @@
          Runs after <html> exists but before CSS renders the first frame. -->
     <script>
       (function() {
-        var stored = localStorage.getItem("pcc-agent-theme");
-        var isDark = true;
-        if (stored === "light") isDark = false;
-        else if (stored === "system") isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-        if (!isDark) document.documentElement.classList.remove("dark");
+        var stored;
+        try {
+          var persisted = localStorage.getItem("pcc-agent-settings-store");
+          if (persisted) {
+            var parsed = JSON.parse(persisted);
+            var candidate = parsed && parsed.state && parsed.state.theme;
+            if (candidate === "light" || candidate === "dark" || candidate === "system") {
+              stored = candidate;
+            }
+          }
+        } catch (_) {}
+        if (!stored) {
+          try {
+            var legacy = localStorage.getItem("pcc-agent-theme");
+            if (legacy === "light" || legacy === "dark" || legacy === "system") stored = legacy;
+          } catch (_) {}
+        }
+        var isDark = stored === "light"
+          ? false
+          : stored === "system"
+            ? window.matchMedia("(prefers-color-scheme: dark)").matches
+            : true;
+        document.documentElement.classList.toggle("dark", isDark);
       })();
     </script>
   </head>

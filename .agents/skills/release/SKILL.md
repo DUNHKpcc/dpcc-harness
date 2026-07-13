@@ -54,8 +54,24 @@ Compare with the version in `package.json` under `dependencies["@anthropic-ai/Co
 ### Apply changes
 
 1. Edit `package.json` to set the new version number
-2. Stage it: `git add package.json`
-3. If the SDK was updated, also run:
+2. Update the bundled offline release history before committing or tagging. This is a required release gate:
+   - Add the new version as the first entry in `src/lib/release-history.ts`
+   - Use the release date in `YYYY-MM-DD` format
+   - Summarize the staged user-facing changes with stable translation keys; do not use placeholder notes
+   - Add matching English and Chinese copy under `about.releaseHistory.entries` in both settings locale files
+   - Keep the offline summary semantically consistent with the GitHub Release notes generated in Step 5
+   - Keep every previous release entry; release history is append-only
+   - Do not continue the release if the new `package.json.version` is missing from the offline history
+3. Run the About/release-history regression test:
+   ```bash
+   pnpm exec vitest run --config vitest.config.electron.ts src/components/settings/__tests__/AboutSettings.test.tsx
+   ```
+   The test must confirm that `package.json.version` is the newest recorded release and that both locales cover every change key. A failure blocks the release.
+4. Stage the version and release-history files:
+   ```bash
+   git add package.json src/lib/release-history.ts src/i18n/locales/en/settings.json src/i18n/locales/zh/settings.json
+   ```
+5. If the SDK was updated, also run:
    ```bash
    pnpm install
    git add package.json pnpm-lock.yaml
@@ -138,6 +154,7 @@ Read ALL of this output. For the full diff, read it in chunks if needed — ever
 ### Write release notes
 
 Load the template from [references/release-notes-template.md](references/release-notes-template.md) and follow its format exactly.
+Before creating the release, compare the final notes with the new entry in `src/lib/release-history.ts` and both locale files. The offline entry may be shorter, but it must cover the same user-facing changes without contradictions.
 
 ### Create the release
 

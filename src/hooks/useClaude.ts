@@ -46,7 +46,7 @@ import { normalizeTodoToolInput } from "../lib/chat/todo-utils";
 import { markInFlightToolCallsFailed } from "../lib/chat/in-flight-tools";
 import { capture } from "../lib/analytics/analytics";
 import { toastText } from "../lib/toast-i18n";
-import { appendUpstreamRequestRecord, createClaudeRequestRecord } from "../lib/usage/upstream-requests";
+import { clearClaudeObservedRequests, createClaudeRequestRecord, consumeClaudeObservedRequestCount, trackClaudeApiRetry, trackClaudeAssistantRequest } from "../lib/usage/upstream-requests";
 import { useEngineBase } from "./useEngineBase";
 
 function uiLog(label: string, data: unknown) {
@@ -74,10 +74,12 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
     totalCost, setTotalCost,
     upstreamRequestCount, setUpstreamRequestCount,
     requestLog, setRequestLog,
+    recordUpstreamRequest,
     pendingPermission, setPendingPermission,
     contextUsage, setContextUsage,
     isCompacting, setIsCompacting,
     sessionIdRef, messagesRef,
+    upstreamRequestCountRef,
     scheduleFlush: scheduleRaf,
     cancelPendingFlush,
   } = base;
@@ -95,8 +97,6 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
   const completedPermissionIds = useRef<Set<string>>(new Set());
   const supportedModelsRequestGeneration = useRef(0);
   const modelCatalogSettingsFingerprintRef = useRef<string | null>(null);
-  const upstreamRequestCountRef = useRef(upstreamRequestCount);
-  upstreamRequestCountRef.current = upstreamRequestCount;
   // Throttle timer for thinking-only flushes (invisible content → 250ms instead of 60fps)
   const thinkingThrottleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Tracks user-initiated interrupts so the result event's ede_diagnostic error is suppressed
@@ -316,6 +316,17 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
         const sid = sessionIdRef.current;
         if (sid) bgAgentStore.handleToolProgress(sid, event as ToolProgressEvent);
         return;
+      }
+
+      if (event.type === "assistant") {
+        const sid = sessionIdRef.current;
+        if (sid) trackClaudeAssistantRequest(sid, event);
+      } else if (event.type === "system" && "subtype" in event && event.subtype === "api_retry") {
+        const sid = sessionIdRef.current;
+        if (sid) trackClaudeApiRetry(sid, event);
+      } else if (event.type === "system" && event.subtype === "init") {
+        const sid = sessionIdRef.current;
+        if (sid) clearClaudeObservedRequests(sid);
       }
 
       const parentId = getParentId(event);
@@ -747,13 +758,20 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
           setTotalCost((prev) => prev + (event.total_cost_usd ?? 0));
           {
             const resultEvent = event as ResultEvent;
-            const requestCount = Math.max(1, resultEvent.num_turns || 1);
+            const requestCount = Math.max(
+              1,
+              consumeClaudeObservedRequestCount(
+                sessionIdRef.current ?? resultEvent.session_id,
+                resultEvent.num_turns || 1,
+              ),
+            );
             const nextRequestCount = upstreamRequestCountRef.current + requestCount;
-            upstreamRequestCountRef.current = nextRequestCount;
-            setUpstreamRequestCount(nextRequestCount);
-            setRequestLog((log) => appendUpstreamRequestRecord(
-              log,
-              createClaudeRequestRecord(resultEvent, nextRequestCount, sessionInfo?.model),
+            recordUpstreamRequest(createClaudeRequestRecord(
+              resultEvent,
+              nextRequestCount,
+              sessionInfo?.model,
+              Date.now(),
+              requestCount,
             ));
           }
 

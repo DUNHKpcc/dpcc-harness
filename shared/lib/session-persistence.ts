@@ -18,6 +18,7 @@ export interface SessionMeta {
   requestLog?: unknown[];
   engine?: "claude" | "acp" | "codex";
   codexThreadId?: string;
+  codexRolloutPath?: string;
   /** Which folder this chat belongs to (undefined = root level). */
   folderId?: string;
   /** Whether this chat is pinned to the top of the sidebar. */
@@ -67,6 +68,7 @@ export function extractSessionMeta(data: Record<string, unknown>, lastMessageAt:
     requestLog: Array.isArray(data.requestLog) ? data.requestLog : [],
     engine: data.engine as SessionMeta["engine"],
     codexThreadId: data.codexThreadId as string | undefined,
+    codexRolloutPath: data.codexRolloutPath as string | undefined,
     folderId: data.folderId as string | undefined,
     pinned: data.pinned as boolean | undefined,
     branch: data.branch as string | undefined,

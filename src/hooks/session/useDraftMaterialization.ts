@@ -396,6 +396,7 @@ export function useDraftMaterialization({
       let sessionId: string;
       let sessionModel = options.model;
       let codexThreadId: string | undefined;
+      let codexRolloutPath: string | undefined;
       let reusedPreStarted = false;
 
       // Load per-project MCP servers to pass to the session
@@ -577,6 +578,7 @@ export function useDraftMaterialization({
 
         sessionId = result.sessionId;
         codexThreadId = result.threadId;
+        codexRolloutPath = result.rolloutPath;
         let resolvedCodexModel = result.selectedModel;
 
         // Store Codex models for the model picker (map from Codex Model → our ModelInfo)
@@ -690,6 +692,7 @@ export function useDraftMaterialization({
         ...(draftEngine === "codex" ? {
           agentId: options.agentId ?? "codex",
           codexThreadId,
+          codexRolloutPath,
         } : {}),
       };
 

@@ -1,5 +1,7 @@
 import type {
   CodexTokenUsageNotification,
+  AssistantMessageEvent,
+  ApiRetryEvent,
   ModelUsageEntry,
   ResultEvent,
   UpstreamModelUsageBreakdown,
@@ -42,6 +44,20 @@ export function appendUpstreamRequestRecord(
   return trimUpstreamRequestLog([...(requestLog ?? []), record]);
 }
 
+export function upsertUpstreamRequestRecord(
+  requestLog: UpstreamRequestRecord[] | undefined,
+  record: UpstreamRequestRecord,
+): { requestLog: UpstreamRequestRecord[]; inserted: boolean } {
+  const next = [...(requestLog ?? [])];
+  const index = next.findIndex((entry) => entry.id === record.id);
+  if (index >= 0) {
+    next[index] = { ...next[index], ...record };
+  } else {
+    next.push(record);
+  }
+  return { requestLog: trimUpstreamRequestLog(next), inserted: index < 0 };
+}
+
 export function getUpstreamRequestCount(
   requestLog: UpstreamRequestRecord[] | undefined,
   upstreamRequestCount?: number,
@@ -57,6 +73,7 @@ export function createClaudeRequestRecord(
   ordinal: number,
   fallbackModel?: string,
   now = Date.now(),
+  observedRequestCount?: number,
 ): UpstreamRequestRecord {
   const modelBreakdown = getClaudeBreakdown(event.modelUsage);
   const model = modelBreakdown.length === 1
@@ -71,7 +88,7 @@ export function createClaudeRequestRecord(
     status: event.is_error ? "failed" : "completed",
     startedAt: Math.max(0, now - durationMs),
     completedAt: now,
-    requestCount: Math.max(1, event.num_turns || 1),
+    requestCount: Math.max(1, observedRequestCount ?? event.num_turns ?? 1),
     inputTokens: sum(modelBreakdown.map((entry) => entry.inputTokens)),
     outputTokens: sum(modelBreakdown.map((entry) => entry.outputTokens)),
     cacheReadTokens: sum(modelBreakdown.map((entry) => entry.cacheReadTokens)),
@@ -81,6 +98,48 @@ export function createClaudeRequestRecord(
     ...(modelBreakdown.length > 0 ? { modelBreakdown } : {}),
     ...(event.num_turns > 1 ? { note: "claude_aggregated_result" } : {}),
   };
+}
+
+interface ClaudeTurnRequests {
+  requestIds: Set<string>;
+  retryIds: Set<string>;
+}
+
+const claudeTurnRequests = new Map<string, ClaudeTurnRequests>();
+
+function getClaudeTurnRequests(sessionId: string): ClaudeTurnRequests {
+  let requests = claudeTurnRequests.get(sessionId);
+  if (!requests) {
+    requests = { requestIds: new Set(), retryIds: new Set() };
+    claudeTurnRequests.set(sessionId, requests);
+  }
+  return requests;
+}
+
+export function trackClaudeAssistantRequest(
+  sessionId: string,
+  event: Pick<AssistantMessageEvent, "request_id">,
+): void {
+  const requestId = event.request_id?.trim();
+  if (requestId) getClaudeTurnRequests(sessionId).requestIds.add(requestId);
+}
+
+export function trackClaudeApiRetry(
+  sessionId: string,
+  event: Pick<ApiRetryEvent, "uuid" | "attempt">,
+): void {
+  getClaudeTurnRequests(sessionId).retryIds.add(event.uuid || `attempt-${event.attempt}`);
+}
+
+export function consumeClaudeObservedRequestCount(sessionId: string, reportedTurns: number): number {
+  const requests = claudeTurnRequests.get(sessionId);
+  claudeTurnRequests.delete(sessionId);
+  if (!requests) return Math.max(0, reportedTurns);
+  return Math.max(reportedTurns, requests.requestIds.size) + requests.retryIds.size;
+}
+
+export function clearClaudeObservedRequests(sessionId: string): void {
+  claudeTurnRequests.delete(sessionId);
 }
 
 interface CodexRequestUpdate {

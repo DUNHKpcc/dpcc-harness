@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useEffect, useLayoutEffect, useState } from "react";
+import React, { useCallback, useMemo, useRef, useEffect, useState } from "react";
 import { LayoutGroup, motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { PanelLeft } from "lucide-react";
@@ -1089,26 +1089,31 @@ export function AppLayout() {
     clearGrabbedElements();
   }, [clearGrabbedElements, manager.activeSessionId]);
 
-  useLayoutEffect(() => {
-    lastTopScrollProgressRef.current = 0;
-    chatIslandRef.current?.style.setProperty("--chat-top-progress", "0");
-  }, [manager.activeSessionId]);
-
   const handleTopScrollProgress = useCallback((progress: number) => {
     const clamped = Math.max(0, Math.min(1, progress));
-    if (Math.abs(lastTopScrollProgressRef.current - clamped) < 0.005) return;
+    const value = clamped.toFixed(3);
+    const island = chatIslandRef.current;
+    if (
+      Math.abs(lastTopScrollProgressRef.current - clamped) < 0.005 &&
+      island?.style.getPropertyValue("--chat-top-progress") === value
+    ) return;
     lastTopScrollProgressRef.current = clamped;
-    chatIslandRef.current?.style.setProperty("--chat-top-progress", clamped.toFixed(3));
+    island?.style.setProperty("--chat-top-progress", value);
   }, []);
 
   /** Create a scroll progress callback for a specific pane index. */
   const makePaneScrollCallback = useCallback((paneIndex: number) => {
     return (progress: number) => {
       const clamped = Math.max(0, Math.min(1, progress));
+      const value = clamped.toFixed(3);
       const prev = lastPaneScrollProgressRefs.current[paneIndex] ?? 0;
-      if (Math.abs(prev - clamped) < 0.005) return;
+      const pane = paneRefs.current[paneIndex];
+      if (
+        Math.abs(prev - clamped) < 0.005 &&
+        pane?.style.getPropertyValue("--chat-top-progress") === value
+      ) return;
       lastPaneScrollProgressRefs.current[paneIndex] = clamped;
-      paneRefs.current[paneIndex]?.style.setProperty("--chat-top-progress", clamped.toFixed(3));
+      pane?.style.setProperty("--chat-top-progress", value);
     };
   }, []);
 

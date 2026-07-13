@@ -106,6 +106,7 @@ export function useSessionCache({
             ...(data.agentId ? { agentId: data.agentId } : {}),
             ...(data.agentSessionId ? { agentSessionId: data.agentSessionId } : {}),
             ...(data.codexThreadId ? { codexThreadId: data.codexThreadId } : {}),
+            ...(data.codexRolloutPath ? { codexRolloutPath: data.codexRolloutPath } : {}),
             ...(data.effort ? { effort: data.effort } : {}),
             ...(data.permissionMode ? { permissionMode: data.permissionMode } : {}),
             planMode: !!data.planMode,

@@ -3,6 +3,7 @@ import {
   appendUpstreamRequestRecord,
   getUpstreamRequestCount,
   RECENT_UPSTREAM_REQUEST_LIMIT,
+  upsertUpstreamRequestRecord,
 } from "../upstream-requests";
 import type { UpstreamRequestRecord } from "@/types";
 
@@ -38,5 +39,21 @@ describe("upstream request helpers", () => {
 
     expect(getUpstreamRequestCount(records, 13)).toBe(13);
     expect(getUpstreamRequestCount(records)).toBe(3);
+  });
+
+  it("updates a pending utility request without inserting a second request", () => {
+    const pending = { ...createRecord(1), status: "pending" as const };
+    const initial = upsertUpstreamRequestRecord([], pending);
+    const completed = upsertUpstreamRequestRecord(initial.requestLog, {
+      ...pending,
+      status: "completed",
+      completedAt: 10,
+    });
+
+    expect(initial.inserted).toBe(true);
+    expect(completed.inserted).toBe(false);
+    expect(completed.requestLog).toEqual([
+      expect.objectContaining({ id: pending.id, status: "completed", completedAt: 10 }),
+    ]);
   });
 });

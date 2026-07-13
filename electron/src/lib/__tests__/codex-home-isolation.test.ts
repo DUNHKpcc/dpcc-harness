@@ -158,4 +158,44 @@ describe("codex home isolation", () => {
 
     expect(env.RUST_LOG).toBe("debug");
   });
+
+  it("finds a legacy rollout by thread id across Codex homes", async () => {
+    const { findCodexRolloutPath } = await loadModule();
+    const threadId = "019ef2fd-0640-73f3-9317-8a971ef1ab46";
+    const currentHome = path.join(testDataDir, "current-home");
+    const legacyHome = path.join(testDataDir, "legacy-home");
+    const rolloutPath = path.join(
+      legacyHome,
+      "sessions",
+      "2026",
+      "06",
+      "23",
+      `rollout-2026-06-23T01-38-49-${threadId}.jsonl`,
+    );
+    fs.mkdirSync(path.dirname(rolloutPath), { recursive: true });
+    fs.writeFileSync(rolloutPath, "{}\n", "utf-8");
+
+    expect(findCodexRolloutPath(threadId, undefined, [currentHome, legacyHome])).toBe(fs.realpathSync(rolloutPath));
+  });
+
+  it("uses a valid preferred rollout and rejects paths outside known session roots", async () => {
+    const { findCodexRolloutPath } = await loadModule();
+    const threadId = "019ef2fd-0640-73f3-9317-8a971ef1ab46";
+    const codexHome = path.join(testDataDir, "known-home");
+    const discoveredPath = path.join(codexHome, "sessions", "2026", `rollout-old-${threadId}.jsonl`);
+    const preferredPath = path.join(codexHome, "sessions", "2026", `rollout-new-${threadId}.jsonl`);
+    const outsidePath = path.join(testDataDir, `rollout-outside-${threadId}.jsonl`);
+    const symlinkPath = path.join(codexHome, "sessions", `rollout-link-${threadId}.jsonl`);
+    fs.mkdirSync(path.dirname(preferredPath), { recursive: true });
+    fs.writeFileSync(discoveredPath, "{}\n", "utf-8");
+    fs.writeFileSync(preferredPath, "{}\n", "utf-8");
+    fs.writeFileSync(outsidePath, "{}\n", "utf-8");
+    fs.symlinkSync(outsidePath, symlinkPath);
+
+    expect(findCodexRolloutPath(threadId, preferredPath, [codexHome])).toBe(fs.realpathSync(preferredPath));
+    expect([fs.realpathSync(discoveredPath), fs.realpathSync(preferredPath)]).toContain(
+      findCodexRolloutPath(threadId, outsidePath, [codexHome]),
+    );
+    expect(findCodexRolloutPath(threadId, symlinkPath, [codexHome])).not.toBe(outsidePath);
+  });
 });

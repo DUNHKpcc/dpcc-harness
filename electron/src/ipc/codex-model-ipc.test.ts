@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   resolveEffectiveCodexModels: vi.fn(),
   destroy: vi.fn(),
   rpcInstances: [] as Array<{ isAlive: boolean }>,
+  requests: [] as Array<{ method: string; params?: Record<string, unknown> }>,
+  findCodexRolloutPath: vi.fn(),
 }));
 
 vi.mock("electron", () => ({
@@ -30,7 +32,8 @@ vi.mock("../lib/codex-rpc", () => ({
       mocks.rpcInstances.push(this);
     }
 
-    request = vi.fn(async (method: string) => {
+    request = vi.fn(async (method: string, params?: Record<string, unknown>) => {
+      mocks.requests.push({ method, params });
       if (method === "initialize") return {};
       if (method === "account/read") return { requiresOpenaiAuth: false, account: null };
       if (method === "model/list") {
@@ -51,6 +54,9 @@ vi.mock("../lib/codex-rpc", () => ({
         };
       }
       if (method === "thread/start") return { thread: { id: "thread-1" } };
+      if (method === "thread/resume") {
+        return { thread: { id: "thread-resumed", path: params?.path ?? null } };
+      }
       throw new Error(`Unexpected RPC method: ${method}`);
     });
 
@@ -82,7 +88,11 @@ vi.mock("../lib/codex-upstream", () => ({
   codexUpstreamThreadParams: vi.fn(() => ({})),
 }));
 
-vi.mock("../lib/codex-home-isolation", () => ({ buildCodexAppServerEnv: vi.fn(() => ({})) }));
+vi.mock("../lib/codex-home-isolation", () => ({
+  buildCodexAppServerEnv: vi.fn(() => ({ CODEX_HOME: "/tmp/current-codex-home" })),
+  findCodexRolloutPath: mocks.findCodexRolloutPath,
+  getCodexRolloutSearchHomes: vi.fn(() => ["/tmp/current-codex-home", "/tmp/legacy-codex-home"]),
+}));
 vi.mock("../lib/app-settings", () => ({ getAppSetting: vi.fn(() => "PccAgent") }));
 vi.mock("../lib/logger", () => ({ log: vi.fn() }));
 vi.mock("../lib/safe-send", () => ({ safeSend: vi.fn() }));
@@ -96,6 +106,8 @@ describe("Codex model IPC catalog", () => {
   beforeEach(() => {
     mocks.handlers.clear();
     mocks.resolveEffectiveCodexModels.mockReset();
+    mocks.requests.length = 0;
+    mocks.findCodexRolloutPath.mockReset();
     mocks.resolveEffectiveCodexModels.mockImplementation(async (models: Array<{ id: string }>) => (
       models.map((model) => ({ ...model, id: `upstream-${model.id}`, model: `upstream-${model.id}` }))
     ));
@@ -128,5 +140,37 @@ describe("Codex model IPC catalog", () => {
     });
     expect(mocks.resolveEffectiveCodexModels).toHaveBeenCalledTimes(3);
     expect(mocks.destroy).toHaveBeenCalled();
+  });
+
+  it("resumes an older thread through its discovered rollout path", async () => {
+    const rolloutPath = "/tmp/legacy-codex-home/sessions/rollout-thread-legacy.jsonl";
+    mocks.findCodexRolloutPath.mockReturnValue(rolloutPath);
+    const { register } = await import("./codex-sessions");
+    register(() => null);
+    const resume = mocks.handlers.get("codex:resume");
+
+    const result = await resume?.({}, {
+      cwd: "/tmp/project",
+      threadId: "thread-legacy",
+      rolloutPath: "/tmp/stale-rollout.jsonl",
+    });
+
+    expect(mocks.findCodexRolloutPath).toHaveBeenCalledWith(
+      "thread-legacy",
+      "/tmp/stale-rollout.jsonl",
+      ["/tmp/current-codex-home", "/tmp/legacy-codex-home"],
+    );
+    expect(mocks.requests).toContainEqual({
+      method: "thread/resume",
+      params: expect.objectContaining({
+        threadId: "thread-legacy",
+        path: rolloutPath,
+      }),
+    });
+    expect(result).toMatchObject({
+      sessionId: expect.any(String),
+      threadId: "thread-resumed",
+      rolloutPath,
+    });
   });
 });

@@ -16,6 +16,7 @@
     "skills": "Skills",
     "customAgents": "Agents",
     "advanced": "高级",
+    "contact": "联系我们",
     "about": "关于",
     "comingSoon": "即将推出"
   },
@@ -378,6 +379,23 @@
     "replayWelcomeLabel": "重新播放欢迎向导",
     "replayWelcomeDesc": "重置引导标记并重新启动欢迎向导。",
     "replay": "重新播放"
+  },
+  "contact": {
+    "title": "联系我们",
+    "description": "获得技术售后终身服务，或与我们一起成为开发者",
+    "intro": "无论你需要产品帮助、技术售后，还是希望参与 PccAgent 开发，都可以通过以下方式联系我们。",
+    "support": {
+      "platform": "QQ",
+      "title": "技术支持与终身售后服务",
+      "description": "使用 QQ 扫码联系我们，获取产品使用与技术问题支持。",
+      "qrAlt": "QQ 技术支持二维码"
+    },
+    "developers": {
+      "platform": "Telegram",
+      "title": "想成为开发者",
+      "description": "使用 Telegram 扫码联系我们，参与开发、贡献与合作。",
+      "qrAlt": "Telegram 开发者联系二维码"
+    }
   },
   "about": {
     "title": "关于",

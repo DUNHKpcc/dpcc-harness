@@ -16,6 +16,7 @@ import {
   ArrowLeft,
   Wallet,
   Smartphone,
+  Contact,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { AgentSettings } from "@/components/settings/AgentSettings";
@@ -31,6 +32,7 @@ import { PlaceholderSection } from "@/components/settings/PlaceholderSection";
 import { AboutSettings } from "@/components/settings/AboutSettings";
 import { AnalyticsSettings } from "@/components/settings/AnalyticsSettings";
 import { CurrentConfigSettings } from "@/components/settings/CurrentConfigSettings";
+import { ContactSettings } from "@/components/settings/ContactSettings";
 import { setAppSettingsChecked } from "@/lib/app-settings-ipc";
 import { isMac } from "@/lib/utils";
 import type { AppSettings } from "@/types";
@@ -38,7 +40,9 @@ import { useAgentContext } from "./AgentContext";
 
 // ── Section definitions ──
 
-export type SettingsSection = "general" | "account" | "appearance" | "notifications" | "analytics" | "agents" | "mcp" | "engines" | "wechat" | "current-config" | "skills" | "custom-agents" | "advanced" | "about";
+export type SettingsSection = "general" | "account" | "appearance" | "notifications" |
+  "analytics" | "agents" | "mcp" | "engines" | "wechat" | "current-config" | "skills" |
+  "custom-agents" | "advanced" | "contact" | "about";
 
 interface NavItem {
   id: SettingsSection;
@@ -61,6 +65,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "current-config", labelKey: "nav.currentConfig", icon: Server },
   { id: "custom-agents", labelKey: "nav.customAgents", icon: Users, comingSoon: true },
   { id: "advanced", labelKey: "nav.advanced", icon: Wrench },
+  { id: "contact", labelKey: "nav.contact", icon: Contact },
   { id: "about", labelKey: "nav.about", icon: Info },
 ];
 
@@ -209,6 +214,8 @@ export const SettingsView = memo(function SettingsView({
             comingSoon
           />
         );
+      case "contact":
+        return <ContactSettings />;
       case "about":
         return <AboutSettings />;
       default:
@@ -222,7 +229,7 @@ export const SettingsView = memo(function SettingsView({
         {/* Settings nav sidebar */}
         <div className="flex w-44 shrink-0 flex-col border-e border-foreground/[0.06]">
           {/* Nav items */}
-          <nav className={`drag-region flex flex-1 flex-col gap-0.5 px-1.5 pb-2 ${settingsNavTopPaddingClass}`}>
+          <nav className={`drag-region flex flex-1 flex-col min-h-0 gap-0.5 overflow-y-auto px-1.5 pb-2 ${settingsNavTopPaddingClass}`}>
             <button
               aria-label={t("nav.backHome")}
               onClick={onClose}
@@ -238,11 +245,11 @@ export const SettingsView = memo(function SettingsView({
                 <button
                   key={item.id}
                   onClick={() => setActiveSection(item.id)}
-                  className={`no-drag flex w-full items-center justify-start gap-2 rounded-md px-2 py-1.5 text-[13px] text-start transition-colors ${
-                    isActive
+                  aria-current={isActive ? "page" : undefined}
+                  className={`no-drag flex w-full items-center justify-start gap-2 rounded-md px-2 py-1.5 text-[13px] text-start transition-colors ${isActive
                       ? "bg-foreground/[0.06] font-medium text-foreground"
                       : "text-muted-foreground hover:bg-foreground/[0.03] hover:text-foreground"
-                  }`}
+                    }`}
                 >
                   <Icon className="h-4 w-4 shrink-0" />
                   <span className="flex-1">{t(item.labelKey)}</span>

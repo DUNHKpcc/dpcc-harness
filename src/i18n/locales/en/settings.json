@@ -16,6 +16,7 @@
     "skills": "Skills",
     "customAgents": "Agents",
     "advanced": "Advanced",
+    "contact": "Contact Us",
     "about": "About",
     "comingSoon": "Coming soon"
   },
@@ -378,6 +379,23 @@
     "replayWelcomeLabel": "Replay welcome wizard",
     "replayWelcomeDesc": "Reset the onboarding flag and relaunch the welcome wizard.",
     "replay": "Replay"
+  },
+  "contact": {
+    "title": "Contact Us",
+    "description": "Get lifetime technical support or join us as a developer",
+    "intro": "Whether you need product help, technical support, or want to contribute to PccAgent, reach us through either channel below.",
+    "support": {
+      "platform": "QQ",
+      "title": "Technical support for life",
+      "description": "Scan with QQ for help with product usage and technical issues.",
+      "qrAlt": "QQ technical support QR code"
+    },
+    "developers": {
+      "platform": "Telegram",
+      "title": "Become a developer",
+      "description": "Scan with Telegram to talk with us about development, contributions, and collaboration.",
+      "qrAlt": "Telegram developer contact QR code"
+    }
   },
   "about": {
     "title": "About",

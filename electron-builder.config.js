@@ -302,6 +302,19 @@ module.exports = {
     artifactName: "${productName}-${version}-windows-${arch}-setup.${ext}",
   },
 
+  // Microsoft Store package identity. These values are assigned by Partner
+  // Center and must match the product identity exactly.
+  appx: {
+    identityName: "DUNHKpcc.PccAgent",
+    publisher: "CN=82449B93-048A-4DA9-A5A1-3970CA02D572",
+    publisherDisplayName: "DUNHKpcc",
+    applicationId: "PccAgent",
+    displayName: "PccAgent",
+    languages: ["en-US", "zh-CN"],
+    backgroundColor: "#000000",
+    artifactName: "${productName}-${version}-windows-${arch}-store.${ext}",
+  },
+
   // --- Linux ---
   linux: {
     target: [

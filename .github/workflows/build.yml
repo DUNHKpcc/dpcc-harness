@@ -198,12 +198,23 @@ jobs:
       - name: Bundle Codex (win x64 + arm64)
         run: node scripts/bundle-codex.js --triples x86_64-pc-windows-msvc,aarch64-pc-windows-msvc
 
+      - name: Bundle PortableGit (win x64)
+        run: node scripts/bundle-portable-git.js --platform win32 --arch x64
+
       - name: Package (win x64 + arm64)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
           pnpm exec electron-builder
           --win
+          --x64 --arm64
+          --config electron-builder.config.js
+          --publish never
+
+      - name: Package Microsoft Store (win x64 + arm64)
+        run: >
+          pnpm exec electron-builder
+          --win appx
           --x64 --arm64
           --config electron-builder.config.js
           --publish never
@@ -231,6 +242,13 @@ jobs:
           path: |
             release/**/*.exe
             release/**/latest.yml
+          retention-days: 30
+
+      - name: Upload Microsoft Store artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: PccAgent-Microsoft-Store
+          path: release/**/*.appx
           retention-days: 30
 
   # Linux: can't use --x64 --arm64 in one invocation (AppImage builder tries to

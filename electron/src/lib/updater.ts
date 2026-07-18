@@ -206,6 +206,15 @@ export function initAutoUpdater(
 ): void {
   if (!app.isPackaged) return;
 
+  // The Store owns updates for AppX/MSIX installs. Keep version reporting
+  // available to the renderer, but never let electron-updater install an NSIS
+  // release over a Store-managed package.
+  ipcMain.handle("updater:current-version", () => app.getVersion());
+  if (process.windowsStore) {
+    log("UPDATER", "Microsoft Store package detected; electron-updater disabled");
+    return;
+  }
+
   autoUpdater.logger = {
     info: (msg: unknown) => log("UPDATER", String(msg)),
     warn: (msg: unknown) => log("UPDATER_WARN", String(msg)),
@@ -340,7 +349,6 @@ export function initAutoUpdater(
     });
   });
   ipcMain.handle("updater:check", () => checkForUpdates("manual"));
-  ipcMain.handle("updater:current-version", () => app.getVersion());
 
   // Check 5s after startup, then every 4 hours
   setTimeout(() => {

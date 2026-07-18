@@ -13,6 +13,7 @@ describe("release artifact configuration", () => {
     expect(config.mac.artifactName).toBe("${productName}-${version}-mac-${arch}.${ext}");
     expect(config.dmg.artifactName).toBe("${productName}-${version}-mac-${arch}.${ext}");
     expect(config.nsis.artifactName).toBe("${productName}-${version}-windows-${arch}-setup.${ext}");
+    expect(config.appx.artifactName).toBe("${productName}-${version}-windows-${arch}-store.${ext}");
   });
 
   it("publishes only selected release assets from CI", () => {
@@ -20,6 +21,9 @@ describe("release artifact configuration", () => {
 
     expect(workflow).not.toContain("--publish ${{ startsWith(github.ref, 'refs/tags/v') && 'always' || 'never' }}");
     expect(workflow).toContain("--publish never");
+    expect(workflow).toContain("--win appx");
+    expect(workflow).toContain("name: PccAgent-Microsoft-Store");
+    expect(workflow).toContain("path: release/**/*.appx");
     expect(workflow).toContain('for file in "${DIR}"/*.dmg "${DIR}"/*.zip "${DIR}"/latest-mac.yml; do');
     expect(workflow).toContain('for file in "${DIR}"/*.exe "${DIR}"/latest.yml; do');
   });

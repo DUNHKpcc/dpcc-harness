@@ -182,9 +182,14 @@ import {
 // ---------------------------------------------------------------------------
 
 const originalPlatform = process.platform;
+const originalWindowsStore = process.windowsStore;
 
 function setPlatform(platform: string): void {
   Object.defineProperty(process, "platform", { value: platform, writable: true });
+}
+
+function setWindowsStore(windowsStore: boolean): void {
+  Object.defineProperty(process, "windowsStore", { value: windowsStore, configurable: true });
 }
 
 /** Call initAutoUpdater with a mock getMainWindow that returns our mock window. */
@@ -205,6 +210,7 @@ function getHandler(channel: string): (...args: unknown[]) => unknown {
 
 beforeEach(() => {
   vi.useFakeTimers();
+  setWindowsStore(false);
   __resetForTesting();
   mockIpcHandlers.clear();
   updaterEmitter.removeAllListeners();
@@ -233,6 +239,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   setPlatform(originalPlatform);
+  setWindowsStore(originalWindowsStore);
 });
 
 // ===========================================================================
@@ -439,6 +446,21 @@ describe("initAutoUpdater", () => {
       init();
       expect(mockIpcHandlers.size).toBe(0);
       mockApp.isPackaged = true;
+    });
+
+    it("disables electron-updater for Microsoft Store packages", () => {
+      setWindowsStore(true);
+
+      init();
+
+      expect(mockIpcHandlers.has("updater:current-version")).toBe(true);
+      expect(mockIpcHandlers.has("updater:check")).toBe(false);
+      expect(mockAutoUpdater.setFeedURL).not.toHaveBeenCalled();
+      expect(settingsChangedCbRef.current).toBeNull();
+      expect(log).toHaveBeenCalledWith(
+        "UPDATER",
+        "Microsoft Store package detected; electron-updater disabled",
+      );
     });
 
     it("configures autoUpdater properties", () => {

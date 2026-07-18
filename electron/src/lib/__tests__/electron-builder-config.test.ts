@@ -95,6 +95,17 @@ describe("electron-builder config", () => {
     }).trim()).toBe("clean");
   });
 
+  it("uses the Partner Center identity for Microsoft Store packages", async () => {
+    const config = await import("../../../../electron-builder.config.js");
+
+    expect(config.default.appx).toMatchObject({
+      identityName: "DUNHKpcc.PccAgent",
+      publisher: "CN=82449B93-048A-4DA9-A5A1-3970CA02D572",
+      publisherDisplayName: "DUNHKpcc",
+      applicationId: "PccAgent",
+    });
+  });
+
   it("omits PortableGit extraResource when the bundle directory is absent", () => {
     const script = [
       "process.env.NODE_ENV = 'production';",

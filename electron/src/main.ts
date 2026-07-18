@@ -43,6 +43,8 @@ import {
 import { getAcpAnalyticsPropertiesForSession } from "./ipc/acp-sessions";
 import { terminals } from "./ipc/terminal";
 
+const diagnosticBuild = __PCC_DIAGNOSTIC_BUILD__;
+
 // IPC module registrations
 import * as spacesIpc from "./ipc/spaces";
 import * as projectsIpc from "./ipc/projects";
@@ -88,7 +90,7 @@ app.commandLine.appendSwitch("ignore-gpu-blocklist"); // use GPU even on blockli
 app.commandLine.appendSwitch("enable-features", "CanvasOopRasterization"); // off-main-thread canvas
 
 // --- Liquid Glass command-line switches ---
-if (shouldEnableRemoteDevTools({ isPackaged: app.isPackaged, glassEnabled })) {
+if (shouldEnableRemoteDevTools({ isPackaged: app.isPackaged, glassEnabled, diagnosticBuild })) {
   app.commandLine.appendSwitch("remote-debugging-port", "9222");
   app.commandLine.appendSwitch("remote-allow-origins", "*");
 }
@@ -194,7 +196,7 @@ function createWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       webviewTag: true,
-      devTools: shouldEnableRendererDevTools({ isPackaged: app.isPackaged, glassEnabled }),
+      devTools: shouldEnableRendererDevTools({ isPackaged: app.isPackaged, glassEnabled, diagnosticBuild }),
       v8CacheOptions: "bypassHeatCheckAndEagerCompile", // cache compiled JS on first run — eliminates cold-start jank
       // Pass the real OS UI language to the renderer so the "system" i18n option
       // strictly follows the OS, not Chromium's navigator.language. Preferred
@@ -482,7 +484,7 @@ ipcMain.on("analytics:capture", (_event, eventName: string, properties?: Record<
 let devToolsWindow: BrowserWindow | null = null;
 
 function openDevToolsWindow(): void {
-  if (!canOpenAppDevTools(app.isPackaged)) return;
+  if (!canOpenAppDevTools(app.isPackaged, diagnosticBuild)) return;
 
   if (!glassEnabled) {
     mainWindow?.webContents.openDevTools({ mode: "detach" });
@@ -622,7 +624,7 @@ app.whenReady().then(() => {
     app.dock.setIcon(path.join(__dirname, "../../build/icon.png"));
   }
 
-  if (shouldRegisterDevToolsShortcuts(app.isPackaged)) {
+  if (shouldRegisterDevToolsShortcuts(app.isPackaged, diagnosticBuild)) {
     const shortcuts = ["CommandOrControl+Alt+I", "F12", "CommandOrControl+Shift+J"];
     for (const shortcut of shortcuts) {
       const ok = globalShortcut.register(shortcut, () => {

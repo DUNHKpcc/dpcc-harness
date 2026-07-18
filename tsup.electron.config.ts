@@ -23,4 +23,7 @@ export default defineConfig({
   ],
   noExternal: [],
   treeshake: true,
+  define: {
+    __PCC_DIAGNOSTIC_BUILD__: JSON.stringify(process.env.PCC_DIAGNOSTIC_BUILD === "1"),
+  },
 });

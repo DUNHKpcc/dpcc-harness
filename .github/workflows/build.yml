@@ -5,6 +5,12 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      diagnostic_build:
+        description: "Build a separate Windows package with DevTools enabled"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -250,6 +256,32 @@ jobs:
           name: PccAgent-Microsoft-Store
           path: release/**/*.appx
           retention-days: 30
+
+      - name: Build Windows diagnostic app
+        if: github.event_name == 'workflow_dispatch' && inputs.diagnostic_build == true
+        env:
+          PCC_DIAGNOSTIC_BUILD: "1"
+        run: pnpm build
+
+      - name: Package Windows diagnostic app
+        if: github.event_name == 'workflow_dispatch' && inputs.diagnostic_build == true
+        run: >
+          pnpm exec electron-builder
+          --win nsis
+          --x64
+          --config electron-builder.config.js
+          --config.directories.output=release-diagnostic
+          --config.appId=com.pccagent.app.diagnostic
+          --config.productName=PccAgent-Diagnostic
+          --publish never
+
+      - name: Upload Windows diagnostic artifact
+        if: github.event_name == 'workflow_dispatch' && inputs.diagnostic_build == true
+        uses: actions/upload-artifact@v4
+        with:
+          name: PccAgent-Windows-Diagnostic
+          path: release-diagnostic/**/*.exe
+          retention-days: 7
 
   # Linux: can't use --x64 --arm64 in one invocation (AppImage builder tries to
   # access cross-arch vendor binaries that don't exist in the other arch's staging

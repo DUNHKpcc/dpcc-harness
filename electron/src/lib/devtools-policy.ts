@@ -1,22 +1,27 @@
 interface DevToolsPolicyInput {
   isPackaged: boolean;
   glassEnabled: boolean;
+  diagnosticBuild: boolean;
 }
 
-export function shouldEnableRendererDevTools({ isPackaged, glassEnabled }: DevToolsPolicyInput): boolean {
-  return !isPackaged && !glassEnabled;
+function canUseAppDevTools(isPackaged: boolean, diagnosticBuild: boolean): boolean {
+  return !isPackaged || diagnosticBuild;
 }
 
-export function shouldEnableRemoteDevTools({ isPackaged, glassEnabled }: DevToolsPolicyInput): boolean {
-  return !isPackaged && glassEnabled;
+export function shouldEnableRendererDevTools({ isPackaged, glassEnabled, diagnosticBuild }: DevToolsPolicyInput): boolean {
+  return canUseAppDevTools(isPackaged, diagnosticBuild) && !glassEnabled;
 }
 
-export function shouldRegisterDevToolsShortcuts(isPackaged: boolean): boolean {
-  return !isPackaged;
+export function shouldEnableRemoteDevTools({ isPackaged, glassEnabled, diagnosticBuild }: DevToolsPolicyInput): boolean {
+  return canUseAppDevTools(isPackaged, diagnosticBuild) && glassEnabled;
 }
 
-export function canOpenAppDevTools(isPackaged: boolean): boolean {
-  return !isPackaged;
+export function shouldRegisterDevToolsShortcuts(isPackaged: boolean, diagnosticBuild: boolean): boolean {
+  return canUseAppDevTools(isPackaged, diagnosticBuild);
+}
+
+export function canOpenAppDevTools(isPackaged: boolean, diagnosticBuild: boolean): boolean {
+  return canUseAppDevTools(isPackaged, diagnosticBuild);
 }
 
 export function shouldDisableApplicationMenu(isPackaged: boolean): boolean {

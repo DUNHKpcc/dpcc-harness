@@ -24,6 +24,10 @@ describe("release artifact configuration", () => {
     expect(workflow).toContain("--win appx");
     expect(workflow).toContain("name: PccAgent-Microsoft-Store");
     expect(workflow).toContain("path: release/**/*.appx");
+    expect(workflow).toContain("default: false");
+    expect(workflow).toContain("github.event_name == 'workflow_dispatch' && inputs.diagnostic_build == true");
+    expect(workflow).toContain('PCC_DIAGNOSTIC_BUILD: "1"');
+    expect(workflow).toContain("name: PccAgent-Windows-Diagnostic");
     expect(workflow).toContain('for file in "${DIR}"/*.dmg "${DIR}"/*.zip "${DIR}"/latest-mac.yml; do');
     expect(workflow).toContain('for file in "${DIR}"/*.exe "${DIR}"/latest.yml; do');
   });

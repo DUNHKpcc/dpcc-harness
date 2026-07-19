@@ -579,7 +579,7 @@ app.whenReady().then(() => {
   }
 
   createWindow();
-  initAutoUpdater(getMainWindow);
+  initAutoUpdater(getMainWindow, diagnosticBuild);
   initPreReleaseCheck(getMainWindow);
 
   // Start the Claude→Codex delegation bridge before any session can be created.

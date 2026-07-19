@@ -193,8 +193,11 @@ function setWindowsStore(windowsStore: boolean): void {
 }
 
 /** Call initAutoUpdater with a mock getMainWindow that returns our mock window. */
-function init(): void {
-  initAutoUpdater(() => mockWindow as unknown as import("electron").BrowserWindow);
+function init(diagnosticBuild = false): void {
+  initAutoUpdater(
+    () => mockWindow as unknown as import("electron").BrowserWindow,
+    diagnosticBuild,
+  );
 }
 
 /** Retrieve a captured IPC handler by channel name. */
@@ -460,6 +463,19 @@ describe("initAutoUpdater", () => {
       expect(log).toHaveBeenCalledWith(
         "UPDATER",
         "Microsoft Store package detected; electron-updater disabled",
+      );
+    });
+
+    it("disables electron-updater for diagnostic builds", () => {
+      init(true);
+
+      expect(mockIpcHandlers.has("updater:current-version")).toBe(true);
+      expect(mockIpcHandlers.has("updater:check")).toBe(false);
+      expect(mockAutoUpdater.setFeedURL).not.toHaveBeenCalled();
+      expect(settingsChangedCbRef.current).toBeNull();
+      expect(log).toHaveBeenCalledWith(
+        "UPDATER",
+        "Diagnostic build detected; electron-updater disabled",
       );
     });
 

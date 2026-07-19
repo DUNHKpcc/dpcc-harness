@@ -76,13 +76,13 @@ jobs:
           cat > release-notes.md <<EOF
           ## Changes
 
-          ### Bug Fixes
-          - Fixed Windows release builds by bundling the Codex arm64 binary target.
-          - Preserved the correct bundled Codex vendor directory for Windows arm64 packages.
-          - Kept the composer file picker attachment fix from the current master build.
+          ### Windows
+          - Added the x64 Microsoft Store package with Partner Center identity.
+          - Kept Windows Diagnostic on the normal user profile while disabling its auto-updater.
+          - Removed unused Windows ARM64 and native build resources from x64 packages.
 
           ### Tests
-          - Added regression coverage for Windows arm64 Codex bundle target mapping and packaging cleanup.
+          - Added regression coverage for Store packaging, Diagnostic access, and x64 resource pruning.
           EOF
 
           if [ -n "$PREV_TAG" ]; then
@@ -96,7 +96,7 @@ jobs:
 
           gh release create "$TAG" \
             --repo "$GITHUB_REPOSITORY" \
-            --title "$TAG — Codex Windows Bundle Fixes" \
+            --title "$TAG — Windows Store Packaging" \
             --notes-file release-notes.md
 
   # macOS: build both arm64 + x64 in one job so electron-builder writes a single
@@ -164,8 +164,8 @@ jobs:
             release/**/latest-mac.yml
           retention-days: 30
 
-  # Windows: same approach as macOS — one job builds both arches so electron-builder
-  # writes a single latest.yml with both installers listed.
+  # Windows releases target x64 only. Keeping one architecture avoids shipping
+  # foreign native resources in the NSIS and Store packages.
   build-win:
     needs: [prepare-release, test, ensure-release]
     if: ${{ always() && needs.test.result == 'success' && (needs.prepare-release.result == 'success' || needs.prepare-release.result == 'skipped') && (needs.ensure-release.result == 'success' || needs.ensure-release.result == 'skipped') }}
@@ -201,27 +201,27 @@ jobs:
       - name: Build app
         run: pnpm build
 
-      - name: Bundle Codex (win x64 + arm64)
-        run: node scripts/bundle-codex.js --triples x86_64-pc-windows-msvc,aarch64-pc-windows-msvc
+      - name: Bundle Codex (win x64)
+        run: node scripts/bundle-codex.js --triples x86_64-pc-windows-msvc
 
       - name: Bundle PortableGit (win x64)
         run: node scripts/bundle-portable-git.js --platform win32 --arch x64
 
-      - name: Package (win x64 + arm64)
+      - name: Package (win x64)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
           pnpm exec electron-builder
           --win
-          --x64 --arm64
+          --x64
           --config electron-builder.config.js
           --publish never
 
-      - name: Package Microsoft Store (win x64 + arm64)
+      - name: Package Microsoft Store (win x64)
         run: >
           pnpm exec electron-builder
           --win appx
-          --x64 --arm64
+          --x64
           --config electron-builder.config.js
           --publish never
 

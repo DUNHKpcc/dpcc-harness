@@ -203,6 +203,7 @@ export function maybeCheckForUpdates(reason: string, minIntervalMs: number): voi
 
 export function initAutoUpdater(
   getMainWindow: () => BrowserWindow | null,
+  diagnosticBuild = false,
 ): void {
   if (!app.isPackaged) return;
 
@@ -212,6 +213,10 @@ export function initAutoUpdater(
   ipcMain.handle("updater:current-version", () => app.getVersion());
   if (process.windowsStore) {
     log("UPDATER", "Microsoft Store package detected; electron-updater disabled");
+    return;
+  }
+  if (diagnosticBuild) {
+    log("UPDATER", "Diagnostic build detected; electron-updater disabled");
     return;
   }
 

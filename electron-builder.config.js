@@ -124,6 +124,81 @@ function pruneClaudeSdkPackagesFromAsarTemp(tmpDir, context) {
   }
 }
 
+function removeMatchingFiles(rootDir, shouldRemove) {
+  if (!fs.existsSync(rootDir)) return;
+  const stack = [rootDir];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const fullPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(fullPath);
+      } else if (shouldRemove(entry.name)) {
+        fs.rmSync(fullPath, { force: true });
+      }
+    }
+  }
+}
+
+function pruneNodePtyForWindowsX64(modulesRoot, context) {
+  if (context.electronPlatformName !== "win32" || context.arch !== 1) return;
+  const packageDir = path.join(modulesRoot, "node_modules", "node-pty");
+  if (!fs.existsSync(packageDir)) return;
+
+  for (const entry of ["bin", "build", "deps", "scripts", "src", "third_party", "typings"]) {
+    fs.rmSync(path.join(packageDir, entry), { recursive: true, force: true });
+  }
+
+  const prebuildsDir = path.join(packageDir, "prebuilds");
+  if (fs.existsSync(prebuildsDir)) {
+    for (const entry of fs.readdirSync(prebuildsDir)) {
+      if (entry !== "win32-x64") {
+        fs.rmSync(path.join(prebuildsDir, entry), { recursive: true, force: true });
+      }
+    }
+  }
+
+  removeMatchingFiles(packageDir, (name) =>
+    name.endsWith(".map") || name.endsWith(".pdb") || name.includes(".test."));
+}
+
+function pruneOnnxRuntimeForWindowsX64(modulesRoot, context) {
+  if (context.electronPlatformName !== "win32" || context.arch !== 1) return;
+  const napiDir = path.join(
+    modulesRoot,
+    "node_modules",
+    "onnxruntime-node",
+    "bin",
+    "napi-v3",
+  );
+  if (!fs.existsSync(napiDir)) return;
+
+  for (const platform of fs.readdirSync(napiDir)) {
+    const platformDir = path.join(napiDir, platform);
+    if (platform !== "win32") {
+      fs.rmSync(platformDir, { recursive: true, force: true });
+      continue;
+    }
+    for (const arch of fs.readdirSync(platformDir)) {
+      if (arch !== "x64") {
+        fs.rmSync(path.join(platformDir, arch), { recursive: true, force: true });
+      }
+    }
+  }
+}
+
+function pruneSharpForWindowsX64(modulesRoot, context) {
+  if (context.electronPlatformName !== "win32" || context.arch !== 1) return;
+  const imgScopeDir = path.join(modulesRoot, "node_modules", "@img");
+  if (!fs.existsSync(imgScopeDir)) return;
+
+  for (const entry of fs.readdirSync(imgScopeDir)) {
+    if ((entry.startsWith("sharp-") || entry.startsWith("sharp-libvips-")) && entry !== "sharp-win32-x64") {
+      fs.rmSync(path.join(imgScopeDir, entry), { recursive: true, force: true });
+    }
+  }
+}
+
 function extraResourcesConfig() {
   const resources = [
     {
@@ -152,9 +227,13 @@ async function afterPackHook(context) {
   // Drop the codex binaries for arches other than the one just packed.
   stripForeignCodexTriples(resourcesDir, context);
   stripForeignPortableGitResources(resourcesDir, context);
+  const unpackedRoot = path.join(resourcesDir, "app.asar.unpacked");
 
   const asarPath = path.join(resourcesDir, "app.asar");
   if (!fs.existsSync(asarPath)) {
+    pruneNodePtyForWindowsX64(unpackedRoot, context);
+    pruneOnnxRuntimeForWindowsX64(unpackedRoot, context);
+    pruneSharpForWindowsX64(unpackedRoot, context);
     stripForeignClaudeSdkPackages(resourcesDir, context);
     return;
   }
@@ -186,6 +265,14 @@ async function afterPackHook(context) {
   }
 
   pruneClaudeSdkPackagesFromAsarTemp(tmpDir, context);
+  // ASAR extraction reads entries from app.asar.unpacked. Prune both trees
+  // only after extraction so the archive can be reconstructed successfully.
+  pruneNodePtyForWindowsX64(unpackedRoot, context);
+  pruneOnnxRuntimeForWindowsX64(unpackedRoot, context);
+  pruneSharpForWindowsX64(unpackedRoot, context);
+  pruneNodePtyForWindowsX64(tmpDir, context);
+  pruneOnnxRuntimeForWindowsX64(tmpDir, context);
+  pruneSharpForWindowsX64(tmpDir, context);
 
   console.log("  \u2022 afterPack: repacking asar...");
   fs.rmSync(asarPath, { force: true });
@@ -355,6 +442,9 @@ if (process.env.NODE_ENV === "test" || process.env.VITEST) {
       claudeSdkPackageForBuild,
       stripForeignClaudeSdkPackages,
       pruneClaudeSdkPackagesFromAsarTemp,
+      pruneNodePtyForWindowsX64,
+      pruneOnnxRuntimeForWindowsX64,
+      pruneSharpForWindowsX64,
       extraResourcesConfig,
       shouldRebuildNativeDeps,
     },

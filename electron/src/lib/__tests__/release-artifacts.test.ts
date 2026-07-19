@@ -18,6 +18,9 @@ describe("release artifact configuration", () => {
 
   it("publishes only selected release assets from CI", () => {
     const workflow = fs.readFileSync(path.join(repoRoot, ".github/workflows/build.yml"), "utf8");
+    const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8")) as {
+      scripts: Record<string, string>;
+    };
 
     expect(workflow).not.toContain("--publish ${{ startsWith(github.ref, 'refs/tags/v') && 'always' || 'never' }}");
     expect(workflow).toContain("--publish never");
@@ -28,6 +31,9 @@ describe("release artifact configuration", () => {
     expect(workflow).toContain("github.event_name == 'workflow_dispatch' && inputs.diagnostic_build == true");
     expect(workflow).toContain('PCC_DIAGNOSTIC_BUILD: "1"');
     expect(workflow).toContain("name: PccAgent-Windows-Diagnostic");
+    expect(workflow).not.toContain("aarch64-pc-windows-msvc");
+    expect(packageJson.scripts["dist:win:store"]).not.toContain("--arm64");
+    expect(packageJson.scripts["dist:win:store"]).not.toContain("aarch64-pc-windows-msvc");
     expect(workflow).toContain('for file in "${DIR}"/*.dmg "${DIR}"/*.zip "${DIR}"/latest-mac.yml; do');
     expect(workflow).toContain('for file in "${DIR}"/*.exe "${DIR}"/latest.yml; do');
   });

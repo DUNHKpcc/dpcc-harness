@@ -49,6 +49,55 @@ function makeClaudeSdkAsarTemp(...packages: string[]): string {
   return root;
 }
 
+function makeNativeModulesRoot(): string {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "builder-config-test-"));
+  tempDirs.push(root);
+
+  const nodePtyDir = path.join(root, "node_modules", "node-pty");
+  for (const relativePath of [
+    "build/obj/compile.tlog",
+    "deps/source.cc",
+    "scripts/prebuild.js",
+    "src/index.ts",
+    "third_party/conpty/win10-x64/OpenConsole.exe",
+    "typings/node-pty.d.ts",
+    "prebuilds/win32-arm64/pty.node",
+    "prebuilds/win32-x64/pty.node",
+    "prebuilds/win32-x64/pty.pdb",
+    "lib/index.js",
+    "lib/index.js.map",
+    "lib/terminal.test.js",
+  ]) {
+    const filePath = path.join(nodePtyDir, relativePath);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, "fixture");
+  }
+
+  const onnxDir = path.join(root, "node_modules", "onnxruntime-node", "bin", "napi-v3");
+  for (const relativePath of [
+    "darwin/arm64/onnxruntime_binding.node",
+    "linux/x64/onnxruntime_binding.node",
+    "win32/arm64/onnxruntime_binding.node",
+    "win32/x64/onnxruntime_binding.node",
+  ]) {
+    const filePath = path.join(onnxDir, relativePath);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, "fixture");
+  }
+
+  const imgDir = path.join(root, "node_modules", "@img");
+  for (const packageName of [
+    "colour",
+    "sharp-darwin-arm64",
+    "sharp-win32-arm64",
+    "sharp-win32-x64",
+  ]) {
+    fs.mkdirSync(path.join(imgDir, packageName), { recursive: true });
+  }
+
+  return root;
+}
+
 afterEach(() => {
   for (const dir of tempDirs.splice(0)) {
     fs.rmSync(dir, { recursive: true, force: true });
@@ -176,6 +225,34 @@ describe("electron-builder config", () => {
 
     expect(fs.readdirSync(path.join(resourcesDir, "portable-git")).sort()).toEqual([
       "win32-x64",
+    ]);
+  });
+
+  it("keeps only runtime Windows x64 native resources", async () => {
+    const config = await import("../../../../electron-builder.config.js");
+    const modulesRoot = makeNativeModulesRoot();
+    const context = { electronPlatformName: "win32", arch: 1 };
+
+    config.__test.pruneNodePtyForWindowsX64(modulesRoot, context);
+    config.__test.pruneOnnxRuntimeForWindowsX64(modulesRoot, context);
+    config.__test.pruneSharpForWindowsX64(modulesRoot, context);
+
+    const nodePtyDir = path.join(modulesRoot, "node_modules", "node-pty");
+    expect(fs.existsSync(path.join(nodePtyDir, "prebuilds", "win32-x64", "pty.node"))).toBe(true);
+    expect(fs.existsSync(path.join(nodePtyDir, "lib", "index.js"))).toBe(true);
+    expect(fs.existsSync(path.join(nodePtyDir, "prebuilds", "win32-arm64"))).toBe(false);
+    expect(fs.existsSync(path.join(nodePtyDir, "build"))).toBe(false);
+    expect(fs.existsSync(path.join(nodePtyDir, "third_party"))).toBe(false);
+    expect(fs.existsSync(path.join(nodePtyDir, "lib", "index.js.map"))).toBe(false);
+    expect(fs.existsSync(path.join(nodePtyDir, "lib", "terminal.test.js"))).toBe(false);
+
+    const onnxDir = path.join(modulesRoot, "node_modules", "onnxruntime-node", "bin", "napi-v3");
+    expect(fs.readdirSync(onnxDir)).toEqual(["win32"]);
+    expect(fs.readdirSync(path.join(onnxDir, "win32"))).toEqual(["x64"]);
+
+    expect(fs.readdirSync(path.join(modulesRoot, "node_modules", "@img")).sort()).toEqual([
+      "colour",
+      "sharp-win32-x64",
     ]);
   });
 

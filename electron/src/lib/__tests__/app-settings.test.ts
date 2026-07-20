@@ -82,6 +82,49 @@ describe("app settings", () => {
     expect(settings.binarySourceDefaultsMigrated).toBe(true);
   });
 
+  it("migrates the legacy DPCC API host to the origin upstream", async () => {
+    const settingsPath = path.join(dataDirRef.current, "settings.json");
+    fs.writeFileSync(settingsPath, JSON.stringify({
+      binarySourceDefaultsMigrated: true,
+      dpccUpstream: {
+        baseUrl: "https://api.dpccgaming.xyz/v1/",
+        claudeToken: "sk-claude",
+        codexToken: "sk-codex",
+        claudeModel: "",
+        codexModel: "",
+      },
+    }), "utf-8");
+
+    const { getAppSettings } = await loadModule();
+
+    expect(getAppSettings().dpccUpstream.baseUrl).toBe("https://origin-api.dpccgaming.xyz");
+    const persisted = JSON.parse(fs.readFileSync(settingsPath, "utf-8")) as {
+      dpccUpstream: { baseUrl: string };
+    };
+    expect(persisted.dpccUpstream.baseUrl).toBe("https://origin-api.dpccgaming.xyz");
+  });
+
+  it("normalizes the legacy DPCC API host when settings are saved", async () => {
+    const settingsPath = path.join(dataDirRef.current, "settings.json");
+    const { setAppSettings } = await loadModule();
+
+    const settings = setAppSettings({
+      dpccUpstream: {
+        baseUrl: "https://api.dpccgaming.xyz/v1/",
+        claudeToken: "sk-claude",
+        codexToken: "sk-codex",
+        claudeModel: "",
+        codexModel: "",
+      },
+    });
+
+    expect(settings.dpccUpstream.baseUrl).toBe("https://origin-api.dpccgaming.xyz");
+    const persisted = JSON.parse(fs.readFileSync(settingsPath, "utf-8")) as {
+      dpccUpstream: { baseUrl: string };
+    };
+    expect(persisted.dpccUpstream.baseUrl).toBe("https://origin-api.dpccgaming.xyz");
+  });
+
   it("backfills gateway model mappings for older settings files", async () => {
     fs.writeFileSync(path.join(dataDirRef.current, "settings.json"), JSON.stringify({
       binarySourceDefaultsMigrated: true,

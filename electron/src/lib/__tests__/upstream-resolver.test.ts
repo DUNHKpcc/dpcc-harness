@@ -28,17 +28,19 @@ function mockSettings({
   cliConfigSource = "default",
   claudeCliConfigSource,
   codexCliConfigSource,
+  dpccBaseUrl = "https://api.dpcc.example",
   claudeGateway = { enabled: false, baseUrl: "", authToken: "", model: "" },
   codexGateway = { enabled: false, name: "", baseUrl: "", apiKey: "", model: "" },
 }: {
   cliConfigSource?: "default" | "local" | "gateway";
   claudeCliConfigSource?: "default" | "local" | "gateway";
   codexCliConfigSource?: "default" | "local" | "gateway";
+  dpccBaseUrl?: string;
   claudeGateway?: { enabled: boolean; baseUrl: string; authToken: string; model: string };
   codexGateway?: { enabled: boolean; name: string; baseUrl: string; apiKey: string; model: string };
 } = {}) {
   const dpccUpstream = {
-    baseUrl: "https://api.dpcc.example",
+    baseUrl: dpccBaseUrl,
     claudeToken: "sk-dpcc-claude",
     codexToken: "sk-dpcc-codex",
     claudeModel: "dpcc-claude-model",
@@ -91,6 +93,14 @@ describe("upstream resolver", () => {
       apiKey: "sk-dpcc-codex",
       model: "dpcc-codex-model",
     });
+  });
+
+  it("uses the origin DPCC API endpoint when no saved host overrides the default", async () => {
+    mockSettings({ dpccBaseUrl: "" });
+    const { resolveClaudeUpstream, resolveCodexUpstream } = await loadModule();
+
+    expect(resolveClaudeUpstream().baseUrl).toBe("https://origin-api.dpccgaming.xyz");
+    expect(resolveCodexUpstream().baseUrl).toBe("https://origin-api.dpccgaming.xyz/v1");
   });
 
   it("uses local Claude and Codex CLI configs when selected", async () => {

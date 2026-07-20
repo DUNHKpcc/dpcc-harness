@@ -15,7 +15,7 @@
 export type AccountSource = "dpcc" | "none";
 
 /** Default upstream platform — DPCC API. Used when nothing else is configured. */
-export const DEFAULT_NEWAPI_BASE_URL = "https://api.dpccgaming.xyz";
+export const DEFAULT_NEWAPI_BASE_URL = "https://origin-api.dpccgaming.xyz";
 
 /** Effective upstream connection used for account queries (no secret values). */
 export interface AccountConfig {

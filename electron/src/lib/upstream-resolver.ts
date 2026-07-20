@@ -2,7 +2,7 @@
  * Single source of truth for which upstream PccAgent routes each engine through.
  *
  * Each source is selected in Settings → Current Config:
- *   - default — the DPCC official upstream (api.dpccgaming.xyz) + the DPCC account key
+ *   - default — the DPCC official upstream (origin-api.dpccgaming.xyz) + the DPCC account key
  *   - local — the user's current Claude Code / Codex CLI configuration
  *   - gateway — the in-app custom third-party gateway (Settings → Engines)
  *

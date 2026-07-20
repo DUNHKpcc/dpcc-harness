@@ -24,6 +24,7 @@ import {
   CODEX_GATEWAY_MODEL_PRESETS,
   buildGatewayModelMappings,
 } from "@shared/lib/gateway-models";
+import { DEFAULT_NEWAPI_BASE_URL } from "@shared/types/account";
 import { isActiveThirdPartyGateway, isDpccUpstreamUrl } from "@shared/lib/upstream-routing";
 
 // Re-export shared types so existing `import from "./app-settings"` consumers still work
@@ -192,6 +193,22 @@ function normalizeCodexGateway(gateway: Partial<CodexGatewaySettings> | undefine
   };
 }
 
+const LEGACY_DPCC_BASE_URL = "https://api.dpccgaming.xyz";
+
+function migrateDpccOriginBaseUrl(upstream: DpccUpstreamSettings): {
+  upstream: DpccUpstreamSettings;
+  migrated: boolean;
+} {
+  const normalized = upstream.baseUrl.trim().replace(/\/+$/, "").replace(/\/v1$/i, "");
+  if (normalized.toLowerCase() !== LEGACY_DPCC_BASE_URL) {
+    return { upstream, migrated: false };
+  }
+  return {
+    upstream: { ...upstream, baseUrl: DEFAULT_NEWAPI_BASE_URL },
+    migrated: true,
+  };
+}
+
 // ── Internal state ──
 
 let cached: AppSettings | null = null;
@@ -243,6 +260,10 @@ export function getAppSettings(): AppSettings {
           : resolvedCliConfigSources.codexCliConfigSource,
     };
     const cliConfigSourceMigration = migrateCliConfigSources(parsed, cliConfigSources);
+    const resolvedDpccUpstream = hasDpccGatewayMigration
+      ? dpccGatewayMigration.dpccUpstream
+      : { ...DEFAULTS.dpccUpstream, ...parsed.dpccUpstream };
+    const dpccOriginMigration = migrateDpccOriginBaseUrl(resolvedDpccUpstream);
     // Merge with defaults so newly added keys are always present.
     // Deep-merge `notifications` so upgrading users get defaults for each event type
     // even if their settings.json has a partial or missing notifications object.
@@ -256,9 +277,7 @@ export function getAppSettings(): AppSettings {
         askUserQuestion: { ...NOTIFICATION_DEFAULTS.askUserQuestion, ...parsedNotif?.askUserQuestion },
         sessionComplete: { ...NOTIFICATION_DEFAULTS.sessionComplete, ...parsedNotif?.sessionComplete },
       },
-      dpccUpstream: hasDpccGatewayMigration
-        ? dpccGatewayMigration.dpccUpstream
-        : { ...DEFAULTS.dpccUpstream, ...parsed.dpccUpstream },
+      dpccUpstream: dpccOriginMigration.upstream,
       claudeGateway: hasDpccGatewayMigration
         ? normalizeClaudeGateway(dpccGatewayMigration.claudeGateway)
         : normalizeClaudeGateway(parsed.claudeGateway),
@@ -269,7 +288,7 @@ export function getAppSettings(): AppSettings {
       ...(binarySourceMigration ?? {}),
       ...(cliConfigSourceMigration ?? {}),
     };
-    if (hasDpccGatewayMigration || binarySourceMigration || cliConfigSourceMigration) {
+    if (hasDpccGatewayMigration || dpccOriginMigration.migrated || binarySourceMigration || cliConfigSourceMigration) {
       // Persist the migration once so the legacy gateway creds are physically
       // moved and one-time default normalizations never run again for this user.
       try {
@@ -295,7 +314,10 @@ export function getAppSetting<K extends keyof AppSettings>(key: K): AppSettings[
 /** Update one or more settings and persist to disk. */
 export function setAppSettings(patch: Partial<AppSettings>): AppSettings {
   const current = getAppSettings();
-  const next = { ...current, ...patch };
+  const normalizedPatch = patch.dpccUpstream
+    ? { ...patch, dpccUpstream: migrateDpccOriginBaseUrl(patch.dpccUpstream).upstream }
+    : patch;
+  const next = { ...current, ...normalizedPatch };
   cached = next;
 
   try {

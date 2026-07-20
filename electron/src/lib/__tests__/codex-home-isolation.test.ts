@@ -61,6 +61,8 @@ describe("codex home isolation", () => {
     expect(config).toContain('model = "dpcc-codex"');
     expect(config).toContain('base_url = "https://api.dpcc.example/v1"');
     expect(config).toContain('env_key = "PCCAGENT_GATEWAY_API_KEY"');
+    expect(config).toContain('wire_api = "responses"');
+    expect(config).toContain("supports_websockets = false");
     expect(config).not.toContain("sk-dpcc");
     expect(config).not.toContain("[mcp_servers.");
   });

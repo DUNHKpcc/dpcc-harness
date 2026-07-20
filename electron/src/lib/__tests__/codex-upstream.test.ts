@@ -70,6 +70,8 @@ describe("codexUpstreamThreadParams", () => {
       config: expect.objectContaining({
         model_provider: "pcc-agent-gateway",
         model: "dpcc-default-model",
+        "model_providers.pcc-agent-gateway.wire_api": "responses",
+        "model_providers.pcc-agent-gateway.supports_websockets": false,
       }),
     });
   });

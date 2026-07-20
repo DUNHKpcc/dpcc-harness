@@ -151,6 +151,7 @@ export function buildIsolatedCodexConfig(upstream: CodexUpstream): string | null
     `base_url = ${tomlString(upstream.baseUrl.trim())}`,
     `env_key = ${tomlString(CODEX_GATEWAY_ENV_KEY)}`,
     `wire_api = "responses"`,
+    `supports_websockets = false`,
     `requires_openai_auth = false`,
     "",
   );

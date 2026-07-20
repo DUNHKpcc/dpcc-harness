@@ -173,6 +173,7 @@ describe("codexUtilityPrompt", () => {
         "model_providers.pcc-agent-gateway.base_url": "https://api.dpcc.example/v1",
         "model_providers.pcc-agent-gateway.env_key": "PCCAGENT_GATEWAY_API_KEY",
         "model_providers.pcc-agent-gateway.wire_api": "responses",
+        "model_providers.pcc-agent-gateway.supports_websockets": false,
         "model_providers.pcc-agent-gateway.requires_openai_auth": false,
       }),
     });

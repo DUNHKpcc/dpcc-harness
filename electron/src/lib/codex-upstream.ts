@@ -32,6 +32,7 @@ export function codexUpstreamThreadParams(selectedModel?: string): Record<string
       [`model_providers.${CODEX_GATEWAY_PROVIDER_ID}.base_url`]: u.baseUrl,
       [`model_providers.${CODEX_GATEWAY_PROVIDER_ID}.env_key`]: CODEX_GATEWAY_ENV_KEY,
       [`model_providers.${CODEX_GATEWAY_PROVIDER_ID}.wire_api`]: "responses",
+      [`model_providers.${CODEX_GATEWAY_PROVIDER_ID}.supports_websockets`]: false,
       [`model_providers.${CODEX_GATEWAY_PROVIDER_ID}.requires_openai_auth`]: false,
       model_provider: CODEX_GATEWAY_PROVIDER_ID,
     },

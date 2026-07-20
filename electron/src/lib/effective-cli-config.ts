@@ -3,7 +3,7 @@
  * "effective" view shown in Settings → Current Config.
  *
  * Source options mirror the session spawn logic (see upstream-resolver):
- *  - default: the DPCC official upstream (api.dpccgaming.xyz) + the DPCC account key
+ *  - default: the DPCC official upstream (origin-api.dpccgaming.xyz) + the DPCC account key
  *  - local: the user's current Claude Code / Codex CLI configuration
  *  - gateway: the in-app custom third-party gateway
  *

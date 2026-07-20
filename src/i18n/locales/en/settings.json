@@ -110,7 +110,7 @@
         "editLabel": "Edit gateway config",
         "baseUrlLabel": "Base URL",
         "baseUrlDesc": "Gateway endpoint → ANTHROPIC_BASE_URL.",
-        "baseUrlPlaceholder": "https://api.dpccgaming.xyz",
+        "baseUrlPlaceholder": "https://origin-api.dpccgaming.xyz",
         "tokenLabel": "Auth token",
         "tokenDesc": "Bearer token / API key → ANTHROPIC_AUTH_TOKEN.",
         "tokenPlaceholder": "sk-...",
@@ -147,7 +147,7 @@
         "namePlaceholder": "My Gateway",
         "baseUrlLabel": "Base URL",
         "baseUrlDesc": "Provider endpoint (Responses API).",
-        "baseUrlPlaceholder": "https://api.dpccgaming.xyz/v1",
+        "baseUrlPlaceholder": "https://origin-api.dpccgaming.xyz/v1",
         "apiKeyLabel": "API key",
         "apiKeyDesc": "Injected into the Codex process at runtime; never written to config.toml.",
         "apiKeyPlaceholder": "sk-...",
@@ -345,7 +345,7 @@
     "sourceDesc": {
       "gateway": "Routed through the custom third-party gateway set in Settings → Engines.",
       "local": "Uses the corresponding local CLI configuration.",
-      "default": "Routed through the DPCC default upstream (api.dpccgaming.xyz)."
+      "default": "Routed through the DPCC default upstream (origin-api.dpccgaming.xyz)."
     },
     "fields": {
       "provider": "Provider",

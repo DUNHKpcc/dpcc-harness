@@ -75,7 +75,7 @@ export interface CodexGatewaySettings {
 }
 
 /**
- * DPCC official default upstream (api.dpccgaming.xyz). Applied when Current
+ * DPCC official default upstream (origin-api.dpccgaming.xyz). Applied when Current
  * Config source is "default". Credentials come from the
  * DPCC API account entry (Settings → Account) and the welcome wizard. Unlike the
  * gateway settings there is no `enabled` flag — this is the default upstream,
@@ -149,7 +149,7 @@ export interface AppSettings {
   /** Selected upstream source for built-in Codex sessions. */
   codexCliConfigSource: CliConfigSource;
   /**
-   * DPCC official default upstream (api.dpccgaming.xyz), used when Current
+   * DPCC official default upstream (origin-api.dpccgaming.xyz), used when Current
    * Config source is "default". Populated by the DPCC API account entry and the
    * welcome wizard.
    */

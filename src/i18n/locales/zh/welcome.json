@@ -58,7 +58,7 @@
     "title": "DPCC API",
     "subtitle": "连接你的 DPCC API 账户，让 Claude 跑起来，并随时查看余额。",
     "gatewayLabel": "网关密钥",
-    "gatewayUrlPlaceholder": "https://api.dpccgaming.xyz",
+    "gatewayUrlPlaceholder": "https://origin-api.dpccgaming.xyz",
     "tokenPlaceholder": "令牌（sk-…）",
     "balanceLabel": "余额显示（可选）",
     "balanceHint": "可选 —— 仅当你的平台无法通过网关密钥返回余额时才需要填写。",

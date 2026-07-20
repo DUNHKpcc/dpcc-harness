@@ -110,7 +110,7 @@
         "editLabel": "编辑网关配置",
         "baseUrlLabel": "Base URL",
         "baseUrlDesc": "网关地址 → ANTHROPIC_BASE_URL。",
-        "baseUrlPlaceholder": "https://api.dpccgaming.xyz",
+        "baseUrlPlaceholder": "https://origin-api.dpccgaming.xyz",
         "tokenLabel": "鉴权令牌",
         "tokenDesc": "Bearer 令牌 / API Key → ANTHROPIC_AUTH_TOKEN。",
         "tokenPlaceholder": "sk-...",
@@ -147,7 +147,7 @@
         "namePlaceholder": "我的网关",
         "baseUrlLabel": "Base URL",
         "baseUrlDesc": "提供方地址（Responses API）。",
-        "baseUrlPlaceholder": "https://api.dpccgaming.xyz/v1",
+        "baseUrlPlaceholder": "https://origin-api.dpccgaming.xyz/v1",
         "apiKeyLabel": "API Key",
         "apiKeyDesc": "运行时注入 Codex 进程，不会写入 config.toml。",
         "apiKeyPlaceholder": "sk-...",
@@ -345,7 +345,7 @@
     "sourceDesc": {
       "gateway": "通过「设置 → SDK」中配置的自定义第三方网关转发。",
       "local": "使用当前本机对应 CLI 配置。",
-      "default": "通过 DPCC 官方上游 (api.dpccgaming.xyz) 转发。"
+      "default": "通过 DPCC 官方上游 (origin-api.dpccgaming.xyz) 转发。"
     },
     "fields": {
       "provider": "提供方",

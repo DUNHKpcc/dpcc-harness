@@ -58,7 +58,7 @@
     "title": "DPCC API",
     "subtitle": "Connect your DPCC API account so Claude can run — and see your balance at a glance.",
     "gatewayLabel": "Gateway key",
-    "gatewayUrlPlaceholder": "https://api.dpccgaming.xyz",
+    "gatewayUrlPlaceholder": "https://origin-api.dpccgaming.xyz",
     "tokenPlaceholder": "Token (sk-…)",
     "balanceLabel": "Balance display (optional)",
     "balanceHint": "Optional — only needed if your platform doesn't return balance through the gateway key.",

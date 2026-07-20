@@ -34,7 +34,7 @@
       "step1": "Open your DPCC API dashboard and copy the site URL.",
       "step2": "Create a token (API key) and copy it.",
       "step3": "Paste both below — they're stored locally on this device.",
-      "baseUrlPlaceholder": "https://api.dpccgaming.xyz",
+      "baseUrlPlaceholder": "https://origin-api.dpccgaming.xyz",
       "tokenPlaceholder": "Token (sk-…)",
       "balanceSection": "Balance lookup (optional)",
       "accessTokenPlaceholder": "System access token",

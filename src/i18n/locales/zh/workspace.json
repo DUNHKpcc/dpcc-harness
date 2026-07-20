@@ -34,7 +34,7 @@
       "step1": "打开 DPCC API 后台，复制站点地址。",
       "step2": "新建一个令牌（API Key）并复制。",
       "step3": "把两者粘贴到下方——仅保存在本机。",
-      "baseUrlPlaceholder": "https://api.dpccgaming.xyz",
+      "baseUrlPlaceholder": "https://origin-api.dpccgaming.xyz",
       "tokenPlaceholder": "令牌（sk-…）",
       "balanceSection": "余额查询（可选）",
       "accessTokenPlaceholder": "系统访问令牌",

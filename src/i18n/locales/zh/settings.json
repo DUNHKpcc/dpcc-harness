@@ -418,6 +418,16 @@
       "showOlder": "显示更早版本",
       "showLess": "收起早期版本",
       "entries": {
+        "v2_1_6": {
+          "title": "Microsoft Store、托盘工作流与原生通知",
+          "windowsStore": "新增 Microsoft Store 安装包与符合 Windows 规范的应用、任务栏、开始菜单和商店图标，同时继续聚焦 Windows x64。",
+          "windowsTray": "PccAgent 可在 Windows 系统托盘后台常驻、恢复窗口，并直接打开最近三条 Claude、Codex、ACP 或 Chat 对话。",
+          "nativeNotifications": "Windows 现可为前台、后台和分屏对话显示原生批准、提问与任务完成通知。",
+          "gatewayReliability": "完善 DPCC 与第三方 gateway 路由，提升 Codex 和 Claude session 连接目标上游的可靠性。",
+          "agentCompletion": "已完成的 subagent 任务现在会正确收敛到最终状态，不再持续显示为运行中。",
+          "supportChannels": "设置页新增 QQ 与 Telegram 联系入口，便于产品支持和开发者协作。",
+          "runtimeUpdate": "更新内置 Claude Agent SDK，获得最新 runtime 修复与平台支持。"
+        },
         "v2_1_5": {
           "title": "Session 可靠性与准确的请求统计",
           "requestTracking": "上游请求次数现已覆盖标题生成、commit message、ACP turn 与后台任务，并避免 retry 或重复事件造成重复计数。",

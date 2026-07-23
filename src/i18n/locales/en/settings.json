@@ -418,6 +418,16 @@
       "showOlder": "Show older releases",
       "showLess": "Hide older releases",
       "entries": {
+        "v2_1_6": {
+          "title": "Windows Store, tray workflow, and native notifications",
+          "windowsStore": "Added a Microsoft Store package with Windows-native app, taskbar, Start menu, and Store artwork, while keeping the download focused on Windows x64.",
+          "windowsTray": "PccAgent can stay available in the Windows system tray, restore from the background, and open any of the three most recent Claude, Codex, ACP, or Chat conversations.",
+          "nativeNotifications": "Windows now shows native approval, question, and task-completion notifications for foreground, background, and split-pane conversations.",
+          "gatewayReliability": "Improved DPCC and third-party gateway routing so Codex and Claude sessions use the intended upstream more reliably.",
+          "agentCompletion": "Completed subagent work now settles into its final state instead of remaining visually active.",
+          "supportChannels": "Added in-app QQ and Telegram contact channels for product support and developer collaboration.",
+          "runtimeUpdate": "Updated the bundled Claude Agent SDK for the latest runtime fixes and platform support."
+        },
         "v2_1_5": {
           "title": "Session reliability and accurate request tracking",
           "requestTracking": "Upstream request counts now include title generation, commit messages, ACP turns, and background work without double-counting retries or repeated events.",

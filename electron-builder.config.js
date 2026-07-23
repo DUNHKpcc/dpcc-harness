@@ -373,6 +373,12 @@ module.exports = {
   win: {
     target: [{ target: "nsis", arch: ["x64"] }],
     icon: "build/icon.ico",
+    extraResources: [
+      {
+        from: "build/icon.ico",
+        to: "icon.ico",
+      },
+    ],
     files: [
       "!node_modules/electron-liquid-glass/**",
       "!node_modules/node-pty/prebuilds/darwin-*/**",

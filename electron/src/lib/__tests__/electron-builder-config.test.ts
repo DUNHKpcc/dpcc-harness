@@ -5,6 +5,28 @@ import { execFileSync } from "child_process";
 import { afterEach, describe, expect, it } from "vitest";
 
 const tempDirs: string[] = [];
+const repoRoot = path.resolve(__dirname, "../../../..");
+const windowsTargetSizes = [16, 20, 24, 30, 32, 36, 40, 48, 60, 64, 72, 80, 96, 256];
+
+function readPngDimensions(filePath: string): { width: number; height: number } {
+  const buffer = fs.readFileSync(filePath);
+  expect(buffer.subarray(1, 4).toString("ascii")).toBe("PNG");
+  return {
+    width: buffer.readUInt32BE(16),
+    height: buffer.readUInt32BE(20),
+  };
+}
+
+function readIcoSizes(filePath: string): number[] {
+  const buffer = fs.readFileSync(filePath);
+  expect(buffer.readUInt16LE(0)).toBe(0);
+  expect(buffer.readUInt16LE(2)).toBe(1);
+  const count = buffer.readUInt16LE(4);
+  return Array.from({ length: count }, (_, index) => {
+    const encodedSize = buffer.readUInt8(6 + index * 16);
+    return encodedSize === 0 ? 256 : encodedSize;
+  });
+}
 
 function makeResourcesDir(...triples: string[]): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "builder-config-test-"));
@@ -153,6 +175,41 @@ describe("electron-builder config", () => {
       publisherDisplayName: "DUNHKpcc",
       applicationId: "PccAgent",
     });
+  });
+
+  it("uses the dedicated Windows icon and makes it available to the tray", async () => {
+    const config = await import("../../../../electron-builder.config.js");
+
+    expect(config.default.win).toMatchObject({
+      icon: "build/icon.ico",
+      extraResources: [
+        {
+          from: "build/icon.ico",
+          to: "icon.ico",
+        },
+      ],
+    });
+    expect(readPngDimensions(path.join(repoRoot, "build", "icon-windows.png"))).toEqual({
+      width: 1024,
+      height: 1024,
+    });
+    expect(readIcoSizes(path.join(repoRoot, "build", "icon.ico"))).toEqual(windowsTargetSizes);
+  });
+
+  it("provides unplated AppList icons for every Windows target size and theme", () => {
+    const appxDir = path.join(repoRoot, "build", "appx");
+    const variants = ["", "_altform-unplated", "_altform-lightunplated"];
+
+    for (const size of windowsTargetSizes) {
+      for (const variant of variants) {
+        const iconPath = path.join(
+          appxDir,
+          `Square44x44Logo.targetsize-${size}${variant}.png`,
+        );
+        expect(fs.existsSync(iconPath), iconPath).toBe(true);
+        expect(readPngDimensions(iconPath)).toEqual({ width: size, height: size });
+      }
+    }
   });
 
   it("omits PortableGit extraResource when the bundle directory is absent", () => {

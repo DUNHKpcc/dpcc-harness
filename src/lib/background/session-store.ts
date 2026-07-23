@@ -49,6 +49,7 @@ export interface InternalState extends BackgroundSessionState {
 
 /** Callback fired when a background session receives a permission request */
 type PermissionRequestCallback = (sessionId: string, permission: PermissionRequest) => void;
+type PermissionClearedCallback = (sessionId: string) => void;
 
 function cloneValue<T>(value: T): T {
   if (value === null || value === undefined) return value;
@@ -64,6 +65,7 @@ export class BackgroundSessionStore {
   private sessions = new Map<string, InternalState>();
   onProcessingChange?: (sessionId: string, isProcessing: boolean, suppressUnread?: boolean) => void;
   onPermissionRequest?: PermissionRequestCallback;
+  onPermissionCleared?: PermissionClearedCallback;
 
   private getOrCreate(sessionId: string): InternalState {
     let state = this.sessions.get(sessionId);
@@ -323,11 +325,15 @@ export class BackgroundSessionStore {
   markDisconnected(sessionId: string): void {
     const state = this.sessions.get(sessionId);
     if (!state) return;
+    const hadPendingPermission = state.pendingPermission !== null;
     state.isConnected = false;
     state.isCompacting = false;
     // Dead process = dead permission — clear both
     state.pendingPermission = null;
     state.rawAcpPermission = null;
+    if (hadPendingPermission) {
+      this.onPermissionCleared?.(sessionId);
+    }
     if (state.isProcessing) {
       state.isProcessing = false;
       this.onProcessingChange?.(sessionId, false);

@@ -139,6 +139,8 @@ export function useAppOrchestrator() {
     activeSession: manager.activeSession,
     sessionInfo: manager.sessionInfo,
     isProcessing: manager.isProcessing,
+    visibleSessionIds: splitView.visibleSessionIds,
+    setPlanMode: settings.setPlanMode,
     onOpenSession: manager.switchSession,
   });
 

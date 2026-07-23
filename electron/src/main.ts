@@ -1,5 +1,19 @@
 import { execSync } from "child_process";
-import { app, BrowserWindow, clipboard, globalShortcut, ipcMain, Menu, nativeTheme, session, systemPreferences, webContents } from "electron";
+import {
+  app,
+  BrowserWindow,
+  clipboard,
+  globalShortcut,
+  ipcMain,
+  Menu,
+  nativeImage,
+  nativeTheme,
+  session,
+  systemPreferences,
+  Tray,
+  webContents,
+} from "electron";
+import { existsSync } from "node:fs";
 import path from "path";
 import http from "http";
 import { getBootstrapMinWindowWidth } from "../../src/lib/layout/constants";
@@ -33,6 +47,7 @@ import {
 import { safeSend } from "./lib/safe-send";
 import { killProcessTree } from "./lib/process-tree";
 import { openExternalUrl } from "./lib/open-external";
+import { formatTraySessionLabel } from "./lib/tray-menu";
 import {
   canOpenAppDevTools,
   shouldDisableApplicationMenu,
@@ -65,6 +80,7 @@ import * as settingsIpc from "./ipc/settings";
 import * as accountIpc from "./ipc/account";
 import * as jiraIpc from "./ipc/jira";
 import * as wechatIpc from "./ipc/wechat";
+import * as notificationsIpc from "./ipc/notifications";
 import { onSettingsChanged } from "./ipc/settings";
 
 // --- Performance: Chromium/V8 flags (must be set before app.whenReady()) ---
@@ -79,6 +95,7 @@ if (!app.requestSingleInstanceLock()) {
   app.on("second-instance", () => {
     const win = getMainWindow();
     if (!win) return;
+    if (!win.isVisible()) win.show();
     if (win.isMinimized()) win.restore();
     win.focus();
   });
@@ -96,6 +113,8 @@ if (shouldEnableRemoteDevTools({ isPackaged: app.isPackaged, glassEnabled, diagn
 }
 
 let mainWindow: BrowserWindow | null = null;
+let tray: Tray | null = null;
+let isQuitting = false;
 
 import type { ThemeOption, MacBackgroundEffect as SharedMacBackgroundEffect } from "@shared/types/settings";
 
@@ -169,6 +188,88 @@ function applyMacBackgroundEffect(effect: MacBackgroundEffect): void {
 
 function getMainWindow(): BrowserWindow | null {
   return mainWindow;
+}
+
+function getTrayIconPath(): string | null {
+  const candidates = [
+    path.join(process.resourcesPath, "icon.ico"),
+    path.join(process.resourcesPath, "app.ico"),
+    path.join(__dirname, "../../build/icon.ico"),
+    path.join(__dirname, "../../build/icon.png"),
+  ];
+
+  return candidates.find(existsSync) ?? null;
+}
+
+function showMainWindow(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  if (!mainWindow.isVisible()) mainWindow.show();
+  mainWindow.focus();
+}
+
+function openSessionFromTray(projectId: string, sessionId: string): void {
+  showMainWindow();
+  const win = getMainWindow();
+  if (!win || win.isDestroyed()) return;
+
+  const sendTarget = () => {
+    safeSend(getMainWindow, "tray:open-session", { projectId, sessionId });
+  };
+  if (win.webContents.isLoadingMainFrame()) {
+    win.webContents.once("did-finish-load", sendTarget);
+    return;
+  }
+  sendTarget();
+}
+
+function activateNotification(sessionId?: string): void {
+  showMainWindow();
+  if (!sessionId) return;
+
+  const win = getMainWindow();
+  if (!win || win.isDestroyed()) return;
+  const sendActivation = () => {
+    safeSend(getMainWindow, "notifications:activated", { sessionId });
+  };
+  if (win.webContents.isLoadingMainFrame()) {
+    win.webContents.once("did-finish-load", sendActivation);
+    return;
+  }
+  sendActivation();
+}
+
+async function showTrayContextMenu(): Promise<void> {
+  const activeTray = tray;
+  if (!activeTray || activeTray.isDestroyed()) return;
+
+  const recentSessions = await sessionsIpc.listRecentSessions(3);
+  if (tray !== activeTray || activeTray.isDestroyed()) return;
+
+  const recentItems: Electron.MenuItemConstructorOptions[] = recentSessions.length > 0
+    ? recentSessions.map((session) => ({
+        label: formatTraySessionLabel(session),
+        click: () => openSessionFromTray(session.projectId, session.id),
+      }))
+    : [{ label: "暂无最近对话", enabled: false }];
+
+  activeTray.popUpContextMenu(Menu.buildFromTemplate([
+    { label: "最近对话", enabled: false },
+    ...recentItems,
+    { type: "separator" },
+    {
+      label: "显示 / 恢复",
+      click: showMainWindow,
+    },
+    { type: "separator" },
+    {
+      label: "退出",
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      },
+    },
+  ]));
 }
 
 function isMainRendererPermissionRequest(webContents: Electron.WebContents | null): boolean {
@@ -250,6 +351,18 @@ function createWindow(): void {
   mainWindow.once("ready-to-show", () => {
     mainWindow?.show();
   });
+
+  if (process.platform === "win32") {
+    mainWindow.on("minimize", () => {
+      mainWindow?.hide();
+    });
+
+    mainWindow.on("close", (event) => {
+      if (isQuitting) return;
+      event.preventDefault();
+      mainWindow?.hide();
+    });
+  }
 
   if (process.platform === "darwin") {
     mainWindow.on("focus", () => {
@@ -439,6 +552,7 @@ settingsIpc.register(getMainWindow);
 accountIpc.register();
 jiraIpc.register();
 wechatIpc.register(getMainWindow);
+notificationsIpc.register(getMainWindow, activateNotification);
 
 // --- Claude → Codex visible delegation bridge ---
 // Loopback controller the stdio MCP helper forwards `codex_delegate` calls to.
@@ -579,6 +693,17 @@ app.whenReady().then(() => {
   }
 
   createWindow();
+
+  if (process.platform === "win32") {
+    const trayIconPath = getTrayIconPath();
+    tray = new Tray(trayIconPath ? trayIconPath : nativeImage.createEmpty());
+    tray.setToolTip("PccAgent");
+    tray.on("right-click", () => {
+      void showTrayContextMenu();
+    });
+    tray.on("double-click", showMainWindow);
+  }
+
   initAutoUpdater(getMainWindow, diagnosticBuild);
   initPreReleaseCheck(getMainWindow);
 
@@ -664,8 +789,17 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
   });
 }
 
+app.on("before-quit", () => {
+  isQuitting = true;
+});
+
 app.on("will-quit", (event) => {
   globalShortcut.unregisterAll();
+  isQuitting = true;
+  notificationsIpc.dispose();
+  if (tray && !tray.isDestroyed()) {
+    tray.destroy();
+  }
   void claudeCodexBridge.stop();
 
   // When an update is being installed, let the updater control the quit lifecycle.

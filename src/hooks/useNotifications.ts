@@ -1,11 +1,28 @@
 import { useEffect, useEffectEvent, useRef } from "react";
 import type { ChatSession, PermissionRequest, NotificationSettings, NotificationTrigger, SessionInfo } from "@/types";
+import type {
+  AppNotificationKind,
+  AppNotificationPayload,
+} from "@shared/types/notifications";
 import {
   advanceSessionCompletionTracker,
+  classifyPermissionNotification,
   consumeSuppressedSessionCompletion,
+  createAppNotificationId,
+  getPermissionNotificationKind,
+  getVisibleNotificationSessionIds,
+  showNativeNotificationWithFallback,
+  type PermissionNotificationEventType,
   shouldNotifyPermissionRequest,
 } from "@/lib/notification-utils";
 import { getSessionNotificationActor } from "@/lib/session-notifications";
+import {
+  advanceSplitPaneNotificationTracking,
+  subscribeSplitPaneNotifications,
+  type SplitPaneNotificationTrackingState,
+} from "@/lib/split-pane-notifications";
+import { isWindows } from "@/lib/utils";
+import i18n from "@/i18n";
 
 // ── Defaults (used when AppSettings hasn't loaded yet) ──
 
@@ -42,22 +59,36 @@ function shouldFire(trigger: NotificationTrigger): boolean {
   return !document.hasFocus();
 }
 
+function showWebNotification(
+  payload: AppNotificationPayload,
+  onClick?: () => void,
+): void {
+  const notification = new Notification(payload.title, {
+    body: payload.body,
+    silent: true,
+  });
+  notification.onclick = () => {
+    window.focus();
+    onClick?.();
+    notification.close();
+  };
+}
+
 /** Fire OS notification + sound based on event settings. */
 function fireNotification(
   eventSettings: { osNotification: NotificationTrigger; sound: NotificationTrigger },
-  title: string,
-  body: string,
+  payload: AppNotificationPayload,
   onClick?: () => void,
 ): void {
   if (shouldFire(eventSettings.osNotification)) {
-    // Web Notification API — Electron auto-grants permission.
-    // silent: true prevents OS from playing its own sound (we manage sound separately).
-    const notification = new Notification(title, { body, silent: true });
-    notification.onclick = () => {
-      window.focus();
-      onClick?.();
-      notification.close();
-    };
+    if (isWindows) {
+      void showNativeNotificationWithFallback(
+        () => window.claude.notifications.show(payload),
+        () => showWebNotification(payload, onClick),
+      );
+    } else {
+      showWebNotification(payload, onClick);
+    }
   }
 
   if (shouldFire(eventSettings.sound)) {
@@ -69,48 +100,54 @@ function fireNotification(
   }
 }
 
-/** Map a permission request's toolName to one of the three event types. */
-function classifyEvent(
-  toolName: string,
-): "exitPlanMode" | "askUserQuestion" | "permissions" {
-  if (toolName === "ExitPlanMode") return "exitPlanMode";
-  if (toolName === "AskUserQuestion") return "askUserQuestion";
-  return "permissions";
-}
-
 /** Human-readable notification content for each event type. */
 function getNotificationContent(
-  eventType: "exitPlanMode" | "askUserQuestion" | "permissions",
+  eventType: PermissionNotificationEventType,
   request: PermissionRequest,
   actor: string,
 ): { title: string; body: string } {
   switch (eventType) {
     case "exitPlanMode":
       return {
-        title: "Ready to implement",
-        body: `${actor} has a plan and is waiting for your approval.`,
+        title: i18n.t("notifications.readyTitle"),
+        body: i18n.t("notifications.readyBody", { actor }),
       };
-    case "askUserQuestion": {
-      const questions = request.toolInput?.questions as
-        | Array<{ question: string }>
-        | undefined;
+    case "askUserQuestion":
       return {
-        title: `Question from ${actor}`,
-        body: questions?.[0]?.question ?? `${actor} is asking you a question.`,
+        title: i18n.t("notifications.questionTitle", { actor }),
+        body: i18n.t("notifications.questionFallback", { actor }),
       };
-    }
-    case "permissions": {
-      const filePath = request.toolInput?.file_path as string | undefined;
-      const command = request.toolInput?.command as string | undefined;
-      const detail = filePath ?? (command ? String(command).slice(0, 80) : "");
+    case "permissions":
       return {
-        title: "Permission required",
-        body: detail
-          ? `Allow ${request.toolName}: ${detail}?`
-          : `Allow ${request.toolName}?`,
+        title: i18n.t("notifications.permissionTitle"),
+        body: i18n.t("notifications.permissionBody", {
+          tool: request.toolName,
+        }),
       };
-    }
   }
+}
+
+let notificationSequence = 0;
+
+function nextNotificationEventId(prefix: string): string {
+  notificationSequence += 1;
+  return `${prefix}-${Date.now()}-${notificationSequence}`;
+}
+
+function createPayload(
+  kind: AppNotificationKind,
+  sessionId: string | null,
+  eventId: string,
+  title: string,
+  body: string,
+): AppNotificationPayload {
+  return {
+    id: createAppNotificationId(kind, sessionId, eventId),
+    kind,
+    title,
+    body,
+    ...(sessionId ? { sessionId } : {}),
+  };
 }
 
 // ── Hook ──
@@ -123,6 +160,7 @@ interface UseNotificationsOptions {
   sessionInfo: SessionInfo | null;
   /** Whether the agent is currently processing (used to detect session completion) */
   isProcessing: boolean;
+  visibleSessionIds?: readonly string[];
   onOpenSession?: (sessionId: string) => void;
 }
 
@@ -139,6 +177,10 @@ interface BackgroundPermissionDetail {
   permission: PermissionRequest;
 }
 
+interface BackgroundPermissionClearedDetail {
+  sessionId: string;
+}
+
 export function useNotifications({
   pendingPermission,
   notificationSettings,
@@ -146,6 +188,7 @@ export function useNotifications({
   activeSession,
   sessionInfo,
   isProcessing,
+  visibleSessionIds = [],
   onOpenSession,
 }: UseNotificationsOptions): void {
   const settings = notificationSettings ?? FALLBACK;
@@ -154,34 +197,126 @@ export function useNotifications({
     onOpenSession?.(sessionId);
   });
 
+  useEffect(() => {
+    return window.claude.notifications.onActivated(({ sessionId }) => {
+      if (sessionId) openSession(sessionId);
+    });
+  }, [openSession]);
+
+  useEffect(() => {
+    if (!isWindows) return;
+    const dismissVisibleSessionNotifications = () => {
+      if (document.hasFocus()) {
+        for (const sessionId of getVisibleNotificationSessionIds(
+          activeSessionId,
+          visibleSessionIds,
+        )) {
+          void window.claude.notifications.dismissSession(sessionId);
+        }
+      }
+    };
+
+    dismissVisibleSessionNotifications();
+    window.addEventListener("focus", dismissVisibleSessionNotifications);
+    return () => {
+      window.removeEventListener("focus", dismissVisibleSessionNotifications);
+    };
+  }, [activeSessionId, visibleSessionIds]);
+
   // ── Permission-based notifications ──
 
   // Track every request we've already surfaced so foreground/background
   // re-presentation of the same open permission doesn't replay the sound.
   const seenPermissionKeys = useRef(new Set<string>());
+  const permissionNotifications = useRef(new Map<
+    string,
+    { requestId: string; notificationId: string }
+  >());
 
-  useEffect(() => {
-    if (!pendingPermission) return;
+  const dismissPermissionNotification = useEffectEvent((
+    sessionId: string,
+    expectedRequestId?: string,
+  ) => {
+    const active = permissionNotifications.current.get(sessionId);
+    if (!active || (expectedRequestId && active.requestId !== expectedRequestId)) return;
+    permissionNotifications.current.delete(sessionId);
+    if (isWindows) {
+      void window.claude.notifications.dismiss(active.notificationId);
+    }
+  });
 
+  const presentPermissionNotification = useEffectEvent((
+    sessionId: string,
+    permission: PermissionRequest,
+    actor: string,
+  ) => {
+    const previous = permissionNotifications.current.get(sessionId);
+    if (previous && previous.requestId !== permission.requestId) {
+      dismissPermissionNotification(sessionId, previous.requestId);
+    }
     if (!shouldNotifyPermissionRequest(seenPermissionKeys.current, {
-      sessionId: activeSessionId,
-      requestId: pendingPermission.requestId,
+      sessionId,
+      requestId: permission.requestId,
     })) {
       return;
     }
 
-    const eventType = classifyEvent(pendingPermission.toolName);
-    const eventSettings = settings[eventType];
-    const { title, body } = getNotificationContent(eventType, pendingPermission, activeActor);
-    fireNotification(
-      eventSettings,
+    const eventType = classifyPermissionNotification(permission.toolName);
+    const { title, body } = getNotificationContent(eventType, permission, actor);
+    const kind = getPermissionNotificationKind(eventType);
+    const payload = createPayload(
+      kind,
+      sessionId,
+      permission.requestId,
       title,
       body,
-      activeSessionId ? () => openSession(activeSessionId) : undefined,
     );
-  }, [activeActor, activeSessionId, openSession, pendingPermission, settings]);
+    permissionNotifications.current.set(sessionId, {
+      requestId: permission.requestId,
+      notificationId: payload.id,
+    });
+    fireNotification(
+      settings[eventType],
+      payload,
+      () => openSession(sessionId),
+    );
+  });
+
+  useEffect(() => {
+    if (!activeSessionId) return;
+    if (!pendingPermission) {
+      dismissPermissionNotification(activeSessionId);
+      return;
+    }
+    presentPermissionNotification(activeSessionId, pendingPermission, activeActor);
+  }, [
+    activeActor,
+    activeSessionId,
+    dismissPermissionNotification,
+    pendingPermission,
+    presentPermissionNotification,
+  ]);
 
   // ── Session completion notification ──
+
+  const presentCompletionNotification = useEffectEvent((
+    sessionId: string,
+    actor: string,
+    eventId: string,
+  ) => {
+    if (consumeSuppressedSessionCompletion(sessionId)) return;
+    fireNotification(
+      settings.sessionComplete,
+      createPayload(
+        "task-complete",
+        sessionId,
+        eventId,
+        i18n.t("notifications.taskCompleteTitle"),
+        i18n.t("notifications.taskCompleteBody", { actor }),
+      ),
+      () => openSession(sessionId),
+    );
+  });
 
   // Track the active session alongside processing so chat switches do not look
   // like a completed turn for the newly selected session.
@@ -195,61 +330,102 @@ export function useNotifications({
     );
     prevSessionState.current = tracked;
 
-    if (completed) {
-      const completedSessionId = current.sessionId;
-      if (consumeSuppressedSessionCompletion(completedSessionId)) return;
-      fireNotification(
-        settings.sessionComplete,
-        "Task complete",
-        `${activeActor} has finished processing.`,
-        completedSessionId ? () => openSession(completedSessionId) : undefined,
+    if (completed && current.sessionId) {
+      presentCompletionNotification(
+        current.sessionId,
+        activeActor,
+        nextNotificationEventId("completed"),
       );
     }
-  }, [activeActor, activeSessionId, isProcessing, openSession, settings]);
+  }, [
+    activeActor,
+    activeSessionId,
+    isProcessing,
+    presentCompletionNotification,
+  ]);
 
   // ── Background session notifications ──
   useEffect(() => {
     const onBackgroundComplete = (evt: Event) => {
       const detail = (evt as CustomEvent<BackgroundSessionCompleteDetail>).detail;
       if (!detail) return;
-      if (consumeSuppressedSessionCompletion(detail.sessionId)) return;
-      const title = detail.sessionTitle || "Background session";
-      fireNotification(
-        settings.sessionComplete,
-        "Task complete",
-        `${title}: ${detail.actor} has finished processing.`,
-        () => openSession(detail.sessionId),
+      presentCompletionNotification(
+        detail.sessionId,
+        detail.actor,
+        nextNotificationEventId("background-completed"),
       );
     };
 
     const onBackgroundPermission = (evt: Event) => {
       const detail = (evt as CustomEvent<BackgroundPermissionDetail>).detail;
       if (!detail?.permission) return;
-      if (!shouldNotifyPermissionRequest(seenPermissionKeys.current, {
-        sessionId: detail.sessionId,
-        requestId: detail.permission.requestId,
-      })) {
-        return;
+      presentPermissionNotification(detail.sessionId, detail.permission, detail.actor);
+    };
+
+    const onBackgroundPermissionCleared = (evt: Event) => {
+      const detail = (evt as CustomEvent<BackgroundPermissionClearedDetail>).detail;
+      if (!detail?.sessionId) return;
+      dismissPermissionNotification(detail.sessionId);
+      if (isWindows) {
+        void window.claude.notifications.dismissSession(
+          detail.sessionId,
+          ["approval", "information"],
+        );
       }
-      const eventType = classifyEvent(detail.permission.toolName);
-      const eventSettings = settings[eventType];
-      const { title, body } = getNotificationContent(eventType, detail.permission, detail.actor);
-      const sessionPrefix = detail.sessionTitle
-        ? `${detail.sessionTitle}: `
-        : "";
-      fireNotification(
-        eventSettings,
-        title,
-        `${sessionPrefix}${body}`,
-        () => openSession(detail.sessionId),
-      );
     };
 
     window.addEventListener("pcc-agent:background-session-complete", onBackgroundComplete as EventListener);
     window.addEventListener("pcc-agent:background-permission-request", onBackgroundPermission as EventListener);
+    window.addEventListener("pcc-agent:background-permission-cleared", onBackgroundPermissionCleared as EventListener);
     return () => {
       window.removeEventListener("pcc-agent:background-session-complete", onBackgroundComplete as EventListener);
       window.removeEventListener("pcc-agent:background-permission-request", onBackgroundPermission as EventListener);
+      window.removeEventListener("pcc-agent:background-permission-cleared", onBackgroundPermissionCleared as EventListener);
     };
-  }, [openSession, settings]);
+  }, [
+    dismissPermissionNotification,
+    presentCompletionNotification,
+    presentPermissionNotification,
+  ]);
+
+  // ── Visible secondary split-pane notifications ──
+  const splitTracking = useRef(new Map<string, SplitPaneNotificationTrackingState>());
+  useEffect(() => subscribeSplitPaneNotifications((event) => {
+    if (event.type === "remove") {
+      splitTracking.current.delete(event.sessionId);
+      return;
+    }
+
+    const { snapshot } = event;
+    const transition = advanceSplitPaneNotificationTracking(
+      splitTracking.current.get(snapshot.sessionId),
+      snapshot,
+    );
+    splitTracking.current.set(snapshot.sessionId, transition.tracked);
+
+    if (transition.clearedPermissionRequestId) {
+      dismissPermissionNotification(
+        snapshot.sessionId,
+        transition.clearedPermissionRequestId,
+      );
+    }
+    if (transition.permissionRequested && snapshot.pendingPermission) {
+      presentPermissionNotification(
+        snapshot.sessionId,
+        snapshot.pendingPermission,
+        snapshot.actor,
+      );
+    }
+    if (transition.completed) {
+      presentCompletionNotification(
+        snapshot.sessionId,
+        snapshot.actor,
+        snapshot.completionEventId,
+      );
+    }
+  }), [
+    dismissPermissionNotification,
+    presentCompletionNotification,
+    presentPermissionNotification,
+  ]);
 }

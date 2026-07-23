@@ -1,4 +1,10 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent, webUtils } from "electron";
+import type {
+  AppNotificationActivation,
+  AppNotificationBridge,
+  AppNotificationPayload,
+  AppNotificationShowResult,
+} from "@shared/types/notifications";
 import { readStoredThemeSource } from "@shared/lib/theme-storage";
 
 interface PreloadDocument {
@@ -161,6 +167,32 @@ contextBridge.exposeInMainWorld("claude", {
     ipcRenderer.on("claude-codex:delegate-request", listener);
     return () => ipcRenderer.removeListener("claude-codex:delegate-request", listener);
   },
+  onTrayOpenSession: (
+    callback: (target: { projectId: string; sessionId: string }) => void,
+  ) => {
+    const listener = (
+      _event: IpcRendererEvent,
+      target: { projectId: string; sessionId: string },
+    ) => callback(target);
+    ipcRenderer.on("tray:open-session", listener);
+    return () => ipcRenderer.removeListener("tray:open-session", listener);
+  },
+  notifications: {
+    show: (payload: AppNotificationPayload) =>
+      ipcRenderer.invoke("notifications:show", payload) as Promise<AppNotificationShowResult>,
+    dismiss: (id: string) =>
+      ipcRenderer.invoke("notifications:dismiss", id),
+    dismissSession: (sessionId, kinds) =>
+      ipcRenderer.invoke("notifications:dismiss-session", { sessionId, kinds }),
+    onActivated: (callback: (activation: AppNotificationActivation) => void) => {
+      const listener = (
+        _event: IpcRendererEvent,
+        activation: AppNotificationActivation,
+      ) => callback(activation);
+      ipcRenderer.on("notifications:activated", listener);
+      return () => ipcRenderer.removeListener("notifications:activated", listener);
+    },
+  } satisfies AppNotificationBridge,
   completeCodexDelegation: (result: unknown) =>
     ipcRenderer.invoke("claude-codex:complete-delegation", result),
   projects: {

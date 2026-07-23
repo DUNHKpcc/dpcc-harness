@@ -9,6 +9,7 @@ import {
   extractSessionMeta,
   type SessionMeta,
 } from "@shared/lib/session-persistence";
+import { selectRecentTraySessions } from "../lib/tray-menu";
 
 interface SearchResult {
   messageResults: Array<{
@@ -28,6 +29,77 @@ interface SearchResult {
 }
 
 const getMetaFilePath = getSessionMetaFilePath;
+
+export async function listProjectSessions(projectId: string): Promise<SessionMeta[]> {
+  try {
+    const dir = getProjectSessionsDir(projectId);
+    const allFiles = await fs.promises.readdir(dir);
+
+    // Prefer .meta.json sidecar files for fast listing
+    const metaFiles = allFiles.filter((f) => f.endsWith(".meta.json"));
+    const metaBasenames = new Set(metaFiles.map((f) => f.replace(/\.meta\.json$/, "")));
+
+    // Find .json files that lack a .meta.json sidecar (migration path)
+    const fullParseFiles = allFiles.filter(
+      (f) => f.endsWith(".json") && !f.endsWith(".meta.json") && !metaBasenames.has(f.replace(/\.json$/, "")),
+    );
+
+    const items = await Promise.all([
+      // Fast path: read small sidecar files
+      ...metaFiles.map(async (file): Promise<SessionMeta | null> => {
+        try {
+          const raw = await fs.promises.readFile(path.join(dir, file), "utf-8");
+          return JSON.parse(raw) as SessionMeta;
+        } catch {
+          return null;
+        }
+      }),
+      // Fallback: full-file parse for sessions without sidecar
+      ...fullParseFiles.map(async (file): Promise<SessionMeta | null> => {
+        try {
+          const raw = await fs.promises.readFile(path.join(dir, file), "utf-8");
+          const data = JSON.parse(raw) as Record<string, unknown>;
+          const lastMessageAt: number =
+            getLastUserMessageTimestamp(data.messages as Array<{ role?: string; timestamp?: number }>) ??
+            (typeof data.lastMessageAt === "number" ? data.lastMessageAt : undefined) ??
+            (data.createdAt as number) ??
+            0;
+
+          return extractSessionMeta(data, lastMessageAt);
+        } catch {
+          return null;
+        }
+      }),
+    ]);
+
+    const list: SessionMeta[] = items.filter((item): item is SessionMeta => item !== null);
+    // Sort by most recent user activity, not creation time.
+    list.sort((a, b) => b.lastMessageAt - a.lastMessageAt);
+    return list;
+  } catch (err) {
+    reportError("SESSIONS:LIST_ERR", err, { projectId });
+    return [];
+  }
+}
+
+export async function listRecentSessions(limit = 3): Promise<SessionMeta[]> {
+  try {
+    const sessionsRoot = path.join(getDataDir(), "sessions");
+    const entries = await fs.promises.readdir(sessionsRoot, { withFileTypes: true });
+    const sessions = (await Promise.all(
+      entries
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => listProjectSessions(entry.name)),
+    )).flat();
+
+    return selectRecentTraySessions(sessions, limit);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+      reportError("SESSIONS:RECENT_ERR", err);
+    }
+    return [];
+  }
+}
 
 export function register(): void {
   ipcMain.handle("sessions:save", async (_event, data: { projectId: string; id: string; createdAt?: number; messages?: Array<{ role?: string; timestamp?: number }> }) => {
@@ -55,58 +127,8 @@ export function register(): void {
     }
   });
 
-  ipcMain.handle("sessions:list", async (_event, projectId: string) => {
-    try {
-      const dir = getProjectSessionsDir(projectId);
-      const allFiles = await fs.promises.readdir(dir);
-
-      // Prefer .meta.json sidecar files for fast listing
-      const metaFiles = allFiles.filter((f) => f.endsWith(".meta.json"));
-      const metaBasenames = new Set(metaFiles.map((f) => f.replace(/\.meta\.json$/, "")));
-
-      // Find .json files that lack a .meta.json sidecar (migration path)
-      const fullParseFiles = allFiles.filter(
-        (f) => f.endsWith(".json") && !f.endsWith(".meta.json") && !metaBasenames.has(f.replace(/\.json$/, ""))
-      );
-
-      const items = await Promise.all([
-        // Fast path: read small sidecar files
-        ...metaFiles.map(async (file): Promise<SessionMeta | null> => {
-          try {
-            const raw = await fs.promises.readFile(path.join(dir, file), "utf-8");
-            const data = JSON.parse(raw) as SessionMeta;
-            return data;
-          } catch {
-            return null;
-          }
-        }),
-        // Fallback: full-file parse for sessions without sidecar
-        ...fullParseFiles.map(async (file): Promise<SessionMeta | null> => {
-          try {
-            const raw = await fs.promises.readFile(path.join(dir, file), "utf-8");
-            const data = JSON.parse(raw) as Record<string, unknown>;
-            const lastMessageAt: number =
-              getLastUserMessageTimestamp(data.messages as Array<{ role?: string; timestamp?: number }>) ??
-              (typeof data.lastMessageAt === "number" ? data.lastMessageAt : undefined) ??
-              (data.createdAt as number) ??
-              0;
-
-            return extractSessionMeta(data, lastMessageAt);
-          } catch {
-            return null;
-          }
-        }),
-      ]);
-
-      const list: SessionMeta[] = items.filter((item): item is SessionMeta => item !== null);
-      // Sort by most recent user activity, not creation time.
-      list.sort((a, b) => b.lastMessageAt - a.lastMessageAt);
-      return list;
-    } catch (err) {
-      reportError("SESSIONS:LIST_ERR", err, { projectId });
-      return [];
-    }
-  });
+  ipcMain.handle("sessions:list", (_event, projectId: string) =>
+    listProjectSessions(projectId));
 
   ipcMain.handle("sessions:update-meta", async (
     _event,

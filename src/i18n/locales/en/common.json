@@ -33,6 +33,18 @@
     "on": "On",
     "off": "Off"
   },
+  "notifications": {
+    "readyTitle": "Ready to implement",
+    "readyBody": "{{actor}} has a plan and is waiting for your approval.",
+    "questionTitle": "Question from {{actor}}",
+    "questionFallback": "{{actor}} is asking you a question.",
+    "permissionTitle": "Approval required",
+    "permissionBody": "Review {{tool}} in PccAgent.",
+    "permissionBodyWithDetail": "Review {{tool}}: {{detail}}",
+    "taskCompleteTitle": "Task complete",
+    "taskCompleteBody": "{{actor}} has finished processing.",
+    "backgroundTaskCompleteBody": "{{title}}: {{actor}} has finished processing."
+  },
   "toasts": {
     "permission": {
       "respondFailed": "Failed to respond to permission prompt",

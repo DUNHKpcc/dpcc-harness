@@ -570,6 +570,7 @@ function SplitTopRowItemInner(props: SplitTopRowItemProps) {
       sessionId={sessionId}
       acpPermissionBehavior={acpPermissionBehavior}
       loadBootstrap={loadSplitPaneBootstrap}
+      reportNotifications
     >
       {({ session: hostedSession, paneState: hostedPaneState }) => (
         <SplitChatPane {...buildChatPaneProps(hostedSession, hostedPaneState, false)} />

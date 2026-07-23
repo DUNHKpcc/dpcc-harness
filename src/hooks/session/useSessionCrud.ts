@@ -316,6 +316,7 @@ export function useSessionCrud({
       backgroundStoreRef.current.delete(id);
       messageQueueRef.current.delete(id);
       bgAgentStore.clearSession(id);
+      void window.claude.notifications.dismissSession(id);
       // Dismiss any permission toast for this session
       toast.dismiss(`permission-${id}`);
       await window.claude.sessions.delete(session.projectId, id);

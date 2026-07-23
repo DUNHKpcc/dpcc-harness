@@ -33,6 +33,18 @@
     "on": "开",
     "off": "关"
   },
+  "notifications": {
+    "readyTitle": "计划等待批准",
+    "readyBody": "{{actor}} 已准备好计划，正在等待你批准。",
+    "questionTitle": "{{actor}} 需要信息",
+    "questionFallback": "{{actor}} 正在询问一个问题。",
+    "permissionTitle": "请求批准",
+    "permissionBody": "请在 PccAgent 中检查 {{tool}} 请求。",
+    "permissionBodyWithDetail": "请检查 {{tool}}：{{detail}}",
+    "taskCompleteTitle": "任务已完成",
+    "taskCompleteBody": "{{actor}} 已完成处理。",
+    "backgroundTaskCompleteBody": "{{title}}：{{actor}} 已完成处理。"
+  },
   "toasts": {
     "permission": {
       "respondFailed": "响应权限请求失败",

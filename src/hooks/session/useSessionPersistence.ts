@@ -151,6 +151,20 @@ export function useSessionPersistence({
         },
       }));
     };
+
+    backgroundStoreRef.current.onPermissionCleared = (sessionId) => {
+      setSessions((prev) =>
+        prev.map((session) =>
+          session.id === sessionId
+            ? { ...session, hasPendingPermission: false }
+            : session,
+        ),
+      );
+      toast.dismiss(`permission-${sessionId}`);
+      window.dispatchEvent(new CustomEvent("pcc-agent:background-permission-cleared", {
+        detail: { sessionId },
+      }));
+    };
   }, [continueQueuedBackgroundSession, sessionsRef, setSessions, switchSessionRef, backgroundStoreRef]);
 
   // Handle session exits across all engines

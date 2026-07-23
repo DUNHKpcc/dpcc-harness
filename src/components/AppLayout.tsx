@@ -130,6 +130,10 @@ export function AppLayout() {
   // closure snapshot.
   const managerRef = useRef(manager);
   managerRef.current = manager;
+  const [pendingTraySession, setPendingTraySession] = useState<{
+    projectId: string;
+    sessionId: string;
+  } | null>(null);
   const {
     agents, selectedAgent, saveAgent, deleteAgent, handleAgentChange, lockedEngine, lockedAgentId,
   } = agentState;
@@ -401,6 +405,23 @@ export function AppLayout() {
     },
     [handleSelectSession, projectManager.projects, setJiraBoardProjectForSpace, splitView],
   );
+
+  useEffect(() => window.claude.onTrayOpenSession((target) => {
+    setPendingTraySession(target);
+  }), []);
+
+  useEffect(() => {
+    if (!pendingTraySession) return;
+    const sessionExists = manager.sessions.some((session) =>
+      session.id === pendingTraySession.sessionId &&
+      session.projectId === pendingTraySession.projectId,
+    );
+    if (!sessionExists) return;
+
+    setPendingTraySession(null);
+    setShowSettings(false);
+    handleSidebarSelectSession(pendingTraySession.sessionId);
+  }, [handleSidebarSelectSession, manager.sessions, pendingTraySession, setShowSettings]);
 
 
   useEffect(() => {

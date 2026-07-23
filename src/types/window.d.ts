@@ -8,6 +8,9 @@ import type { GitRepoInfo, GitStatus, GitBranch, GitLogEntry } from "@shared/typ
 import type { InstalledAgent } from "@shared/types/registry";
 import type { EffectiveCliConfig, EffectiveCliModels } from "@shared/types/cc-config";
 import type { AppSettings, MacBackgroundEffect, ThemeOption } from "@shared/types/settings";
+import type {
+  AppNotificationBridge,
+} from "@shared/types/notifications";
 import type { WeChatBridgeState, WeChatBridgeConfig, WeChatBridgeEvent } from "@shared/types/wechat";
 import type { AccountConfig, AccountBalanceResult, AccountModelsResult, AccountStatus, UsageStats, UsageStatsResult } from "@shared/types/account";
 import type {
@@ -78,6 +81,10 @@ declare global {
       setMacBackgroundEffect: (effect: MacBackgroundEffect) => void;
       relaunchApp: () => Promise<IpcResult>;
       setMinWidth: (width: number) => void;
+      onTrayOpenSession: (
+        callback: (target: { projectId: string; sessionId: string }) => void,
+      ) => () => void;
+      notifications: AppNotificationBridge;
       glass: {
         setTintColor: (tintColor: string | null) => void;
         setTheme: (theme: "light" | "dark" | "system") => void;

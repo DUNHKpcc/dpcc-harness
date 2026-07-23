@@ -149,4 +149,28 @@ describe("compaction-only unread suppression across session switch", () => {
     const secondRead = store.get("session-1");
     expect(secondRead?.messages[0]?.toolInput).toEqual({ nested: { path: "before.ts" } });
   });
+
+  it("clears a stale permission notification when a background process exits", () => {
+    const store = new BackgroundSessionStore();
+    const cleared: string[] = [];
+    store.onPermissionCleared = (sessionId) => {
+      cleared.push(sessionId);
+    };
+    store.initFromState(
+      "session-1",
+      seedState({
+        pendingPermission: {
+          requestId: "request-1",
+          toolName: "Bash",
+          toolInput: {},
+          toolUseId: "tool-1",
+        },
+      }),
+    );
+
+    store.markDisconnected("session-1");
+
+    expect(cleared).toEqual(["session-1"]);
+    expect(store.get("session-1")?.pendingPermission).toBeNull();
+  });
 });

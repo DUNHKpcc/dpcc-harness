@@ -1,3 +1,8 @@
+import type {
+  AppNotificationKind,
+  AppNotificationShowResult,
+} from "@shared/types/notifications";
+
 export interface SessionProcessingSnapshot {
   sessionId: string | null;
   isProcessing: boolean;
@@ -8,7 +13,58 @@ export interface PermissionNotificationSnapshot {
   requestId: string;
 }
 
+export type PermissionNotificationEventType =
+  | "exitPlanMode"
+  | "askUserQuestion"
+  | "permissions";
+
 const suppressedSessionCompletionCounts = new Map<string, number>();
+
+export function classifyPermissionNotification(
+  toolName: string,
+): PermissionNotificationEventType {
+  if (toolName === "ExitPlanMode") return "exitPlanMode";
+  if (toolName === "AskUserQuestion") return "askUserQuestion";
+  return "permissions";
+}
+
+export function getPermissionNotificationKind(
+  eventType: PermissionNotificationEventType,
+): "approval" | "information" {
+  return eventType === "askUserQuestion" ? "information" : "approval";
+}
+
+export function createAppNotificationId(
+  kind: AppNotificationKind,
+  sessionId: string | null,
+  eventId: string,
+): string {
+  return `${kind}:${sessionId ?? "app"}:${eventId}`;
+}
+
+export async function showNativeNotificationWithFallback(
+  showNative: () => Promise<AppNotificationShowResult>,
+  showFallback: () => void,
+): Promise<void> {
+  let shouldFallback = false;
+  try {
+    const result = await showNative();
+    shouldFallback = !result.shown;
+  } catch {
+    shouldFallback = true;
+  }
+  if (shouldFallback) showFallback();
+}
+
+export function getVisibleNotificationSessionIds(
+  activeSessionId: string | null,
+  visibleSessionIds: readonly string[],
+): string[] {
+  return [...new Set([
+    ...(activeSessionId ? [activeSessionId] : []),
+    ...visibleSessionIds.filter(Boolean),
+  ])];
+}
 
 /**
  * Advance the active-session completion tracker. When the user switches chats,

@@ -14,6 +14,8 @@ interface UseAppEnvironmentStateInput {
   activeSession: ChatSession | null;
   sessionInfo: SessionInfo | null;
   isProcessing: boolean;
+  visibleSessionIds: readonly string[];
+  setPlanMode: (enabled: boolean) => void;
   onOpenSession?: (sessionId: string) => void;
 }
 
@@ -49,7 +51,12 @@ export function useAppEnvironmentState(input: UseAppEnvironmentStateInput) {
     activeSession: input.activeSession,
     sessionInfo: input.sessionInfo,
     isProcessing: input.isProcessing,
-    onOpenSession: input.onOpenSession,
+    visibleSessionIds: input.visibleSessionIds,
+    onOpenSession: (sessionId) => {
+      setShowSettings(false);
+      input.setPlanMode(false);
+      input.onOpenSession?.(sessionId);
+    },
   });
 
   useEffect(() => {

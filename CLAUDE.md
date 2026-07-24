@@ -6,6 +6,21 @@ Open-source desktop client for the Agent Client Protocol. Uses the `@anthropic-a
 
 Always reply to the user in Chinese (Simplified). Keep code, identifiers, API names, file paths, and established English technical terms (e.g. Electron, IPC, gateway) in their original form — do not translate them. Code comments follow the surrounding file's existing style.
 
+## Delegation Rule: `spark_executor`
+
+Use the global `spark_executor` subagent only for bounded, low-risk, independently verifiable tasks, such as:
+
+- code search
+- focused repro steps
+- isolated small code changes with clear file ownership
+- focused tests for a specific module/behavior
+- log or diff analysis
+- documentation updates
+
+The primary agent must retain architecture, security, payment, cross-system, final-review, and ambiguous/broad work.
+
+Delegation prompts must be self-contained and include explicit ownership: file scope, concrete constraints, success criteria, and the commands or checks to verify completion.
+
 ## Tech Stack
 
 - **Runtime**: Electron 40 (main process) + React 19 (renderer)

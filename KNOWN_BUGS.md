@@ -58,7 +58,7 @@
 
 ### L2 — 更新源连不上 GitHub 且不断重试
 - **现象**:国内每次启动刷 `net::ERR_SSL_PROTOCOL_ERROR`/超时,并在每次 focus/startup/4h 重试,占资源。
-- **修复**([updater.ts](electron/src/lib/updater.ts)):`checkForUpdates` 改为按"首选源 → 另一源"顺序尝试,GitHub 失败自动切 dpccgaming.xyz 镜像;两源全失败后挂起自动检查(不再 hammer),仅手动检查/切换源时重新启用;检查中的网络错误不再上报 PostHog。
+- **修复**([updater.ts](electron/src/lib/updater.ts)):`checkForUpdates` 改为按"首选源 → 另一源"顺序尝试,GitHub 失败自动切 dpccgaming.xyz 镜像;两源全失败后挂起自动检查(不再 hammer),仅手动检查/切换源时重新启用。
 - **验证**:updater 单测 59 个全过(新增 3:回退成功 / 全失败上报 / 挂起后手动重启)。日志显示用户已手动切镜像且工作正常,反向印证。
 
 ### 🧩 新增 builtin 引擎来源(C1–C4 这条线的主修)

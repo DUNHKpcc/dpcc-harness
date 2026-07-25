@@ -80,7 +80,6 @@ vi.mock("../lib/mcp-oauth-flow", () => ({ getMcpAuthHeaders: vi.fn() }));
 vi.mock("../lib/claude-codex-bridge-controller", () => ({ getClaudeCodexBridgeController: vi.fn() }));
 vi.mock("../lib/claude-mcp-isolation", () => ({ applyClaudeMcpIsolation: vi.fn() }));
 vi.mock("../lib/macos-dock-focus", () => ({ reclaimMacDockFocus: vi.fn() }));
-vi.mock("../lib/posthog", () => ({ captureEvent: vi.fn() }));
 vi.mock("../lib/session-cwd", () => ({ normalizeSessionCwd: (cwd: string | undefined) => cwd }));
 vi.mock("@shared/lib/mcp-config", () => ({ buildSdkMcpConfig: vi.fn() }));
 vi.mock("@shared/lib/claude-codex-bridge", () => ({ appendClaudeCodexBridgeServer: vi.fn() }));

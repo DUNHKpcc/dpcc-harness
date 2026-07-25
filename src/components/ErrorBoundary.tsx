@@ -1,7 +1,6 @@
 import { Component } from "react";
 import type { ReactNode, ErrorInfo } from "react";
 import i18n from "@/i18n";
-import { posthog } from "@/lib/analytics/posthog";
 
 interface Props {
   children: ReactNode;
@@ -15,9 +14,6 @@ interface State {
  * Root error boundary — catches unhandled React errors and shows a visible
  * fallback instead of a blank/transparent window. Especially important in
  * Electron where a transparent frameless window makes crashes invisible.
- *
- * Also captures exceptions to PostHog for error tracking (respects the
- * analytics opt-in/out setting via posthog-js opt_out state).
  */
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
@@ -31,15 +27,6 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("[ErrorBoundary] Uncaught error:", error, info.componentStack);
-
-    // Capture to PostHog error tracking (no-ops if user has opted out)
-    try {
-      posthog.captureException(error, {
-        componentStack: info.componentStack ?? undefined,
-      });
-    } catch {
-      // Analytics should never break the error boundary
-    }
   }
 
   render() {

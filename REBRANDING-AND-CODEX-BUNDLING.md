@@ -142,16 +142,7 @@ function getBundledBinaryPath(): string | null {
 | `.github/FUNDING.yml` | 赞助配置 | `OpenSource03` / `opensource03` | 你的账号 |
 | `.github/ISSUE_TEMPLATE/config.yml` | Issue 模板 | 引用 Harnss | 替换品牌名 |
 
-### 4. 数据分析 (PostHog)
-
-| 文件 | 位置 | 当前值 | 替换为 |
-|------|------|--------|--------|
-| `electron/src/lib/posthog.ts:42` | 主进程 API Key | `phc_lOKFRov0SWy2R71BNJ2t978tmNYc3ND7WwueOteV5vw` | 你的 PostHog Key 或删除 |
-| `src/lib/analytics/posthog.ts:16` | 渲染进程 API Key | `phc_lOKFRov0SWy2R71BNJ2t978tmNYc3ND7WwueOteV5vw` | 同上 |
-
-> 如果不需要分析，可将两处 key 置空并移除 `posthog-js` / `posthog-node` 依赖。
-
-### 5. UI 文本 / 品牌名出现处
+### 4. UI 文本 / 品牌名出现处
 
 | 文件 | 行号 | 内容 | 操作 |
 |------|------|------|------|
@@ -237,11 +228,10 @@ function getBundledBinaryPath(): string | null {
 4. **替换 localStorage 前缀** — `harnss-` → `{yourapp}-`（加迁移逻辑）
 5. **替换数据目录** — `openacpui-data` → `{yourapp}-data`（加迁移逻辑）
 6. **替换 GitHub 坐标** — `OpenSource03/harnss` → `{YourOrg}/{YourRepo}`
-7. **替换或移除 PostHog** — 换 key 或删除分析代码
-8. **实现 Codex 内置** — 按第一节步骤添加构建脚本和 extraResources
-9. **更新 electron-builder** — appId、productName、publish、签名配置
-10. **测试构建** — 各平台打包验证
-11. **首次发布** — 新版本号，新 GitHub Release
+7. **实现 Codex 内置** — 按第一节步骤添加构建脚本和 extraResources
+8. **更新 electron-builder** — appId、productName、publish、签名配置
+9. **测试构建** — 各平台打包验证
+10. **首次发布** — 新版本号，新 GitHub Release
 
 ---
 

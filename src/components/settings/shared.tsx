@@ -1,7 +1,7 @@
 /**
  * Shared components and constants for settings panels.
  * Extracted to avoid duplication across AdvancedSettings, GeneralSettings,
- * AppearanceSettings, NotificationsSettings, AnalyticsSettings, and AboutSettings.
+ * AppearanceSettings, NotificationsSettings, and AboutSettings.
  */
 
 import { memo } from "react";

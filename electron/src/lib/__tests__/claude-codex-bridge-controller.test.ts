@@ -3,10 +3,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("../logger", () => ({
   log: vi.fn(),
 }));
-vi.mock("../posthog", () => ({
-  captureException: vi.fn(),
-}));
-
 import { createClaudeCodexBridgeController } from "../claude-codex-bridge-controller";
 
 describe("createClaudeCodexBridgeController", () => {

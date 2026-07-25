@@ -7,7 +7,6 @@
     "account": "DPCC API",
     "appearance": "Appearance",
     "notifications": "Notifications",
-    "analytics": "Analytics",
     "agents": "ACP Agents",
     "mcp": "MCP Servers",
     "engines": "Engines",
@@ -546,28 +545,6 @@
       }
     },
     "builtWith": "Built with"
-  },
-  "analytics": {
-    "title": "Analytics",
-    "description": "Help improve PccAgent by sharing anonymous usage data",
-    "section": "Usage Analytics",
-    "sendLabel": "Send anonymous analytics",
-    "sendDesc": "Share anonymous usage data to help us understand how people use PccAgent and improve the app. We collect app version, platform, and basic feature usage. No code, prompts, or personal data is collected.",
-    "userIdLabel": "Anonymous User ID",
-    "userIdDesc": "This randomly generated ID is used to count unique users without identifying you.",
-    "collectTitle": "What we collect",
-    "collect": {
-      "platform": "App version and platform (macOS, Windows, Linux)",
-      "dau": "Daily active users (to measure engagement)",
-      "features": "Basic feature usage (e.g., which engines are used)"
-    },
-    "noCollectTitle": "What we don't collect",
-    "noCollect": {
-      "code": "Your code, prompts, or conversations with AI",
-      "paths": "File paths, project names, or repository URLs",
-      "personal": "Any personal or identifying information",
-      "keys": "API keys or credentials"
-    }
   },
   "agents": {
     "title": "ACP Agents",

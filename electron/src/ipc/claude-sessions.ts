@@ -34,7 +34,6 @@ import {
   getClaudeBinaryStatus,
   getClaudeVersion,
 } from "../lib/claude-binary";
-import { captureEvent } from "../lib/posthog";
 import { prepareClaudeSpawnEnv, claudeSettingSources } from "../lib/claude-gateway-env";
 import { normalizeSessionCwd } from "../lib/session-cwd";
 
@@ -359,35 +358,6 @@ function startEventLoop(
           }
         }
 
-        // Track session completion on result events
-        if (msgObj.type === "result") {
-          void captureEvent("session_completed", {
-            engine: "claude",
-            total_cost: msgObj.total_cost_usd,
-            num_turns: msgObj.num_turns,
-            duration_ms: msgObj.duration_ms,
-            is_error: !!msgObj.is_error,
-          });
-        }
-
-        // Track tool execution on tool_result user events
-        if (msgObj.type === "user") {
-          const userMsg = msgObj.message as { content?: unknown } | undefined;
-          const content = userMsg?.content;
-          if (Array.isArray(content) && content[0]?.type === "tool_result") {
-            const isError = !!content[0].is_error;
-            const toolMeta = msgObj.tool_use_result as Record<string, unknown> | undefined;
-            const toolUseId = content[0].tool_use_id as string | undefined;
-            const toolName = (toolUseId ? toolNameMap.get(toolUseId) : undefined) ?? "unknown";
-            void captureEvent("tool_executed", {
-              engine: "claude",
-              tool_name: toolName,
-              is_error: isError,
-              is_mcp: toolName.startsWith("mcp__"),
-              is_async: !!toolMeta?.isAsync,
-            });
-          }
-        }
       }
     } catch (err) {
       queryError = reportError("QUERY_ERROR", err, { engine: "claude", sessionId });
@@ -1072,12 +1042,6 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
 
       startEventLoop(sessionId, q, session, getMainWindow);
 
-      void captureEvent("session_created", {
-        engine: "claude",
-        model: options.model,
-        is_resume: !!options.resume,
-      });
-
       return { sessionId, pid: 0 };
     } catch (err) {
       // getSDK() or query() threw — clean up and return error
@@ -1086,7 +1050,6 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       safeSend(getMainWindow,"claude:exit", {
         code: 1, _sessionId: sessionId, error: errMsg,
       });
-      void captureEvent("session_error", { engine: "claude", phase: "start" });
       return { sessionId, pid: 0, error: errMsg };
     }
   });
@@ -1228,7 +1191,6 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         session.startOptions.model = sdkModel;
       }
       log("SET_MODEL", "session=" + sessionId.slice(0, 8) + " model=" + (sdkModel ?? "default"));
-      void captureEvent("model_changed", { engine: "claude", model: sdkModel ?? "default" });
       return { ok: true };
     } catch (err) {
       const errMsg = reportError("SET_MODEL_ERR", err, { engine: "claude", sessionId, model: model ?? "default" });

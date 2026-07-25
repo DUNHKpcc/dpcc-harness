@@ -512,10 +512,6 @@ declare global {
         getTransitions: (params: JiraGetTransitionsParams) => Promise<JiraTransition[] | { error: string }>;
         transitionIssue: (params: JiraTransitionIssueParams) => Promise<IpcResult>;
       };
-      analytics: {
-        /** Fire-and-forget analytics event via the main process PostHog client. */
-        capture: (event: string, properties?: Record<string, unknown>) => void;
-      };
       speech: {
         /** Triggers macOS native dictation (Cocoa startDictation: selector). Returns { ok: false } on non-macOS. */
         startNativeDictation: () => Promise<{ ok: boolean; reason?: string }>;

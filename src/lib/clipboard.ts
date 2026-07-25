@@ -32,7 +32,7 @@ function fallbackCopy(value: string): boolean {
  * 2. `navigator.clipboard.writeText`
  * 3. `document.execCommand("copy")` fallback
  *
- * Returns `true` on success, `false` on failure (errors are reported via PostHog).
+ * Returns `true` on success, `false` on failure (errors are reported to the console).
  */
 export async function copyToClipboard(text: string): Promise<boolean> {
   try {

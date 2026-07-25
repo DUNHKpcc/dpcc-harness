@@ -7,7 +7,6 @@ import { execFile } from "child_process";
 import { log } from "../lib/logger";
 import { ALWAYS_SKIP, gitExec, isGitNotFoundError, isNotGitRepositoryError } from "../lib/git-exec";
 import { getAppSetting } from "../lib/app-settings";
-import { captureEvent } from "../lib/posthog";
 import { reportError } from "../lib/error-utils";
 import { safeSend } from "../lib/safe-send";
 import { openExternalUrl } from "../lib/open-external";
@@ -630,7 +629,6 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     for (const editor of ordered) {
       try {
         const result = await tryEditor(editor);
-        void captureEvent("file_opened_in_editor", { editor });
         return result;
       } catch {
         // Editor not found, try next
@@ -640,7 +638,6 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     // Fallback: OS default
     try {
       await shell.openPath(filePath);
-      void captureEvent("file_opened_in_editor", { editor: "default" });
       return { ok: true, editor: "default" };
     } catch (err) {
       const errMsg = reportError("FILE:OPEN_EDITOR_ERR", err, { filePath });

@@ -39,7 +39,6 @@ import { glassEnabled, applyGlass, setGlassTint } from "./lib/glass";
 import { getAppSettings } from "./lib/app-settings";
 import { initAutoUpdater, getIsInstallingUpdate } from "./lib/updater";
 import { initPreReleaseCheck } from "./lib/prerelease-check";
-import { initPostHog, shutdownPostHog, reinitPostHog, captureEvent } from "./lib/posthog";
 import {
   createClaudeCodexBridgeController,
   setClaudeCodexBridgeController,
@@ -55,7 +54,6 @@ import {
   shouldEnableRendererDevTools,
   shouldRegisterDevToolsShortcuts,
 } from "./lib/devtools-policy";
-import { getAcpAnalyticsPropertiesForSession } from "./ipc/acp-sessions";
 import { terminals } from "./ipc/terminal";
 
 const diagnosticBuild = __PCC_DIAGNOSTIC_BUILD__;
@@ -81,7 +79,6 @@ import * as accountIpc from "./ipc/account";
 import * as jiraIpc from "./ipc/jira";
 import * as wechatIpc from "./ipc/wechat";
 import * as notificationsIpc from "./ipc/notifications";
-import { onSettingsChanged } from "./ipc/settings";
 
 // --- Performance: Chromium/V8 flags (must be set before app.whenReady()) ---
 // --- Single-instance lock ---
@@ -568,32 +565,6 @@ ipcMain.handle("claude-codex:complete-delegation", (_event, result) => {
   return { ok: true };
 });
 
-// Listen for analytics settings changes and reinitialize PostHog
-let lastAnalyticsEnabled: boolean | undefined;
-onSettingsChanged((settings) => {
-  if (lastAnalyticsEnabled !== undefined && settings.analyticsEnabled !== lastAnalyticsEnabled) {
-    lastAnalyticsEnabled = settings.analyticsEnabled;
-    reinitPostHog().catch((err) => {
-      reportError("POSTHOG", err, { context: "reinitialize" });
-    });
-  } else {
-    lastAnalyticsEnabled = settings.analyticsEnabled;
-  }
-});
-
-// --- Renderer→main analytics bridge ---
-ipcMain.on("analytics:capture", (_event, eventName: string, properties?: Record<string, unknown>) => {
-  const nextProperties: Record<string, unknown> = properties ? { ...properties } : {};
-  const sessionId = typeof nextProperties.session_id === "string" ? nextProperties.session_id : null;
-  delete nextProperties.session_id;
-
-  if (nextProperties.engine === "acp" && sessionId) {
-    Object.assign(nextProperties, getAcpAnalyticsPropertiesForSession(sessionId) ?? {});
-  }
-
-  captureEvent(eventName, nextProperties).catch(() => { /* non-fatal */ });
-});
-
 // --- DevTools in separate window via remote debugging ---
 let devToolsWindow: BrowserWindow | null = null;
 
@@ -712,11 +683,6 @@ app.whenReady().then(() => {
     reportError("CLAUDE_CODEX_BRIDGE", err, { context: "startup" });
   });
 
-  // Initialize PostHog analytics (if enabled in settings) — fire-and-forget to avoid blocking startup
-  initPostHog().catch((err) => {
-    reportError("POSTHOG", err, { context: "startup-init" });
-  });
-
   // Auto-start the WeChat bridge if the user enabled it and is already logged in.
   try {
     wechatIpc.autoStart();
@@ -793,7 +759,7 @@ app.on("before-quit", () => {
   isQuitting = true;
 });
 
-app.on("will-quit", (event) => {
+app.on("will-quit", () => {
   globalShortcut.unregisterAll();
   isQuitting = true;
   notificationsIpc.dispose();
@@ -802,28 +768,7 @@ app.on("will-quit", (event) => {
   }
   void claudeCodexBridge.stop();
 
-  // When an update is being installed, let the updater control the quit lifecycle.
-  // In that case, fire-and-forget PostHog shutdown and do not delay quit.
-  if (getIsInstallingUpdate()) {
-    // Don't close the log stream here: shutdownPostHog runs async and may still
-    // log, and the process exits imminently (OS reclaims the fd). Closing now
-    // would only silently drop those final shutdown lines.
-    void shutdownPostHog();
-    return;
-  }
-
-  // For normal quits, delay process exit until PostHog has flushed pending events.
-  event.preventDefault();
-
-  shutdownPostHog()
-    .catch((err) => {
-      // Log and continue exit even if analytics shutdown fails
-      reportError("POSTHOG", err, { context: "shutdown" });
-    })
-    .finally(() => {
-      closeLogStream();
-      app.exit(0);
-    });
+  closeLogStream();
 });
 
 app.on("window-all-closed", () => {

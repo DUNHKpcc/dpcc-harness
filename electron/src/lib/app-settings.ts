@@ -53,7 +53,6 @@ const DEFAULTS: AppSettings = {
   showDevFillInChatTitleBar: false,
   showJiraBoard: false,
   macBackgroundEffect: "liquid-glass",
-  analyticsEnabled: true,
   claudeGateway: { enabled: false, baseUrl: "", authToken: "", model: "", modelMappings: CLAUDE_GATEWAY_MODEL_PRESETS },
   codexGateway: { enabled: false, name: "", baseUrl: "", apiKey: "", model: "", modelMappings: CODEX_GATEWAY_MODEL_PRESETS },
   cliConfigSource: "default",

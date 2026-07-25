@@ -11,7 +11,6 @@ import { killProcessTree } from "../lib/process-tree";
 import type { InstalledAgent } from "../lib/agent-registry";
 import { getMcpAuthHeaders } from "../lib/mcp-oauth-flow";
 import { extractErrorMessage, reportError } from "../lib/error-utils";
-import { captureEvent } from "../lib/posthog";
 import { reclaimMacDockFocus } from "../lib/macos-dock-focus";
 import { normalizeSessionCwd } from "../lib/session-cwd";
 import {
@@ -586,8 +585,6 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       // Startup succeeded — clear the pending tracker before returning
       pendingStartProcess = null;
 
-      void captureEvent("session_created", { engine: "acp", ...analyticsProperties });
-
       return await finalizePendingAcpSession(entry, sessionResult, options.mcpServers ?? [], "ACP_SPAWN");
     } catch (err) {
       const authMethods = connResult?.authMethods ?? [];
@@ -738,7 +735,6 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       }
 
       const mcpStatuses = (options.mcpServers ?? []).map(s => ({ name: s.name, status: "connected" as const }));
-      void captureEvent("session_revived", { engine: "acp", success: true, ...analyticsProperties });
       return { sessionId: internalId, agentSessionId: acpSessionId, usedLoad, configOptions, mcpStatuses };
     } catch (err) {
       // Kill process and clean up any partial session entry

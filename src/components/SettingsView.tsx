@@ -11,7 +11,6 @@ import {
   Palette,
   Sparkles,
   Users,
-  BarChart3,
   Server,
   ArrowLeft,
   Wallet,
@@ -30,7 +29,6 @@ import { AdvancedSettings } from "@/components/settings/AdvancedSettings";
 import { EngineSettings } from "@/components/settings/EngineSettings";
 import { PlaceholderSection } from "@/components/settings/PlaceholderSection";
 import { AboutSettings } from "@/components/settings/AboutSettings";
-import { AnalyticsSettings } from "@/components/settings/AnalyticsSettings";
 import { CurrentConfigSettings } from "@/components/settings/CurrentConfigSettings";
 import { ContactSettings } from "@/components/settings/ContactSettings";
 import { setAppSettingsChecked } from "@/lib/app-settings-ipc";
@@ -41,7 +39,7 @@ import { useAgentContext } from "./AgentContext";
 // ── Section definitions ──
 
 export type SettingsSection = "general" | "account" | "appearance" | "notifications" |
-  "analytics" | "agents" | "mcp" | "engines" | "wechat" | "current-config" | "skills" |
+  "agents" | "mcp" | "engines" | "wechat" | "current-config" | "skills" |
   "custom-agents" | "advanced" | "contact" | "about";
 
 interface NavItem {
@@ -58,7 +56,6 @@ const NAV_ITEMS: NavItem[] = [
   { id: "general", labelKey: "nav.general", icon: SlidersHorizontal },
   { id: "appearance", labelKey: "nav.appearance", icon: Palette },
   { id: "notifications", labelKey: "nav.notifications", icon: Bell },
-  { id: "analytics", labelKey: "nav.analytics", icon: BarChart3 },
   { id: "agents", labelKey: "nav.agents", icon: Bot },
   { id: "engines", labelKey: "nav.engines", icon: Cpu },
   { id: "wechat", labelKey: "nav.wechat", icon: Smartphone },
@@ -156,13 +153,6 @@ export const SettingsView = memo(function SettingsView({
       case "notifications":
         return (
           <NotificationsSettings
-            appSettings={appSettings}
-            onUpdateAppSettings={updateAppSettings}
-          />
-        );
-      case "analytics":
-        return (
-          <AnalyticsSettings
             appSettings={appSettings}
             onUpdateAppSettings={updateAppSettings}
           />

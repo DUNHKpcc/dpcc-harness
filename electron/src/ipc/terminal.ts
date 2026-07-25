@@ -2,7 +2,6 @@ import { BrowserWindow, ipcMain } from "electron";
 import crypto from "crypto";
 import { log } from "../lib/logger";
 import { safeSend } from "../lib/safe-send";
-import { captureEvent } from "../lib/posthog";
 import { reportError } from "../lib/error-utils";
 import { loadLocalClaudeEnv } from "../lib/local-cli-config";
 import { killProcessTree } from "../lib/process-tree";
@@ -86,8 +85,6 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         destroyed: false,
       };
       terminals.set(terminalId, entry);
-      void captureEvent("terminal_created");
-
       ptyProcess.onData((data: string) => {
         if (entry.destroyed) return;
         entry.history = appendTerminalHistory(entry.history, data);

@@ -4,12 +4,11 @@ import path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MAX_PROMPT_TEXT_FILE_BYTES } from "../../lib/prompt-file-read";
 
-const { mockIpcMainHandle, mockGitExec, mockExecFile, mockGetAppSetting, mockCaptureEvent } = vi.hoisted(() => ({
+const { mockIpcMainHandle, mockGitExec, mockExecFile, mockGetAppSetting } = vi.hoisted(() => ({
   mockIpcMainHandle: vi.fn(),
   mockGitExec: vi.fn(),
   mockExecFile: vi.fn(),
   mockGetAppSetting: vi.fn(),
-  mockCaptureEvent: vi.fn(),
 }));
 
 vi.mock("electron", () => ({
@@ -43,10 +42,6 @@ vi.mock("../../lib/app-settings", () => ({
   getAppSetting: mockGetAppSetting,
 }));
 
-vi.mock("../../lib/posthog", () => ({
-  captureEvent: mockCaptureEvent,
-}));
-
 async function loadModule() {
   vi.resetModules();
   return import("../files");
@@ -66,7 +61,6 @@ describe("files IPC", () => {
     mockGitExec.mockReset();
     mockExecFile.mockReset();
     mockGetAppSetting.mockReset();
-    mockCaptureEvent.mockReset();
     mockGetAppSetting.mockReturnValue("auto");
   });
 
@@ -152,6 +146,5 @@ describe("files IPC", () => {
       { timeout: 3000, shell: true },
       expect.any(Function),
     );
-    expect(mockCaptureEvent).toHaveBeenCalledWith("file_opened_in_editor", { editor: "code" });
   });
 });

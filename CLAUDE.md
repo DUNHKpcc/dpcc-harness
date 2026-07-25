@@ -86,7 +86,7 @@ electron/
     └── lib/    # Main-process utilities (logger, data-dir, app-settings, sdk,
                 #   error-utils, git-exec, jira-client, jira-store, jira-oauth-store, mcp-store,
                 #   mcp-oauth-flow, mcp-oauth-provider, mcp-oauth-store, acp-auth, claude-binary,
-                #   codex-binary, codex-rpc, migration, posthog, updater, glass, terminal-history,
+                #   codex-binary, codex-rpc, migration, updater, glass, terminal-history,
                 #   json-file-store, safe-send, claude-model-cache, acp-utility-prompt,
                 #   codex-utility-prompt, agent-registry, prerelease-check)
                 #   └── __tests__/  # Main-process unit tests (sdk, acp-auth, updater, logger, etc.)
@@ -141,7 +141,7 @@ src/
 │                      #   useAcpAgentAutoUpdate, useBackgroundAgents, useFolderManager,
 │                      #   useSpaceSwitchCooldown, useBottomHeightResize, etc.)
 ├── lib/               # Renderer utilities organized in subdirectories:
-│   ├── analytics/     #   analytics.ts, posthog.ts
+│   ├── analytics/     #   analytics.ts (legacy local error-reporting shim)
 │   ├── background/    #   session-store.ts, claude/acp/codex-handler.ts, agent-store.ts, agent-store-utils.ts
 │   ├── chat/          #   scroll.ts, virtualization.ts, thinking-animation.ts, todo-utils.ts,
 │   │                  #   turn-changes.ts, assistant-turn-divider.ts, annotation-types.ts, etc.
@@ -710,14 +710,14 @@ Types shared between electron and renderer live in `shared/types/`. Both tsconfi
 - **`shared/types/registry.ts`** — agent registry types (`RegistryAgent`, `RegistryData`).
 - **`shared/types/git.ts`** — git operation types: `GitFileStatus`, `GitBranch`, `GitRepoInfo`, `GitStatus`, `GitLogEntry`, `GitWorktree`.
 - **`shared/types/jira.ts`** — Jira integration types: `JiraProjectConfig`, `JiraBoard`, `JiraIssue`, `JiraColumn`, `JiraSprint`.
-- **`shared/types/settings.ts`** — `AppSettings` type (notification config, editor/binary preferences, analytics settings, pre-release channel).
+- **`shared/types/settings.ts`** — `AppSettings` type (notification config, editor/binary preferences, pre-release channel).
 
 **Shared utilities** (`shared/lib/`) — utilities safe to import from both processes (no Electron or React imports):
 - `async-channel.ts` — `AsyncChannel` push-based async iterable
 - `session-persistence.ts` — session serialization/deserialization logic
 - `mcp-config.ts` — MCP configuration schema parsing
 - `codex-rpc.ts` — Codex RPC protocol helpers
-- `error-utils.ts` — `extractErrorMessage()` without PostHog dependency
+- `error-utils.ts` — `extractErrorMessage()` without platform dependencies
 - `acp-helpers.ts` / `codex-helpers.ts` — event normalization helpers
 
 **Backward compatibility**: `src/types/` contains re-export shims (`export * from "../../shared/types/..."`) so existing `@/types/*` imports continue to work. New code can use either `@/types/` or `@shared/types/`.
@@ -779,9 +779,8 @@ Types shared between electron and renderer live in `shared/types/`. Both tsconfi
 - **`src/lib/terminal-tabs.ts`** — `TerminalTab`, `SpaceTerminalState`, `LiveTerminalRecord` types
 - **`src/lib/monaco.ts`** — file extension → Monaco language id map
 - **`src/lib/languages.ts`** — language-to-Prism style map for syntax highlighting
-- **`src/lib/analytics/analytics.ts`** — `capture()`, `captureException()`, `reportError()` — renderer-side analytics and error tracking
-- **`src/lib/analytics/posthog.ts`** — `initPostHog()`, `syncAnalyticsSettings()` — renderer-side PostHog client (posthog-js) initialization
-- **`electron/src/lib/error-utils.ts`** — `extractErrorMessage()`, `reportError()` — shared error extraction and PostHog exception capture
+- **`src/lib/analytics/analytics.ts`** — `reportError()` — renderer-side console error logging
+- **`electron/src/lib/error-utils.ts`** — `extractErrorMessage()`, `reportError()` — shared error extraction and file logging
 - **`electron/src/lib/git-exec.ts`** — git command execution helpers used by `ipc/git.ts`
 - **`electron/src/lib/jira-client.ts`** — Jira REST API client (search, fetch issue, update)
 - **`electron/src/lib/migration.ts`** — data migration utilities for localStorage and file store upgrades
@@ -789,32 +788,13 @@ Types shared between electron and renderer live in `shared/types/`. Both tsconfi
 - **`electron/src/lib/mcp-oauth-flow.ts`** / **`mcp-oauth-provider.ts`** — MCP OAuth provider server (loopback redirect) + flow orchestration
 - **`electron/src/lib/agent-registry.ts`** — reads/writes `InstalledAgent` definitions from disk; exposes `BUILTIN_CLAUDE` constant; used by `ipc/agent-registry.ts`
 
-### Error Tracking (PostHog)
+### Error Logging
 
-Two PostHog clients run in parallel, one per process:
-
-1. **Main process** (`posthog-node` in `electron/src/lib/posthog.ts`):
-   - `enableExceptionAutocapture: true` — auto-captures `process.on('uncaughtException')` and `process.on('unhandledRejection')`
-   - `captureException(error, additionalProperties?)` — manual exception capture with stack trace
-   - `captureEvent(event, properties?)` — custom analytics events
-   - Respects `analyticsEnabled` setting, uses anonymous `analyticsUserId`
-
-2. **Renderer process** (`posthog-js` + `@posthog/react` in `src/lib/analytics/posthog.ts`):
-   - Exception autocapture via `defaults: "2026-01-30"` — auto-hooks `window.onerror` and `window.onunhandledrejection`
-   - `PostHogProvider` wraps the app in `main.tsx`
-   - `ErrorBoundary.componentDidCatch` → `posthog.captureException()` for React rendering errors
-   - Starts opted-out (`opt_out_capturing_by_default: true`), syncs to main process settings via `syncAnalyticsSettings()`
-   - Uses same anonymous user ID as main process for cross-process correlation
-
-**Error reporting helpers:**
-
-- **Main process**: `reportError(label, err, context?)` from `electron/src/lib/error-utils.ts` — combines `log()` + `captureException()` in one call, returns the error message string. Use in all IPC handler catch blocks.
-- **Renderer**: `reportError(label, err, context?)` from `src/lib/analytics.ts` — combines `console.error()` + `captureException()`, returns the message string. Use in hook/component catch blocks.
-- **Renderer**: `captureException(error, properties?)` from `src/lib/analytics.ts` — PostHog-only capture (when console logging already exists).
+`reportError(label, err, context?)` returns the normalized error message while logging it locally: the main process writes through `log()`, and the renderer writes through `console.error()`. No analytics or remote error reporting is configured.
 
 **When to use `reportError` vs leave a catch alone:**
 - **DO use `reportError`**: session start/stop failures, IPC handler errors, SDK/process spawn errors, OAuth failures, updater errors, file operation errors, user-visible errors
-- **DO NOT use `reportError`**: process kill cleanup (`/* already dead */`), JSON parse fallbacks, audio autoplay blocked, cache parse defaults, cancellation guards, analytics-internal catches (infinite recursion)
+- **DO NOT use `reportError`**: process kill cleanup (`/* already dead */`), JSON parse fallbacks, audio autoplay blocked, cache parse defaults, cancellation guards
 
 ### Electron Session Handler Patterns
 
@@ -846,7 +826,7 @@ Key main-process infrastructure:
 - **Component decomposition** — large components are split into focused sub-components in subdirectories (git/, browser/, input-bar/, jira/, mcp/, mcp-renderers/, tool-renderers/, sidebar/, split/, welcome/, workspace/)
 - **Hook decomposition** — large hooks are split into focused sub-hooks (session/, app-layout/, useEngineBase)
 - **Shared components** — reusable UI patterns extracted to shared components (`TabBar`, `PanelHeader`, `SettingRow`)
-- **Error tracking** — all caught errors in IPC handlers and hooks must use `reportError(label, err)` (not bare `log()`). Benign/expected catches (cleanup, parse fallbacks, cancellation guards) are exempt. See "Error Tracking (PostHog)" section for details.
+- **Error logging** — all caught errors in IPC handlers and hooks should use `reportError(label, err)` (not bare `log()`). Benign/expected catches (cleanup, parse fallbacks, cancellation guards) are exempt.
 
 ## Performance Guidelines
 

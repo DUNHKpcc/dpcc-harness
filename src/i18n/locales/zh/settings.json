@@ -7,7 +7,6 @@
     "account": "DPCC API",
     "appearance": "外观",
     "notifications": "通知",
-    "analytics": "数据分析",
     "agents": "ACP Agents",
     "mcp": "MCP 服务器",
     "engines": "SDK",
@@ -546,28 +545,6 @@
       }
     },
     "builtWith": "技术栈"
-  },
-  "analytics": {
-    "title": "数据分析",
-    "description": "通过分享匿名使用数据帮助改进 PccAgent",
-    "section": "使用数据分析",
-    "sendLabel": "发送匿名分析数据",
-    "sendDesc": "分享匿名使用数据，帮助我们了解人们如何使用 PccAgent 并改进应用。我们会收集应用版本、平台和基本功能使用情况。不会收集任何代码、提示词或个人数据。",
-    "userIdLabel": "匿名用户 ID",
-    "userIdDesc": "此随机生成的 ID 用于统计独立用户数量，不会用于识别你的身份。",
-    "collectTitle": "我们收集的内容",
-    "collect": {
-      "platform": "应用版本和平台（macOS、Windows、Linux）",
-      "dau": "每日活跃用户（用于衡量活跃度）",
-      "features": "基本功能使用情况（例如使用了哪些引擎）"
-    },
-    "noCollectTitle": "我们不收集的内容",
-    "noCollect": {
-      "code": "你的代码、提示词或与 AI 的对话",
-      "paths": "文件路径、项目名称或仓库 URL",
-      "personal": "任何个人或身份识别信息",
-      "keys": "API 密钥或凭据"
-    }
   },
   "agents": {
     "title": "ACP Agents",

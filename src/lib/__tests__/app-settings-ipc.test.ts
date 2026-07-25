@@ -34,13 +34,13 @@ describe("app settings IPC helpers", () => {
   it("wraps successful settings:set calls", async () => {
     const set = stubSettingsSet({ ok: true });
 
-    await expect(setAppSettingsChecked({ analyticsEnabled: false })).resolves.toBeUndefined();
-    expect(set).toHaveBeenCalledWith({ analyticsEnabled: false });
+    await expect(setAppSettingsChecked({ showJiraBoard: true })).resolves.toBeUndefined();
+    expect(set).toHaveBeenCalledWith({ showJiraBoard: true });
   });
 
   it("wraps failed settings:set calls as thrown errors", async () => {
     stubSettingsSet({ error: "disk write failed" });
 
-    await expect(setAppSettingsChecked({ analyticsEnabled: false })).rejects.toThrow("disk write failed");
+    await expect(setAppSettingsChecked({ showJiraBoard: true })).rejects.toThrow("disk write failed");
   });
 });

@@ -3,7 +3,7 @@
  *
  * Handles Error instances, structured objects with .message,
  * plain strings, and unknown values. Each platform wraps this
- * with its own `reportError` (PostHog in electron, file logger in CLI).
+ * with its own `reportError` implementation.
  */
 
 export function extractErrorMessage(err: unknown): string {

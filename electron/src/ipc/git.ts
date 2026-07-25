@@ -3,7 +3,6 @@ import path from "path";
 import fs from "fs";
 import { execFile } from "child_process";
 import { gitExec, ALWAYS_SKIP, isGitExecError } from "../lib/git-exec";
-import { captureEvent } from "../lib/posthog";
 import { extractErrorMessage, reportError } from "../lib/error-utils";
 import { log } from "../lib/logger";
 import type { GitRepoInfo } from "@shared/types/git";
@@ -372,7 +371,6 @@ export function register(): void {
   ipcMain.handle("git:commit", async (_event, { cwd, message }: { cwd: string; message: string }) => {
     try {
       const output = await gitExec(["commit", "-m", message], cwd);
-      void captureEvent("git_commit_created", { message_length: message.length });
       return { ok: true, output };
     } catch (err) {
       return { error: reportError("GIT_COMMIT_ERR", err) };
@@ -425,7 +423,6 @@ export function register(): void {
     try {
       validateRef(branch);
       await gitExec(["checkout", branch], cwd);
-      void captureEvent("git_branch_switched");
       return { ok: true };
     } catch (err) {
       return { error: reportError("GIT_CHECKOUT_ERR", err) };

@@ -456,10 +456,6 @@ contextBridge.exposeInMainWorld("claude", {
     transitionIssue: (params: { instanceUrl: string; issueKey: string; transitionId: string }) =>
       ipcRenderer.invoke("jira:transition-issue", params),
   },
-  analytics: {
-    capture: (event: string, properties?: Record<string, unknown>) =>
-      ipcRenderer.send("analytics:capture", event, properties),
-  },
   speech: {
     startNativeDictation: () => ipcRenderer.invoke("speech:start-native-dictation"),
     getPlatform: () => ipcRenderer.invoke("speech:get-platform"),

@@ -4,7 +4,6 @@ import { loadMcpServers, addMcpServer, removeMcpServer } from "../lib/mcp-store"
 import { authenticateMcpServer } from "../lib/mcp-oauth-flow";
 import { loadOAuthData, deleteOAuthData } from "../lib/mcp-oauth-store";
 import { log } from "../lib/logger";
-import { captureEvent } from "../lib/posthog";
 import { reportError } from "../lib/error-utils";
 import type { McpServerConfig } from "../lib/mcp-store";
 
@@ -126,7 +125,6 @@ export function register(): void {
   ipcMain.handle("mcp:add", (_event, { projectId, server }: { projectId: string; server: McpServerConfig }) => {
     try {
       addMcpServer(projectId, server);
-      void captureEvent("mcp_server_added", { name: server.name, transport: server.transport });
       return { ok: true };
     } catch (err) {
       return { error: reportError("MCP_ADD_ERR", err) };

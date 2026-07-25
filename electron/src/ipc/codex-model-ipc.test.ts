@@ -97,7 +97,6 @@ vi.mock("../lib/app-settings", () => ({ getAppSetting: vi.fn(() => "PccAgent") }
 vi.mock("../lib/logger", () => ({ log: vi.fn() }));
 vi.mock("../lib/safe-send", () => ({ safeSend: vi.fn() }));
 vi.mock("../lib/error-utils", () => ({ reportError: vi.fn((_code: string, error: unknown) => String(error)) }));
-vi.mock("../lib/posthog", () => ({ captureEvent: vi.fn() }));
 vi.mock("../lib/macos-dock-focus", () => ({ reclaimMacDockFocus: vi.fn() }));
 vi.mock("../lib/session-cwd", () => ({ normalizeSessionCwd: (cwd: string) => cwd }));
 vi.mock("../lib/codex-resume-error", () => ({ formatCodexResumeError: (error: string) => error }));

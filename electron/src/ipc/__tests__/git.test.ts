@@ -24,10 +24,6 @@ vi.mock("../../lib/git-exec", () => ({
   isGitExecError: mockIsGitExecError,
 }));
 
-vi.mock("../../lib/posthog", () => ({
-  captureEvent: vi.fn(),
-}));
-
 vi.mock("../../lib/error-utils", () => ({
   extractErrorMessage: (err: unknown) => (err instanceof Error ? err.message : String(err)),
   reportError: mockReportError,

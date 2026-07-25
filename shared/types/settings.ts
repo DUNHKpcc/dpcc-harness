@@ -132,12 +132,6 @@ export interface AppSettings {
   showJiraBoard: boolean;
   /** Preferred native macOS background material when window transparency is enabled */
   macBackgroundEffect: MacBackgroundEffect;
-  /** Enable anonymous analytics to help improve the app (default: true) */
-  analyticsEnabled: boolean;
-  /** Anonymous user ID for analytics (auto-generated) */
-  analyticsUserId?: string;
-  /** Last date (YYYY-MM-DD) when daily_active_user was sent */
-  analyticsLastDailyActiveDate?: string;
   /** Saved third-party gateway config for the Claude engine */
   claudeGateway: ClaudeGatewaySettings;
   /** Saved third-party gateway config for the Codex engine */

@@ -21,7 +21,6 @@ import {
 } from "../lib/codex-binary";
 import { getAppSetting } from "../lib/app-settings";
 import { reportError } from "../lib/error-utils";
-import { captureEvent } from "../lib/posthog";
 import { codexUpstreamThreadParams } from "../lib/codex-upstream";
 import {
   buildCodexAppServerEnv,
@@ -373,8 +372,6 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         log("codex",` Thread started: ${session.threadId}`);
         reclaimMacDockFocus(getMainWindow, "codex-thread-start");
 
-        void captureEvent("session_created", { engine: "codex", model: selectedModel });
-
         return {
           sessionId: internalId,
           threadId: session.threadId,
@@ -385,7 +382,6 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
           needsAuth: false,
         };
       } catch (err) {
-        void captureEvent("session_error", { engine: "codex", phase: "start" });
         const errMsg = reportError("CODEX_START_ERR", err, { engine: "codex", sessionId: internalId });
         // Clean up on failure
         const session = codexSessions.get(internalId);
@@ -806,14 +802,12 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         log("codex",` Thread resumed: ${session.threadId}`);
         reclaimMacDockFocus(getMainWindow, "codex-thread-resume");
 
-        void captureEvent("session_revived", { engine: "codex", success: true });
         return {
           sessionId: internalId,
           threadId: session.threadId,
           rolloutPath: threadResult.thread.path ?? rolloutPath,
         };
       } catch (err) {
-        void captureEvent("session_revived", { engine: "codex", success: false });
         const errMsg = reportError("CODEX_RESUME_ERR", err, { engine: "codex", sessionId: internalId });
         const session = codexSessions.get(internalId);
         if (session) {

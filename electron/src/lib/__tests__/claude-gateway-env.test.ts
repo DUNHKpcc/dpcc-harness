@@ -118,10 +118,10 @@ describe("claude gateway env", () => {
     expect(env.CLAUDE_CODE_GIT_BASH_PATH).toBe("C:\\Program Files\\Git\\bin\\bash.exe");
   });
 
-  it("disables the user settings source when a gateway upstream is active", async () => {
+  it("disables filesystem settings sources when a gateway upstream is active", async () => {
     const { claudeSettingSources } = await loadModule();
 
-    expect(claudeSettingSources()).toEqual(["project", "local"]);
+    expect(claudeSettingSources()).toEqual([]);
   });
 
   it("keeps normal setting sources for local Claude upstream", async () => {

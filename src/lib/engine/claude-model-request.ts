@@ -63,7 +63,7 @@ export function claudeModelCatalogSettingsFingerprint(settings: AppSettings): st
     "default",
     ...binary,
     normalizedBaseUrl(settings.dpccUpstream.baseUrl),
-    settings.dpccUpstream.claudeToken.trim(),
+    settings.accountMode,
     settings.dpccUpstream.claudeModel.trim(),
   ]);
 }

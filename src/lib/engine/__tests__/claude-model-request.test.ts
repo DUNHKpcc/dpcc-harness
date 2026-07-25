@@ -73,12 +73,12 @@ describe("claudeModelCatalogSettingsFingerprint", () => {
     },
   } as AppSettings;
 
-  it("changes for Claude source credentials and model selection", () => {
+  it("does not fingerprint renderer-hidden DPCC credentials", () => {
     const initial = claudeModelCatalogSettingsFingerprint(settings);
     expect(claudeModelCatalogSettingsFingerprint({
       ...settings,
       dpccUpstream: { ...settings.dpccUpstream, claudeToken: "token-b" },
-    })).not.toBe(initial);
+    })).toBe(initial);
     expect(claudeModelCatalogSettingsFingerprint({
       ...settings,
       dpccUpstream: { ...settings.dpccUpstream, claudeModel: "claude-opus-4-6" },

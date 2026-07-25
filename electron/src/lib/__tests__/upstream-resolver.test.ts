@@ -4,10 +4,14 @@ const {
   mockGetAppSetting,
   mockLoadLocalClaudeEnv,
   mockLoadLocalCodexProvider,
+  mockLoadAccountCredential,
+  mockCredentialTokenForEngine,
 } = vi.hoisted(() => ({
   mockGetAppSetting: vi.fn(),
   mockLoadLocalClaudeEnv: vi.fn(),
   mockLoadLocalCodexProvider: vi.fn(),
+  mockLoadAccountCredential: vi.fn(),
+  mockCredentialTokenForEngine: vi.fn(),
 }));
 
 vi.mock("../app-settings", () => ({
@@ -17,6 +21,11 @@ vi.mock("../app-settings", () => ({
 vi.mock("../local-cli-config", () => ({
   loadLocalClaudeEnv: mockLoadLocalClaudeEnv,
   loadLocalCodexProvider: mockLoadLocalCodexProvider,
+}));
+
+vi.mock("../account-credential-store", () => ({
+  loadAccountCredential: mockLoadAccountCredential,
+  credentialTokenForEngine: mockCredentialTokenForEngine,
 }));
 
 async function loadModule() {
@@ -63,8 +72,24 @@ describe("upstream resolver", () => {
     mockGetAppSetting.mockReset();
     mockLoadLocalClaudeEnv.mockReset();
     mockLoadLocalCodexProvider.mockReset();
+    mockLoadAccountCredential.mockReset();
+    mockCredentialTokenForEngine.mockReset();
 
     mockSettings();
+    mockLoadAccountCredential.mockReturnValue({
+      issuer: "",
+      source: "legacy_manual",
+      legacy: {
+        claudeToken: "sk-dpcc-claude",
+        codexToken: "sk-dpcc-codex",
+      },
+    });
+    mockCredentialTokenForEngine.mockImplementation(
+      (credential: { legacy?: { claudeToken?: string; codexToken?: string } } | null, engine: string) =>
+        engine === "claude"
+          ? credential?.legacy?.claudeToken ?? ""
+          : credential?.legacy?.codexToken ?? "",
+    );
     mockLoadLocalClaudeEnv.mockReturnValue({
       ANTHROPIC_BASE_URL: "https://local-claude.example",
       ANTHROPIC_AUTH_TOKEN: "sk-local-claude",
@@ -91,6 +116,38 @@ describe("upstream resolver", () => {
       providerName: "DPCC API",
       baseUrl: "https://api.dpcc.example/v1",
       apiKey: "sk-dpcc-codex",
+      model: "dpcc-codex-model",
+    });
+  });
+
+  it("keeps browser-authorized model traffic on the trusted DPCC resource origin", async () => {
+    mockLoadAccountCredential.mockReturnValue({
+      issuer: "https://origin-api.dpccgaming.xyz",
+      source: "desktop",
+      accessTokens: {
+        claude: "sk-desktop-claude",
+        codex: "sk-desktop-codex",
+      },
+    });
+    mockCredentialTokenForEngine.mockImplementation(
+      (
+        credential: { accessTokens?: { claude?: string; codex?: string } } | null,
+        engine: "claude" | "codex",
+      ) => credential?.accessTokens?.[engine] ?? "",
+    );
+    const { resolveClaudeUpstream, resolveCodexUpstream } = await loadModule();
+
+    expect(resolveClaudeUpstream()).toEqual({
+      tier: "default",
+      baseUrl: "https://origin-api.dpccgaming.xyz",
+      token: "sk-desktop-claude",
+      model: "dpcc-claude-model",
+    });
+    expect(resolveCodexUpstream()).toEqual({
+      tier: "default",
+      providerName: "DPCC API",
+      baseUrl: "https://origin-api.dpccgaming.xyz/v1",
+      apiKey: "sk-desktop-codex",
       model: "dpcc-codex-model",
     });
   });

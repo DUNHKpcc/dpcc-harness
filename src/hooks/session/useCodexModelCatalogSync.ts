@@ -51,7 +51,7 @@ export function codexModelCatalogSettingsFingerprint(settings: AppSettings): str
     "default",
     ...binary,
     normalizedBaseUrl(settings.dpccUpstream.baseUrl),
-    settings.dpccUpstream.codexToken.trim(),
+    settings.accountMode,
     settings.dpccUpstream.codexModel.trim(),
   ]);
 }
@@ -67,6 +67,7 @@ export function useCodexModelCatalogSync({
   const prefetchKeyRef = useRef<string | null>(null);
   const requestGenerationRef = useRef(0);
   const settingsFingerprintRef = useRef<string | null>(null);
+  const startupRefreshCheckedRef = useRef(false);
 
   useEffect(() => {
     if (!isCodex) {
@@ -98,6 +99,37 @@ export function useCodexModelCatalogSync({
   }, [activeSessionId, isCodex, preferredModel, prefetchCodexModels, rawModelCount]);
 
   useEffect(() => {
+    if (!isCodex || startupRefreshCheckedRef.current) return;
+    const accountAuth = window.claude.accountAuth;
+    if (!accountAuth?.getStatus) return;
+
+    let disposed = false;
+    void window.claude.settings.get().then((settings) => {
+      if (disposed || selectedCodexSource(settings) !== "default") return;
+
+      void accountAuth.getStatus().then((accountSnapshot) => {
+        if (
+          disposed
+          || (accountSnapshot.status !== "connected" && accountSnapshot.status !== "expiring")
+        ) return;
+
+        startupRefreshCheckedRef.current = true;
+        if (rawModelCount === 0) return;
+
+        const generation = ++requestGenerationRef.current;
+        void prefetchCodexModels(
+          preferredModel,
+          () => !disposed && requestGenerationRef.current === generation,
+        );
+      });
+    });
+
+    return () => {
+      disposed = true;
+    };
+  }, [isCodex, preferredModel, prefetchCodexModels, rawModelCount]);
+
+  useEffect(() => {
     let disposed = false;
     void window.claude.settings.get().then((settings) => {
       if (!disposed && settingsFingerprintRef.current === null) {
@@ -115,11 +147,17 @@ export function useCodexModelCatalogSync({
       prefetchKeyRef.current = null;
       clearModels();
     });
+    const unsubscribeAccount = window.claude.accountAuth?.onChanged(() => {
+      requestGenerationRef.current += 1;
+      prefetchKeyRef.current = null;
+      clearModels();
+    }) ?? (() => {});
 
     return () => {
       disposed = true;
       requestGenerationRef.current += 1;
       unsubscribe();
+      unsubscribeAccount();
     };
   }, [clearModels]);
 }

@@ -43,8 +43,42 @@ describe("useCodexModelCatalogSync", () => {
     effectCleanups.splice(0);
   });
 
-  it("ignores unrelated settings changes and invalidates an in-flight DPCC load for relevant changes", async () => {
+  it("refreshes a stale default catalog on startup when the desktop account is connected", async () => {
+    vi.stubGlobal("window", {
+      claude: {
+        settings: {
+          get: vi.fn(async () => makeSettings()),
+          onChanged: vi.fn(() => vi.fn()),
+        },
+        accountAuth: {
+          getStatus: vi.fn(async () => ({ status: "connected" })),
+          onChanged: vi.fn(() => vi.fn()),
+        },
+      },
+    });
+    const prefetchCodexModels = vi.fn(async () => true);
+    const { useCodexModelCatalogSync } = await import("./useCodexModelCatalogSync");
+
+    useCodexModelCatalogSync({
+      isCodex: true,
+      rawModelCount: 3,
+      activeSessionId: "draft",
+      preferredModel: "stale-native-model",
+      prefetchCodexModels,
+      clearModels: vi.fn(),
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(prefetchCodexModels).toHaveBeenCalledWith(
+      "stale-native-model",
+      expect.any(Function),
+    );
+  });
+
+  it("invalidates an in-flight DPCC load from the account event without fingerprinting its token", async () => {
     let onSettingsChanged: ((settings: AppSettings) => void) | undefined;
+    let onAccountChanged: (() => void) | undefined;
     const initialSettings = makeSettings();
     vi.stubGlobal("window", {
       claude: {
@@ -52,6 +86,12 @@ describe("useCodexModelCatalogSync", () => {
           get: vi.fn(async () => initialSettings),
           onChanged: vi.fn((callback: (settings: AppSettings) => void) => {
             onSettingsChanged = callback;
+            return vi.fn();
+          }),
+        },
+        accountAuth: {
+          onChanged: vi.fn((callback: () => void) => {
+            onAccountChanged = callback;
             return vi.fn();
           }),
         },
@@ -85,6 +125,10 @@ describe("useCodexModelCatalogSync", () => {
     onSettingsChanged?.(makeSettings({
       dpccUpstream: { ...initialSettings.dpccUpstream, codexToken: "sk-new" },
     }));
+    expect(clearModels).not.toHaveBeenCalled();
+    expect(isCurrent?.()).toBe(true);
+
+    onAccountChanged?.();
     expect(clearModels).toHaveBeenCalledTimes(1);
     expect(isCurrent?.()).toBe(false);
   });

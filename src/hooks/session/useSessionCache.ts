@@ -219,11 +219,17 @@ export function useSessionCache({
       invalidateCachedModels();
       void revalidateModels();
     });
+    const unsubscribeAccount = window.claude.accountAuth?.onChanged(() => {
+      claudeModelCatalogRequestGenerationRef.current += 1;
+      invalidateCachedModels();
+      void revalidateModels();
+    }) ?? (() => {});
 
     return () => {
       cancelled = true;
       clearTimeout(revalidateTimer);
       unsubscribeSettings();
+      unsubscribeAccount();
     };
   }, [getProjectCwd]);
 

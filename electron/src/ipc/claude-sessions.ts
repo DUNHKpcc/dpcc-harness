@@ -761,6 +761,10 @@ async function performRestartSession(
   if (!session?.queryHandle || !session.startOptions) {
     return { error: "No active session to restart" };
   }
+  const restartUpstream = resolveClaudeUpstream();
+  if (restartUpstream.tier === "default" && !restartUpstream.token) {
+    return { error: "account_required" };
+  }
 
   const logPrefix = `session=${sessionId.slice(0, 8)}`;
   log("SESSION_RESTART", `${logPrefix} (rebuilding with fresh MCP config)`);
@@ -925,6 +929,10 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     cancelPendingRestarts(sessionId);
 
     try {
+      const initialUpstream = resolveClaudeUpstream();
+      if (initialUpstream.tier === "default" && !initialUpstream.token) {
+        return { sessionId, pid: 0, error: "account_required" };
+      }
       const query = await getSDK();
 
       // Resuming under an existing id (e.g. the renderer reloaded and is

@@ -22,6 +22,7 @@ import {
 import { getAppSetting } from "../lib/app-settings";
 import { reportError } from "../lib/error-utils";
 import { codexUpstreamThreadParams } from "../lib/codex-upstream";
+import { resolveCodexUpstream } from "../lib/upstream-resolver";
 import {
   buildCodexAppServerEnv,
   findCodexRolloutPath,
@@ -261,6 +262,10 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       const cwd = normalizeSessionCwd(options.cwd);
 
       try {
+        const initialUpstream = resolveCodexUpstream();
+        if (initialUpstream.tier === "default" && !initialUpstream.apiKey) {
+          return { sessionId: internalId, error: "account_required" };
+        }
         const codexPath = await getCodexBinaryPath();
         log("codex",` Starting app-server: ${codexPath} (session=${internalId})`);
 

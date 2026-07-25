@@ -19,6 +19,7 @@ import { useAppEnvironmentState } from "@/hooks/app-layout/useAppEnvironmentStat
 import { useAppSessionActions } from "@/hooks/app-layout/useAppSessionActions";
 import { useAppSpaceWorkflow } from "@/hooks/app-layout/useAppSpaceWorkflow";
 import { useAppContextualPanels } from "@/hooks/app-layout/useAppContextualPanels";
+import { pickCodexModel, type CodexModelSummary } from "@/hooks/session/types";
 
 export { getSyncedPlanMode } from "@/hooks/app-layout/session-utils";
 
@@ -55,6 +56,14 @@ export function getCanonicalClaudeModelForCatalog(
 ): string | undefined {
   if (supportedModels.length === 0) return undefined;
   return canonicalizeModelValue(currentModel, supportedModels);
+}
+
+export function getValidCodexModelForCatalog(
+  currentModel: string | null | undefined,
+  models: CodexModelSummary[],
+): string | undefined {
+  if (models.length === 0) return undefined;
+  return pickCodexModel(currentModel ?? undefined, models);
 }
 
 export function useAppOrchestrator() {
@@ -177,6 +186,20 @@ export function useAppOrchestrator() {
       settings.setModelForEngine("claude", canonicalModel);
     }
   }, [manager.supportedModels, settings.getModelForEngine, settings.setModelForEngine]);
+
+  useEffect(() => {
+    if (!manager.isDraft) return;
+    const currentModel = settings.getModelForEngine("codex");
+    const validModel = getValidCodexModelForCatalog(currentModel, manager.codexRawModels);
+    if (validModel && validModel !== currentModel) {
+      settings.setModelForEngine("codex", validModel);
+    }
+  }, [
+    manager.codexRawModels,
+    manager.isDraft,
+    settings.getModelForEngine,
+    settings.setModelForEngine,
+  ]);
 
   // Sync model from loaded session (canonical runtime names -> picker values)
   useEffect(() => {

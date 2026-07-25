@@ -174,10 +174,16 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
       setSupportedModels([]);
       setSupportedModelsLoaded(false);
     });
+    const unsubscribeAccount = window.claude.accountAuth?.onChanged(() => {
+      supportedModelsRequestGeneration.current += 1;
+      setSupportedModels([]);
+      setSupportedModelsLoaded(false);
+    }) ?? (() => {});
 
     return () => {
       disposed = true;
       unsubscribe();
+      unsubscribeAccount();
     };
   }, []);
 

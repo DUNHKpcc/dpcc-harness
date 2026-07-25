@@ -305,9 +305,9 @@ export function useDraftMaterialization({
 
       setStartOptions((prev) => {
         if ((prev.engine ?? "claude") !== "codex") return prev;
-        if (preferredModel && prev.model && prev.model !== preferredModel) return prev;
-        if (!selected || prev.model === selected) return prev;
-        return { ...prev, model: selected };
+        const currentSelection = pickCodexModel(prev.model ?? preferredModel, models);
+        if (!currentSelection || prev.model === currentSelection) return prev;
+        return { ...prev, model: currentSelection };
       });
       setCodexModelsLoadingMessage(null);
       return true;

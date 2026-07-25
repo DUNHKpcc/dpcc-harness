@@ -16,6 +16,10 @@
  */
 
 import { getAppSetting } from "./app-settings";
+import {
+  credentialTokenForEngine,
+  loadAccountCredential,
+} from "./account-credential-store";
 import { loadLocalClaudeEnv, loadLocalCodexProvider } from "./local-cli-config";
 import { DEFAULT_NEWAPI_BASE_URL } from "@shared/types/account";
 import { isActiveThirdPartyGateway } from "@shared/lib/upstream-routing";
@@ -44,9 +48,19 @@ export interface CodexUpstream {
   model: string;
 }
 
-/** DPCC host root with no trailing slash or /v1 (falls back to the platform default). */
+/**
+ * DPCC resource host with no trailing slash or /v1.
+ *
+ * Browser-authorized credentials are issued by the separate account issuer,
+ * but model and account-resource traffic stays pinned to the trusted resource
+ * origin. Legacy manual credentials retain their explicitly configured host.
+ */
 function dpccHost(): string {
-  const raw = (getAppSetting("dpccUpstream").baseUrl || "")
+  const credential = loadAccountCredential();
+  const configured = credential?.source === "desktop"
+    ? DEFAULT_NEWAPI_BASE_URL
+    : getAppSetting("dpccUpstream").baseUrl;
+  const raw = (configured || "")
     .trim()
     .replace(/\/+$/, "")
     .replace(/\/v1$/, "");
@@ -100,10 +114,11 @@ function hasConfiguredClaudeGateway(): boolean {
 
 function resolveDefaultClaudeUpstream(): ClaudeUpstream {
   const dpcc = getAppSetting("dpccUpstream");
+  const credential = loadAccountCredential();
   return {
     tier: "default",
     baseUrl: dpccHost(),
-    token: dpcc.claudeToken.trim(),
+    token: credentialTokenForEngine(credential, "claude"),
     model: dpcc.claudeModel.trim(),
   };
 }
@@ -143,11 +158,12 @@ function hasConfiguredCodexGateway(): boolean {
 
 function resolveDefaultCodexUpstream(): CodexUpstream {
   const dpcc = getAppSetting("dpccUpstream");
+  const credential = loadAccountCredential();
   return {
     tier: "default",
     providerName: "DPCC API",
     baseUrl: `${dpccHost()}/v1`,
-    apiKey: dpcc.codexToken.trim(),
+    apiKey: credentialTokenForEngine(credential, "codex"),
     model: dpcc.codexModel.trim(),
   };
 }

@@ -87,6 +87,15 @@ vi.mock("../lib/codex-model-catalog", () => ({
 vi.mock("../lib/codex-upstream", () => ({
   codexUpstreamThreadParams: vi.fn(() => ({})),
 }));
+vi.mock("../lib/upstream-resolver", () => ({
+  resolveCodexUpstream: vi.fn(() => ({
+    tier: "default",
+    providerName: "DPCC API",
+    baseUrl: "https://api.dpcc.example/v1",
+    apiKey: "desktop-token",
+    model: "",
+  })),
+}));
 
 vi.mock("../lib/codex-home-isolation", () => ({
   buildCodexAppServerEnv: vi.fn(() => ({ CODEX_HOME: "/tmp/current-codex-home" })),

@@ -19,7 +19,7 @@ import { resolveClaudeUpstream } from "./upstream-resolver";
 import { prepareClaudeCodeGitBashEnv } from "./claude-git-bash";
 
 const DEFAULT_SETTING_SOURCES = ["user", "project", "local"];
-const GATEWAY_SETTING_SOURCES = ["project", "local"];
+const GATEWAY_SETTING_SOURCES: string[] = [];
 const MAC_APP_IDENTITY_ENV_KEYS = [
   "__CFBundleIdentifier",
   "XPC_FLAGS",
@@ -75,10 +75,10 @@ function buildClaudeSpawnEnv(): Record<string, string | undefined> {
 }
 
 /**
- * Claude Code loads ~/.claude/settings.json when the `user` source is enabled.
- * Gateway/default upstream requests must not inherit that file because it may
- * contain local auth/model overrides that route requests away from the app's
- * selected upstream.
+ * Gateway/default upstream requests must not inherit any filesystem settings
+ * source. A project rooted at the user's home can otherwise load the same
+ * ~/.claude/settings.json through the `project` source and override the pinned
+ * account endpoint and credentials.
  */
 export function claudeSettingSources(): string[] {
   return hasClaudeUpstreamOverride() ? [...GATEWAY_SETTING_SOURCES] : [...DEFAULT_SETTING_SOURCES];

@@ -266,7 +266,7 @@ export function useSettings(projectId: string | null, engine: EngineId = "claude
   const [theme, setThemeRaw] = useState<ThemeOption>(() => {
     const stored = localStorage.getItem("pcc-agent-theme");
     if (stored === "light" || stored === "dark" || stored === "system") return stored;
-    return "dark";
+    return "light";
   });
   const setTheme = useCallback((t: ThemeOption) => {
     setThemeRaw(t);

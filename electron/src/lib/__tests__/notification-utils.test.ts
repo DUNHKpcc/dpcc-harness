@@ -398,9 +398,12 @@ describe("Windows notification IPC regression", () => {
 
     const show = notificationIpcMocks.handlers.get("notifications:show");
     await expect(show?.(event, payload)).resolves.toEqual({ shown: true });
-    notificationIpcMocks.MockNotification.instances[0]?.emit("click");
+    const notification = notificationIpcMocks.MockNotification.instances[0];
+    notification?.emit("click");
+    await new Promise<void>((resolve) => setImmediate(resolve));
 
     expect(activate).toHaveBeenCalledWith("session-a");
+    expect(notification?.close).not.toHaveBeenCalled();
   });
 
   it("rejects notification requests from another renderer", async () => {

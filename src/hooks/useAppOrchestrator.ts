@@ -23,6 +23,10 @@ import { pickCodexModel, type CodexModelSummary } from "@/hooks/session/types";
 
 export { getSyncedPlanMode } from "@/hooks/app-layout/session-utils";
 
+interface UseAppOrchestratorInput {
+  onOpenSession?: (sessionId: string) => void;
+}
+
 interface ToolTogglePlan {
   activeTools: Set<ToolId>;
   suppressPanel: ToolId | null;
@@ -66,7 +70,7 @@ export function getValidCodexModelForCatalog(
   return pickCodexModel(currentModel ?? undefined, models);
 }
 
-export function useAppOrchestrator() {
+export function useAppOrchestrator(input: UseAppOrchestratorInput = {}) {
   const sidebar = useSidebar();
   const splitView = useSplitView();
   const projectManager = useProjectManager();
@@ -150,7 +154,7 @@ export function useAppOrchestrator() {
     isProcessing: manager.isProcessing,
     visibleSessionIds: splitView.visibleSessionIds,
     setPlanMode: settings.setPlanMode,
-    onOpenSession: manager.switchSession,
+    onOpenSession: input.onOpenSession ?? manager.switchSession,
   });
 
   const sessionActions = useAppSessionActions({

@@ -319,7 +319,7 @@ function readLegacyJson<T>(key: string, fallback: T): T {
 
 function readLegacyGlobalSettings(): GlobalSettingsState {
   const themeRaw = localStorage.getItem("pcc-agent-theme");
-  const theme: ThemeOption = (themeRaw === "light" || themeRaw === "dark" || themeRaw === "system") ? themeRaw : "dark";
+  const theme: ThemeOption = (themeRaw === "light" || themeRaw === "dark" || themeRaw === "system") ? themeRaw : "light";
 
   const languageRaw = localStorage.getItem("pcc-agent-language");
   const language: LanguageOption = (languageRaw === "en" || languageRaw === "zh" || languageRaw === "system") ? languageRaw : "system";
@@ -471,7 +471,7 @@ export const useSettingsStore = create<SettingsStore>()(
   persist(
     (set, get) => ({
       // ── Global state defaults ──
-      theme: "dark",
+      theme: "light",
       language: "system",
       lastModelByEngine: DEFAULT_ENGINE_MODELS,
       islandLayout: false,

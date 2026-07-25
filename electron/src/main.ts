@@ -124,7 +124,7 @@ let pendingMacBackgroundEffect: MacBackgroundEffect = "liquid-glass";
 function normalizeThemeSource(value: unknown): ThemeOption {
   return value === "light" || value === "dark" || value === "system"
     ? value
-    : "system";
+    : "light";
 }
 
 function normalizeMacBackgroundEffect(value: unknown): MacBackgroundEffect {
@@ -234,7 +234,7 @@ function activateNotification(sessionId?: string): void {
     win.webContents.once("did-finish-load", sendActivation);
     return;
   }
-  sendActivation();
+  queueMicrotask(sendActivation);
 }
 
 async function showTrayContextMenu(): Promise<void> {

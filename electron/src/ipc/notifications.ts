@@ -106,8 +106,9 @@ export function register(
 
       notification.on("click", () => {
         activeNotifications.delete(payload.id);
-        notification.close();
-        activateNotification(payload.sessionId);
+        // Windows dismisses a clicked toast. Closing it again from the native
+        // callback can re-enter the toast cleanup path and stall the main thread.
+        setImmediate(() => activateNotification(payload.sessionId));
       });
       notification.on("close", () => {
         activeNotifications.delete(payload.id);

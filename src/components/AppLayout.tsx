@@ -120,7 +120,12 @@ async function waitForCondition(
 
 export function AppLayout() {
   const { t } = useTranslation("workspace");
-  const o = useAppOrchestrator();
+  const openSessionFromNotificationRef = useRef<(sessionId: string) => void>(() => {});
+  const o = useAppOrchestrator({
+    onOpenSession: (sessionId) => {
+      openSessionFromNotificationRef.current(sessionId);
+    },
+  });
   const { managers, agentState, state, ui, actions } = o;
   const {
     sidebar, projectManager, spaceManager, manager, settings, resolvedTheme, spaceTerminals, activeSpaceTerminals, splitView,
@@ -405,6 +410,8 @@ export function AppLayout() {
     },
     [handleSelectSession, projectManager.projects, setJiraBoardProjectForSpace, splitView],
   );
+
+  openSessionFromNotificationRef.current = handleSidebarSelectSession;
 
   useEffect(() => window.claude.onTrayOpenSession((target) => {
     setPendingTraySession(target);

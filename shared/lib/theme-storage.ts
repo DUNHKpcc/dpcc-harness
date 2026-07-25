@@ -13,7 +13,7 @@ function isThemeOption(value: unknown): value is ThemeOption {
 
 export function readStoredThemeSource(
   storage: ThemeStorage | undefined,
-  fallback: ThemeOption = "dark",
+  fallback: ThemeOption = "light",
 ): ThemeOption {
   try {
     const stored = storage?.getItem(SETTINGS_STORE_KEY);

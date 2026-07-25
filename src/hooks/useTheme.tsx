@@ -5,7 +5,7 @@ export type ResolvedTheme = "light" | "dark";
 
 // ── Theme context ──────────────────────────────────────────────────────
 
-const ThemeContext = createContext<ResolvedTheme>("dark");
+const ThemeContext = createContext<ResolvedTheme>("light");
 
 /** Wraps the subtree with the resolved theme value from `useTheme`. */
 export function ThemeProvider({ value, children }: { value: ResolvedTheme; children: ReactNode }) {

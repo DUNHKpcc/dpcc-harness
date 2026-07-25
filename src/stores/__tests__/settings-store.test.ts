@@ -89,7 +89,7 @@ describe("settings store", () => {
 
     const { useSettingsStore } = await import("../settings-store");
 
-    expect(useSettingsStore.getState().theme).toBe("dark");
+    expect(useSettingsStore.getState().theme).toBe("light");
   });
 
   it("treats repeated active tool writes with the same contents as a no-op", async () => {
@@ -162,7 +162,7 @@ describe("readStoredThemeSource", () => {
     }))).toBe("system");
   });
 
-  it("uses dark when neither storage source contains a valid theme", () => {
-    expect(readStoredThemeSource(storage({}))).toBe("dark");
+  it("uses light when neither storage source contains a valid theme", () => {
+    expect(readStoredThemeSource(storage({}))).toBe("light");
   });
 });

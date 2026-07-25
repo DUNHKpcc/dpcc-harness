@@ -28,7 +28,7 @@ import { DEFAULT_NEWAPI_BASE_URL } from "@shared/types/account";
 import { isActiveThirdPartyGateway, isDpccUpstreamUrl } from "@shared/lib/upstream-routing";
 
 // Re-export shared types so existing `import from "./app-settings"` consumers still work
-export type { AppSettings, MacBackgroundEffect, PreferredEditor, VoiceDictationMode, NotificationTrigger, NotificationEventSettings, NotificationSettings, CodexBinarySource, ClaudeBinarySource, ClaudeGatewaySettings, CodexGatewaySettings, DpccUpstreamSettings, UpdateSource, CliConfigSource } from "@shared/types/settings";
+export type { AppSettings, MacBackgroundEffect, PreferredEditor, VoiceDictationMode, NotificationTrigger, NotificationEventSettings, NotificationSettings, CodexBinarySource, ClaudeBinarySource, ClaudeGatewaySettings, CodexGatewaySettings, DpccUpstreamSettings, UpdateSource, CliConfigSource, AccountMode } from "@shared/types/settings";
 
 const NOTIFICATION_DEFAULTS: NotificationSettings = {
   exitPlanMode: { osNotification: "unfocused", sound: "always" },
@@ -58,6 +58,7 @@ const DEFAULTS: AppSettings = {
   cliConfigSource: "default",
   claudeCliConfigSource: "default",
   codexCliConfigSource: "default",
+  accountMode: "unset",
   dpccUpstream: { baseUrl: "", claudeToken: "", codexToken: "", claudeModel: "", codexModel: "" },
   accountAccessToken: "",
   accountUserId: "",

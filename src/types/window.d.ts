@@ -13,6 +13,7 @@ import type {
 } from "@shared/types/notifications";
 import type { WeChatBridgeState, WeChatBridgeConfig, WeChatBridgeEvent } from "@shared/types/wechat";
 import type { AccountConfig, AccountBalanceResult, AccountModelsResult, AccountStatus, UsageStats, UsageStatsResult } from "@shared/types/account";
+import type { AccountAuthActionResult, AccountAuthSnapshot } from "@shared/types/account-auth";
 import type {
   ACPSessionEvent,
   ACPPermissionEvent,
@@ -490,6 +491,16 @@ declare global {
         getModels: () => Promise<AccountModelsResult>;
         getCachedUsageStats: () => Promise<UsageStats | null>;
         getUsageStats: (force?: boolean) => Promise<UsageStatsResult>;
+      };
+      accountAuth: {
+        getStatus: () => Promise<AccountAuthSnapshot>;
+        beginAuthorization: () => Promise<AccountAuthActionResult>;
+        cancelAuthorization: () => Promise<AccountAuthActionResult>;
+        reauthorize: () => Promise<AccountAuthActionResult>;
+        continueAsGuest: () => Promise<AccountAuthActionResult>;
+        logoutAndRevoke: () => Promise<AccountAuthActionResult>;
+        clearLocalAuthorization: () => Promise<AccountAuthActionResult>;
+        onChanged: (callback: (snapshot: AccountAuthSnapshot) => void) => () => void;
       };
       jira: {
         getConfig: (projectId: string) => Promise<JiraProjectConfig | null>;

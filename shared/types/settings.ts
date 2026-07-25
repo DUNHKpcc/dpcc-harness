@@ -18,6 +18,8 @@ export type ClaudeBinarySource = "builtin" | "auto" | "managed" | "custom";
 export type UpdateSource = "github" | "mirror";
 /** Which upstream source a built-in Claude Code or Codex session should use. */
 export type CliConfigSource = "default" | "local" | "gateway";
+/** Explicit local account choice. "unset" means onboarding has not chosen yet. */
+export type AccountMode = "unset" | "guest";
 
 // ── Notification settings ──
 
@@ -84,9 +86,9 @@ export interface CodexGatewaySettings {
 export interface DpccUpstreamSettings {
   /** Host root (empty → DEFAULT_NEWAPI_BASE_URL). Claude uses as-is; Codex appends /v1. */
   baseUrl: string;
-  /** Claude-group key (sk-…) → ANTHROPIC_AUTH_TOKEN against the DPCC upstream */
+  /** @deprecated Legacy migration input only. Renderer IPC always returns an empty string. */
   claudeToken: string;
-  /** Codex-group key (sk-…) → model_providers api key against the DPCC upstream */
+  /** @deprecated Legacy migration input only. Renderer IPC always returns an empty string. */
   codexToken: string;
   /** Optional Claude default model id (empty = keep the picker) */
   claudeModel: string;
@@ -142,21 +144,20 @@ export interface AppSettings {
   claudeCliConfigSource: CliConfigSource;
   /** Selected upstream source for built-in Codex sessions. */
   codexCliConfigSource: CliConfigSource;
+  /** Non-sensitive DPCC account choice used to distinguish Guest from dismissal. */
+  accountMode: AccountMode;
   /**
-   * DPCC official default upstream (origin-api.dpccgaming.xyz), used when Current
-   * Config source is "default". Populated by the DPCC API account entry and the
-   * welcome wizard.
+   * DPCC official default upstream metadata. Credentials are stored separately
+   * by the Electron main process in strict OS-backed storage.
    */
   dpccUpstream: DpccUpstreamSettings;
   /**
-   * new-api system access token (访问令牌) used to query real account balance
-   * via /api/user/self. Distinct from the sk- relay token in claudeGateway.
-   * Empty = balance falls back to the OpenAI-compatible billing endpoints.
+   * @deprecated Legacy migration input only. Renderer IPC always returns an
+   * empty string and cannot write this field.
    */
   accountAccessToken: string;
   /**
-   * new-api user id, sent as the required `New-API-User` header alongside the
-   * access token when querying /api/user/self.
+   * @deprecated Legacy migration input only.
    */
   accountUserId: string;
 }

@@ -76,6 +76,7 @@ import * as codexSessionsIpc from "./ipc/codex-sessions";
 import * as mcpIpc from "./ipc/mcp";
 import * as settingsIpc from "./ipc/settings";
 import * as accountIpc from "./ipc/account";
+import * as accountAuthIpc from "./ipc/account-auth";
 import * as jiraIpc from "./ipc/jira";
 import * as wechatIpc from "./ipc/wechat";
 import * as notificationsIpc from "./ipc/notifications";
@@ -547,6 +548,7 @@ codexSessionsIpc.register(getMainWindow);
 mcpIpc.register();
 settingsIpc.register(getMainWindow);
 accountIpc.register();
+accountAuthIpc.register(getMainWindow);
 jiraIpc.register();
 wechatIpc.register(getMainWindow);
 notificationsIpc.register(getMainWindow, activateNotification);
@@ -654,6 +656,7 @@ ipcMain.handle("speech:request-mic-permission", async () => {
 app.whenReady().then(() => {
   // Migrate data from old "OpenACP UI" app directory before anything reads it
   migrateFromOpenAcpUi();
+  accountAuthIpc.initialize();
   if (process.platform === "darwin") {
     pendingMacBackgroundEffect = resolveMacBackgroundEffect(
       normalizeMacBackgroundEffect(getAppSettings().macBackgroundEffect),
@@ -763,6 +766,7 @@ app.on("will-quit", () => {
   globalShortcut.unregisterAll();
   isQuitting = true;
   notificationsIpc.dispose();
+  accountAuthIpc.dispose();
   if (tray && !tray.isDestroyed()) {
     tray.destroy();
   }

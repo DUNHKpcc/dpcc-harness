@@ -431,6 +431,20 @@ contextBridge.exposeInMainWorld("claude", {
     getCachedUsageStats: () => ipcRenderer.invoke("account:usageStatsCached"),
     getUsageStats: (force?: boolean) => ipcRenderer.invoke("account:usageStats", force),
   },
+  accountAuth: {
+    getStatus: () => ipcRenderer.invoke("account-auth:get-status"),
+    beginAuthorization: () => ipcRenderer.invoke("account-auth:begin"),
+    cancelAuthorization: () => ipcRenderer.invoke("account-auth:cancel"),
+    reauthorize: () => ipcRenderer.invoke("account-auth:reauthorize"),
+    continueAsGuest: () => ipcRenderer.invoke("account-auth:continue-as-guest"),
+    logoutAndRevoke: () => ipcRenderer.invoke("account-auth:logout-and-revoke"),
+    clearLocalAuthorization: () => ipcRenderer.invoke("account-auth:clear-local"),
+    onChanged: (callback: (data: unknown) => void) => {
+      const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);
+      ipcRenderer.on("account-auth:changed", listener);
+      return () => ipcRenderer.removeListener("account-auth:changed", listener);
+    },
+  },
   jira: {
     getConfig: (projectId: string) => ipcRenderer.invoke("jira:get-config", projectId),
     saveConfig: (projectId: string, config: unknown) =>

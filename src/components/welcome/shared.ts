@@ -3,9 +3,8 @@ import type { InstalledAgent } from "@/types";
 // ── Step definitions ──
 
 export const WIZARD_STEPS = [
-  "welcome",
-  "appearance",
   "account",
+  "appearance",
   "permissions",
   "project",
   "agents",

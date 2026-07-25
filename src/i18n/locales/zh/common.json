@@ -85,5 +85,55 @@
       "restartDescription": "重启 PccAgent 后即可干净地退出 Liquid Glass。",
       "restartAction": "重启"
     }
+  },
+  "accountAuth": {
+    "title": "登录 DPCC API",
+    "account": "账户",
+    "connectedAccount": "DPCC API 账户",
+    "device": "授权设备",
+    "quota": "可用额度",
+    "expires": "授权到期",
+    "signIn": "使用浏览器登录",
+    "authorizeSignIn": "DPCC API授权登录",
+    "cancel": "取消授权",
+    "continue": "继续",
+    "continueAsGuest": "不登录并继续",
+    "reauthorize": "重新授权",
+    "logout": "退出并撤销此设备",
+    "clearLocal": "仅清除此设备",
+    "accountSettings": "账户设置",
+    "legacyManual": "此连接由旧版手工凭据迁移而来。请通过浏览器重新授权以完成替换。",
+    "revokeFailed": "当前无法连接服务器，远端设备授权可能仍然有效。你可以仅清除此设备，之后再到网页端撤销。",
+    "status": {
+      "signed_out": "使用浏览器登录并授权此设备。",
+      "authorizing": "正在等待浏览器完成授权…",
+      "connected": "此设备已连接。",
+      "expiring": "此授权即将到期。",
+      "expired": "此授权已到期，请重新登录。",
+      "revoked": "此设备授权已被撤销。",
+      "guest": "Guest 模式仅使用本地或独立配置的 provider。",
+      "storage_error": "系统安全凭据存储不可用。"
+    },
+    "errors": {
+      "authorization_cancelled": "授权已取消。",
+      "authorization_in_progress": "授权流程已在进行中。",
+      "authorization_request_failed": "无法创建授权请求。",
+      "authorization_url_invalid": "服务器返回了不受信任的授权地址。",
+      "browser_open_failed": "无法打开系统浏览器。",
+      "callback_invalid": "浏览器返回了无效的授权响应。",
+      "callback_state_mismatch": "授权响应与本次请求不匹配。",
+      "callback_timeout": "授权已超时，请重新开始以创建新请求。",
+      "access_denied": "浏览器中拒绝了本次授权。",
+      "request_expired": "授权请求已过期。",
+      "token_exchange_failed": "无法交换授权码。",
+      "token_rejected": "已保存的授权不再有效。",
+      "revoke_failed": "无法撤销设备授权。",
+      "secure_storage_unavailable": "系统安全凭据存储不可用。",
+      "secure_storage_insecure_backend": "Linux 正在使用不安全的 basic_text 凭据后端。",
+      "secure_storage_encrypt_failed": "无法加密账户凭据。",
+      "secure_storage_decrypt_failed": "无法解密已保存的凭据。",
+      "secure_storage_write_failed": "无法保存加密凭据。",
+      "unknown": "授权失败，请重试。"
+    }
   }
 }

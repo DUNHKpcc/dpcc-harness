@@ -6,7 +6,6 @@ import { useSettingsStore } from "@/stores/settings-store";
 import { useAgentContext } from "@/components/AgentContext";
 import { WIZARD_STEPS, WELCOME_COMPLETED_KEY, springTransition } from "./shared";
 import { StepIndicator } from "./StepIndicator";
-import { WelcomeStep } from "./WelcomeStep";
 import { AppearanceStep } from "./AppearanceStep";
 import { AccountStep } from "./AccountStep";
 import { PermissionsStep } from "./PermissionsStep";
@@ -155,7 +154,6 @@ export function WelcomeWizard({
               transition={springTransition}
               className="absolute inset-0 flex flex-col"
             >
-              {stepId === "welcome" && <WelcomeStep {...stepProps} />}
               {stepId === "appearance" && (
                 <AppearanceStep
                   {...stepProps}

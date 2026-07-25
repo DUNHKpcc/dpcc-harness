@@ -13,11 +13,11 @@ import {
   Users,
   Server,
   ArrowLeft,
-  Wallet,
   Smartphone,
   Contact,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { PccAgentLogo } from "@/components/PccAgentLogo";
 import { AgentSettings } from "@/components/settings/AgentSettings";
 import { WeChatSettings } from "@/components/settings/WeChatSettings";
 import { AppearanceSettings } from "@/components/settings/AppearanceSettings";
@@ -46,13 +46,13 @@ interface NavItem {
   id: SettingsSection;
   /** i18n key under the "settings" namespace, resolved at render time */
   labelKey: string;
-  icon: LucideIcon;
+  icon?: LucideIcon;
   /** Renders a subtle "soon" indicator next to the label */
   comingSoon?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: "account", labelKey: "nav.account", icon: Wallet },
+  { id: "account", labelKey: "nav.account" },
   { id: "general", labelKey: "nav.general", icon: SlidersHorizontal },
   { id: "appearance", labelKey: "nav.appearance", icon: Palette },
   { id: "notifications", labelKey: "nav.notifications", icon: Bell },
@@ -241,7 +241,11 @@ export const SettingsView = memo(function SettingsView({
                       : "text-muted-foreground hover:bg-foreground/[0.03] hover:text-foreground"
                     }`}
                 >
-                  <Icon className="h-4 w-4 shrink-0" />
+                  {Icon ? (
+                    <Icon className="h-4 w-4 shrink-0" />
+                  ) : (
+                    <PccAgentLogo className="h-4 w-4 rounded-[3px]" />
+                  )}
                   <span className="flex-1">{t(item.labelKey)}</span>
                   {item.comingSoon && (
                     <span className="rounded bg-foreground/[0.06] px-1.5 py-px text-[10px] font-medium text-muted-foreground/70">

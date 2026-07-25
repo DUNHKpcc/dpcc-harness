@@ -85,5 +85,55 @@
       "restartDescription": "Restart PccAgent to switch away from Liquid Glass cleanly.",
       "restartAction": "Restart"
     }
+  },
+  "accountAuth": {
+    "title": "Sign in to DPCC API",
+    "account": "Account",
+    "connectedAccount": "DPCC API account",
+    "device": "Authorized device",
+    "quota": "Available quota",
+    "expires": "Authorization expires",
+    "signIn": "Sign in with browser",
+    "authorizeSignIn": "Authorize with DPCC API",
+    "cancel": "Cancel authorization",
+    "continue": "Continue",
+    "continueAsGuest": "Continue without signing in",
+    "reauthorize": "Reauthorize",
+    "logout": "Sign out and revoke this device",
+    "clearLocal": "Clear this device only",
+    "accountSettings": "Account settings",
+    "legacyManual": "This connection was migrated from manually entered credentials. Reauthorize with your browser to replace it.",
+    "revokeFailed": "The server could not be reached, so the remote device grant may still be active. You can clear only this device and revoke it later on the web.",
+    "status": {
+      "signed_out": "Use your browser to sign in and authorize this device.",
+      "authorizing": "Waiting for authorization in your browser…",
+      "connected": "This device is connected.",
+      "expiring": "This authorization expires soon.",
+      "expired": "This authorization has expired. Sign in again to continue.",
+      "revoked": "This device authorization was revoked.",
+      "guest": "Guest mode uses local and independently configured providers only.",
+      "storage_error": "Secure OS credential storage is unavailable."
+    },
+    "errors": {
+      "authorization_cancelled": "Authorization was cancelled.",
+      "authorization_in_progress": "Authorization is already in progress.",
+      "authorization_request_failed": "The authorization request could not be created.",
+      "authorization_url_invalid": "The server returned an untrusted authorization URL.",
+      "browser_open_failed": "The system browser could not be opened.",
+      "callback_invalid": "The browser returned an invalid authorization response.",
+      "callback_state_mismatch": "The authorization response did not match this request.",
+      "callback_timeout": "Authorization timed out. Start again to create a new request.",
+      "access_denied": "Authorization was denied in the browser.",
+      "request_expired": "The authorization request expired.",
+      "token_exchange_failed": "The authorization code could not be exchanged.",
+      "token_rejected": "The saved authorization is no longer accepted.",
+      "revoke_failed": "The device grant could not be revoked.",
+      "secure_storage_unavailable": "Secure OS credential storage is unavailable.",
+      "secure_storage_insecure_backend": "Linux is using the insecure basic_text credential backend.",
+      "secure_storage_encrypt_failed": "The credential could not be encrypted.",
+      "secure_storage_decrypt_failed": "The saved credential could not be decrypted.",
+      "secure_storage_write_failed": "The encrypted credential could not be saved.",
+      "unknown": "Authorization failed. Try again."
+    }
   }
 }

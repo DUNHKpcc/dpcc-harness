@@ -16,6 +16,10 @@ import { createHash } from "crypto";
 import fs from "fs";
 import path from "path";
 import { getAppSetting } from "../lib/app-settings";
+import {
+  credentialTokenForEngine,
+  loadAccountCredential,
+} from "../lib/account-credential-store";
 import { getDataDir } from "../lib/data-dir";
 import { extractErrorMessage } from "../lib/error-utils";
 import { fetchUpstreamModels } from "../lib/upstream-models";
@@ -30,6 +34,7 @@ import type {
   UsageDayBucket,
 } from "@shared/types/account";
 import { DEFAULT_NEWAPI_BASE_URL } from "@shared/types/account";
+import { markTokenRejected } from "./account-auth";
 
 const REQUEST_TIMEOUT_MS = 8_000;
 
@@ -50,6 +55,8 @@ interface ResolvedUpstream {
   primaryToken: string;
   accessToken: string;
   userId: string;
+  desktopToken: string;
+  credentialSource: "desktop" | "legacy_manual" | "none";
   source: AccountConfig["source"];
 }
 
@@ -75,9 +82,13 @@ function pickHost(...candidates: string[]): string {
  */
 function resolveUpstream(): ResolvedUpstream {
   const dpcc = getAppSetting("dpccUpstream");
-  const claudeToken = dpcc.claudeToken.trim();
-  const codexToken = dpcc.codexToken.trim();
-  const host = pickHost(dpcc.baseUrl ?? "");
+  const credential = loadAccountCredential();
+  const claudeToken = credentialTokenForEngine(credential, "claude");
+  const codexToken = credentialTokenForEngine(credential, "codex");
+  const host = credential?.source === "desktop"
+    ? pickHost(DEFAULT_NEWAPI_BASE_URL)
+    : pickHost(dpcc.baseUrl ?? "");
+  const legacy = credential?.source === "legacy_manual" ? credential.legacy : undefined;
 
   const source: AccountConfig["source"] = claudeToken || codexToken ? "dpcc" : "none";
 
@@ -86,8 +97,10 @@ function resolveUpstream(): ResolvedUpstream {
     claudeToken,
     codexToken,
     primaryToken: claudeToken || codexToken,
-    accessToken: (getAppSetting("accountAccessToken") ?? "").trim(),
-    userId: (getAppSetting("accountUserId") ?? "").trim(),
+    accessToken: legacy?.accountAccessToken ?? "",
+    userId: legacy?.accountUserId ?? "",
+    desktopToken: credential?.source === "desktop" ? claudeToken || codexToken : "",
+    credentialSource: credential?.source ?? "none",
     source,
   };
 }
@@ -213,6 +226,44 @@ async function computeSelfBalance(
   };
 }
 
+/** Account projection exposed specifically to an active DesktopGrant token. */
+async function computeDesktopBalance(
+  root: string,
+  token: string,
+): Promise<AccountBalanceResult> {
+  const account = await upstreamGet<Record<string, unknown>>(
+    root,
+    token,
+    "/api/desktop/account",
+  );
+  if ("error" in account && typeof account.error === "string") {
+    return { error: account.error };
+  }
+  const accountRecord = account as Record<string, unknown>;
+  const data = accountRecord.data && typeof accountRecord.data === "object"
+    ? accountRecord.data as Record<string, unknown>
+    : accountRecord;
+  const remainingQuota = [
+    data.available_quota,
+    data.remaining_quota,
+    data.quota,
+  ].find((value): value is number => typeof value === "number" && Number.isFinite(value));
+  const usedQuota = typeof data.used_quota === "number" && Number.isFinite(data.used_quota)
+    ? data.used_quota
+    : 0;
+  if (remainingQuota === undefined) return { error: "invalid_account_response" };
+
+  const unit = (await fetchStatus(root)).quotaPerUnit;
+  const remainingUsd = Math.max(0, remainingQuota / unit);
+  const usedUsd = Math.max(0, usedQuota / unit);
+  return {
+    totalUsd: remainingUsd + usedUsd,
+    usedUsd,
+    remainingUsd,
+    unlimited: false,
+  };
+}
+
 /** List model ids available to a given token group via /v1/models. Empty on failure. */
 async function fetchModels(root: string, token: string): Promise<string[]> {
   return (await fetchUpstreamModels(root, token)).models;
@@ -227,6 +278,7 @@ const TASK_GAP_SEC = 30 * 60;
 
 interface RawLogItem {
   created_at?: number;
+  type?: number;
   prompt_tokens?: number;
   completion_tokens?: number;
   /** JSON string carrying cache_tokens / cache_creation_tokens (Claude). */
@@ -341,8 +393,7 @@ function usageCachePath(): string {
 }
 
 function usageCacheKey(): string {
-  const { host, userId } = resolveUpstream();
-  return `${host}|${userId}`;
+  return accountCacheKey(resolveUpstream());
 }
 
 function readUsageCache(): UsageStats | null {
@@ -364,17 +415,76 @@ function writeUsageCache(data: UsageStats): void {
   }
 }
 
+function isRejectedDesktopToken(result: unknown): boolean {
+  if (!result || typeof result !== "object" || !("error" in result)) return false;
+  const error = (result as { error?: unknown }).error;
+  return typeof error === "string" && /^(401|403)\b/.test(error);
+}
+
+export async function fetchDesktopUsage(root: string, token: string): Promise<UsageStatsResult> {
+  const entries: { createdAt: number; tokens: number }[] = [];
+  let truncated = false;
+
+  for (let page = 1; page <= LOG_MAX_PAGES; page++) {
+    const response = await upstreamGet<Record<string, unknown>>(
+      root,
+      token,
+      `/api/desktop/usage?page=${page}&page_size=${LOG_PAGE_SIZE}`,
+    );
+    if ("error" in response && typeof response.error === "string") {
+      if (entries.length === 0) return { error: response.error };
+      truncated = true;
+      break;
+    }
+
+    const responseRecord = response as Record<string, unknown>;
+    const data = responseRecord.data && typeof responseRecord.data === "object"
+      ? responseRecord.data as Record<string, unknown>
+      : responseRecord;
+    if (!Array.isArray(data.items)) {
+      if (entries.length === 0) return { error: "invalid_usage_response" };
+      truncated = true;
+      break;
+    }
+
+    for (const rawItem of data.items) {
+      if (!rawItem || typeof rawItem !== "object") continue;
+      const item = rawItem as RawLogItem;
+      if (
+        typeof item.created_at === "number"
+        && Number.isFinite(item.created_at)
+        && (item.type === undefined || item.type === 2)
+      ) {
+        entries.push({ createdAt: item.created_at, tokens: tokensOf(item) });
+      }
+    }
+
+    const total = typeof data.total === "number" && Number.isFinite(data.total)
+      ? Math.max(0, data.total)
+      : null;
+    if (
+      data.items.length === 0
+      || (total !== null && page * LOG_PAGE_SIZE >= total)
+    ) {
+      break;
+    }
+    if (page === LOG_MAX_PAGES) truncated = true;
+  }
+
+  return aggregateUsage(entries, truncated);
+}
+
 export function register(): void {
   ipcMain.handle("account:config", async (): Promise<AccountConfig> => {
     const upstream = resolveUpstream();
-    const { host, claudeToken, codexToken, accessToken, userId, source } = upstream;
+    const { host, claudeToken, codexToken, accessToken, userId, desktopToken, source } = upstream;
     return {
       baseUrl: host,
       cacheKey: accountCacheKey(upstream),
       hasToken: claudeToken.length > 0 || codexToken.length > 0,
       hasClaudeToken: claudeToken.length > 0,
       hasCodexToken: codexToken.length > 0,
-      hasAccessToken: accessToken.length > 0 && userId.length > 0,
+      hasAccessToken: desktopToken.length > 0 || (accessToken.length > 0 && userId.length > 0),
       source,
     };
   });
@@ -386,8 +496,14 @@ export function register(): void {
   });
 
   ipcMain.handle("account:balance", async (): Promise<AccountBalanceResult> => {
-    const { host, primaryToken, accessToken, userId, source } = resolveUpstream();
+    const { host, primaryToken, accessToken, userId, desktopToken, source } = resolveUpstream();
     if (!host) return { error: "not_configured" };
+
+    if (desktopToken) {
+      const result = await computeDesktopBalance(host, desktopToken);
+      if (isRejectedDesktopToken(result)) markTokenRejected();
+      return result;
+    }
 
     // Preferred: the billing endpoint — only needs an sk gateway token.
     if (source !== "none" && primaryToken) {
@@ -420,17 +536,23 @@ export function register(): void {
   });
 
   ipcMain.handle("account:usageStatsCached", async (): Promise<UsageStats | null> => {
-    const { host, accessToken, userId } = resolveUpstream();
-    if (!host || !accessToken || !userId) return null;
+    const { host, accessToken, userId, desktopToken } = resolveUpstream();
+    if (!host || (!desktopToken && (!accessToken || !userId))) return null;
     return readUsageCache();
   });
 
   ipcMain.handle("account:usageStats", async (_e, force?: boolean): Promise<UsageStatsResult> => {
-    const { host, accessToken, userId } = resolveUpstream();
-    if (!host || !accessToken || !userId) return { error: "not_configured" };
+    const { host, accessToken, userId, desktopToken } = resolveUpstream();
+    if (!host || (!desktopToken && (!accessToken || !userId))) return { error: "not_configured" };
     if (!force) {
       const cached = readUsageCache();
       if (cached) return cached;
+    }
+    if (desktopToken) {
+      const data = await fetchDesktopUsage(host, desktopToken);
+      if (isRejectedDesktopToken(data)) markTokenRejected();
+      if (!("error" in data)) writeUsageCache(data);
+      return data;
     }
 
     const entries: { createdAt: number; tokens: number }[] = [];

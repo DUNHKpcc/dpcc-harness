@@ -249,6 +249,8 @@
     "balanceUnavailable": "Balance unavailable",
     "balanceError": "Couldn't load balance",
     "refresh": "Refresh",
+    "manageDevices": "Manage authorized devices",
+    "openBilling": "Balance and subscription",
     "availableModels": "Available models",
     "field": {
       "baseUrl": "Gateway address",

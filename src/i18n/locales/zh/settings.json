@@ -249,6 +249,8 @@
     "balanceUnavailable": "暂无余额信息",
     "balanceError": "无法获取余额",
     "refresh": "刷新",
+    "manageDevices": "管理授权设备",
+    "openBilling": "余额与订阅",
     "availableModels": "可用模型",
     "field": {
       "baseUrl": "网关地址",

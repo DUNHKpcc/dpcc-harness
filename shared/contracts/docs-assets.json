@@ -1,0 +1,13 @@
+{
+  "appVersion": "2.1.6",
+  "documents": [
+    "README.md",
+    "docs/快速上手-连接DPCC-API.md"
+  ],
+  "screenshots": [
+    "assets/readme/account-balance.png",
+    "assets/readme/settings-account.png",
+    "assets/readme/split-sessions.png",
+    "assets/readme/workspace.png"
+  ]
+}

@@ -29,11 +29,11 @@
 
 PccAgent 是一个跨平台桌面应用，让你在**同一个界面**里运行、管理并切换多种 AI 编程助手 —— Claude Code、Codex 以及任何兼容 ACP 的 agent —— 全程不丢失上下文、会话或工具状态。
 
-所有 agent 的算力都通过你自己的 **DPCC API 网关**调用：填入网关地址与令牌即可开始，余额、模型、用量统计一目了然。
+所有 agent 的算力都通过 **DPCC API 网关**调用：使用浏览器登录并授权当前设备即可开始，余额、模型、用量统计一目了然。
 
 **为什么选择 PccAgent？**
 
-- **由 DPCC API 驱动。** 一份网关凭证同时驱动 Claude 与 Codex，应用内实时查看余额、可用模型和 Token 用量。
+- **由 DPCC API 驱动。** 一次浏览器授权同时连接 Claude 与 Codex，应用内实时查看余额、可用模型和 Token 用量。
 - **一个应用，所有 agent。** Claude Code、Codex 和自定义 ACP agent 并排运行，切换工具时不再丢失上下文。
 - **看清 AI 在做什么。** 工具调用渲染为可交互卡片，带词级 diff、语法高亮和内联 bash 输出 —— 而不是一堆原始 JSON。
 - **你的工作区，你做主。** 内置终端、浏览器、git、MCP 服务器和文件面板，全部按项目隔离，并在工作时保持常开。
@@ -51,7 +51,7 @@ PccAgent 是一个跨平台桌面应用，让你在**同一个界面**里运行�
 <p align="center">
   <img alt="账户设置" src="assets/readme/settings-account.png" />
   <br />
-  <em>设置页填入网关地址与令牌即可连接，支持精确余额与每日用量热力图。</em>
+  <em>通过浏览器安全登录并授权当前设备，支持余额与每日用量热力图。</em>
 </p>
 
 <p align="center">
@@ -70,12 +70,14 @@ PccAgent 是一个跨平台桌面应用，让你在**同一个界面**里运行�
 
 ## 连接 DPCC API
 
-PccAgent 不直接调用官方 Claude / Codex，而是通过你的 **DPCC API 网关**调用。第一步永远是填入**网关地址 + 令牌**，配置只保存在本机。
+PccAgent 不直接调用官方 Claude / Codex，而是通过 **DPCC API 网关**调用。应用不再要求手工复制 API 密钥。
 
-1. 登录 [DPCC API 平台](https://api.dpccgaming.xyz)，在「令牌 / API Key」页面新建并复制 `sk-…` 令牌。
-2. 在 PccAgent 中点击侧边栏底部的**账户头像**，打开「连接你的 DPCC API 账户」引导卡片。
-3. 填入**网关地址**（默认 `https://origin-api.dpccgaming.xyz`）和 **Claude / Codex 密钥**，点击「连接」。
-4. （可选）补充**用户 ID + 系统访问令牌**以显示账户真实余额。
+1. 在 PccAgent 中点击**使用浏览器登录**。
+2. 在系统浏览器登录 [DPCC API 平台](https://api.dpccgaming.xyz)，确认设备信息后授权。
+3. 返回 PccAgent；账户状态变为**已连接**后即可启动 Claude 或 Codex 会话。
+4. 暂时不连接账户时，可选择**不登录并继续**，使用本地或自定义网关配置。
+
+浏览器授权签发的 Claude/Codex 凭据仅写入操作系统安全存储，不会显示在应用界面。退出时选择**退出并撤销此设备**会同时撤销服务器端授权。
 
 完整步骤见 **[快速上手教程](docs/快速上手-连接DPCC-API.md)**。充值入口：<https://dpccgaming.xyz/payment>。
 
@@ -135,7 +137,7 @@ PccAgent 不直接调用官方 Claude / Codex，而是通过你的 **DPCC API �
 
 ## 快速开始
 
-1. **连接 DPCC API** —— 填入网关地址与令牌（见上方[连接 DPCC API](#连接-dpcc-api)）。
+1. **连接 DPCC API** —— 使用浏览器登录并授权设备（见上方[连接 DPCC API](#连接-dpcc-api)）。
 2. **打开项目** —— 将 PccAgent 指向磁盘上的任意文件夹。
 3. **选择引擎** —— Claude Code、Codex 或任意已安装的 ACP agent —— 开始工作。
 
@@ -147,8 +149,8 @@ PccAgent 开箱支持三种执行引擎，全部通过 DPCC API 网关调用：
 
 | 引擎 | 协议 | 要求 |
 |--------|----------|--------------|
-| **Claude Code** | Anthropic Agent SDK | DPCC API 网关 + Claude 密钥 |
-| **Codex** | JSON-RPC app-server | DPCC API 网关 + Codex 密钥（PATH 中需有 Codex CLI） |
+| **Claude Code** | Anthropic Agent SDK | 已授权的 DPCC API 账户 |
+| **Codex** | JSON-RPC app-server | 已授权的 DPCC API 账户（PATH 中需有 Codex CLI） |
 | **ACP agents** | Agent Client Protocol | 视具体 agent 而定（见注册表） |
 
 Claude Code 与 Codex 已内置。ACP agent 可在应用内从 [ACP Agent Registry](https://agentclientprotocol.com/get-started/registry) 安装，或手动配置。

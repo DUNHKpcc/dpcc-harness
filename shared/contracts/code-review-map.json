@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "relationships": [
+    {
+      "contract": "desktop-authorization-v2",
+      "sources": [
+        "electron/src/lib/account-auth-flow.ts",
+        "electron/src/lib/account-credential-store.ts",
+        "shared/types/account-auth.ts"
+      ],
+      "tests": [
+        "electron/src/lib/account-auth-flow.test.ts",
+        "electron/src/lib/account-auth-flow.integration.test.ts",
+        "electron/src/lib/account-credential-store.test.ts"
+      ]
+    },
+    {
+      "contract": "desktop-usage-summary",
+      "sources": [
+        "electron/src/ipc/account.ts",
+        "shared/types/account.ts"
+      ],
+      "tests": [
+        "electron/src/ipc/__tests__/account.test.ts"
+      ]
+    },
+    {
+      "contract": "credential-rejection-session-stop",
+      "sources": [
+        "electron/src/lib/account-auth-rejection.ts",
+        "electron/src/ipc/claude-sessions.ts",
+        "electron/src/ipc/codex-sessions.ts"
+      ],
+      "tests": [
+        "electron/src/lib/account-auth-flow.test.ts",
+        "electron/src/lib/account-auth-flow.integration.test.ts"
+      ]
+    }
+  ]
+}

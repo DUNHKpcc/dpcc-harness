@@ -1,0 +1,42 @@
+name: Documentation release checks
+
+on:
+  pull_request:
+    paths:
+      - "README.md"
+      - "docs/**"
+      - "assets/readme/**"
+      - "shared/contracts/docs-assets.json"
+      - "shared/contracts/**"
+      - "scripts/check-release-docs.mjs"
+      - "scripts/check-test-map.mjs"
+      - "package.json"
+      - "pnpm-lock.yaml"
+  push:
+    branches:
+      - master
+    paths:
+      - "README.md"
+      - "docs/**"
+      - "assets/readme/**"
+      - "shared/contracts/docs-assets.json"
+      - "shared/contracts/**"
+      - "scripts/check-release-docs.mjs"
+      - "scripts/check-test-map.mjs"
+      - "package.json"
+      - "pnpm-lock.yaml"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm docs:check
+      - run: pnpm test-map:check

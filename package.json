@@ -40,7 +40,9 @@
     "dist:linux": "pnpm build && node scripts/bundle-codex.js --triples x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu && electron-builder --linux --config electron-builder.config.js",
     "postinstall": "node -e \"require('child_process').execSync('electron-rebuild'+(process.platform==='darwin'?'':' --ignore electron-liquid-glass'),{stdio:'inherit'})\"",
     "test": "vitest run --config vitest.config.electron.ts",
-    "test:watch": "vitest --config vitest.config.electron.ts"
+    "test:watch": "vitest --config vitest.config.electron.ts",
+    "docs:check": "node scripts/check-release-docs.mjs",
+    "test-map:check": "node scripts/check-test-map.mjs"
   },
   "packageManager": "pnpm@10.26.0",
   "dependencies": {

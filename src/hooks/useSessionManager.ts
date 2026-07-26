@@ -10,6 +10,7 @@ import {
 import { BackgroundSessionStore } from "../lib/background/session-store";
 import { createSystemMessage } from "../lib/message-factory";
 import { suppressNextSessionCompletion } from "../lib/notification-utils";
+import { getSplitPaneStateSnapshot } from "../lib/split-pane-state";
 import {
   DRAFT_ID,
   type StartOptions,
@@ -164,9 +165,6 @@ export function useSessionManager(
   sessionInfoRef.current = engine.sessionInfo;
   const pendingPermissionRef = useRef(engine.pendingPermission);
   pendingPermissionRef.current = engine.pendingPermission;
-  // Split view: track visible split-pane session IDs for IPC routing gate
-  const visibleSplitSessionIdsRef = useRef<readonly string[]>(visibleSplitSessionIds);
-  visibleSplitSessionIdsRef.current = visibleSplitSessionIds;
   // Prevent cross-session bleed: skip the first lastMessageAt sync after switching chats.
   const lastMessageSyncSessionRef = useRef<string | null>(null);
   const preStartedSessionIdRef = useRef<string | null>(null);
@@ -175,6 +173,7 @@ export function useSessionManager(
   draftAcpSessionIdRef.current = draftAcpSessionId;
   const draftMcpStatusesRef = useRef<McpServerStatus[]>([]);
   draftMcpStatusesRef.current = draftMcpStatuses;
+  const draftGenerationRef = useRef(0);
   const materializingRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const messageQueueRef = useRef<Map<string, QueuedMessage[]>>(new Map());
@@ -271,7 +270,7 @@ export function useSessionManager(
     onSpaceChangeRef,
     acpPermissionBehaviorRef,
     currentBranchRef,
-    visibleSplitSessionIdsRef,
+    draftGenerationRef,
     claudeModelCatalogRequestGenerationRef,
     claudeEagerStartGenerationRef,
   };
@@ -562,27 +561,59 @@ export function useSessionManager(
     if (!session) {
       return null;
     }
+    const fromBackgroundState = (
+      state: NonNullable<ReturnType<BackgroundSessionStore["get"]>>,
+    ): SessionPaneBootstrap => ({
+      session,
+      initialMessages: state.messages,
+      initialMeta: {
+        isProcessing: state.isProcessing,
+        isConnected: state.isConnected,
+        sessionInfo: state.sessionInfo,
+        totalCost: state.totalCost,
+        upstreamRequestCount: state.upstreamRequestCount,
+        requestLog: state.requestLog ?? [],
+        contextUsage: state.contextUsage,
+        isCompacting: state.isCompacting,
+      },
+      initialPermission: state.pendingPermission,
+      initialConfigOptions: [],
+      initialSlashCommands: state.slashCommands ?? [],
+      initialRawAcpPermission: state.rawAcpPermission,
+    });
+    const claimLatest = (): SessionPaneBootstrap | null => {
+      // Multiple hosts can present the same session. Keep the handoff snapshot
+      // readable so every host hydrates the same final background state.
+      const latest = backgroundStoreRef.current.get(sessionId);
+      return latest ? fromBackgroundState(latest) : null;
+    };
+
+    const splitPaneState = getSplitPaneStateSnapshot(sessionId);
+    if (splitPaneState) {
+      return {
+        session,
+        initialMessages: splitPaneState.messages,
+        initialMeta: {
+          isProcessing: splitPaneState.isProcessing,
+          isConnected: splitPaneState.isConnected,
+          sessionInfo: splitPaneState.sessionInfo,
+          totalCost: splitPaneState.totalCost,
+          upstreamRequestCount: splitPaneState.upstreamRequestCount,
+          requestLog: splitPaneState.requestLog,
+          contextUsage: splitPaneState.contextUsage,
+          isCompacting: splitPaneState.isCompacting,
+        },
+        initialPermission: splitPaneState.pendingPermission,
+        initialConfigOptions: splitPaneState.configOptions,
+        initialSlashCommands: splitPaneState.slashCommands,
+        initialRawAcpPermission: splitPaneState.rawAcpPermission,
+        claimLatest,
+      };
+    }
 
     const backgroundState = backgroundStoreRef.current.get(sessionId);
     if (backgroundState) {
-      return {
-        session,
-        initialMessages: backgroundState.messages,
-        initialMeta: {
-          isProcessing: backgroundState.isProcessing,
-          isConnected: backgroundState.isConnected,
-          sessionInfo: backgroundState.sessionInfo,
-          totalCost: backgroundState.totalCost,
-          upstreamRequestCount: backgroundState.upstreamRequestCount,
-          requestLog: backgroundState.requestLog ?? [],
-          contextUsage: backgroundState.contextUsage,
-          isCompacting: backgroundState.isCompacting,
-        },
-        initialPermission: backgroundState.pendingPermission,
-        initialConfigOptions: [],
-        initialSlashCommands: backgroundState.slashCommands ?? [],
-        initialRawAcpPermission: backgroundState.rawAcpPermission,
-      };
+      return { ...fromBackgroundState(backgroundState), claimLatest };
     }
 
     const persistedSession = await window.claude.sessions.load(session.projectId, sessionId);
@@ -606,6 +637,7 @@ export function useSessionManager(
       initialConfigOptions: [],
       initialSlashCommands: [],
       initialRawAcpPermission: null,
+      claimLatest,
     };
   }, []);
 

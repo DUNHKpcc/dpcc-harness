@@ -62,7 +62,9 @@
       "permissionModeUpdateFailed": "更新权限模式失败",
       "planModeUpdateFailed": "更新 Plan 模式失败",
       "sendMessageFailed": "发送消息失败",
-      "restartFailed": "重启会话失败"
+      "restartFailed": "重启会话失败",
+      "deleteFailed": "删除会话失败",
+      "importFailed": "导入会话失败"
     },
     "acp": {
       "initFailed": "初始化 ACP agent 失败",

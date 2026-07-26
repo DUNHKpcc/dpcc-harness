@@ -96,6 +96,8 @@ export function useSessionCrud({
     messageQueueRef,
     switchSessionRef,
     onSpaceChangeRef,
+    draftGenerationRef,
+    saveTimerRef,
   } = refs;
 
   const switchRequestIdRef = useRef(0);
@@ -299,17 +301,40 @@ export function useSessionCrud({
     async (id: string) => {
       const session = sessionsRef.current.find((s) => s.id === id);
       if (!session) return;
+      if (id === DRAFT_ID) {
+        ++draftGenerationRef.current;
+      }
       evictFromCache(id);
+      // Remove renderer ownership before the first await. This prevents the
+      // active 2s auto-save from observing the session while deletion is in
+      // progress. The main process also tombstones the ID for queued saves.
+      if (activeSessionIdRef.current === id) {
+        if (saveTimerRef.current) {
+          clearTimeout(saveTimerRef.current);
+          saveTimerRef.current = null;
+        }
+        clearQueue();
+        setActiveSessionId(null);
+        setInitialMessages([]);
+        setInitialMeta(null);
+        setInitialPermission(null);
+        setInitialRawAcpPermission(null);
+      }
+      setSessions((prev) => prev.filter((entry) => entry.id !== id));
+      const deleteFromDisk = window.claude.sessions.delete(session.projectId, id);
+
       if (liveSessionIdsRef.current.has(id)) {
-        if (session.engine === "codex") {
-          suppressNextSessionCompletion(id);
-          await window.claude.codex.stop(id);
-        } else if (session.engine === "acp") {
-          suppressNextSessionCompletion(id);
-          await window.claude.acp.stop(id);
-        } else {
-          suppressNextSessionCompletion(id);
-          await window.claude.stop(id, "session_delete");
+        suppressNextSessionCompletion(id);
+        try {
+          if (session.engine === "codex") {
+            await window.claude.codex.stop(id);
+          } else if (session.engine === "acp") {
+            await window.claude.acp.stop(id);
+          } else {
+            await window.claude.stop(id, "session_delete");
+          }
+        } catch (err) {
+          console.warn("[deleteSession] Failed to stop live transport:", err);
         }
         liveSessionIdsRef.current.delete(id);
       }
@@ -319,16 +344,24 @@ export function useSessionCrud({
       void window.claude.notifications.dismissSession(id);
       // Dismiss any permission toast for this session
       toast.dismiss(`permission-${id}`);
-      await window.claude.sessions.delete(session.projectId, id);
-      if (activeSessionIdRef.current === id) {
-        clearQueue();
-        setActiveSessionId(null);
-        setInitialMessages([]);
-        setInitialMeta(null);
-        setInitialPermission(null);
-        setInitialRawAcpPermission(null);
+      try {
+        const deleteResult = await deleteFromDisk;
+        if (deleteResult?.error) {
+          setSessions((prev) => prev.some((entry) => entry.id === id)
+            ? prev
+            : [{ ...session, isActive: false, isProcessing: false }, ...prev]);
+          toast.error(toastText("session.deleteFailed"), {
+            description: deleteResult.error,
+          });
+        }
+      } catch (err) {
+        setSessions((prev) => prev.some((entry) => entry.id === id)
+          ? prev
+          : [{ ...session, isActive: false, isProcessing: false }, ...prev]);
+        toast.error(toastText("session.deleteFailed"), {
+          description: err instanceof Error ? err.message : String(err),
+        });
       }
-      setSessions((prev) => prev.filter((s) => s.id !== id));
     },
     [clearQueue, evictFromCache],
   );
@@ -369,6 +402,7 @@ export function useSessionCrud({
 
   const importCCSession = useCallback(
     async (projectId: string, ccSessionId: string) => {
+      ++draftGenerationRef.current;
       const project = findProject(projectId);
       if (!project) return;
 
@@ -399,7 +433,7 @@ export function useSessionCrud({
       };
 
       // Persist immediately so switchSession can load it later
-      await window.claude.sessions.save({
+      const saveResult = await window.claude.sessions.save({
         id: ccSessionId,
         projectId: project.id,
         title: newSession.title,
@@ -407,7 +441,11 @@ export function useSessionCrud({
         messages: result.messages,
         totalCost: 0,
         requestLog: [],
-      });
+      }, { restoreDeleted: true });
+      if (saveResult?.error) {
+        toast.error(toastText("session.importFailed"), { description: saveResult.error });
+        return;
+      }
       cacheSessionPayload({
         id: ccSessionId,
         projectId: project.id,
@@ -436,6 +474,14 @@ export function useSessionCrud({
   const setDraftAgent = useCallback((draftEngine: string, agentId: string, _cachedConfigOptions?: ACPConfigOption[], model?: string) => {
     const prevEngine = startOptionsRef.current.engine ?? "claude";
     const prevAgentId = startOptionsRef.current.agentId;
+    const normalizedModel = typeof model === "string" ? model.trim() : "";
+    if (
+      prevEngine !== draftEngine
+      || prevAgentId !== agentId
+      || (startOptionsRef.current.model ?? "") !== normalizedModel
+    ) {
+      ++draftGenerationRef.current;
+    }
     if (prevEngine !== draftEngine) {
       capture("engine_switched", { from_engine: prevEngine, to_engine: draftEngine });
     }
@@ -448,7 +494,6 @@ export function useSessionCrud({
       abandonDraftAcpSession("engine_switch");
     }
 
-    const normalizedModel = typeof model === "string" ? model.trim() : "";
     setStartOptions((prev) => ({
       ...prev,
       engine: draftEngine as StartOptions["engine"],

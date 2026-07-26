@@ -53,6 +53,11 @@ export interface EngineBaseState {
   rafId: React.RefObject<number>;
   scheduleFlush: (flushFn: () => void) => void;
   cancelPendingFlush: () => void;
+  hydrate: (
+    messages: UIMessage[],
+    meta: BackgroundSessionSnapshot | null,
+    permission: PermissionRequest | null,
+  ) => void;
 }
 
 export function useEngineBase({
@@ -144,6 +149,32 @@ export function useEngineBase({
     }
   }, []);
 
+  const hydrate = useCallback((
+    nextMessages: UIMessage[],
+    meta: BackgroundSessionSnapshot | null,
+    permission: PermissionRequest | null,
+  ) => {
+    cancelPendingFlush();
+    messagesRef.current = nextMessages;
+    setMessages(nextMessages);
+    setIsProcessing(meta?.isProcessing ?? false);
+    setIsConnected(meta?.isConnected ?? false);
+    setSessionInfo(meta?.sessionInfo ?? null);
+    setTotalCost(meta?.totalCost ?? 0);
+    const nextRequestLog = trimUpstreamRequestLog(meta?.requestLog);
+    requestLogRef.current = nextRequestLog;
+    setRequestLog(nextRequestLog);
+    const nextRequestCount = getUpstreamRequestCount(
+      meta?.requestLog,
+      meta?.upstreamRequestCount,
+    );
+    upstreamRequestCountRef.current = nextRequestCount;
+    setUpstreamRequestCount(nextRequestCount);
+    setPendingPermission(permission);
+    setContextUsage(meta?.contextUsage ?? null);
+    setIsCompacting(meta?.isCompacting ?? false);
+  }, [cancelPendingFlush]);
+
   const recordUpstreamRequest = useCallback((record: UpstreamRequestRecord, countDelta?: number) => {
     const merged = upsertUpstreamRequestRecord(requestLogRef.current, record);
     requestLogRef.current = merged.requestLog;
@@ -189,5 +220,6 @@ export function useEngineBase({
     rafId,
     scheduleFlush,
     cancelPendingFlush,
+    hydrate,
   };
 }

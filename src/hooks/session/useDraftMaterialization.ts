@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { toast } from "sonner";
 import type { UIMessage, ChatSession, McpServerConfig, Project, ImageAttachment, EngineId } from "../../types";
 import { toMcpStatusState } from "../../lib/mcp-utils";
@@ -15,7 +15,13 @@ import {
   normalizeCodexModels,
   pickCodexModel,
 } from "./types";
-import type { SharedSessionRefs, SharedSessionSetters, EngineHooks, StartOptions } from "./types";
+import type {
+  EngineHooks,
+  MaterializedDraftSession,
+  SharedSessionRefs,
+  SharedSessionSetters,
+  StartOptions,
+} from "./types";
 
 interface UseDraftMaterializationParams {
   refs: SharedSessionRefs;
@@ -71,9 +77,12 @@ export function useDraftMaterialization({
     acpAgentIdRef,
     acpAgentSessionIdRef,
     codexRawModelsRef,
+    draftGenerationRef,
     claudeModelCatalogRequestGenerationRef,
     claudeEagerStartGenerationRef,
   } = refs;
+  const materializingGenerationRef = useRef<number | null>(null);
+  const acpEagerStartGenerationRef = useRef(0);
 
   // Eagerly start a Claude SDK session for immediate MCP status display
   const eagerStartSession = useCallback(async (projectId: string, options?: StartOptions) => {
@@ -92,7 +101,17 @@ export function useDraftMaterialization({
     };
     const project = refs.projectsRef.current.find((p) => p.id === projectId);
     if (!project) return;
-    const mcpServers = await window.claude.mcp.list(projectId);
+    let mcpServers: McpServerConfig[];
+    try {
+      mcpServers = await window.claude.mcp.list(projectId);
+    } catch (err) {
+      if (isCurrentEagerStart()) {
+        captureException(err instanceof Error ? err : new Error(String(err)), {
+          label: "EAGER_MCP_LIST_ERR",
+        });
+      }
+      return;
+    }
     if (!isCurrentEagerStart()) return;
     let result;
     try {
@@ -164,26 +183,41 @@ export function useDraftMaterialization({
     options?: StartOptions,
     overrideServers?: McpServerConfig[],
   ) => {
+    const eagerStartGeneration = ++acpEagerStartGenerationRef.current;
+    const isCurrentEagerStart = () => (
+      eagerStartGeneration === acpEagerStartGenerationRef.current
+    );
     const project = refs.projectsRef.current.find((p) => p.id === projectId);
     const agentId = options?.agentId?.trim();
     if (!project || !agentId) return;
 
-    const mcpServers = overrideServers ?? await window.claude.mcp.list(projectId);
+    let mcpServers: McpServerConfig[];
     let result;
     setAcpConfigOptionsLoading(true);
     try {
+      mcpServers = overrideServers ?? await window.claude.mcp.list(projectId);
+      if (!isCurrentEagerStart()) return;
       result = await window.claude.acp.start({
         agentId,
         cwd: getProjectCwd(project),
         mcpServers,
       });
     } catch (err) {
+      if (!isCurrentEagerStart()) return;
       captureException(err instanceof Error ? err : new Error(String(err)), { label: "ACP_EAGER_START_ERR" });
       console.warn("[eagerStartAcpSession] start() failed:", err);
       toast.error(toastText("acp.initFailed"), {
         description: err instanceof Error ? err.message : String(err),
       });
       setAcpConfigOptionsLoading(false);
+      return;
+    }
+
+    if (!isCurrentEagerStart()) {
+      if ("sessionId" in result && result.sessionId) {
+        suppressNextSessionCompletion(result.sessionId);
+        void window.claude.acp.stop(result.sessionId);
+      }
       return;
     }
 
@@ -205,7 +239,8 @@ export function useDraftMaterialization({
       activeSessionIdRef.current === DRAFT_ID
       && draftProjectIdRef.current === projectId
       && (startOptionsRef.current.engine ?? "claude") === "acp"
-      && startOptionsRef.current.agentId === agentId;
+      && startOptionsRef.current.agentId === agentId
+      && isCurrentEagerStart();
 
     if (!isStillDraft) {
       suppressNextSessionCompletion(sessionId);
@@ -230,6 +265,7 @@ export function useDraftMaterialization({
     let resolvedConfigOptions = ("configOptions" in result && result.configOptions) ? result.configOptions : [];
     try {
       const bufferedConfig = await window.claude.acp.getConfigOptions(sessionId);
+      if (!isCurrentEagerStart() || draftAcpSessionIdRef.current !== sessionId) return;
       if ((bufferedConfig.configOptions?.length ?? 0) > 0) {
         resolvedConfigOptions = bufferedConfig.configOptions ?? [];
       }
@@ -241,6 +277,7 @@ export function useDraftMaterialization({
 
     try {
       const bufferedCommands = await window.claude.acp.getAvailableCommands(sessionId);
+      if (!isCurrentEagerStart() || draftAcpSessionIdRef.current !== sessionId) return;
       setInitialSlashCommands((bufferedCommands.commands ?? []).map((cmd) => ({
         name: cmd.name,
         description: cmd.description ?? "",
@@ -251,7 +288,12 @@ export function useDraftMaterialization({
       // Best-effort fetch only — command updates will still stream through once mounted.
     }
 
-    if ("mcpStatuses" in result && result.mcpStatuses?.length) {
+    if (
+      isCurrentEagerStart()
+      && draftAcpSessionIdRef.current === sessionId
+      && "mcpStatuses" in result
+      && result.mcpStatuses?.length
+    ) {
       setDraftMcpStatuses(result.mcpStatuses.map((status: { name: string; status: string }) => ({
         name: status.name,
         status: toMcpStatusState(status.status),
@@ -323,31 +365,38 @@ export function useDraftMaterialization({
 
   // Probe MCP servers ourselves (for engines that don't report status, e.g. ACP)
   const probeMcpServers = useCallback(async (projectId: string, overrideServers?: McpServerConfig[]) => {
-    const servers = overrideServers ?? await window.claude.mcp.list(projectId);
-    if (servers.length === 0) {
-      setDraftMcpStatuses([]);
-      return;
-    }
-    // Show pending while probing
-    if (activeSessionIdRef.current === DRAFT_ID && draftProjectIdRef.current === projectId) {
-      setDraftMcpStatuses(servers.map(s => ({
-        name: s.name,
-        status: "pending" as const,
-      })));
-    }
-    // Probe each server for real connectivity
-    const results = await window.claude.mcp.probe(servers);
-    if (activeSessionIdRef.current === DRAFT_ID && draftProjectIdRef.current === projectId) {
-      setDraftMcpStatuses(results.map(r => ({
-        name: r.name,
-        status: toMcpStatusState(r.status),
-        ...(r.error ? { error: r.error } : {}),
-      })));
+    try {
+      const servers = overrideServers ?? await window.claude.mcp.list(projectId);
+      if (servers.length === 0) {
+        setDraftMcpStatuses([]);
+        return;
+      }
+      // Show pending while probing
+      if (activeSessionIdRef.current === DRAFT_ID && draftProjectIdRef.current === projectId) {
+        setDraftMcpStatuses(servers.map(s => ({
+          name: s.name,
+          status: "pending" as const,
+        })));
+      }
+      // Probe each server for real connectivity
+      const results = await window.claude.mcp.probe(servers);
+      if (activeSessionIdRef.current === DRAFT_ID && draftProjectIdRef.current === projectId) {
+        setDraftMcpStatuses(results.map(r => ({
+          name: r.name,
+          status: toMcpStatusState(r.status),
+          ...(r.error ? { error: r.error } : {}),
+        })));
+      }
+    } catch (err) {
+      captureException(err instanceof Error ? err : new Error(String(err)), {
+        label: "MCP_PROBE_ERR",
+      });
     }
   }, []);
 
   // Clean up a pre-started eager session
   const abandonEagerSession = useCallback((reason = "cleanup") => {
+    ++draftGenerationRef.current;
     ++claudeEagerStartGenerationRef.current;
     const id = preStartedSessionIdRef.current;
     if (!id) return;
@@ -362,12 +411,14 @@ export function useDraftMaterialization({
 
   const abandonDraftAcpSession = useCallback((reason = "cleanup") => {
     void reason;
+    ++acpEagerStartGenerationRef.current;
     const id = draftAcpSessionIdRef.current;
-    if (!id) return;
-    suppressNextSessionCompletion(id);
-    window.claude.acp.stop(id);
-    liveSessionIdsRef.current.delete(id);
-    backgroundStoreRef.current.delete(id);
+    if (id) {
+      suppressNextSessionCompletion(id);
+      void window.claude.acp.stop(id);
+      liveSessionIdsRef.current.delete(id);
+      backgroundStoreRef.current.delete(id);
+    }
     draftAcpSessionIdRef.current = null;
     setDraftAcpSessionId(null);
     pendingAcpDraftPromptRef.current = null;
@@ -379,17 +430,53 @@ export function useDraftMaterialization({
   }, [setAcpConfigOptionsLoading, setDraftAcpSessionId, setDraftMcpStatuses, setInitialConfigOptions, setInitialSlashCommands]);
 
   const materializeDraft = useCallback(
-    async (text: string, images?: ImageAttachment[], displayText?: string) => {
-      // Re-entrancy guard — prevent double-materialization from rapid sends
-      if (materializingRef.current) return "";
+    async (
+      text: string,
+      images?: ImageAttachment[],
+      displayText?: string,
+    ): Promise<MaterializedDraftSession | null> => {
+      const materializationGeneration = draftGenerationRef.current;
+      // Prevent duplicate sends for the same draft, while allowing a newer
+      // draft to proceed before an abandoned async start has settled.
+      if (
+        materializingRef.current
+        && materializingGenerationRef.current === materializationGeneration
+      ) {
+        return null;
+      }
       materializingRef.current = true;
+      materializingGenerationRef.current = materializationGeneration;
 
       const projectId = draftProjectIdRef.current;
+      const releaseMaterialization = () => {
+        if (materializingGenerationRef.current !== materializationGeneration) return;
+        materializingGenerationRef.current = null;
+        materializingRef.current = false;
+      };
+      const isCurrentMaterialization = () => (
+        materializingGenerationRef.current === materializationGeneration
+        && draftGenerationRef.current === materializationGeneration
+        && activeSessionIdRef.current === DRAFT_ID
+        && draftProjectIdRef.current === projectId
+      );
+      const discardMaterializedSession = (engine: EngineId, sessionId: string) => {
+        suppressNextSessionCompletion(sessionId);
+        if (engine === "acp") {
+          void window.claude.acp.stop(sessionId);
+        } else if (engine === "codex") {
+          void window.claude.codex.stop(sessionId);
+        } else {
+          void window.claude.stop(sessionId, "draft_abandoned");
+        }
+        liveSessionIdsRef.current.delete(sessionId);
+        backgroundStoreRef.current.delete(sessionId);
+      };
+
       const project = projectId ? findProject(projectId) : null;
       if (!project) {
         console.warn("[materializeDraft] No project found for draftProjectId:", projectId);
-        materializingRef.current = false;
-        return "";
+        releaseMaterialization();
+        return null;
       }
       const options = startOptionsRef.current;
       const draftEngine = options.engine ?? "claude";
@@ -397,10 +484,27 @@ export function useDraftMaterialization({
       let sessionModel = options.model;
       let codexThreadId: string | undefined;
       let codexRolloutPath: string | undefined;
-      let reusedPreStarted = false;
+      let restoredMessages: UIMessage[] = [];
+      let restoredMeta: import("./types").InitialMeta | null = null;
+      let restoredPermission: import("@/types").PermissionRequest | null = null;
+      let restoredRawAcpPermission: import("@/types").ACPPermissionEvent | null = null;
+      let restoredSlashCommands: import("@/types").SlashCommand[] = [];
 
       // Load per-project MCP servers to pass to the session
-      const mcpServers = await window.claude.mcp.list(project.id);
+      let mcpServers: McpServerConfig[];
+      try {
+        mcpServers = await window.claude.mcp.list(project.id);
+      } catch (err) {
+        captureException(err instanceof Error ? err : new Error(String(err)), {
+          label: "MATERIALIZE_MCP_LIST_ERR",
+        });
+        releaseMaterialization();
+        return null;
+      }
+      if (!isCurrentMaterialization()) {
+        releaseMaterialization();
+        return null;
+      }
       const draftCwd = options.cwd ?? getProjectCwd(project);
 
       if (draftEngine === "acp" && options.agentId) {
@@ -426,17 +530,35 @@ export function useDraftMaterialization({
           sessionId = eagerSessionId;
           draftAcpSessionIdRef.current = null;
           setDraftAcpSessionId(null);
-          reusedPreStarted = true;
         } else {
-          const result = await window.claude.acp.start({
-            agentId: options.agentId,
-            cwd: draftCwd,
-            mcpServers,
-          });
+          let result;
+          try {
+            result = await window.claude.acp.start({
+              agentId: options.agentId,
+              cwd: draftCwd,
+              mcpServers,
+            });
+          } catch (err) {
+            captureException(err instanceof Error ? err : new Error(String(err)), {
+              label: "MATERIALIZE_ACP_START_ERR",
+            });
+            if (isCurrentMaterialization()) {
+              setSessions(prev => prev.filter(s => s.id !== DRAFT_ID));
+            }
+            releaseMaterialization();
+            return null;
+          }
+          if (!isCurrentMaterialization()) {
+            if ("sessionId" in result && result.sessionId) {
+              discardMaterializedSession("acp", result.sessionId);
+            }
+            releaseMaterialization();
+            return null;
+          }
           if ("cancelled" in result && result.cancelled) {
             setSessions(prev => prev.filter(s => s.id !== DRAFT_ID));
-            materializingRef.current = false;
-            return "";
+            releaseMaterialization();
+            return null;
           }
           if (!("sessionId" in result) || !result.sessionId) {
             const errorMsg = ("error" in result && result.error) ? result.error : "Failed to start agent session";
@@ -476,8 +598,8 @@ export function useDraftMaterialization({
               agentId: options.agentId,
             });
 
-            materializingRef.current = false;
-            return "";
+            releaseMaterialization();
+            return null;
           }
           if ("authRequired" in result && result.authRequired) {
             acpAgentIdRef.current = options.agentId;
@@ -496,8 +618,8 @@ export function useDraftMaterialization({
             acp.setAuthMethods(result.authMethods ?? []);
             acp.setAuthRequired(true);
             setAcpConfigOptionsLoading(false);
-            materializingRef.current = false;
-            return "";
+            releaseMaterialization();
+            return null;
           }
           sessionId = result.sessionId;
           acpAgentIdRef.current = options.agentId;
@@ -532,13 +654,32 @@ export function useDraftMaterialization({
         const draftModel = pickCodexModel(options.model, codexRawModelsRef.current);
         const approvalPolicy = getCodexApprovalPolicy(options);
         const sandbox = getCodexSandboxMode(options);
-        const result = await window.claude.codex.start({
-          cwd: draftCwd,
-          ...(draftModel ? { model: draftModel } : {}),
-          ...(options.permissionMode ? { permissionMode: options.permissionMode } : {}),
-          ...(approvalPolicy ? { approvalPolicy } : {}),
-          ...(sandbox ? { sandbox } : {}),
-        });
+        let result;
+        try {
+          result = await window.claude.codex.start({
+            cwd: draftCwd,
+            ...(draftModel ? { model: draftModel } : {}),
+            ...(options.permissionMode ? { permissionMode: options.permissionMode } : {}),
+            ...(approvalPolicy ? { approvalPolicy } : {}),
+            ...(sandbox ? { sandbox } : {}),
+          });
+        } catch (err) {
+          captureException(err instanceof Error ? err : new Error(String(err)), {
+            label: "MATERIALIZE_CODEX_START_ERR",
+          });
+          if (isCurrentMaterialization()) {
+            setSessions(prev => prev.filter(s => s.id !== DRAFT_ID));
+          }
+          releaseMaterialization();
+          return null;
+        }
+        if (!isCurrentMaterialization()) {
+          if (result.sessionId) {
+            discardMaterializedSession("codex", result.sessionId);
+          }
+          releaseMaterialization();
+          return null;
+        }
 
         if (result.error || !result.sessionId) {
           const errorMsg = result.error || "Failed to start Codex session";
@@ -572,8 +713,8 @@ export function useDraftMaterialization({
             requestLog: [],
             engine: "codex",
           });
-          materializingRef.current = false;
-          return "";
+          releaseMaterialization();
+          return null;
         }
 
         sessionId = result.sessionId;
@@ -620,13 +761,11 @@ export function useDraftMaterialization({
           sessionId = preStarted;
           preStartedSessionIdRef.current = null;
           setPreStartedSessionId(null);
-          reusedPreStarted = true;
-
           // Consume background store state accumulated during draft
           const bgState = backgroundStoreRef.current.consume(sessionId);
           if (bgState) {
-            setInitialMessages(bgState.messages);
-            setInitialMeta({
+            restoredMessages = bgState.messages;
+            restoredMeta = {
               isProcessing: bgState.isProcessing,
               isConnected: bgState.isConnected,
               sessionInfo: bgState.sessionInfo,
@@ -635,7 +774,10 @@ export function useDraftMaterialization({
               requestLog: bgState.requestLog ?? [],
               contextUsage: bgState.contextUsage,
               isCompacting: bgState.isCompacting,
-            });
+            };
+            restoredPermission = bgState.pendingPermission;
+            restoredRawAcpPermission = bgState.rawAcpPermission;
+            restoredSlashCommands = bgState.slashCommands ?? [];
           }
         } else {
           // Fallback: start normally (eager start failed or was cleaned up)
@@ -653,17 +795,29 @@ export function useDraftMaterialization({
           } catch (err) {
             captureException(err instanceof Error ? err : new Error(String(err)), { label: "MATERIALIZE_START_ERR" });
             console.error("[materializeDraft] start() failed:", err);
-            materializingRef.current = false;
-            return "";
+            releaseMaterialization();
+            return null;
+          }
+          if (!isCurrentMaterialization()) {
+            if (!result.error && result.sessionId) {
+              discardMaterializedSession("claude", result.sessionId);
+            }
+            releaseMaterialization();
+            return null;
           }
           if (result.error) {
             // The exit event handler in useClaude will show the error message
             console.error("[materializeDraft] start() returned error:", result.error);
-            materializingRef.current = false;
-            return "";
+            releaseMaterialization();
+            return null;
           }
           sessionId = result.sessionId;
         }
+      }
+      if (!isCurrentMaterialization()) {
+        discardMaterializedSession(draftEngine, sessionId);
+        releaseMaterialization();
+        return null;
       }
       liveSessionIdsRef.current.add(sessionId);
 
@@ -700,26 +854,27 @@ export function useDraftMaterialization({
       setSessions((prev) =>
         [newSession, ...prev.filter(s => s.id !== DRAFT_ID).map((s) => ({ ...s, isActive: false }))],
       );
-      if (!reusedPreStarted) {
-        if (draftEngine === "acp") {
-          // Preserve the user message + processing state through useACP's reset effect
-          // (which fires when sessionId changes from null → new ID).
-          // React 19 batches these setState calls with setActiveSessionId below.
-          setInitialMessages([createUserMessage(text, images, displayText)]);
-          setInitialMeta({
-            isProcessing: true,
-            isConnected: true,
-            sessionInfo: null,
-            totalCost: 0,
-            requestLog: [],
-            contextUsage: null,
-          });
-        } else {
-          setInitialMessages([]);
-          setInitialMeta(null);
-        }
-        setInitialPermission(null);
-        setInitialRawAcpPermission(null);
+      // Seed the accepted user turn before exposing the live ID. If the user
+      // switches immediately, switchSession can transfer this exact state into
+      // the background store and the explicit-ID send may finish there.
+      setInitialMessages([
+        ...restoredMessages,
+        createUserMessage(text, images, displayText),
+      ]);
+      setInitialMeta({
+        ...(restoredMeta ?? {
+          sessionInfo: null,
+          totalCost: 0,
+          requestLog: [],
+          contextUsage: null,
+        }),
+        isProcessing: true,
+        isConnected: true,
+      });
+      setInitialPermission(restoredPermission);
+      setInitialRawAcpPermission(restoredRawAcpPermission);
+      if (draftEngine === "claude") {
+        setInitialSlashCommands(restoredSlashCommands);
       }
       setActiveSessionId(sessionId);
       if (draftEngine === "acp") {
@@ -734,8 +889,13 @@ export function useDraftMaterialization({
       // Fire-and-forget AI title generation — routes through ACP if that's the active engine
       generateSessionTitle(sessionId, text, draftCwd, draftEngine);
 
-      materializingRef.current = false;
-      return sessionId;
+      releaseMaterialization();
+      return {
+        sessionId,
+        engine: draftEngine,
+        model: sessionModel,
+        planMode: !!options.planMode,
+      };
     },
     [acp, applyCodexModelDefaultEffort, findProject, generateSessionTitle, codex.setCodexModels, setDraftAcpSessionId],
   );

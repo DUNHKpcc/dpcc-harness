@@ -5,7 +5,9 @@ import type {
   AcpPermissionBehavior,
   AppPermissionBehavior,
   BackgroundSessionSnapshot,
+  PermissionRequest,
   SlashCommand,
+  UIMessage,
   ACPSessionEvent,
   ACPPermissionEvent,
   ACPTurnCompleteEvent,
@@ -18,6 +20,7 @@ import { extractTaskSubagentSteps, getTaskStatus, isTaskToolName } from "@/lib/e
 import { suppressNextSessionCompletion } from "@/lib/notification-utils";
 import { captureException } from "@/lib/analytics/analytics";
 import { createSystemMessage, createUserMessage, nextId } from "@/lib/message-factory";
+import { publishSessionSendFailure } from "@/lib/session-send-failure";
 import { toastText } from "@/lib/toast-i18n";
 import { markInFlightToolCallsFailed } from "@/lib/chat/in-flight-tools";
 import { useEngineBase } from "./useEngineBase";
@@ -82,6 +85,15 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
   // Track latest permission behavior to avoid stale closures in event listeners
   const acpPermissionBehaviorRef = useRef<AcpPermissionBehavior>(acpPermissionBehavior ?? "ask");
   acpPermissionBehaviorRef.current = acpPermissionBehavior ?? "ask";
+  const hydrate = useCallback((
+    nextMessages: UIMessage[],
+    meta: BackgroundSessionSnapshot | null,
+    permission: PermissionRequest | null,
+    rawPermission?: ACPPermissionEvent | null,
+  ) => {
+    acpPermissionRef.current = rawPermission ?? null;
+    base.hydrate(nextMessages, meta, permission);
+  }, [base.hydrate]);
 
   // Engine-specific reset — runs after base reset via the same sessionId dependency
   useEffect(() => {
@@ -393,21 +405,24 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
     // Fetch any config options buffered in main process during the DRAFT→active transition
     // (events may have arrived before this listener was subscribed)
     window.claude.acp.getConfigOptions(sessionId).then(result => {
+      if (sessionIdRef.current !== sessionId) return;
       if (result?.configOptions?.length) {
         acpLog("CONFIG_FETCHED", { count: result.configOptions.length });
-        setConfigOptions(result.configOptions as ACPConfigOption[]);
+        setConfigOptions(result.configOptions);
       }
       setConfigOptionsLoading(false);
     }).catch(() => {
-      setConfigOptionsLoading(false);
+      if (sessionIdRef.current === sessionId) {
+        setConfigOptionsLoading(false);
+      }
       /* session may have been stopped */
     });
 
     // Fetch any available commands buffered in main process during the DRAFT→active transition
     window.claude.acp.getAvailableCommands(sessionId).then(result => {
-      if (result?.commands?.length) {
-        acpLog("COMMANDS_FETCHED", { count: result.commands.length });
-        setSlashCommands(result.commands.map(cmd => ({
+      if (sessionIdRef.current === sessionId) {
+        acpLog("COMMANDS_FETCHED", { count: result?.commands?.length ?? 0 });
+        setSlashCommands((result?.commands ?? []).map(cmd => ({
           name: cmd.name,
           description: cmd.description ?? "",
           argumentHint: cmd.input?.hint,
@@ -512,6 +527,7 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
 
   const send = useCallback(async (text: string, images?: ImageAttachment[], displayText?: string) => {
     if (!sessionId) return;
+    const targetSessionId = sessionId;
     acpLog("SEND", { session: sessionId.slice(0, 8), textLen: text.length, images: images?.length ?? 0 });
     setMessages(prev => [...prev, createUserMessage(text, images, displayText)]);
     setIsProcessing(true);
@@ -519,38 +535,61 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
       const result = await window.claude.acp.prompt(sessionId, text, images);
       if (result?.error) {
         acpLog("SEND_ERROR", { session: sessionId.slice(0, 8), error: result.error });
-        pushSystemError(`ACP prompt error: ${result.error}`);
-        setIsProcessing(false);
+        if (sessionIdRef.current === targetSessionId) {
+          pushSystemError(`ACP prompt error: ${result.error}`);
+          setIsProcessing(false);
+        } else {
+          publishSessionSendFailure(
+            targetSessionId,
+            `ACP prompt error: ${result.error}`,
+          );
+        }
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       acpLog("SEND_ERROR", { session: sessionId.slice(0, 8), error: msg });
       captureException(err instanceof Error ? err : new Error(msg), { label: "ACP_SEND_ERR" });
-      pushSystemError(`ACP prompt error: ${msg}`);
-      setIsProcessing(false);
+      if (sessionIdRef.current === targetSessionId) {
+        pushSystemError(`ACP prompt error: ${msg}`);
+        setIsProcessing(false);
+      } else {
+        publishSessionSendFailure(targetSessionId, `ACP prompt error: ${msg}`);
+      }
     }
-  }, [sessionId, pushSystemError]);
+  }, [sessionId, sessionIdRef, pushSystemError]);
 
   /** Send a message without adding it to chat (used for queued messages already in the UI) */
   const sendRaw = useCallback(async (text: string, images?: ImageAttachment[]) => {
     if (!sessionId) return;
-    acpLog("SEND_RAW", { session: sessionId.slice(0, 8), textLen: text.length });
+    const targetSessionId = sessionId;
+    acpLog("SEND_RAW", { session: targetSessionId.slice(0, 8), textLen: text.length });
     setIsProcessing(true);
     try {
-      const result = await window.claude.acp.prompt(sessionId, text, images);
+      const result = await window.claude.acp.prompt(targetSessionId, text, images);
       if (result?.error) {
-        acpLog("SEND_RAW_ERROR", { session: sessionId.slice(0, 8), error: result.error });
-        pushSystemError(`ACP prompt error: ${result.error}`);
-        setIsProcessing(false);
+        acpLog("SEND_RAW_ERROR", { session: targetSessionId.slice(0, 8), error: result.error });
+        if (sessionIdRef.current === targetSessionId) {
+          pushSystemError(`ACP prompt error: ${result.error}`);
+          setIsProcessing(false);
+        } else {
+          publishSessionSendFailure(
+            targetSessionId,
+            `ACP prompt error: ${result.error}`,
+          );
+        }
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      acpLog("SEND_RAW_ERROR", { session: sessionId.slice(0, 8), error: msg });
+      acpLog("SEND_RAW_ERROR", { session: targetSessionId.slice(0, 8), error: msg });
       captureException(err instanceof Error ? err : new Error(msg), { label: "ACP_SEND_RAW_ERR" });
-      pushSystemError(`ACP prompt error: ${msg}`);
-      setIsProcessing(false);
+      if (sessionIdRef.current === targetSessionId) {
+        pushSystemError(`ACP prompt error: ${msg}`);
+        setIsProcessing(false);
+      } else {
+        publishSessionSendFailure(targetSessionId, `ACP prompt error: ${msg}`);
+      }
     }
-  }, [sessionId, pushSystemError]);
+  }, [sessionId, sessionIdRef, pushSystemError]);
 
   const stop = useCallback(async () => {
     if (!sessionId) return;
@@ -657,6 +696,7 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
   }, []);
 
   return {
+    hydrate,
     messages, setMessages,
     isProcessing, setIsProcessing,
     isConnected, setIsConnected,
@@ -667,6 +707,7 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
     contextUsage,
     send, sendRaw, stop, interrupt, compact,
     pendingPermission, respondPermission,
+    rawPermission: acpPermissionRef.current,
     setPermissionMode,
     configOptions, setConfigOptions, setConfig, configOptionsLoading,
     slashCommands,

@@ -3,6 +3,7 @@ import { DRAFT_ID } from "../types";
 
 vi.mock("react", () => ({
   useCallback: <T extends (...args: never[]) => unknown>(fn: T) => fn,
+  useRef: <T>(value: T) => ({ current: value }),
 }));
 
 vi.mock("sonner", () => ({
@@ -38,6 +39,7 @@ function makeParams() {
       acpAgentIdRef: { current: null },
       acpAgentSessionIdRef: { current: null },
       codexRawModelsRef: { current: [] },
+      draftGenerationRef: { current: 0 },
       claudeModelCatalogRequestGenerationRef: { current: 0 },
       claudeEagerStartGenerationRef: { current: 0 },
     },
@@ -149,5 +151,44 @@ describe("useDraftMaterialization", () => {
     expect(params.refs.preStartedSessionIdRef.current).toBe("newer-session");
     expect(params.refs.liveSessionIdsRef.current).toEqual(new Set(["newer-session"]));
     expect(window.claude.stop).toHaveBeenCalledWith("older-session", "draft_abandoned");
+  });
+
+  it("releases the materialization guard when MCP loading rejects", async () => {
+    const { useDraftMaterialization } = await import("../useDraftMaterialization");
+    const params = makeParams();
+    params.findProject.mockReturnValue(params.refs.projectsRef.current[0]);
+    vi.mocked(window.claude.mcp.list).mockRejectedValue(new Error("MCP unavailable"));
+
+    const materialization = useDraftMaterialization(
+      params as unknown as Parameters<typeof useDraftMaterialization>[0],
+    );
+
+    await expect(materialization.materializeDraft("first")).resolves.toBeNull();
+    await expect(materialization.materializeDraft("retry")).resolves.toBeNull();
+
+    expect(window.claude.mcp.list).toHaveBeenCalledTimes(2);
+    expect(params.refs.materializingRef.current).toBe(false);
+  });
+
+  it("discards a session that starts after its draft is abandoned", async () => {
+    const { useDraftMaterialization } = await import("../useDraftMaterialization");
+    const params = makeParams();
+    params.findProject.mockReturnValue(params.refs.projectsRef.current[0]);
+    const start = deferred<{ sessionId: string; pid: number }>();
+    vi.mocked(window.claude.start).mockReturnValue(start.promise);
+
+    const materialization = useDraftMaterialization(
+      params as unknown as Parameters<typeof useDraftMaterialization>[0],
+    );
+    const pending = materialization.materializeDraft("hello");
+    await flushAsync();
+
+    materialization.abandonEagerSession("switch_session");
+    start.resolve({ sessionId: "stale-session", pid: 1 });
+
+    await expect(pending).resolves.toBeNull();
+    expect(window.claude.stop).toHaveBeenCalledWith("stale-session", "draft_abandoned");
+    expect(params.refs.liveSessionIdsRef.current).not.toContain("stale-session");
+    expect(params.refs.materializingRef.current).toBe(false);
   });
 });

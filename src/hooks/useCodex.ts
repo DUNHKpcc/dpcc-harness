@@ -33,6 +33,7 @@ import {
 import { suppressNextSessionCompletion } from "@/lib/notification-utils";
 import { captureException } from "@/lib/analytics/analytics";
 import { createSystemMessage, createUserMessage, nextId } from "@/lib/message-factory";
+import { publishSessionSendFailure } from "@/lib/session-send-failure";
 import { toastText } from "@/lib/toast-i18n";
 import { markInFlightToolCallsFailed } from "@/lib/chat/in-flight-tools";
 import { hasCodexRequestRecord, upsertCodexRequestRecord } from "@/lib/usage/upstream-requests";
@@ -46,6 +47,7 @@ interface UseCodexOptions {
   initialMessages?: import("@/types").UIMessage[];
   initialMeta?: BackgroundSessionSnapshot | null;
   initialPermission?: import("@/types").PermissionRequest | null;
+  initialSlashCommands?: SlashCommand[];
 }
 
 function showCodexPermissionError(message: string): void {
@@ -95,6 +97,7 @@ export function useCodex({
   initialMessages,
   initialMeta,
   initialPermission,
+  initialSlashCommands,
 }: UseCodexOptions) {
   const base = useEngineBase({ sessionId, initialMessages, initialMeta, initialPermission });
   const {
@@ -119,7 +122,7 @@ export function useCodex({
   /** Reasoning effort for the current Codex session — sent on the next turn/start */
   const [codexEffort, setCodexEffort] = useState<string>("medium");
   const [authRequired, setAuthRequired] = useState(false);
-  const [slashCommands, setSlashCommands] = useState<SlashCommand[]>([]);
+  const [slashCommands, setSlashCommands] = useState<SlashCommand[]>(initialSlashCommands ?? []);
 
   // Refs for rAF streaming flush (avoid React 19 batching issues)
   const bufferRef = useRef(new CodexStreamingBuffer());
@@ -133,6 +136,7 @@ export function useCodex({
   const activeAssistantItemIdRef = useRef<string | null>(null);
   // Track command output per itemId
   const commandOutputRef = useRef(new Map<string, string>());
+  const dirtyCommandOutputIdsRef = useRef(new Set<string>());
   // Accumulate plan text from item/plan/delta events
   const planTextRef = useRef("");
   // Per-turn counter for unique plan card message IDs
@@ -176,12 +180,14 @@ export function useCodex({
   useEffect(() => {
     setTodoItems([]);
     setAuthRequired(false);
+    setSlashCommands(initialSlashCommands ?? []);
     cancelPendingFlush();
     bufferRef.current.reset();
     itemMapRef.current.clear();
     assistantItemMapRef.current.clear();
     activeAssistantItemIdRef.current = null;
     commandOutputRef.current.clear();
+    dirtyCommandOutputIdsRef.current.clear();
     serverRequestRef.current = null;
     planTextRef.current = "";
     planTurnCounterRef.current = 0;
@@ -223,26 +229,75 @@ export function useCodex({
   // ── rAF flush: push streaming buffer contents into React state ──
   const flushBufferToState = useCallback(() => {
     const buf = bufferRef.current;
-    if (!buf.messageId) return;
-
     const messageId = buf.messageId;
-    const text = buf.getText();
-    const thinking = buf.getThinking();
-    const thinkingComplete = buf.thinkingComplete;
+    const assistantUpdate = messageId
+      ? {
+          text: buf.getText(),
+          thinking: buf.getThinking(),
+          thinkingComplete: buf.thinkingComplete,
+        }
+      : null;
+    const commandUpdates = new Map<string, string>();
+    for (const itemId of dirtyCommandOutputIdsRef.current) {
+      const output = commandOutputRef.current.get(itemId);
+      if (output === undefined) continue;
+      const toolMessageId = itemMapRef.current.get(itemId) ?? `codex-tool-${itemId}`;
+      commandUpdates.set(toolMessageId, output);
+    }
+    dirtyCommandOutputIdsRef.current.clear();
+
+    if (!assistantUpdate && commandUpdates.size === 0) return;
 
     setMessages((prev) => {
-      const idx = prev.findIndex((m) => m.id === messageId);
-      if (idx === -1) return prev;
-      const msg = prev[idx];
-      if (msg.content === text && msg.thinking === thinking && msg.thinkingComplete === thinkingComplete) return prev;
-      const updated = [...prev];
-      updated[idx] = {
-        ...msg,
-        content: text,
-        thinking: thinking || undefined,
-        thinkingComplete,
-        isStreaming: true,
+      let updated = prev;
+      let changed = false;
+      const updateAt = (index: number, message: (typeof prev)[number]) => {
+        if (!changed) {
+          updated = [...prev];
+          changed = true;
+        }
+        updated[index] = message;
       };
+
+      if (assistantUpdate && messageId) {
+        const index = prev.findIndex((message) => message.id === messageId);
+        const message = prev[index];
+        if (
+          message
+          && (
+            message.content !== assistantUpdate.text
+            || message.thinking !== (assistantUpdate.thinking || undefined)
+            || message.thinkingComplete !== assistantUpdate.thinkingComplete
+            || !message.isStreaming
+          )
+        ) {
+          updateAt(index, {
+            ...message,
+            content: assistantUpdate.text,
+            thinking: assistantUpdate.thinking || undefined,
+            thinkingComplete: assistantUpdate.thinkingComplete,
+            isStreaming: true,
+          });
+        }
+      }
+
+      for (const [toolMessageId, stdout] of commandUpdates) {
+        const index = prev.findIndex((message) => message.id === toolMessageId);
+        const message = prev[index];
+        if (!message || message.toolResult?.stdout === stdout) continue;
+        updateAt(index, {
+          ...message,
+          toolResult: {
+            ...(message.toolResult ?? {}),
+            type: "text",
+            stdout,
+          },
+        });
+      }
+
+      if (!changed) {
+        return prev;
+      }
       return updated;
     });
   }, [setMessages]);
@@ -655,6 +710,12 @@ export function useCodex({
       (item.type === "mcpToolCall" && item.status === "failed") ||
       (item.type === "collabAgentToolCall" && item.status === "failed");
     const isCollabAgentTool = item.type === "collabAgentToolCall";
+    const hasAccumulatedCommandOutput =
+      item.type === "commandExecution" && commandOutputRef.current.has(item.id);
+    const accumulatedCommandOutput = hasAccumulatedCommandOutput
+      ? commandOutputRef.current.get(item.id)
+      : undefined;
+    dirtyCommandOutputIdsRef.current.delete(item.id);
 
     setMessages((prev) =>
       prev.map((m) =>
@@ -672,11 +733,11 @@ export function useCodex({
                 ? { subagentStatus: isError ? "failed" as const : "completed" as const }
                 : {}),
               // For command execution, also include accumulated output
-              ...(item.type === "commandExecution" && commandOutputRef.current.has(item.id)
+              ...(item.type === "commandExecution" && hasAccumulatedCommandOutput
                 ? {
                     toolResult: {
                       type: "text",
-                      stdout: commandOutputRef.current.get(item.id)! +
+                      stdout: (accumulatedCommandOutput ?? "") +
                         (item.exitCode != null ? `\nExit code: ${item.exitCode}` : "") +
                         (item.durationMs != null ? `\nDuration: ${item.durationMs}ms` : ""),
                       ...(item.exitCode != null ? { exitCode: item.exitCode } : {}),
@@ -735,27 +796,9 @@ export function useCodex({
 
     const existing = commandOutputRef.current.get(itemId) ?? "";
     commandOutputRef.current.set(itemId, existing + delta);
-
-    // Update the tool_call message with live output — deterministic fallback
-    // for sessions restored from the background store
-    const msgId = itemMapRef.current.get(itemId) ?? `codex-tool-${itemId}`;
-    if (msgId) {
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === msgId
-            ? {
-                ...m,
-                toolResult: {
-                  ...(m.toolResult ?? {}),
-                  type: "text",
-                  stdout: commandOutputRef.current.get(itemId)!,
-                },
-              }
-            : m,
-        ),
-      );
-    }
-  }, []);
+    dirtyCommandOutputIdsRef.current.add(itemId);
+    scheduleFlush();
+  }, [scheduleFlush]);
 
   // ── Turn complete: finalize everything ──
   const handleTurnComplete = useCallback((params: TurnCompletedNotification) => {
@@ -948,6 +991,7 @@ export function useCodex({
       window.claude.codex.listSkills(sessionId).catch(() => ({ skills: [] as never[] })),
       window.claude.codex.listApps(sessionId).catch(() => ({ apps: [] as never[] })),
     ]).then(([skillsResult, appsResult]) => {
+      if (sessionIdRef.current !== sessionId) return;
       const commands: SlashCommand[] = [];
       for (const entry of skillsResult.skills ?? []) {
         for (const skill of entry.skills) {
@@ -971,7 +1015,7 @@ export function useCodex({
           iconUrl: app.logoUrl ?? undefined,
         });
       }
-      if (commands.length > 0) setSlashCommands(commands);
+      setSlashCommands(commands);
     });
 
     return () => {
@@ -986,12 +1030,13 @@ export function useCodex({
   const sendRaw = useCallback(
     async (text: string, images?: ImageAttachment[], collaborationMode?: CollaborationMode, fileReferences?: FileReference[]): Promise<boolean> => {
       if (!sessionId) return false;
+      const targetSessionId = sessionId;
       setIsProcessing(true);
       try {
         const selectedModelId = sessionInfo?.model?.trim() || sessionModelRef.current?.trim();
         const selectedModel = codexModels.find((model) => model.value === selectedModelId);
         const result = await window.claude.codex.send(
-          sessionId,
+          targetSessionId,
           text,
           imageAttachmentsToCodexInputs(images),
           selectedModel?.supportsEffort ? codexEffort : undefined,
@@ -999,13 +1044,27 @@ export function useCodex({
           fileReferencesToCodexMentions(fileReferences),
         );
         if (result?.error) {
-          setIsProcessing(false);
+          if (sessionIdRef.current === targetSessionId) {
+            setIsProcessing(false);
+          } else {
+            publishSessionSendFailure(
+              targetSessionId,
+              `Unable to send message: ${result.error}`,
+            );
+          }
           return false;
         }
         return true;
       } catch (err) {
         captureException(err instanceof Error ? err : new Error(String(err)), { label: "CODEX_SEND_ERR" });
-        setIsProcessing(false);
+        if (sessionIdRef.current === targetSessionId) {
+          setIsProcessing(false);
+        } else {
+          publishSessionSendFailure(
+            targetSessionId,
+            `Unable to send message: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
         return false;
       }
     },
@@ -1015,13 +1074,14 @@ export function useCodex({
   const send = useCallback(
     async (text: string, images?: ImageAttachment[], displayText?: string, collaborationMode?: CollaborationMode, fileReferences?: FileReference[]): Promise<boolean> => {
       if (!sessionId) return false;
+      const targetSessionId = sessionId;
       // Add user message to UI immediately
       setMessages((prev) => [
         ...prev,
         createUserMessage(text, images, displayText),
       ]);
       const ok = await sendRaw(text, images, collaborationMode, fileReferences);
-      if (!ok) {
+      if (!ok && sessionIdRef.current === targetSessionId) {
         setMessages((prev) => [
           ...prev,
           createSystemMessage("Unable to send message.", true),
@@ -1029,7 +1089,7 @@ export function useCodex({
       }
       return ok;
     },
-    [sessionId, sendRaw],
+    [sessionId, sessionIdRef, sendRaw],
   );
 
   const stop = useCallback(async () => {
@@ -1212,6 +1272,7 @@ export function useCodex({
   }, [setSessionInfo]);
 
   return {
+    hydrate: base.hydrate,
     messages, setMessages,
     isProcessing, setIsProcessing,
     isConnected, setIsConnected,

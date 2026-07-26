@@ -62,7 +62,9 @@
       "permissionModeUpdateFailed": "Failed to update permission mode",
       "planModeUpdateFailed": "Failed to update plan mode",
       "sendMessageFailed": "Failed to send message",
-      "restartFailed": "Failed to restart session"
+      "restartFailed": "Failed to restart session",
+      "deleteFailed": "Failed to delete session",
+      "importFailed": "Failed to import session"
     },
     "acp": {
       "initFailed": "Failed to initialize ACP agent",

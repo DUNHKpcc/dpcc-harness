@@ -19,6 +19,7 @@ interface ExtraPaneLoaderResult {
   initialConfigOptions: ACPConfigOption[];
   initialSlashCommands: SlashCommand[];
   initialRawAcpPermission: ACPPermissionEvent | null;
+  claimLatest: (() => SessionPaneBootstrap | null) | null;
 }
 
 interface UseExtraPaneLoaderOptions {
@@ -38,6 +39,7 @@ export function useExtraPaneLoader({
   const [initialConfigOptions, setInitialConfigOptions] = useState<ACPConfigOption[]>([]);
   const [initialSlashCommands, setInitialSlashCommands] = useState<SlashCommand[]>([]);
   const [initialRawAcpPermission, setInitialRawAcpPermission] = useState<ACPPermissionEvent | null>(null);
+  const [claimLatest, setClaimLatest] = useState<(() => SessionPaneBootstrap | null) | null>(null);
 
   const latestSessionIdRef = useRef<string | null>(null);
 
@@ -57,6 +59,7 @@ export function useExtraPaneLoader({
         setInitialConfigOptions([]);
         setInitialSlashCommands([]);
         setInitialRawAcpPermission(null);
+        setClaimLatest(null);
       });
       return;
     }
@@ -75,6 +78,7 @@ export function useExtraPaneLoader({
         setInitialConfigOptions(bootstrap.initialConfigOptions);
         setInitialSlashCommands(bootstrap.initialSlashCommands);
         setInitialRawAcpPermission(bootstrap.initialRawAcpPermission);
+        setClaimLatest(() => bootstrap.claimLatest ?? null);
       });
     }).catch(() => {
       if (latestSessionIdRef.current !== sessionId) {
@@ -90,6 +94,7 @@ export function useExtraPaneLoader({
         setInitialConfigOptions([]);
         setInitialSlashCommands([]);
         setInitialRawAcpPermission(null);
+        setClaimLatest(null);
       });
     });
   }, [loadBootstrap, sessionId]);
@@ -103,5 +108,6 @@ export function useExtraPaneLoader({
     initialConfigOptions,
     initialSlashCommands,
     initialRawAcpPermission,
+    claimLatest,
   };
 }

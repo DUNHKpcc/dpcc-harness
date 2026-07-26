@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import type { PersistedSession, ClaudeEvent, SystemInitEvent, EngineId, ACPSessionEvent, ACPPermissionEvent, ACPTurnCompleteEvent } from "@/types";
 import { canonicalizeModelValue } from "@/lib/model-utils";
@@ -9,6 +9,16 @@ import { buildPersistedSession, toChatSession } from "../../lib/session/records"
 import { normalizeToolInput as acpNormalizeToolInput, pickAutoResponseOption } from "../../lib/engine/acp-adapter";
 import { DRAFT_ID } from "./types";
 import { clearClaudeObservedRequests } from "@/lib/usage/upstream-requests";
+import { createSystemMessage } from "@/lib/message-factory";
+import {
+  SESSION_SEND_FAILURE_EVENT,
+  type SessionSendFailureDetail,
+} from "@/lib/session-send-failure";
+import {
+  isSplitPaneRoutingReady,
+  subscribeSplitPaneState,
+  type SplitPaneStateSnapshot,
+} from "@/lib/split-pane-state";
 import type { SharedSessionRefs, SharedSessionSetters, EngineHooks } from "./types";
 
 interface UseSessionPersistenceParams {
@@ -57,29 +67,256 @@ export function useSessionPersistence({
     switchSessionRef,
     acpPermissionBehaviorRef,
     saveTimerRef,
-    visibleSplitSessionIdsRef,
   } = refs;
   const activeClaudeModels = claude.supportedModels;
+  const metadataSyncSessionRef = useRef<string | null>(null);
+  const splitSaveTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const splitPendingSavesRef = useRef(new Map<string, {
+    snapshot: SplitPaneStateSnapshot;
+    updatedAt: number;
+  }>());
+  const splitMetadataRef = useRef(new Map<string, {
+    model?: string;
+    totalCost: number;
+    upstreamRequestCount: number;
+    requestLog: SplitPaneStateSnapshot["requestLog"];
+    lastMessageAt?: number;
+    isProcessing: boolean;
+    hasPendingPermission: boolean;
+  }>());
+  const activeSavePendingRef = useRef<{
+    sessionId: string;
+    updatedAt: number;
+  } | null>(null);
+  const pendingPersistenceWritesRef = useRef(new Set<Promise<void>>());
+  const persistenceGenerationRef = useRef(0);
 
   // Preserve Codex resume metadata when a transient renderer state omits it.
-  const persistSessionWithCodexFallback = useCallback(async (data: PersistedSession) => {
-    let payload = data;
-    if (data.engine === "codex" && (!data.codexThreadId || !data.codexRolloutPath)) {
-      try {
-        const existing = await window.claude.sessions.load(data.projectId, data.id);
-        if (existing) {
-          payload = {
-            ...data,
-            codexThreadId: data.codexThreadId ?? existing.codexThreadId,
-            codexRolloutPath: data.codexRolloutPath ?? existing.codexRolloutPath,
-          };
+  const persistSessionWithCodexFallback = useCallback((data: PersistedSession) => {
+    persistenceGenerationRef.current += 1;
+    const write = (async () => {
+      let payload = data;
+      if (data.engine === "codex" && (!data.codexThreadId || !data.codexRolloutPath)) {
+        try {
+          const existing = await window.claude.sessions.load(data.projectId, data.id);
+          if (existing) {
+            payload = {
+              ...data,
+              codexThreadId: data.codexThreadId ?? existing.codexThreadId,
+              codexRolloutPath: data.codexRolloutPath ?? existing.codexRolloutPath,
+            };
+          }
+        } catch {
+          // Best-effort fallback only.
         }
-      } catch {
-        // Best-effort fallback only.
       }
-    }
-    await window.claude.sessions.save(payload);
+      const result = await window.claude.sessions.save(payload);
+      if (result?.error) throw new Error(result.error);
+    })();
+    pendingPersistenceWritesRef.current.add(write);
+    void write.then(
+      () => pendingPersistenceWritesRef.current.delete(write),
+      () => pendingPersistenceWritesRef.current.delete(write),
+    );
+    return write;
   }, []);
+
+  const persistActiveSession = useCallback(async (sessionId: string) => {
+    if (activeSessionIdRef.current !== sessionId) return;
+    const session = sessionsRef.current.find((entry) => entry.id === sessionId);
+    if (!session || messagesRef.current.length === 0) return;
+
+    const messages = messagesRef.current.filter((message) => !message.isQueued);
+    const data: PersistedSession = {
+      id: sessionId,
+      projectId: session.projectId,
+      title: session.title,
+      createdAt: session.createdAt,
+      messages,
+      model: session.model || sessionInfoRef.current?.model,
+      effort: session.effort,
+      permissionMode: session.permissionMode,
+      planMode: session.planMode,
+      totalCost: totalCostRef.current,
+      upstreamRequestCount: upstreamRequestCountRef.current,
+      requestLog: requestLogRef.current,
+      contextUsage: contextUsageRef.current,
+      engine: session.engine,
+      ...(session.agentId ? { agentId: session.agentId } : {}),
+      ...(session.agentSessionId ? { agentSessionId: session.agentSessionId } : {}),
+      ...(session.delegatedFromSessionId ? { delegatedFromSessionId: session.delegatedFromSessionId } : {}),
+      ...(session.engine === "codex" && session.codexThreadId ? { codexThreadId: session.codexThreadId } : {}),
+      ...(session.engine === "codex" && session.codexRolloutPath ? { codexRolloutPath: session.codexRolloutPath } : {}),
+    };
+    await persistSessionWithCodexFallback(data);
+  }, [persistSessionWithCodexFallback]);
+
+  const flushActiveSaveWhenIdle = useCallback(function checkActiveSave() {
+    const pending = activeSavePendingRef.current;
+    if (!pending) {
+      saveTimerRef.current = null;
+      return;
+    }
+    const remaining = 2000 - (Date.now() - pending.updatedAt);
+    if (remaining > 0) {
+      saveTimerRef.current = setTimeout(checkActiveSave, remaining);
+      return;
+    }
+
+    activeSavePendingRef.current = null;
+    saveTimerRef.current = null;
+    void persistActiveSession(pending.sessionId).catch(() => undefined);
+  }, [persistActiveSession]);
+
+  const persistSplitSnapshot = useCallback(async (snapshot: SplitPaneStateSnapshot) => {
+    const session = sessionsRef.current.find((entry) => entry.id === snapshot.sessionId);
+    if (!session || snapshot.messages.length === 0) return;
+    const sessionForPersist = snapshot.sessionInfo?.model
+      ? { ...session, model: snapshot.sessionInfo.model }
+      : session;
+    const messages = snapshot.messages.filter((message) => !message.isQueued);
+    await persistSessionWithCodexFallback(buildPersistedSession(
+      sessionForPersist,
+      messages,
+      snapshot.totalCost,
+      snapshot.contextUsage,
+      snapshot.requestLog,
+      snapshot.upstreamRequestCount,
+    ));
+  }, [persistSessionWithCodexFallback]);
+
+  useEffect(() => {
+    const splitSaveDelayMs = 2000;
+
+    const runScheduledSplitSave = (sessionId: string) => {
+      const pending = splitPendingSavesRef.current.get(sessionId);
+      if (!pending) {
+        splitSaveTimersRef.current.delete(sessionId);
+        return;
+      }
+      const remaining = splitSaveDelayMs - (Date.now() - pending.updatedAt);
+      if (remaining > 0) {
+        splitSaveTimersRef.current.set(
+          sessionId,
+          setTimeout(() => runScheduledSplitSave(sessionId), remaining),
+        );
+        return;
+      }
+      splitSaveTimersRef.current.delete(sessionId);
+      splitPendingSavesRef.current.delete(sessionId);
+      void persistSplitSnapshot(pending.snapshot).catch(() => undefined);
+    };
+
+    const unsubscribe = subscribeSplitPaneState((event) => {
+      const { snapshot } = event;
+
+      const lastMessage = snapshot.messages.at(-1);
+      const metadata = {
+        model: snapshot.sessionInfo?.model,
+        totalCost: snapshot.totalCost,
+        upstreamRequestCount: snapshot.upstreamRequestCount,
+        requestLog: snapshot.requestLog,
+        lastMessageAt: lastMessage?.role === "user"
+          && typeof lastMessage.timestamp === "number"
+          ? lastMessage.timestamp
+          : undefined,
+        isProcessing: snapshot.isProcessing,
+        hasPendingPermission: !!snapshot.pendingPermission,
+      };
+      const previousMetadata = splitMetadataRef.current.get(snapshot.sessionId);
+      const metadataChanged = !previousMetadata
+        || previousMetadata.model !== metadata.model
+        || previousMetadata.totalCost !== metadata.totalCost
+        || previousMetadata.upstreamRequestCount !== metadata.upstreamRequestCount
+        || previousMetadata.requestLog !== metadata.requestLog
+        || previousMetadata.lastMessageAt !== metadata.lastMessageAt
+        || previousMetadata.isProcessing !== metadata.isProcessing
+        || previousMetadata.hasPendingPermission !== metadata.hasPendingPermission;
+      if (metadataChanged) {
+        splitMetadataRef.current.set(snapshot.sessionId, metadata);
+        setSessions((prev) => {
+          let changed = false;
+          const next = prev.map((session) => {
+            if (session.id !== snapshot.sessionId) return session;
+            const nextModel = metadata.model ?? session.model;
+            const nextLastMessageAt = metadata.lastMessageAt ?? session.lastMessageAt;
+            if (
+              session.model === nextModel
+              && session.totalCost === metadata.totalCost
+              && session.upstreamRequestCount === metadata.upstreamRequestCount
+              && session.requestLog === metadata.requestLog
+              && session.lastMessageAt === nextLastMessageAt
+              && session.isProcessing === metadata.isProcessing
+              && !!session.hasPendingPermission === metadata.hasPendingPermission
+            ) {
+              return session;
+            }
+            changed = true;
+            return {
+              ...session,
+              model: nextModel,
+              totalCost: metadata.totalCost,
+              upstreamRequestCount: metadata.upstreamRequestCount,
+              requestLog: metadata.requestLog,
+              lastMessageAt: nextLastMessageAt,
+              isProcessing: metadata.isProcessing,
+              hasPendingPermission: metadata.hasPendingPermission,
+            };
+          });
+          return changed ? next : prev;
+        });
+      }
+
+      if (event.type === "remove") {
+        const timer = splitSaveTimersRef.current.get(snapshot.sessionId);
+        if (timer) clearTimeout(timer);
+        splitSaveTimersRef.current.delete(snapshot.sessionId);
+        splitPendingSavesRef.current.delete(snapshot.sessionId);
+        splitMetadataRef.current.delete(snapshot.sessionId);
+        backgroundStoreRef.current.initFromState(snapshot.sessionId, {
+          messages: snapshot.messages,
+          isProcessing: snapshot.isProcessing,
+          isConnected: snapshot.isConnected,
+          isCompacting: snapshot.isCompacting,
+          sessionInfo: snapshot.sessionInfo,
+          totalCost: snapshot.totalCost,
+          upstreamRequestCount: snapshot.upstreamRequestCount,
+          requestLog: snapshot.requestLog,
+          contextUsage: snapshot.contextUsage,
+          pendingPermission: snapshot.pendingPermission,
+          rawAcpPermission: snapshot.rawAcpPermission,
+          slashCommands: snapshot.slashCommands,
+        });
+        void persistSplitSnapshot(snapshot).catch(() => undefined);
+        return;
+      }
+
+      splitPendingSavesRef.current.set(snapshot.sessionId, {
+        snapshot,
+        updatedAt: Date.now(),
+      });
+      persistenceGenerationRef.current += 1;
+      if (!splitSaveTimersRef.current.has(snapshot.sessionId)) {
+        splitSaveTimersRef.current.set(
+          snapshot.sessionId,
+          setTimeout(
+            () => runScheduledSplitSave(snapshot.sessionId),
+            splitSaveDelayMs,
+          ),
+        );
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      for (const timer of splitSaveTimersRef.current.values()) {
+        clearTimeout(timer);
+      }
+      splitSaveTimersRef.current.clear();
+      splitPendingSavesRef.current.clear();
+      splitMetadataRef.current.clear();
+    };
+  }, [persistSessionWithCodexFallback, setSessions]);
 
   // Wire up background store callbacks for sidebar indicators
   useEffect(() => {
@@ -167,6 +404,49 @@ export function useSessionPersistence({
     };
   }, [continueQueuedBackgroundSession, sessionsRef, setSessions, switchSessionRef, backgroundStoreRef]);
 
+  useEffect(() => {
+    const handleSendFailure = (event: Event) => {
+      const detail = (event as CustomEvent<SessionSendFailureDetail>).detail;
+      if (!detail?.sessionId) return;
+      if (detail.markDisconnected) {
+        liveSessionIdsRef.current.delete(detail.sessionId);
+        if (backgroundStoreRef.current.has(detail.sessionId)) {
+          backgroundStoreRef.current.markDisconnected(detail.sessionId);
+        }
+      }
+      if (
+        detail.sessionId === activeSessionIdRef.current
+        || isSplitPaneRoutingReady(detail.sessionId)
+      ) {
+        return;
+      }
+      const session = sessionsRef.current.find((entry) => entry.id === detail.sessionId);
+      if (!session || !backgroundStoreRef.current.has(detail.sessionId)) return;
+
+      backgroundStoreRef.current.updateMessages(detail.sessionId, (current) => [
+        ...current,
+        createSystemMessage(detail.message, true),
+      ]);
+      backgroundStoreRef.current.setProcessing(detail.sessionId, false);
+
+      const state = backgroundStoreRef.current.get(detail.sessionId);
+      if (!state) return;
+      void persistSessionWithCodexFallback(buildPersistedSession(
+        {
+          ...session,
+          model: session.model || state.sessionInfo?.model,
+        },
+        state.messages,
+        state.totalCost,
+        state.contextUsage,
+        state.requestLog ?? [],
+        state.upstreamRequestCount,
+      )).catch(() => undefined);
+    };
+    window.addEventListener(SESSION_SEND_FAILURE_EVENT, handleSendFailure);
+    return () => window.removeEventListener(SESSION_SEND_FAILURE_EVENT, handleSendFailure);
+  }, [persistSessionWithCodexFallback]);
+
   // Handle session exits across all engines
   useEffect(() => {
     const handleSessionExit = (sid: string) => {
@@ -206,7 +486,7 @@ export function useSessionPersistence({
             bgState.requestLog ?? [],
             bgState.upstreamRequestCount,
           );
-          window.claude.sessions.save(persisted);
+          void persistSessionWithCodexFallback(persisted).catch(() => undefined);
         }
       }
     };
@@ -254,7 +534,7 @@ export function useSessionPersistence({
       if (!sid) return;
       if (sid === activeSessionIdRef.current) return;
       // Split view: secondary pane's engine hooks handle their own events
-      if (visibleSplitSessionIdsRef.current.includes(sid)) return;
+      if (isSplitPaneRoutingReady(sid)) return;
 
       // Pre-started session: route to background store AND extract MCP statuses
       if (sid === preStartedSessionIdRef.current) {
@@ -277,7 +557,7 @@ export function useSessionPersistence({
       const sid = event._sessionId;
       if (!sid) return;
       if (sid === activeSessionIdRef.current) return;
-      if (visibleSplitSessionIdsRef.current.includes(sid)) return;
+      if (isSplitPaneRoutingReady(sid)) return;
       if (sid === draftAcpSessionIdRef.current) return;
       backgroundStoreRef.current.handleACPEvent(event);
     });
@@ -285,7 +565,7 @@ export function useSessionPersistence({
     // Route permission requests for non-active Claude sessions to the background store
     const unsubBgPerm = window.claude.onPermissionRequest((data) => {
       const sid = data._sessionId;
-      if (!sid || sid === activeSessionIdRef.current || visibleSplitSessionIdsRef.current.includes(sid) || sid === preStartedSessionIdRef.current) return;
+      if (!sid || sid === activeSessionIdRef.current || isSplitPaneRoutingReady(sid) || sid === preStartedSessionIdRef.current) return;
       backgroundStoreRef.current.setPermission(sid, {
         requestId: data.requestId,
         toolName: data.toolName,
@@ -300,53 +580,60 @@ export function useSessionPersistence({
     // (auto-respond if the client-side permission behavior allows it)
     const unsubBgAcpPerm = window.claude.acp.onPermissionRequest((data: ACPPermissionEvent) => {
       const sid = data._sessionId;
-      if (!sid || sid === activeSessionIdRef.current || visibleSplitSessionIdsRef.current.includes(sid)) return;
+      if (!sid || sid === activeSessionIdRef.current || isSplitPaneRoutingReady(sid)) return;
       if (sid === draftAcpSessionIdRef.current) return;
 
       // Auto-respond for background ACP sessions when behavior is configured
       const autoOptionId = pickAutoResponseOption(data.options, acpPermissionBehaviorRef.current);
+      const preserveManualPermission = () => {
+        backgroundStoreRef.current.setPermission(
+          sid,
+          {
+            requestId: data.requestId,
+            toolName: data.toolCall.title,
+            toolInput: acpNormalizeToolInput(data.toolCall.rawInput, data.toolCall.kind),
+            toolUseId: data.toolCall.toolCallId,
+          },
+          data,
+        );
+      };
       if (autoOptionId) {
-        window.claude.acp.respondPermission(sid, data.requestId, autoOptionId);
+        void window.claude.acp.respondPermission(sid, data.requestId, autoOptionId)
+          .then((result) => {
+            if (result?.error) preserveManualPermission();
+          })
+          .catch(() => preserveManualPermission());
         return;
       }
 
-      backgroundStoreRef.current.setPermission(
-        sid,
-        {
-          requestId: data.requestId,
-          toolName: data.toolCall.title,
-          toolInput: acpNormalizeToolInput(data.toolCall.rawInput, data.toolCall.kind),
-          toolUseId: data.toolCall.toolCallId,
-        },
-        data,
-      );
+      preserveManualPermission();
     });
 
     // Route turn-complete for non-active ACP sessions to the background store
     // (clears isProcessing so the session doesn't appear stuck when switching back)
     const unsubBgAcpTurn = window.claude.acp.onTurnComplete((data: ACPTurnCompleteEvent) => {
       const sid = data._sessionId;
-      if (!sid || sid === activeSessionIdRef.current || visibleSplitSessionIdsRef.current.includes(sid)) return;
+      if (!sid || sid === activeSessionIdRef.current || isSplitPaneRoutingReady(sid)) return;
       backgroundStoreRef.current.handleACPTurnComplete(sid);
     });
 
     const unsubBgUpstreamRequest = window.claude.onUpstreamRequest((event) => {
       const sid = event._sessionId;
-      if (!sid || sid === activeSessionIdRef.current || visibleSplitSessionIdsRef.current.includes(sid)) return;
+      if (!sid || sid === activeSessionIdRef.current || isSplitPaneRoutingReady(sid)) return;
       backgroundStoreRef.current.recordUpstreamRequest(sid, event.record, event.countDelta);
     });
 
     // Route Codex events for non-active sessions to the background store
     const unsubCodex = window.claude.codex.onEvent((event) => {
       const sid = event._sessionId;
-      if (!sid || sid === activeSessionIdRef.current || visibleSplitSessionIdsRef.current.includes(sid)) return;
+      if (!sid || sid === activeSessionIdRef.current || isSplitPaneRoutingReady(sid)) return;
       backgroundStoreRef.current.handleCodexEvent(event);
     });
 
     // Route Codex approval requests for non-active sessions — auto-decline for now
     const unsubCodexApproval = window.claude.codex.onApprovalRequest((data) => {
       const sid = data._sessionId;
-      if (!sid || sid === activeSessionIdRef.current || visibleSplitSessionIdsRef.current.includes(sid)) return;
+      if (!sid || sid === activeSessionIdRef.current || isSplitPaneRoutingReady(sid)) return;
       if (data.method === "item/tool/requestUserInput") {
         backgroundStoreRef.current.setPermission(sid, {
           requestId: String(data.rpcId),
@@ -384,48 +671,90 @@ export function useSessionPersistence({
 
   // Debounced auto-save
   useEffect(() => {
-    if (!activeSessionId || activeSessionId === DRAFT_ID || messages.length === 0) return;
-
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => {
-      const session = sessionsRef.current.find((s) => s.id === activeSessionId);
-      if (!session) return;
-      // Never persist queued messages — unsent queue state is runtime-only.
-      const msgs = messagesRef.current.filter((m) => !m.isQueued);
-      const data: PersistedSession = {
-        id: activeSessionId,
-        projectId: session.projectId,
-        title: session.title,
-        createdAt: session.createdAt,
-        messages: msgs,
-        model: session.model || sessionInfo?.model,
-        effort: session.effort,
-        permissionMode: session.permissionMode,
-        planMode: session.planMode,
-        totalCost: totalCostRef.current,
-        upstreamRequestCount: upstreamRequestCountRef.current,
-        requestLog: requestLogRef.current,
-        contextUsage: contextUsageRef.current,
-        engine: session.engine,
-        ...(session.agentId ? { agentId: session.agentId } : {}),
-        ...(session.agentSessionId ? { agentSessionId: session.agentSessionId } : {}),
-        ...(session.delegatedFromSessionId ? { delegatedFromSessionId: session.delegatedFromSessionId } : {}),
-        ...(session.engine === "codex" && session.codexThreadId ? { codexThreadId: session.codexThreadId } : {}),
-        ...(session.engine === "codex" && session.codexRolloutPath ? { codexRolloutPath: session.codexRolloutPath } : {}),
-      };
-      void persistSessionWithCodexFallback(data);
-    }, 2000);
-
-    return () => {
+    if (!activeSessionId || activeSessionId === DRAFT_ID || messages.length === 0) {
+      activeSavePendingRef.current = null;
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+      return;
+    }
+
+    activeSavePendingRef.current = {
+      sessionId: activeSessionId,
+      updatedAt: Date.now(),
     };
-  }, [messages, activeSessionId, sessionInfo?.model, upstreamRequestCount, requestLog, persistSessionWithCodexFallback]);
+    persistenceGenerationRef.current += 1;
+    if (!saveTimerRef.current) {
+      saveTimerRef.current = setTimeout(flushActiveSaveWhenIdle, 2000);
+    }
+  }, [messages, activeSessionId, sessionInfo?.model, upstreamRequestCount, requestLog, flushActiveSaveWhenIdle]);
+
+  const flushPendingSaves = useCallback(async () => {
+    while (true) {
+      const observedGeneration = persistenceGenerationRef.current;
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+      const activePending = activeSavePendingRef.current;
+      activeSavePendingRef.current = null;
+
+      for (const timer of splitSaveTimersRef.current.values()) {
+        clearTimeout(timer);
+      }
+      splitSaveTimersRef.current.clear();
+      const splitPending = [...splitPendingSavesRef.current.values()];
+      splitPendingSavesRef.current.clear();
+
+      const flushes: Promise<void>[] = [];
+      if (activePending) {
+        flushes.push(persistActiveSession(activePending.sessionId));
+      }
+      for (const pending of splitPending) {
+        flushes.push(persistSplitSnapshot(pending.snapshot));
+      }
+      const results = await Promise.allSettled(flushes);
+      const pendingResults = await Promise.allSettled([...pendingPersistenceWritesRef.current]);
+      const failure = [...results, ...pendingResults].find((result) => result.status === "rejected");
+      if (failure?.status === "rejected") throw failure.reason;
+
+      // Allow queued IPC/React work to publish one more generation before ACK.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      if (
+        observedGeneration === persistenceGenerationRef.current
+        && !activeSavePendingRef.current
+        && splitPendingSavesRef.current.size === 0
+        && pendingPersistenceWritesRef.current.size === 0
+      ) {
+        return;
+      }
+    }
+  }, [persistActiveSession, persistSplitSnapshot]);
+
+  useEffect(() => window.claude.onBeforeClose(flushPendingSaves), [flushPendingSaves]);
+
+  useEffect(() => () => {
+    activeSavePendingRef.current = null;
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+  }, []);
 
   // Consolidated sync of session metadata to the session list (model, totalCost,
   // lastMessageAt, isProcessing, hasPendingPermission). A single effect avoids
   // multiple separate setSessions(prev => prev.map(...)) calls per render cycle.
   useEffect(() => {
-    if (!activeSessionId || activeSessionId === DRAFT_ID) return;
+    if (!activeSessionId || activeSessionId === DRAFT_ID) {
+      metadataSyncSessionRef.current = null;
+      return;
+    }
+    // Engine hooks reset from their previous session in an effect. Skip the
+    // switch render so stale model/cost/request state cannot be written into
+    // the newly selected session before that reset has committed.
+    if (metadataSyncSessionRef.current !== activeSessionId) {
+      metadataSyncSessionRef.current = activeSessionId;
+      return;
+    }
 
     // Compute lastMessageAt — only user messages affect sort order
     let lastMessageAt: number | undefined;
@@ -466,15 +795,15 @@ export function useSessionPersistence({
         }
 
         // Total cost sync
-        if (totalCost !== 0 && s.totalCost !== totalCost) {
+        if (s.totalCost !== totalCost) {
           updates.totalCost = totalCost;
         }
 
-        if (requestLog.length > 0 && s.requestLog !== requestLog) {
+        if (s.requestLog !== requestLog) {
           updates.requestLog = requestLog;
         }
 
-        if (upstreamRequestCount > 0 && s.upstreamRequestCount !== upstreamRequestCount) {
+        if (s.upstreamRequestCount !== upstreamRequestCount) {
           updates.upstreamRequestCount = upstreamRequestCount;
         }
 
@@ -590,7 +919,7 @@ export function useSessionPersistence({
           sessionId,
         );
         if (data) {
-          await window.claude.sessions.save({ ...data, title });
+          await persistSessionWithCodexFallback({ ...data, title });
         }
       } catch {
         setSessions((prev) =>

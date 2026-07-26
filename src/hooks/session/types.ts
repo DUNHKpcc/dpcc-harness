@@ -57,6 +57,13 @@ export interface PendingAcpDraftPrompt {
   fileReferences?: FileReference[];
 }
 
+export interface MaterializedDraftSession {
+  sessionId: string;
+  engine: EngineId;
+  model?: string;
+  planMode: boolean;
+}
+
 export interface SessionPaneBootstrap {
   session: ChatSession;
   initialMessages: UIMessage[];
@@ -65,6 +72,7 @@ export interface SessionPaneBootstrap {
   initialConfigOptions: ACPConfigOption[];
   initialSlashCommands: SlashCommand[];
   initialRawAcpPermission: ACPPermissionEvent | null;
+  claimLatest?: () => SessionPaneBootstrap | null;
 }
 
 /** Shared refs that multiple sub-hooks need to read/write */
@@ -104,8 +112,7 @@ export interface SharedSessionRefs {
   acpPermissionBehaviorRef: React.MutableRefObject<AcpPermissionBehavior>;
   /** Current git branch for the active project — set by the orchestrator. */
   currentBranchRef: React.MutableRefObject<string | undefined>;
-  /** Split view: session IDs currently visible in extra panes. */
-  visibleSplitSessionIdsRef: React.MutableRefObject<readonly string[]>;
+  draftGenerationRef: React.MutableRefObject<number>;
   claudeModelCatalogRequestGenerationRef: React.MutableRefObject<number>;
   claudeEagerStartGenerationRef: React.MutableRefObject<number>;
 }

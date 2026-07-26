@@ -36,6 +36,7 @@ import {
   buildSdkContent,
 } from "../lib/engine/protocol";
 import { createSystemMessage, createUserMessage, formatResultError, nextId } from "../lib/message-factory";
+import { publishSessionSendFailure } from "../lib/session-send-failure";
 import { bgAgentStore, type TaskCompletion } from "../lib/background/agent-store";
 import { suppressNextSessionCompletion } from "../lib/notification-utils";
 import { advancePermissionQueue, enqueuePermissionRequest } from "../lib/engine/permission-queue";
@@ -81,12 +82,19 @@ type ParentToolMap = Map<string, string>;
 interface UseClaudeOptions {
   sessionId: string | null;
   initialMessages?: import("../types").UIMessage[];
+  initialSlashCommands?: SlashCommand[];
   initialMeta?: BackgroundSessionSnapshot | null;
   /** Restore a pending permission when switching back to this session */
   initialPermission?: import("../types").PermissionRequest | null;
 }
 
-export function useClaude({ sessionId, initialMessages, initialMeta, initialPermission }: UseClaudeOptions) {
+export function useClaude({
+  sessionId,
+  initialMessages,
+  initialSlashCommands,
+  initialMeta,
+  initialPermission,
+}: UseClaudeOptions) {
   const base = useEngineBase({ sessionId, initialMessages, initialMeta, initialPermission });
   const {
     messages, setMessages,
@@ -129,6 +137,8 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
     supportedModelsRequestGeneration.current += 1;
     setSupportedModels([]);
     setSupportedModelsLoaded(false);
+    setMcpServerStatuses([]);
+    setSlashCommands(initialSlashCommands ?? []);
     buffer.current.reset();
     parentToolMap.current.clear();
     permissionQueue.current = [];
@@ -153,6 +163,15 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
         streamingMsg.content,
         streamingMsg.thinking,
       );
+    }
+
+    const statusSessionId = sessionId;
+    if (statusSessionId) {
+      void window.claude.mcpStatus(statusSessionId).then((result) => {
+        if (sessionIdRef.current === statusSessionId) {
+          setMcpServerStatuses(result.servers ?? []);
+        }
+      }).catch(() => { /* session may have stopped while restoring */ });
     }
   }, [sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -448,8 +467,8 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
             if (sid) {
               setTimeout(() => {
                 window.claude.mcpStatus(sid).then((result) => {
-                  if (result.servers?.length) {
-                    setMcpServerStatuses(result.servers as McpServerStatus[]);
+                  if (sessionIdRef.current === sid) {
+                    setMcpServerStatuses(result.servers ?? []);
                   }
                 }).catch(() => { /* session may have been stopped */ });
               }, 3000);
@@ -492,8 +511,8 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
             const cmdSid = sessionIdRef.current;
             if (cmdSid) {
               window.claude.slashCommands(cmdSid).then((result) => {
-                if (result.commands?.length) {
-                  setSlashCommands(result.commands.map(cmd => ({
+                if (sessionIdRef.current === cmdSid) {
+                  setSlashCommands((result.commands ?? []).map(cmd => ({
                     name: cmd.name,
                     description: cmd.description ?? "",
                     argumentHint: cmd.argumentHint,
@@ -909,9 +928,10 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
           }
           // After auth completes, refresh MCP server statuses
           if (!authEvt.isAuthenticating && sessionIdRef.current) {
-            window.claude.mcpStatus(sessionIdRef.current).then((result) => {
-              if (result.servers?.length) {
-                setMcpServerStatuses(result.servers as McpServerStatus[]);
+            const authSessionId = sessionIdRef.current;
+            window.claude.mcpStatus(authSessionId).then((result) => {
+              if (sessionIdRef.current === authSessionId) {
+                setMcpServerStatuses(result.servers ?? []);
               }
             }).catch(() => { /* session may have been stopped */ });
           }
@@ -924,25 +944,37 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
 
   const send = useCallback(
     async (text: string, images?: ImageAttachment[], displayText?: string): Promise<boolean> => {
-      if (!sessionIdRef.current) return false;
+      const targetSessionId = sessionIdRef.current;
+      if (!targetSessionId) return false;
       const content = buildSdkContent(text, images);
-      const result = await window.claude.send(sessionIdRef.current, {
-        type: "user",
-        message: { role: "user", content },
-      });
+      const userMessage = createUserMessage(text, images, displayText);
+      // Append before crossing IPC so a session switch can seed this turn into
+      // the background store while the main process acknowledges the send.
+      setMessages((prev) => [...prev, userMessage]);
+      setIsProcessing(true);
+
+      let result;
+      try {
+        result = await window.claude.send(targetSessionId, {
+          type: "user",
+          message: { role: "user", content },
+        });
+      } catch {
+        result = { error: "Failed to send message" };
+      }
       if (result?.error) {
+        if (sessionIdRef.current === targetSessionId) {
+          setMessages((prev) => prev.filter((message) => message.id !== userMessage.id));
+          setIsProcessing(false);
+        } else {
+          publishSessionSendFailure(
+            targetSessionId,
+            `Unable to send message: ${result.error}`,
+            { markDisconnected: true },
+          );
+        }
         return false;
       }
-      // Both updates in the same synchronous scope so React batches them into
-      // one render.  Previously setIsProcessing(true) fired before the await,
-      // creating an intermediate render where isProcessing=true but the user
-      // message wasn't in the array yet — which made extractTurnSummaries drop
-      // the last completed turn's inline change summary.
-      setIsProcessing(true);
-      setMessages((prev) => [
-        ...prev,
-        createUserMessage(text, images, displayText),
-      ]);
       return true;
     },
     [],
@@ -951,13 +983,23 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
   /** Send a message without adding it to chat (used for queued messages already in the UI) */
   const sendRaw = useCallback(
     async (text: string, images?: ImageAttachment[]): Promise<boolean> => {
-      if (!sessionIdRef.current) return false;
+      const targetSessionId = sessionIdRef.current;
+      if (!targetSessionId) return false;
       const content = buildSdkContent(text, images);
-      const result = await window.claude.send(sessionIdRef.current, {
+      const result = await window.claude.send(targetSessionId, {
         type: "user",
         message: { role: "user", content },
       });
-      if (result?.error) return false;
+      if (result?.error) {
+        if (sessionIdRef.current !== targetSessionId) {
+          publishSessionSendFailure(
+            targetSessionId,
+            `Unable to send queued message: ${result.error}`,
+            { markDisconnected: true },
+          );
+        }
+        return false;
+      }
       setIsProcessing(true);
       return true;
     },
@@ -1165,10 +1207,11 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
   }, []);
 
   const refreshMcpStatus = useCallback(async () => {
-    if (!sessionIdRef.current) return;
-    const result = await window.claude.mcpStatus(sessionIdRef.current);
-    if (result.servers?.length) {
-      setMcpServerStatuses(result.servers as McpServerStatus[]);
+    const targetSessionId = sessionIdRef.current;
+    if (!targetSessionId) return;
+    const result = await window.claude.mcpStatus(targetSessionId);
+    if (sessionIdRef.current === targetSessionId) {
+      setMcpServerStatuses(result.servers ?? []);
     }
   }, []);
 
@@ -1211,6 +1254,7 @@ export function useClaude({ sessionId, initialMessages, initialMeta, initialPerm
   }, []);
 
   return {
+    hydrate: base.hydrate,
     messages,
     setMessages,
     isProcessing,

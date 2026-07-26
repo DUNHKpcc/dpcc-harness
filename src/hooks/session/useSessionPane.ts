@@ -8,10 +8,16 @@
  * receive null sessionIds and hold dormant empty state.
  */
 
+import { useEffect } from "react";
 import { useClaude } from "../useClaude";
 import { useACP } from "../useACP";
 import { useCodex } from "../useCodex";
 import type { UIMessage, PermissionRequest, EngineId, AcpPermissionBehavior, ContextUsage, SessionInfo, ACPConfigOption, ACPPermissionEvent, SlashCommand, UpstreamRequestRecord } from "@/types";
+import { createSystemMessage } from "@/lib/message-factory";
+import {
+  SESSION_SEND_FAILURE_EVENT,
+  type SessionSendFailureDetail,
+} from "@/lib/session-send-failure";
 import type { InitialMeta } from "./types";
 
 export interface UseSessionPaneOptions {
@@ -62,6 +68,7 @@ export interface SessionPaneState {
 }
 
 export function useSessionPane({
+  activeSessionId,
   activeEngine,
   claudeSessionId,
   acpSessionId,
@@ -84,6 +91,7 @@ export function useSessionPane({
   const claude = useClaude({
     sessionId: claudeSessionId,
     initialMessages: isClaude ? initialMessages : [],
+    initialSlashCommands: isClaude ? initialSlashCommands : [],
     initialMeta: isClaude ? initialMeta : null,
     initialPermission: isClaude ? initialPermission : null,
   });
@@ -106,10 +114,26 @@ export function useSessionPane({
     initialMessages: isCodex ? initialMessages : [],
     initialMeta: isCodex ? initialMeta : null,
     initialPermission: isCodex ? initialPermission : null,
+    initialSlashCommands: isCodex ? initialSlashCommands : undefined,
   });
 
   // Pick the active engine's state
   const engine = isCodex ? codex : isACP ? acp : claude;
+
+  useEffect(() => {
+    if (!activeSessionId) return;
+    const handleSendFailure = (event: Event) => {
+      const detail = (event as CustomEvent<SessionSendFailureDetail>).detail;
+      if (!detail || detail.sessionId !== activeSessionId) return;
+      engine.setMessages((prev) => [
+        ...prev,
+        createSystemMessage(detail.message, true),
+      ]);
+      engine.setIsProcessing(false);
+    };
+    window.addEventListener(SESSION_SEND_FAILURE_EVENT, handleSendFailure);
+    return () => window.removeEventListener(SESSION_SEND_FAILURE_EVENT, handleSendFailure);
+  }, [activeSessionId, engine.setIsProcessing, engine.setMessages]);
 
   return {
     claude,

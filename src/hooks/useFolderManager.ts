@@ -85,8 +85,18 @@ export function useFolderManager({ projects, setSessions }: UseFolderManagerOpti
     setSessions((prev) => {
       const session = prev.find((s) => s.id === sessionId);
       if (!session) return prev;
+      const previousPinned = session.pinned;
       // Fire IPC in the background (don't block the state update)
       window.claude.sessions.updateMeta(session.projectId, sessionId, { pinned: pinned || undefined })
+        .then((result) => {
+          if (!result?.error) return;
+          reportError("handlePinSession", new Error(result.error));
+          setSessions((current) => current.map((entry) =>
+            entry.id === sessionId && entry.pinned === (pinned || undefined)
+              ? { ...entry, pinned: previousPinned }
+              : entry,
+          ));
+        })
         .catch((err) => reportError("handlePinSession", err));
       return prev.map((s) => (s.id === sessionId ? { ...s, pinned: pinned || undefined } : s));
     });
@@ -111,7 +121,17 @@ export function useFolderManager({ projects, setSessions }: UseFolderManagerOpti
     setSessions((prev) => {
       const session = prev.find((s) => s.id === sessionId);
       if (!session) return prev;
+      const previousFolderId = session.folderId;
       window.claude.sessions.updateMeta(session.projectId, sessionId, { folderId })
+        .then((result) => {
+          if (!result?.error) return;
+          reportError("handleMoveSessionToFolder", new Error(result.error));
+          setSessions((current) => current.map((entry) =>
+            entry.id === sessionId && entry.folderId === (folderId ?? undefined)
+              ? { ...entry, folderId: previousFolderId }
+              : entry,
+          ));
+        })
         .catch((err) => reportError("handleMoveSessionToFolder", err));
       return prev.map((s) => (s.id === sessionId ? { ...s, folderId: folderId ?? undefined } : s));
     });

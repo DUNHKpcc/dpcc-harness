@@ -232,15 +232,20 @@ export class WeChatRouter {
         if (tool === "codex") state.codexResumeMode = mode;
       }
 
-      // Persist the full transcript and refresh the sidebar entry.
-      await this.sink.finalizeTurn(
-        uid,
-        tool,
-        result.resumeId,
-        prompt,
-        result.text,
-        tool === "codex" ? mode : undefined,
-      );
+      // Local persistence must not replace a successful upstream answer with a
+      // failure message (for example when the desktop deleted this session).
+      try {
+        await this.sink.finalizeTurn(
+          uid,
+          tool,
+          result.resumeId,
+          prompt,
+          result.text,
+          tool === "codex" ? mode : undefined,
+        );
+      } catch (err) {
+        log("WECHAT_ROUTER", `${tool} 会话持久化失败: ${(err as Error).message}`);
+      }
 
       const footer = formatFooter(adapter.displayName, result.durationMs, result.error);
       await this.reply(uid, `${resetNotice}${result.text}\n\n${footer}`);

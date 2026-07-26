@@ -80,6 +80,18 @@ contextBridge.exposeInMainWorld("claude", {
   setMacBackgroundEffect: (effect: MacBackgroundEffect) => ipcRenderer.send("app:set-mac-background-effect", effect),
   relaunchApp: () => ipcRenderer.invoke("app:relaunch"),
   setMinWidth: (width: number) => ipcRenderer.send("app:set-min-width", width),
+  onBeforeClose: (callback: () => Promise<void> | void) => {
+    const listener = (_event: IpcRendererEvent, requestId: number) => {
+      void Promise.resolve()
+        .then(callback)
+        .then(
+          () => ipcRenderer.send("app:persistence-flushed", requestId, true),
+          () => ipcRenderer.send("app:persistence-flushed", requestId, false),
+        );
+    };
+    ipcRenderer.on("app:before-close", listener);
+    return () => ipcRenderer.removeListener("app:before-close", listener);
+  },
   glass: {
     setTintColor: (tintColor: string | null) =>
       ipcRenderer.send("glass:set-tint-color", tintColor),
@@ -206,7 +218,8 @@ contextBridge.exposeInMainWorld("claude", {
     reorder: (projectId: string, targetProjectId: string) => ipcRenderer.invoke("projects:reorder", projectId, targetProjectId),
   },
   sessions: {
-    save: (data: unknown) => ipcRenderer.invoke("sessions:save", data),
+    save: (data: unknown, options?: { restoreDeleted?: boolean }) =>
+      ipcRenderer.invoke("sessions:save", data, options),
     load: (projectId: string, sessionId: string) => ipcRenderer.invoke("sessions:load", projectId, sessionId),
     list: (projectId: string) => ipcRenderer.invoke("sessions:list", projectId),
     delete: (projectId: string, sessionId: string) => ipcRenderer.invoke("sessions:delete", projectId, sessionId),

@@ -82,6 +82,7 @@ declare global {
       setMacBackgroundEffect: (effect: MacBackgroundEffect) => void;
       relaunchApp: () => Promise<IpcResult>;
       setMinWidth: (width: number) => void;
+      onBeforeClose: (callback: () => Promise<void> | void) => () => void;
       onTrayOpenSession: (
         callback: (target: { projectId: string; sessionId: string }) => void,
       ) => () => void;
@@ -240,7 +241,10 @@ declare global {
         reorder: (projectId: string, targetProjectId: string) => Promise<IpcResult>;
       };
       sessions: {
-        save: (data: PersistedSession) => Promise<IpcResult>;
+        save: (
+          data: PersistedSession,
+          options?: { restoreDeleted?: boolean },
+        ) => Promise<IpcResult>;
         load: (projectId: string, sessionId: string) => Promise<PersistedSession | null>;
         list: (projectId: string) => Promise<SessionListItem[]>;
         delete: (projectId: string, sessionId: string) => Promise<IpcResult>;

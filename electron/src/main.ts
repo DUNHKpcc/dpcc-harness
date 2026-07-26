@@ -113,6 +113,9 @@ if (shouldEnableRemoteDevTools({ isPackaged: app.isPackaged, glassEnabled, diagn
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
+let persistenceFlushComplete = false;
+let persistenceFlushInProgress = false;
+let persistenceFlushRequestId = 0;
 
 import type { ThemeOption, MacBackgroundEffect as SharedMacBackgroundEffect } from "@shared/types/settings";
 
@@ -140,6 +143,43 @@ function getMacBackgroundEffectSupport(): { liquidGlass: boolean; vibrancy: bool
     liquidGlass: glassEnabled,
     vibrancy: glassEnabled,
   };
+}
+
+function requestRendererPersistenceFlush(timeoutMs = 2500): Promise<void> {
+  const win = mainWindow;
+  if (!win || win.isDestroyed() || win.webContents.isDestroyed()) {
+    return Promise.resolve();
+  }
+  const requestId = ++persistenceFlushRequestId;
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      ipcMain.removeListener("app:persistence-flushed", onFlushed);
+      resolve();
+    };
+    const onFlushed = (
+      event: Electron.IpcMainEvent,
+      acknowledgedRequestId: unknown,
+      succeeded: unknown,
+    ) => {
+      if (
+        event.sender.id === win.webContents.id
+        && acknowledgedRequestId === requestId
+        && succeeded === true
+      ) {
+        finish();
+      }
+    };
+    const timer = setTimeout(() => {
+      log("PERSISTENCE", "Renderer flush timed out during app quit");
+      finish();
+    }, timeoutMs);
+    ipcMain.on("app:persistence-flushed", onFlushed);
+    safeSend(getMainWindow, "app:before-close", requestId);
+  });
 }
 
 function resolveMacBackgroundEffect(effect: MacBackgroundEffect): MacBackgroundEffect {
@@ -359,6 +399,21 @@ function createWindow(): void {
       if (isQuitting) return;
       event.preventDefault();
       mainWindow?.hide();
+    });
+  } else {
+    mainWindow.on("close", (event) => {
+      if (persistenceFlushComplete) return;
+      event.preventDefault();
+      if (persistenceFlushInProgress) return;
+      persistenceFlushInProgress = true;
+      const closingWindow = mainWindow;
+      void requestRendererPersistenceFlush().finally(() => {
+        persistenceFlushComplete = true;
+        persistenceFlushInProgress = false;
+        if (closingWindow && !closingWindow.isDestroyed()) {
+          closingWindow.close();
+        }
+      });
     });
   }
 
@@ -739,6 +794,7 @@ function teardownSessionsAndTerminals(reason: string): void {
   try { claudeSessionsIpc.stopAll(); } catch (err) { reportError("CLEANUP", err, { context: "claude-stopAll", reason }); }
   try { acpSessionsIpc.stopAll(); } catch (err) { reportError("CLEANUP", err, { context: "acp-stopAll", reason }); }
   try { codexSessionsIpc.stopAll(); } catch (err) { reportError("CLEANUP", err, { context: "codex-stopAll", reason }); }
+  try { filesIpc.disposeAllProjectWatchers(); } catch (err) { reportError("CLEANUP", err, { context: "file-watchers", reason }); }
 
   for (const [terminalId, term] of terminals) {
     if (term.exited) continue;
@@ -758,8 +814,25 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
   });
 }
 
-app.on("before-quit", () => {
+app.on("before-quit", (event) => {
   isQuitting = true;
+  if (
+    persistenceFlushComplete
+    || persistenceFlushInProgress
+    || !mainWindow
+    || mainWindow.isDestroyed()
+  ) {
+    if (persistenceFlushInProgress) event.preventDefault();
+    return;
+  }
+
+  event.preventDefault();
+  persistenceFlushInProgress = true;
+  void requestRendererPersistenceFlush().finally(() => {
+    persistenceFlushComplete = true;
+    persistenceFlushInProgress = false;
+    app.quit();
+  });
 });
 
 app.on("will-quit", () => {

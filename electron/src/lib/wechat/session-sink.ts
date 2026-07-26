@@ -5,7 +5,7 @@ import crypto from "node:crypto";
 import type { BrowserWindow } from "electron";
 import { safeSend } from "../safe-send";
 import { reportError } from "../error-utils";
-import { saveSessionToDisk } from "../session-store";
+import { isSessionDeleted, saveSessionToDisk } from "../session-store";
 import { getSessionFilePath } from "../data-dir";
 import { getCCProjectDir, parseJsonlToUIMessages, type CCImportedMessage } from "../../ipc/cc-import";
 import { loadWeChatConversations, saveWeChatConversations, type WeChatConversationRecord } from "./store";
@@ -67,7 +67,23 @@ export class WeChatSessionSink {
     const config = this.deps.getConfig();
     const now = Date.now();
     let rec = this.conversations[k];
-    const isNew = !rec;
+    let isNew = !rec;
+
+    // A deleted desktop row must not be resurrected by the tail of the turn
+    // that owned it. The next inbound turn deliberately rotates to a new app
+    // session ID while preserving the upstream resume metadata.
+    if (rec && isSessionDeleted(rec.projectId, rec.pccSessionId)) {
+      rec = {
+        ...rec,
+        pccSessionId: `wechat-${crypto.randomUUID()}`,
+        projectId: config.projectId,
+        title: makeTitle(firstPrompt, userId),
+        createdAt: now,
+        lastUpdatedMs: now,
+      };
+      this.conversations[k] = rec;
+      isNew = true;
+    }
 
     if (!rec) {
       rec = {

@@ -1,9 +1,16 @@
-import { ipcMain } from "electron";
+import { ipcMain, type WebContents } from "electron";
 import path from "path";
 import fs from "fs";
 import { getDataDir, getProjectSessionsDir, getSessionFilePath } from "../lib/data-dir";
 import { reportError } from "../lib/error-utils";
-import { saveSessionToDisk, getSessionMetaFilePath } from "../lib/session-store";
+import {
+  saveSessionToDisk,
+  getSessionMetaFilePath,
+  markSessionDeleted,
+  unmarkSessionDeleted,
+  withSessionFileLock,
+  writeSessionFileAtomically,
+} from "../lib/session-store";
 import {
   getLastUserMessageTimestamp,
   extractSessionMeta,
@@ -29,6 +36,7 @@ interface SearchResult {
 }
 
 const getMetaFilePath = getSessionMetaFilePath;
+const searchGenerations = new WeakMap<WebContents, number>();
 
 export async function listProjectSessions(projectId: string): Promise<SessionMeta[]> {
   try {
@@ -102,9 +110,13 @@ export async function listRecentSessions(limit = 3): Promise<SessionMeta[]> {
 }
 
 export function register(): void {
-  ipcMain.handle("sessions:save", async (_event, data: { projectId: string; id: string; createdAt?: number; messages?: Array<{ role?: string; timestamp?: number }> }) => {
+  ipcMain.handle("sessions:save", async (
+    _event,
+    data: { projectId: string; id: string; createdAt?: number; messages?: Array<{ role?: string; timestamp?: number }> },
+    options?: { restoreDeleted?: boolean },
+  ) => {
     try {
-      await saveSessionToDisk(data);
+      await saveSessionToDisk(data, options);
       return { ok: true };
     } catch (err) {
       const message = reportError("SESSIONS:SAVE_ERR", err, { sessionId: data.id });
@@ -139,32 +151,35 @@ export function register(): void {
     },
   ) => {
     try {
-      // Patch the .meta.json sidecar
-      const metaPath = getMetaFilePath(projectId, sessionId);
-      try {
-        const metaRaw = await fs.promises.readFile(metaPath, "utf-8");
-        const meta = JSON.parse(metaRaw);
-        if ("pinned" in patch) meta.pinned = patch.pinned || undefined;
-        if ("folderId" in patch) meta.folderId = patch.folderId || undefined;
-        if ("branch" in patch) meta.branch = patch.branch || undefined;
-        await fs.promises.writeFile(metaPath, JSON.stringify(meta), "utf-8");
-      } catch {
-        // meta sidecar missing — will be recreated on next full save
-      }
+      await withSessionFileLock(projectId, sessionId, async () => {
+        // Patch the .meta.json sidecar
+        const metaPath = getMetaFilePath(projectId, sessionId);
+        try {
+          const metaRaw = await fs.promises.readFile(metaPath, "utf-8");
+          const meta = JSON.parse(metaRaw);
+          if ("pinned" in patch) meta.pinned = patch.pinned || undefined;
+          if ("folderId" in patch) meta.folderId = patch.folderId || undefined;
+          if ("branch" in patch) meta.branch = patch.branch || undefined;
+          await writeSessionFileAtomically(metaPath, JSON.stringify(meta));
+        } catch (err) {
+          if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+          // Missing sidecar will be recreated on the next full save.
+        }
 
-      // Patch the main .json file (read → merge → write)
-      const filePath = getSessionFilePath(projectId, sessionId);
-      try {
-        const raw = await fs.promises.readFile(filePath, "utf-8");
-        const data = JSON.parse(raw);
-        if ("pinned" in patch) data.pinned = patch.pinned || undefined;
-        if ("folderId" in patch) data.folderId = patch.folderId || undefined;
-        if ("branch" in patch) data.branch = patch.branch || undefined;
-        await fs.promises.writeFile(filePath, JSON.stringify(data), "utf-8");
-      } catch {
-        // main file missing — nothing to patch
-      }
-
+        // Patch the main .json file (read → merge → write)
+        const filePath = getSessionFilePath(projectId, sessionId);
+        try {
+          const raw = await fs.promises.readFile(filePath, "utf-8");
+          const data = JSON.parse(raw);
+          if ("pinned" in patch) data.pinned = patch.pinned || undefined;
+          if ("folderId" in patch) data.folderId = patch.folderId || undefined;
+          if ("branch" in patch) data.branch = patch.branch || undefined;
+          await writeSessionFileAtomically(filePath, JSON.stringify(data));
+        } catch (err) {
+          if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+          // Missing main file means there is nothing to patch.
+        }
+      });
       return { ok: true };
     } catch (err) {
       const message = reportError("SESSIONS:UPDATE_META_ERR", err, { projectId, sessionId });
@@ -173,32 +188,47 @@ export function register(): void {
   });
 
   ipcMain.handle("sessions:delete", async (_event, projectId: string, sessionId: string) => {
+    // Tombstone synchronously so any queued or future auto-save cannot recreate
+    // the session after this delete wins the per-file lock.
+    markSessionDeleted(projectId, sessionId);
     try {
-      const filePath = getSessionFilePath(projectId, sessionId);
-      const metaPath = getMetaFilePath(projectId, sessionId);
+      await withSessionFileLock(projectId, sessionId, async () => {
+        const filePath = getSessionFilePath(projectId, sessionId);
+        const metaPath = getMetaFilePath(projectId, sessionId);
 
-      // Delete both main file and sidecar, ignoring ENOENT
-      await Promise.all([
-        fs.promises.unlink(filePath).catch((err: NodeJS.ErrnoException) => {
-          if (err.code !== "ENOENT") throw err;
-        }),
-        fs.promises.unlink(metaPath).catch((err: NodeJS.ErrnoException) => {
-          if (err.code !== "ENOENT") throw err;
-        }),
-      ]);
+        // Delete both main file and sidecar, ignoring ENOENT
+        await Promise.all([
+          fs.promises.unlink(filePath).catch((err: NodeJS.ErrnoException) => {
+            if (err.code !== "ENOENT") throw err;
+          }),
+          fs.promises.unlink(metaPath).catch((err: NodeJS.ErrnoException) => {
+            if (err.code !== "ENOENT") throw err;
+          }),
+        ]);
+      });
       return { ok: true };
     } catch (err) {
+      unmarkSessionDeleted(projectId, sessionId);
       const message = reportError("SESSIONS:DELETE_ERR", err, { projectId, sessionId });
       return { error: message };
     }
   });
 
-  ipcMain.handle("sessions:search", async (_event, { projectIds, query }: { projectIds: string[]; query: string }): Promise<SearchResult> => {
+  ipcMain.handle("sessions:search", async (event, { projectIds, query }: { projectIds: string[]; query: string }): Promise<SearchResult> => {
+    const sender = event.sender;
+    const generation = (searchGenerations.get(sender) ?? 0) + 1;
+    searchGenerations.set(sender, generation);
+    const emptyResult = (): SearchResult => ({ messageResults: [], sessionResults: [] });
+    const isCurrentSearch = () => searchGenerations.get(sender) === generation;
+
     try {
       const lowerQuery = query.toLowerCase();
       const messageResults: SearchResult["messageResults"] = [];
       const sessionResults: SearchResult["sessionResults"] = [];
+      const maxMessageResults = 10;
+      const maxSessionResults = 10;
 
+      projectLoop:
       for (const projectId of projectIds) {
         const dir = path.join(getDataDir(), "sessions", projectId);
         try {
@@ -220,7 +250,10 @@ export function register(): void {
             const sessionTitle = data.title || "Untitled";
             const sessionId = data.id;
 
-            if (sessionTitle.toLowerCase().includes(lowerQuery)) {
+            if (
+              sessionResults.length < maxSessionResults
+              && sessionTitle.toLowerCase().includes(lowerQuery)
+            ) {
               sessionResults.push({
                 sessionId,
                 projectId,
@@ -229,10 +262,13 @@ export function register(): void {
               });
             }
 
-            if (messageResults.length >= 10) continue;
+            if (messageResults.length >= maxMessageResults) {
+              if (sessionResults.length >= maxSessionResults) break projectLoop;
+              continue;
+            }
             const messages = data.messages || [];
             for (const msg of messages) {
-              if (messageResults.length >= 10) break;
+              if (messageResults.length >= maxMessageResults) break;
               if (msg.role !== "user" && msg.role !== "assistant") continue;
               if (!msg.content || typeof msg.content !== "string") continue;
 
@@ -256,14 +292,21 @@ export function register(): void {
             }
           } catch {
             // Skip corrupted files
+          } finally {
+            // Parsing a large history is CPU-bound. Yield between files so
+            // session/terminal IPC remains responsive during a broad search.
+            await new Promise<void>((resolve) => setImmediate(resolve));
           }
+          if (!isCurrentSearch()) return emptyResult();
         }
       }
 
-      return { messageResults, sessionResults };
+      return isCurrentSearch()
+        ? { messageResults, sessionResults }
+        : emptyResult();
     } catch (err) {
       reportError("SESSIONS:SEARCH_ERR", err, { query });
-      return { messageResults: [], sessionResults: [] };
+      return emptyResult();
     }
   });
 }

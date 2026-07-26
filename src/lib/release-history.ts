@@ -20,6 +20,10 @@ function release(version: string, date: string, changeKeys: readonly string[]): 
 
 /** Bundled release history, newest first, so settings remain useful offline. */
 export const RELEASE_HISTORY: readonly ReleaseHistoryEntry[] = [
+  release("2.1.8", "2026-07-27", [
+    "packagedLogo",
+    "welcomeReplay",
+  ]),
   release("2.1.7", "2026-07-27", [
     "browserAuthorization",
     "sessionReliability",

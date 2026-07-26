@@ -2,6 +2,7 @@ import { memo, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { motion } from "motion/react";
 import { ArrowRight, FolderOpen } from "lucide-react";
+import { PccAgentLogo } from "@/components/PccAgentLogo";
 import {
   getContinueMessage,
   getNextContinueMessageDelay,
@@ -82,11 +83,9 @@ function GrainOverlay() {
 
 function PccAgentMark() {
   return (
-    <img
-      src="icon.png"
+    <PccAgentLogo
       alt="PccAgent"
       className="h-12 w-12 shrink-0 object-contain sm:h-14 sm:w-14 lg:h-16 lg:w-16"
-      draggable={false}
     />
   );
 }

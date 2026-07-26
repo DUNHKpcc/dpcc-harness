@@ -10,7 +10,7 @@ import type { AppSettings } from "@/types";
 interface AdvancedSettingsProps {
   appSettings: AppSettings | null;
   onUpdateAppSettings: (patch: Partial<AppSettings>) => Promise<void>;
-  /** Resets the welcome wizard so it shows again. Dev-only. */
+  /** Resets the welcome wizard so it shows again. */
   onReplayWelcome: () => void;
 }
 
@@ -121,19 +121,17 @@ export const AdvancedSettings = memo(function AdvancedSettings({
               />
             </SettingRow>
 
-            {isDev && (
-              <SettingRow
-                label={t("advanced.replayWelcomeLabel")}
-                description={t("advanced.replayWelcomeDesc")}
+            <SettingRow
+              label={t("advanced.replayWelcomeLabel")}
+              description={t("advanced.replayWelcomeDesc")}
+            >
+              <button
+                onClick={onReplayWelcome}
+                className="rounded-md border border-foreground/10 bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-foreground/20 hover:bg-foreground/[0.03]"
               >
-                <button
-                  onClick={onReplayWelcome}
-                  className="rounded-md border border-foreground/10 bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-foreground/20 hover:bg-foreground/[0.03]"
-                >
-                  {t("advanced.replay")}
-                </button>
-              </SettingRow>
-            )}
+                {t("advanced.replay")}
+              </button>
+            </SettingRow>
           </SettingsSection>
         </div>
       </ScrollArea>

@@ -419,6 +419,11 @@
       "showOlder": "显示更早版本",
       "showLess": "收起早期版本",
       "entries": {
+        "v2_1_8": {
+          "title": "完善生产构建体验",
+          "packagedLogo": "恢复生产构建中 PccAgent Logo 的显示，包括侧边栏、欢迎页、账户入口与设置页。",
+          "welcomeReplay": "生产构建现可在高级设置中重新返回欢迎页。"
+        },
         "v2_1_7": {
           "title": "安全授权与可靠 Session",
           "browserAuthorization": "新增完整的浏览器授权流程，以英文、简体中文和繁体中文清晰呈现授权成功、拒绝、过期与错误状态。",

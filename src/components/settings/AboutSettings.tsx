@@ -1,6 +1,7 @@
 import { memo, useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, ExternalLink, Github, Scale, Heart, History } from "lucide-react";
+import { PccAgentLogo } from "@/components/PccAgentLogo";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SettingsHeader } from "@/components/settings/shared";
 import {
@@ -9,18 +10,6 @@ import {
   isCurrentRelease,
   releaseTranslationKey,
 } from "@/lib/release-history";
-
-// ── PccAgent logo mark — app icon image ──
-
-function PccAgentLogo({ className }: { className: string }) {
-  return (
-    <img
-      src="icon.png"
-      alt="PccAgent"
-      className={className}
-    />
-  );
-}
 
 // ── Link row component ──
 
@@ -184,7 +173,10 @@ export const AboutSettings = memo(function AboutSettings() {
         <div className="px-6 py-5">
           {/* ── App identity ── */}
           <div className="flex items-start gap-4">
-            <PccAgentLogo className="h-12 w-12 shrink-0 text-foreground" />
+            <PccAgentLogo
+              alt="PccAgent"
+              className="h-12 w-12 shrink-0 text-foreground"
+            />
             <div className="min-w-0">
               <h3 className="text-lg font-semibold tracking-tight text-foreground">
                 PccAgent

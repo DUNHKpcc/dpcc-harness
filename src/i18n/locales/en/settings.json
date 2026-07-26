@@ -419,6 +419,11 @@
       "showOlder": "Show older releases",
       "showLess": "Hide older releases",
       "entries": {
+        "v2_1_8": {
+          "title": "Packaged app polish",
+          "packagedLogo": "Restored the PccAgent logo throughout packaged builds, including the sidebar, welcome screen, account entry, and Settings.",
+          "welcomeReplay": "Made Replay welcome available from Advanced settings in production builds."
+        },
         "v2_1_7": {
           "title": "Secure authorization and reliable sessions",
           "browserAuthorization": "Added a polished browser authorization flow with clear success, denial, expiry, and error states in English, Simplified Chinese, and Traditional Chinese.",

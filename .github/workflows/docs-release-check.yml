@@ -10,6 +10,7 @@ on:
       - "shared/contracts/**"
       - "scripts/check-release-docs.mjs"
       - "scripts/check-test-map.mjs"
+      - ".github/workflows/docs-release-check.yml"
       - "package.json"
       - "pnpm-lock.yaml"
   push:
@@ -23,6 +24,7 @@ on:
       - "shared/contracts/**"
       - "scripts/check-release-docs.mjs"
       - "scripts/check-test-map.mjs"
+      - ".github/workflows/docs-release-check.yml"
       - "package.json"
       - "pnpm-lock.yaml"
 

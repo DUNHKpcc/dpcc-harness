@@ -107,6 +107,10 @@ describe("desktop account authorization primitives", () => {
       kind: "success",
       acceptLanguage: "zh-CN,zh;q=0.9,en;q=0.8",
     });
+    const traditionalChinesePage = renderAccountAuthorizationPage({
+      kind: "success",
+      acceptLanguage: "zh-Hant-HK,zh-Hant;q=0.9,en;q=0.8",
+    });
     const englishPage = renderAccountAuthorizationPage({
       kind: "success",
       acceptLanguage: "en-US,en;q=0.9,zh;q=0.8",
@@ -116,8 +120,47 @@ describe("desktop account authorization primitives", () => {
     expect(chinesePage).toContain("<title>授权已接收 | PccAgent</title>");
     expect(chinesePage).toContain("本地授权交接完成");
     expect(chinesePage).toContain("现在可以安全关闭此页面。");
+    expect(traditionalChinesePage).toContain("<html lang=\"zh-TW\"");
+    expect(traditionalChinesePage).toContain("<title>已收到授權 | PccAgent</title>");
+    expect(traditionalChinesePage).toContain("本機授權交接完成");
+    expect(traditionalChinesePage).toContain("現在可以安全關閉此頁面。");
     expect(englishPage).toContain("<html lang=\"en\"");
     expect(englishPage).toContain("<title>Authorization received | PccAgent</title>");
+  });
+
+  it.each([
+    {
+      kind: "cancelled" as const,
+      expectedCaption: "Authorization cancelled",
+      expectedNote: "No authorization credentials were delivered to PccAgent.",
+    },
+    {
+      kind: "invalid-host" as const,
+      expectedCaption: "Callback rejected",
+      expectedNote: "PccAgent rejected this callback before completing account setup.",
+    },
+    {
+      kind: "state-mismatch" as const,
+      expectedCaption: "Security check failed",
+      expectedNote: "PccAgent rejected this callback before completing account setup.",
+    },
+    {
+      kind: "invalid-response" as const,
+      expectedCaption: "Invalid callback response",
+      expectedNote: "PccAgent rejected this callback before completing account setup.",
+    },
+  ])("keeps the $kind handoff copy consistent with its result", ({
+    kind,
+    expectedCaption,
+    expectedNote,
+  }) => {
+    const page = renderAccountAuthorizationPage({ kind });
+
+    expect(page).toContain(expectedCaption);
+    expect(page).toContain(expectedNote);
+    expect(page).toContain("Return to PccAgent");
+    expect(page).not.toContain("Authorization response received");
+    expect(page).not.toContain("Continue in PccAgent");
   });
 
   it("uses the Anthropic clay color for successful authorization", () => {
@@ -253,7 +296,12 @@ describe("desktop account authorization primitives", () => {
     callbackUrl.searchParams.set("state", "attacker-state");
     callbackUrl.searchParams.set("code", "stolen-code");
 
-    expect((await fetch(callbackUrl)).status).toBe(400);
+    const response = await fetch(callbackUrl);
+    expect(response.status).toBe(400);
+    const page = await response.text();
+    expect(page).toContain("Security check failed");
+    expect(page).toContain("PccAgent rejected this callback before completing account setup.");
+    expect(page).not.toContain("Authorization response received");
     await expect(receiver.callback).rejects.toMatchObject({
       code: "callback_state_mismatch",
     });

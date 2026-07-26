@@ -10,16 +10,13 @@ interface AccountAuthorizationPageOptions {
   acceptLanguage?: string | string[];
 }
 
-type AccountAuthorizationPageLocale = "en" | "zh-CN";
+type AccountAuthorizationPageLocale = "en" | "zh-CN" | "zh-TW";
 type AccountAuthorizationPageTone = "success" | "cancelled" | "error";
 
 interface AccountAuthorizationPageCopy {
   handoffLabel: string;
   browser: string;
-  browserCaption: string;
-  destination: string;
   destinationCaption: string;
-  note: string;
   footer: string;
   closeCue: string;
   states: Record<
@@ -28,6 +25,9 @@ interface AccountAuthorizationPageCopy {
       status: string;
       title: string;
       message: string;
+      browserCaption: string;
+      destination: string;
+      note: string;
     }
   >;
 }
@@ -56,10 +56,7 @@ const pageCopy: Record<
   en: {
     handoffLabel: "Authorization handoff",
     browser: "Browser",
-    browserCaption: "Authorization reviewed",
-    destination: "Continue in PccAgent",
     destinationCaption: "Desktop app",
-    note: "This callback was delivered directly to PccAgent on this device.",
     footer: "Secure browser authorization",
     closeCue: "You can safely close this tab.",
     states: {
@@ -68,39 +65,51 @@ const pageCopy: Record<
         title: "Authorization received",
         message:
           "PccAgent is securely completing setup. You can close this tab and continue in the app.",
+        browserCaption: "Authorization response received",
+        destination: "Continue in PccAgent",
+        note: "This callback was delivered directly to PccAgent on this device.",
       },
       cancelled: {
         status: "No access was granted",
         title: "Authorization cancelled",
         message:
           "No changes were made. Return to PccAgent whenever you are ready.",
+        browserCaption: "Authorization cancelled",
+        destination: "Return to PccAgent",
+        note: "No authorization credentials were delivered to PccAgent.",
       },
       "invalid-host": {
         status: "Connection could not be verified",
         title: "Authorization failed",
         message: "The callback host was invalid. Return to PccAgent and try again.",
+        browserCaption: "Callback rejected",
+        destination: "Return to PccAgent",
+        note: "PccAgent rejected this callback before completing account setup.",
       },
       "state-mismatch": {
         status: "Connection could not be verified",
         title: "Authorization failed",
         message:
           "The authorization state did not match. Return to PccAgent and start again.",
+        browserCaption: "Security check failed",
+        destination: "Return to PccAgent",
+        note: "PccAgent rejected this callback before completing account setup.",
       },
       "invalid-response": {
         status: "Connection could not be verified",
         title: "Authorization failed",
         message:
           "The callback response was invalid. Return to PccAgent and try again.",
+        browserCaption: "Invalid callback response",
+        destination: "Return to PccAgent",
+        note: "PccAgent rejected this callback before completing account setup.",
       },
     },
   },
   "zh-CN": {
     handoffLabel: "授权交接状态",
     browser: "浏览器",
-    browserCaption: "已确认账户授权",
-    destination: "返回 PccAgent",
     destinationCaption: "桌面应用",
-    note: "此授权回调已通过本机连接直接交付给 PccAgent。",
     footer: "安全浏览器授权",
     closeCue: "现在可以安全关闭此页面。",
     states: {
@@ -109,26 +118,91 @@ const pageCopy: Record<
         title: "授权已接收",
         message:
           "PccAgent 正在安全地完成账户连接。你可以关闭此页面，并返回应用继续使用。",
+        browserCaption: "已收到授权响应",
+        destination: "继续使用 PccAgent",
+        note: "此授权回调已通过本机连接直接交付给 PccAgent。",
       },
       cancelled: {
         status: "未授予任何访问权限",
         title: "授权已取消",
         message: "未对账户进行任何更改。准备好后可返回 PccAgent 重新发起授权。",
+        browserCaption: "授权已取消",
+        destination: "返回 PccAgent",
+        note: "没有任何授权凭据交付给 PccAgent。",
       },
       "invalid-host": {
         status: "无法验证连接",
         title: "授权失败",
         message: "授权回调的主机地址无效。请返回 PccAgent 后重试。",
+        browserCaption: "回调已被拒绝",
+        destination: "返回 PccAgent",
+        note: "PccAgent 已拒绝此回调，账户连接尚未完成。",
       },
       "state-mismatch": {
         status: "无法验证连接",
         title: "授权失败",
         message: "授权状态校验失败。请返回 PccAgent 重新发起授权。",
+        browserCaption: "安全校验失败",
+        destination: "返回 PccAgent",
+        note: "PccAgent 已拒绝此回调，账户连接尚未完成。",
       },
       "invalid-response": {
         status: "无法验证连接",
         title: "授权失败",
         message: "授权回调内容无效。请返回 PccAgent 后重试。",
+        browserCaption: "回调内容无效",
+        destination: "返回 PccAgent",
+        note: "PccAgent 已拒绝此回调，账户连接尚未完成。",
+      },
+    },
+  },
+  "zh-TW": {
+    handoffLabel: "授權交接狀態",
+    browser: "瀏覽器",
+    destinationCaption: "桌面應用程式",
+    footer: "安全瀏覽器授權",
+    closeCue: "現在可以安全關閉此頁面。",
+    states: {
+      success: {
+        status: "本機授權交接完成",
+        title: "已收到授權",
+        message:
+          "PccAgent 正在安全完成帳戶連線。你可以關閉此頁面，並返回應用程式繼續使用。",
+        browserCaption: "已收到授權回應",
+        destination: "繼續使用 PccAgent",
+        note: "此授權回呼已透過本機連線直接交付給 PccAgent。",
+      },
+      cancelled: {
+        status: "未授予任何存取權限",
+        title: "授權已取消",
+        message: "未變更帳戶。準備好後可返回 PccAgent 重新發起授權。",
+        browserCaption: "授權已取消",
+        destination: "返回 PccAgent",
+        note: "未將任何授權憑證交付給 PccAgent。",
+      },
+      "invalid-host": {
+        status: "無法驗證連線",
+        title: "授權失敗",
+        message: "授權回呼的主機位址無效。請返回 PccAgent 後重試。",
+        browserCaption: "回呼已被拒絕",
+        destination: "返回 PccAgent",
+        note: "PccAgent 已拒絕此回呼，帳戶連線尚未完成。",
+      },
+      "state-mismatch": {
+        status: "無法驗證連線",
+        title: "授權失敗",
+        message: "授權狀態驗證失敗。請返回 PccAgent 重新發起授權。",
+        browserCaption: "安全驗證失敗",
+        destination: "返回 PccAgent",
+        note: "PccAgent 已拒絕此回呼，帳戶連線尚未完成。",
+      },
+      "invalid-response": {
+        status: "無法驗證連線",
+        title: "授權失敗",
+        message: "授權回呼內容無效。請返回 PccAgent 後重試。",
+        browserCaption: "回呼內容無效",
+        destination: "返回 PccAgent",
+        note: "PccAgent 已拒絕此回呼，帳戶連線尚未完成。",
       },
     },
   },
@@ -182,10 +256,28 @@ export function renderAccountAuthorizationPage(
       || entry.tag === "zh"
       || entry.tag.startsWith("zh-"),
   );
-  const locale: AccountAuthorizationPageLocale = preferredLanguage
-    && (preferredLanguage.tag === "zh" || preferredLanguage.tag.startsWith("zh-"))
-    ? "zh-CN"
-    : "en";
+  let locale: AccountAuthorizationPageLocale = "en";
+  if (
+    preferredLanguage
+    && (
+      preferredLanguage.tag === "zh"
+      || preferredLanguage.tag.startsWith("zh-")
+    )
+  ) {
+    const tag = preferredLanguage.tag;
+    locale = (
+      tag === "zh-tw"
+      || tag.startsWith("zh-tw-")
+      || tag === "zh-hk"
+      || tag.startsWith("zh-hk-")
+      || tag === "zh-mo"
+      || tag.startsWith("zh-mo-")
+      || tag === "zh-hant"
+      || tag.startsWith("zh-hant-")
+    )
+      ? "zh-TW"
+      : "zh-CN";
+  }
   const tone = pageTones[options.kind];
   const copy = pageCopy[locale];
   const stateCopy = copy.states[options.kind];
@@ -790,7 +882,7 @@ export function renderAccountAuthorizationPage(
           </span>
           <span>
             <span class="endpoint-title">${escapeHtml(copy.browser)}</span>
-            <span class="endpoint-caption">${escapeHtml(copy.browserCaption)}</span>
+            <span class="endpoint-caption">${escapeHtml(stateCopy.browserCaption)}</span>
           </span>
         </div>
 
@@ -801,7 +893,7 @@ export function renderAccountAuthorizationPage(
 
         <div class="endpoint">
           <span>
-            <span class="endpoint-title">${escapeHtml(copy.destination)}</span>
+            <span class="endpoint-title">${escapeHtml(stateCopy.destination)}</span>
             <span class="endpoint-caption">${escapeHtml(copy.destinationCaption)}</span>
           </span>
           <span class="endpoint-icon" aria-hidden="true">
@@ -818,7 +910,7 @@ export function renderAccountAuthorizationPage(
           <rect x="5" y="10" width="14" height="10" rx="2" />
           <path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v2" />
         </svg>
-        <span>${escapeHtml(copy.note)}</span>
+        <span>${escapeHtml(stateCopy.note)}</span>
       </p>
     </main>
 

@@ -419,6 +419,15 @@
       "showOlder": "显示更早版本",
       "showLess": "收起早期版本",
       "entries": {
+        "v2_1_7": {
+          "title": "安全授权与可靠 Session",
+          "browserAuthorization": "新增完整的浏览器授权流程，以英文、简体中文和繁体中文清晰呈现授权成功、拒绝、过期与错误状态。",
+          "sessionReliability": "增强账户与 agent session 生命周期管理，改善重启、退出、并发请求和本机历史恢复时的稳定性。",
+          "upstreamCredentials": "新增按 engine 隔离的安全上游授权 key，并完善凭证创建、撤销、刷新与迁移流程。",
+          "crossPlatform": "改善 macOS、Windows 与 Linux 上的进程、存储、通知和窗口行为。",
+          "performance": "减少 renderer 启动开销并优化生产构建，让桌面端启动和运行更快、更稳定。",
+          "runtimeUpdate": "内置 Claude Agent SDK 更新至 0.3.220，获得最新 runtime 修复与平台支持。"
+        },
         "v2_1_6": {
           "title": "Microsoft Store、托盘工作流与原生通知",
           "windowsStore": "新增 Microsoft Store 安装包与符合 Windows 规范的应用、任务栏、开始菜单和商店图标，同时继续聚焦 Windows x64。",

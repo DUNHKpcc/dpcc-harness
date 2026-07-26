@@ -71,33 +71,10 @@ jobs:
             exit 0
           fi
 
-          PREV_TAG=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 20 --json tagName --jq "[.[].tagName | select(. != \"$TAG\")][0] // \"\"")
-
-          cat > release-notes.md <<EOF
-          ## Changes
-
-          ### Windows
-          - Added the x64 Microsoft Store package with Partner Center identity.
-          - Kept Windows Diagnostic on the normal user profile while disabling its auto-updater.
-          - Removed unused Windows ARM64 and native build resources from x64 packages.
-
-          ### Tests
-          - Added regression coverage for Store packaging, Diagnostic access, and x64 resource pruning.
-          EOF
-
-          if [ -n "$PREV_TAG" ]; then
-            cat >> release-notes.md <<EOF
-
-          ---
-
-          **Full Changelog**: https://github.com/DUNHKpcc/dpcc-harness/compare/${PREV_TAG}...${TAG}
-          EOF
-          fi
-
           gh release create "$TAG" \
             --repo "$GITHUB_REPOSITORY" \
-            --title "$TAG — Windows Store Packaging" \
-            --notes-file release-notes.md
+            --title "$TAG" \
+            --generate-notes
 
   # macOS: build both arm64 + x64 in one job so electron-builder writes a single
   # latest-mac.yml containing both architectures. Separate jobs race and the last

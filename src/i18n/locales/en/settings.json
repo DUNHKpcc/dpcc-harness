@@ -419,6 +419,15 @@
       "showOlder": "Show older releases",
       "showLess": "Hide older releases",
       "entries": {
+        "v2_1_7": {
+          "title": "Secure authorization and reliable sessions",
+          "browserAuthorization": "Added a polished browser authorization flow with clear success, denial, expiry, and error states in English, Simplified Chinese, and Traditional Chinese.",
+          "sessionReliability": "Hardened account and agent session lifecycle handling across restarts, shutdowns, concurrent requests, and local history recovery.",
+          "upstreamCredentials": "Added secure per-engine upstream authorization keys and improved credential creation, revocation, refresh, and migration behavior.",
+          "crossPlatform": "Improved process, storage, notification, and window behavior across macOS, Windows, and Linux.",
+          "performance": "Reduced renderer startup work and tightened production builds for a faster, more predictable desktop experience.",
+          "runtimeUpdate": "Updated the bundled Claude Agent SDK to 0.3.220 for the latest runtime fixes and platform support."
+        },
         "v2_1_6": {
           "title": "Windows Store, tray workflow, and native notifications",
           "windowsStore": "Added a Microsoft Store package with Windows-native app, taskbar, Start menu, and Store artwork, while keeping the download focused on Windows x64.",

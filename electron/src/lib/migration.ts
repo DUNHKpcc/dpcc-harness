@@ -16,19 +16,9 @@ import { app } from "electron";
 import { log } from "./logger";
 import { reportError } from "./error-utils";
 
-/** Construct the old "OpenACP UI" userData path for each platform. */
+/** Construct the old "OpenACP UI" userData path using Electron's platform-aware appData root. */
 function getOldUserDataPath(): string {
-  switch (process.platform) {
-    case "darwin":
-      return path.join(app.getPath("appData"), "OpenACP UI");
-    case "win32":
-      return path.join(app.getPath("appData"), "OpenACP UI");
-    case "linux":
-      // Electron uses ~/.config/{productName} on Linux
-      return path.join(app.getPath("home"), ".config", "OpenACP UI");
-    default:
-      return path.join(app.getPath("appData"), "OpenACP UI");
-  }
+  return path.join(app.getPath("appData"), "OpenACP UI");
 }
 
 /** Clean up orphaned updater cache from the old app name. */

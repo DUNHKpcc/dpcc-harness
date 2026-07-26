@@ -1,5 +1,5 @@
 import { ipcMain, shell } from "electron";
-import type { BrowserWindow } from "electron";
+import type { BrowserWindow, WebContents } from "electron";
 import path from "path";
 import fs from "fs";
 import { promises as fsPromises } from "fs";
@@ -19,8 +19,8 @@ import {
 } from "@shared/lib/file-watch-events";
 
 function listFilesGit(cwd: string): Promise<string[]> {
-  return gitExec(["ls-files", "--cached", "--others", "--exclude-standard"], cwd)
-    .then((stdout) => stdout.split("\n").filter((f) => f.trim()).sort());
+  return gitExec(["ls-files", "-z", "--cached", "--others", "--exclude-standard"], cwd)
+    .then((stdout) => stdout.split("\0").filter((file) => file.length > 0).sort());
 }
 
 function parseGitignore(gitignorePath: string): string[] {
@@ -117,21 +117,47 @@ const EXPLORER_SKIP = new Set([".git", ".hg", ".svn", "node_modules"]);
 // no thousands of individual watchers, instant setup and teardown.
 
 interface ProjectWatchState {
-  refCount: number;
+  subscriberCounts: Map<number, number>;
   watcher: fs.FSWatcher;
   notifyTimer?: ReturnType<typeof setTimeout>;
   pendingEvents: FileWatchEvent[];
 }
 
 const projectWatchers = new Map<string, ProjectWatchState>();
+const trackedWatcherSubscribers = new WeakSet<WebContents>();
+
+function disposeProjectWatcherSubscriber(subscriberId: number): void {
+  for (const [cwd, state] of projectWatchers) {
+    state.subscriberCounts.delete(subscriberId);
+    if (state.subscriberCounts.size === 0) {
+      stopProjectWatcher(cwd);
+    }
+  }
+}
+
+function trackProjectWatcherSubscriber(sender: WebContents): void {
+  if (trackedWatcherSubscribers.has(sender)) return;
+  trackedWatcherSubscribers.add(sender);
+
+  const dispose = () => disposeProjectWatcherSubscriber(sender.id);
+  sender.on("render-process-gone", dispose);
+  sender.on("did-start-navigation", (_event, _url, isInPlace, isMainFrame) => {
+    if (isMainFrame && !isInPlace) dispose();
+  });
+  sender.once("destroyed", dispose);
+}
 
 function startProjectWatcher(
   cwd: string,
+  subscriberId: number,
   getMainWindow: () => BrowserWindow | null,
 ): void {
   const existing = projectWatchers.get(cwd);
   if (existing) {
-    existing.refCount += 1;
+    existing.subscriberCounts.set(
+      subscriberId,
+      (existing.subscriberCounts.get(subscriberId) ?? 0) + 1,
+    );
     return;
   }
 
@@ -163,22 +189,35 @@ function startProjectWatcher(
   });
 
   projectWatchers.set(cwd, {
-    refCount: 1,
+    subscriberCounts: new Map([[subscriberId, 1]]),
     watcher,
     pendingEvents: [],
   });
 }
 
-function stopProjectWatcher(cwd: string): void {
+function stopProjectWatcher(cwd: string, subscriberId?: number): void {
   const state = projectWatchers.get(cwd);
   if (!state) return;
 
-  state.refCount = Math.max(0, state.refCount - 1);
-  if (state.refCount > 0) return;
+  if (subscriberId !== undefined) {
+    const nextCount = (state.subscriberCounts.get(subscriberId) ?? 0) - 1;
+    if (nextCount > 0) {
+      state.subscriberCounts.set(subscriberId, nextCount);
+    } else {
+      state.subscriberCounts.delete(subscriberId);
+    }
+    if (state.subscriberCounts.size > 0) return;
+  }
 
   if (state.notifyTimer) clearTimeout(state.notifyTimer);
   state.watcher.close();
   projectWatchers.delete(cwd);
+}
+
+export function disposeAllProjectWatchers(): void {
+  for (const cwd of [...projectWatchers.keys()]) {
+    stopProjectWatcher(cwd);
+  }
 }
 
 /**
@@ -382,9 +421,10 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     }
   });
 
-  ipcMain.handle("files:watch", async (_event, cwd: string) => {
+  ipcMain.handle("files:watch", async (event, cwd: string) => {
     try {
-      startProjectWatcher(cwd, getMainWindow);
+      trackProjectWatcherSubscriber(event.sender);
+      startProjectWatcher(cwd, event.sender.id, getMainWindow);
       return { ok: true };
     } catch (err) {
       const errMsg = reportError("FILES:WATCH_ERR", err, { cwd });
@@ -392,9 +432,9 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     }
   });
 
-  ipcMain.handle("files:unwatch", async (_event, cwd: string) => {
+  ipcMain.handle("files:unwatch", async (event, cwd: string) => {
     try {
-      stopProjectWatcher(cwd);
+      stopProjectWatcher(cwd, event.sender.id);
       return { ok: true };
     } catch (err) {
       const errMsg = reportError("FILES:UNWATCH_ERR", err, { cwd });

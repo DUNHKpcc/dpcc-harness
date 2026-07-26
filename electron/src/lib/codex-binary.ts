@@ -46,6 +46,18 @@ function getManagedBinDir(): string {
   return dir;
 }
 
+function getManagedVendorDir(): string {
+  return path.join(
+    getManagedBinDir(),
+    "codex-vendor",
+    getVendorTargetTriple() ?? getPlatformTag(),
+  );
+}
+
+function getManagedVendorBackupDir(): string {
+  return `${getManagedVendorDir()}.backup`;
+}
+
 /**
  * Path to the Codex binary bundled into the packaged app via extraResources
  * (build/codex-vendor → {resourcesPath}/codex-vendor). The full vendor layout
@@ -63,7 +75,42 @@ function getBundledBinaryPath(): string | null {
 
 function getManagedBinaryPath(): string {
   const name = process.platform === "win32" ? "codex.exe" : "codex";
+  return path.join(getManagedVendorDir(), "bin", name);
+}
+
+function getLegacyManagedBinaryPath(): string {
+  const name = process.platform === "win32" ? "codex.exe" : "codex";
   return path.join(getManagedBinDir(), name);
+}
+
+function recoverInterruptedManagedInstall(): void {
+  const managedVendorDir = getManagedVendorDir();
+  const backupDir = getManagedVendorBackupDir();
+  if (!fs.existsSync(backupDir)) return;
+
+  const binaryName = process.platform === "win32" ? "codex.exe" : "codex";
+  const managedBinary = path.join(managedVendorDir, "bin", binaryName);
+  const backupBinary = path.join(backupDir, "bin", binaryName);
+  try {
+    if (!isExecutable(managedBinary) && isExecutable(backupBinary)) {
+      fs.rmSync(managedVendorDir, { recursive: true, force: true });
+      fs.renameSync(backupDir, managedVendorDir);
+      return;
+    }
+    if (isExecutable(managedBinary)) {
+      fs.rmSync(backupDir, { recursive: true, force: true });
+    }
+  } catch (err) {
+    reportError("CODEX:MANAGED_RECOVERY_ERR", err);
+  }
+}
+
+function getInstalledManagedBinaryPath(): string | null {
+  recoverInterruptedManagedInstall();
+  const managed = getManagedBinaryPath();
+  if (isExecutable(managed)) return managed;
+  const legacy = getLegacyManagedBinaryPath();
+  return isExecutable(legacy) ? legacy : null;
 }
 
 function isExecutable(filePath: string): boolean {
@@ -115,8 +162,8 @@ function resolveCodexPathSync(): string {
   }
 
   if (source === "managed") {
-    const managedOnly = getManagedBinaryPath();
-    if (isExecutable(managedOnly)) return managedOnly;
+    const managedOnly = getInstalledManagedBinaryPath();
+    if (managedOnly) return managedOnly;
     throw new Error("Managed Codex binary not found");
   }
 
@@ -125,8 +172,8 @@ function resolveCodexPathSync(): string {
   if (envPath && isExecutable(envPath)) return envPath;
 
   // 2. Managed copy
-  const managed = getManagedBinaryPath();
-  if (isExecutable(managed)) return managed;
+  const managed = getInstalledManagedBinaryPath();
+  if (managed) return managed;
 
   // 3. Known install locations — checked BEFORE system PATH because
   //    the Codex Desktop app bundle ships a newer binary that supports
@@ -206,7 +253,7 @@ function writeManagedMeta(meta: ManagedCodexMeta): void {
 }
 
 function isManagedBinaryRefreshDue(): boolean {
-  if (!isExecutable(getManagedBinaryPath())) return false;
+  if (!getInstalledManagedBinaryPath()) return false;
   const meta = readManagedMeta();
   if (!meta) return true;
   if (meta.platformTag !== getPlatformTag()) return true;
@@ -233,7 +280,11 @@ export async function getCodexBinaryPath(): Promise<string> {
     // "auto" mode the bundled binary is used offline and updates are opt-in via
     // the manual "check for updates" action (downloadCodexUpdate). This keeps
     // "auto" fully offline / no silent network refresh.
-    if (source === "managed" && cachedPath === getManagedBinaryPath() && isManagedBinaryRefreshDue()) {
+    if (
+      source === "managed"
+      && cachedPath === getInstalledManagedBinaryPath()
+      && isManagedBinaryRefreshDue()
+    ) {
       try {
         log("codex-binary", "Managed codex is stale; refreshing via npm...");
         cachedPath = await downloadCodexBinary();
@@ -285,7 +336,12 @@ function classifyCodexOrigin(resolvedPath: string): CodexBinaryOrigin {
   if (process.env.CODEX_CLI_PATH && path.resolve(process.env.CODEX_CLI_PATH) === path.resolve(resolvedPath)) {
     return "env";
   }
-  if (resolvedPath === getManagedBinaryPath()) return "managed";
+  if (
+    resolvedPath === getManagedBinaryPath()
+    || resolvedPath === getLegacyManagedBinaryPath()
+  ) {
+    return "managed";
+  }
   const bundled = getBundledBinaryPath();
   if (bundled && resolvedPath === bundled) return "bundled";
   if (KNOWN_PATHS.includes(resolvedPath)) return "known";
@@ -316,7 +372,7 @@ export async function getCodexBinaryInfo(): Promise<{
     origin,
     version: await getCodexVersion(),
     hasBundled: getBundledBinaryPath() != null,
-    hasManaged: isExecutable(getManagedBinaryPath()),
+    hasManaged: getInstalledManagedBinaryPath() != null,
   };
 }
 
@@ -454,6 +510,8 @@ function getVendorTargetTriple(): string | null {
 export const __test = {
   getPlatformTag,
   getVendorTargetTriple,
+  recoverInterruptedManagedInstall,
+  replaceManagedVendorDirectory,
 };
 
 function resolveBinaryFromPackageJson(packageRoot: string): string | null {
@@ -485,6 +543,38 @@ function readExtractedPackageVersion(packageRoot: string): string | null {
   }
 }
 
+function replaceManagedVendorDirectory(stagingDir: string): void {
+  const managedVendorDir = getManagedVendorDir();
+  const backupDir = getManagedVendorBackupDir();
+  fs.mkdirSync(path.dirname(managedVendorDir), { recursive: true });
+  recoverInterruptedManagedInstall();
+  fs.rmSync(backupDir, { recursive: true, force: true });
+
+  let movedExistingInstall = false;
+  if (fs.existsSync(managedVendorDir)) {
+    fs.renameSync(managedVendorDir, backupDir);
+    movedExistingInstall = true;
+  }
+
+  try {
+    fs.renameSync(stagingDir, managedVendorDir);
+  } catch (err) {
+    fs.rmSync(managedVendorDir, { recursive: true, force: true });
+    if (movedExistingInstall && fs.existsSync(backupDir)) {
+      fs.renameSync(backupDir, managedVendorDir);
+    }
+    throw err;
+  }
+
+  if (movedExistingInstall) {
+    try {
+      fs.rmSync(backupDir, { recursive: true, force: true });
+    } catch (err) {
+      reportError("CODEX:MANAGED_BACKUP_CLEANUP_ERR", err);
+    }
+  }
+}
+
 function findBinaryInPackage(root: string, binaryName: string): string | null {
   const queue = [root];
   while (queue.length > 0) {
@@ -510,9 +600,27 @@ function findBinaryInPackage(root: string, binaryName: string): string | null {
   return null;
 }
 
+function resolveVendorSource(packageRoot: string): string | null {
+  const vendorRoot = path.join(packageRoot, "vendor");
+  if (!fs.existsSync(vendorRoot)) return null;
+
+  const targetTriple = getVendorTargetTriple();
+  if (targetTriple) {
+    const exact = path.join(vendorRoot, targetTriple);
+    if (fs.existsSync(exact)) return exact;
+  }
+
+  const vendorDirs = fs
+    .readdirSync(vendorRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => path.join(vendorRoot, entry.name));
+  return vendorDirs.length === 1 ? vendorDirs[0] : null;
+}
+
 /**
  * Download the codex binary via `npm pack @openai/codex@<platform-tag>`.
- * Extracts the binary and moves it to our managed bin directory.
+ * Preserves the complete vendor layout because Codex resolves bundled tools
+ * and metadata relative to the executable.
  */
 async function downloadCodexBinary(): Promise<string> {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "codex-download-"));
@@ -537,37 +645,49 @@ async function downloadCodexBinary(): Promise<string> {
     execFileSync("tar", ["xzf", tgzPath], { cwd: tmpDir, timeout: 30000 });
 
     const packageRoot = path.join(tmpDir, "package");
-    // The binary is at package/bin/codex (or package/bin/codex.exe on Windows)
     const binaryName = process.platform === "win32" ? "codex.exe" : "codex";
-    const extractedBinary = path.join(packageRoot, "bin", binaryName);
+    const vendorSource = resolveVendorSource(packageRoot);
+    const stagingDir = fs.mkdtempSync(path.join(getManagedBinDir(), ".codex-vendor-"));
 
-    if (!fs.existsSync(extractedBinary)) {
-      const vendorTriple = getVendorTargetTriple();
-      const vendorBinary = vendorTriple
-        ? path.join(packageRoot, "vendor", vendorTriple, "codex", binaryName)
-        : null;
-
-      // Fallback: alternate package layouts (root or vendor/<target>/codex/)
-      const altPaths = [
-        resolveBinaryFromPackageJson(packageRoot),
-        vendorBinary,
-        path.join(packageRoot, binaryName),
-        path.join(packageRoot, "codex"),
-        findBinaryInPackage(packageRoot, binaryName),
-      ].filter((p): p is string => typeof p === "string");
-      const found = altPaths.find((p) => fs.existsSync(p));
-      if (!found) {
-        // List what's in the package for debugging
-        const contents = listFilesRecursive(packageRoot, 20);
-        throw new Error(`Codex binary not found in package. Contents:\n${contents}`);
+    try {
+      if (vendorSource) {
+        fs.cpSync(vendorSource, stagingDir, { recursive: true });
+      } else {
+        const fallbackPaths = [
+          path.join(packageRoot, "bin", binaryName),
+          resolveBinaryFromPackageJson(packageRoot),
+          path.join(packageRoot, binaryName),
+          path.join(packageRoot, "codex"),
+          findBinaryInPackage(packageRoot, binaryName),
+        ].filter((candidate): candidate is string => typeof candidate === "string");
+        const fallbackBinary = fallbackPaths.find((candidate) => fs.existsSync(candidate));
+        if (!fallbackBinary) {
+          const contents = listFilesRecursive(packageRoot, 20);
+          throw new Error(`Codex binary not found in package. Contents:\n${contents}`);
+        }
+        const stagingBinDir = path.join(stagingDir, "bin");
+        fs.mkdirSync(stagingBinDir, { recursive: true });
+        fs.copyFileSync(fallbackBinary, path.join(stagingBinDir, binaryName));
       }
-      fs.copyFileSync(found, getManagedBinaryPath());
-    } else {
-      fs.copyFileSync(extractedBinary, getManagedBinaryPath());
+
+      const stagingBinary = path.join(stagingDir, "bin", binaryName);
+      if (!fs.existsSync(stagingBinary)) {
+        const contents = listFilesRecursive(stagingDir, 20);
+        throw new Error(`Codex vendor entrypoint not found. Contents:\n${contents}`);
+      }
+
+      fs.chmodSync(stagingBinary, 0o755);
+      const rgName = process.platform === "win32" ? "rg.exe" : "rg";
+      const bundledRg = path.join(stagingDir, "codex-path", rgName);
+      if (fs.existsSync(bundledRg)) {
+        fs.chmodSync(bundledRg, 0o755);
+      }
+
+      replaceManagedVendorDirectory(stagingDir);
+    } finally {
+      fs.rmSync(stagingDir, { recursive: true, force: true });
     }
 
-    // Ensure executable
-    fs.chmodSync(getManagedBinaryPath(), 0o755);
     const packageVersion = readExtractedPackageVersion(packageRoot);
     if (packageVersion) {
       writeManagedMeta({
@@ -577,6 +697,9 @@ async function downloadCodexBinary(): Promise<string> {
       });
     }
 
+    // The legacy managed install contained only the executable. Remove it only
+    // after the complete vendor directory has been installed successfully.
+    fs.rmSync(getLegacyManagedBinaryPath(), { force: true });
     return getManagedBinaryPath();
   } finally {
     // Clean up temp dir

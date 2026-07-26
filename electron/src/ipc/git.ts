@@ -62,6 +62,21 @@ export const NON_GIT_REPOSITORY_STATUS_CACHE_TTL_MS = 30_000;
 const gitErrorLogTimes = new Map<string, number>();
 const nonGitStatusCache = new Map<string, { error: string; expiresAt: number }>();
 
+function splitStatusRecord(
+  record: string,
+  fieldCount: number,
+): { fields: string[]; path: string } | null {
+  const fields: string[] = [];
+  let cursor = 0;
+  for (let index = 0; index < fieldCount; index++) {
+    const separator = record.indexOf(" ", cursor);
+    if (separator < 0) return null;
+    fields.push(record.slice(cursor, separator));
+    cursor = separator + 1;
+  }
+  return { fields, path: record.slice(cursor) };
+}
+
 /** Run a shell command in a given cwd, returning stdout. */
 function shellExec(command: string, cwd: string): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -233,44 +248,44 @@ export function register(): void {
     }
 
     try {
-      const raw = await gitExec(["status", "--porcelain=v2", "--branch"], cwd);
+      const raw = await gitExec(["status", "--porcelain=v2", "--branch", "-z"], cwd);
       nonGitStatusCache.delete(cacheKey);
-      const lines = raw.split("\n");
+      const records = raw.split("\0");
       let branch = "HEAD";
       let upstream: string | undefined;
       let ahead = 0;
       let behind = 0;
       const files: Array<{ path: string; oldPath?: string; status: string; group: string }> = [];
+      const statusMap: Record<string, string> = {
+        M: "modified",
+        A: "added",
+        D: "deleted",
+        R: "renamed",
+        C: "copied",
+        U: "unmerged",
+      };
 
-      for (const line of lines) {
-        if (line.startsWith("# branch.head ")) {
-          branch = line.slice("# branch.head ".length);
-        } else if (line.startsWith("# branch.upstream ")) {
-          upstream = line.slice("# branch.upstream ".length);
-        } else if (line.startsWith("# branch.ab ")) {
-          const match = line.match(/\+(\d+) -(\d+)/);
+      for (let index = 0; index < records.length; index++) {
+        const record = records[index];
+        if (record.startsWith("# branch.head ")) {
+          branch = record.slice("# branch.head ".length);
+        } else if (record.startsWith("# branch.upstream ")) {
+          upstream = record.slice("# branch.upstream ".length);
+        } else if (record.startsWith("# branch.ab ")) {
+          const match = record.match(/\+(\d+) -(\d+)/);
           if (match) {
             ahead = parseInt(match[1], 10);
             behind = parseInt(match[2], 10);
           }
-        } else if (line.startsWith("1 ") || line.startsWith("2 ")) {
-          const parts = line.split(" ");
-          const xy = parts[1];
-          const isRename = line.startsWith("2 ");
-          let filePath: string;
-          let oldPath: string | undefined;
-          if (isRename) {
-            const rest = parts.slice(8).join(" ");
-            const tabParts = rest.split("\t");
-            filePath = tabParts[0];
-            oldPath = tabParts[1];
-          } else {
-            filePath = parts.slice(8).join(" ");
-          }
-
+        } else if (record.startsWith("1 ") || record.startsWith("2 ")) {
+          const isRename = record.startsWith("2 ");
+          const parsed = splitStatusRecord(record, isRename ? 9 : 8);
+          if (!parsed) continue;
+          const xy = parsed.fields[1];
+          const filePath = parsed.path;
+          const oldPath = isRename ? records[++index] : undefined;
           const x = xy[0];
           const y = xy[1];
-          const statusMap: Record<string, string> = { M: "modified", A: "added", D: "deleted", R: "renamed", C: "copied", U: "unmerged" };
 
           if (x !== "." && x !== "?") {
             files.push({
@@ -287,12 +302,13 @@ export function register(): void {
               group: "unstaged",
             });
           }
-        } else if (line.startsWith("u ")) {
-          const parts = line.split(" ");
-          const filePath = parts.slice(10).join(" ");
-          files.push({ path: filePath, status: "unmerged", group: "unstaged" });
-        } else if (line.startsWith("? ")) {
-          files.push({ path: line.slice(2), status: "untracked", group: "untracked" });
+        } else if (record.startsWith("u ")) {
+          const parsed = splitStatusRecord(record, 10);
+          if (parsed) {
+            files.push({ path: parsed.path, status: "unmerged", group: "unstaged" });
+          }
+        } else if (record.startsWith("? ")) {
+          files.push({ path: record.slice(2), status: "untracked", group: "untracked" });
         }
       }
 

@@ -1,5 +1,6 @@
 import { ipcMain } from "electron";
-import { execFileSync } from "child_process";
+import fs from "fs";
+import path from "path";
 import { loadMcpServers, addMcpServer, removeMcpServer } from "../lib/mcp-store";
 import { authenticateMcpServer } from "../lib/mcp-oauth-flow";
 import { loadOAuthData, deleteOAuthData } from "../lib/mcp-oauth-store";
@@ -11,6 +12,61 @@ interface ProbeResult {
   name: string;
   status: "connected" | "needs-auth" | "failed";
   error?: string;
+}
+
+function canExecute(filePath: string, platform: NodeJS.Platform): boolean {
+  try {
+    fs.accessSync(
+      filePath,
+      platform === "win32" ? fs.constants.F_OK : fs.constants.X_OK,
+    );
+    return fs.statSync(filePath).isFile();
+  } catch {
+    return false;
+  }
+}
+
+export function isCommandAvailable(
+  command: string,
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  const pathApi = platform === "win32" ? path.win32 : path.posix;
+  const extensions = platform === "win32"
+    ? (env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD")
+      .split(";")
+      .map((extension) => extension.trim().toUpperCase())
+      .filter(Boolean)
+    : [""];
+  const commandExtension = platform === "win32"
+    ? pathApi.extname(command).toUpperCase()
+    : "";
+  if (
+    platform === "win32"
+    && commandExtension
+    && !extensions.includes(commandExtension)
+  ) {
+    return false;
+  }
+  const hasPathSeparator = command.includes("/") || command.includes("\\");
+  if (pathApi.isAbsolute(command) || hasPathSeparator) {
+    const resolved = pathApi.resolve(command);
+    const candidates = commandExtension
+      ? [resolved]
+      : extensions.map((extension) => resolved + extension);
+    return candidates.some((candidate) => canExecute(candidate, platform));
+  }
+
+  const pathValue = env.PATH ?? env.Path ?? env.path ?? "";
+  if (!pathValue) return false;
+
+  const candidates = commandExtension ? [""] : extensions;
+
+  return pathValue.split(platform === "win32" ? ";" : ":").some((rawDir) => {
+    const dir = rawDir.replace(/^"(.*)"$/, "$1");
+    if (!dir) return false;
+    return candidates.some((extension) => canExecute(pathApi.join(dir, command + extension), platform));
+  });
 }
 
 async function probeHttpServer(server: McpServerConfig): Promise<ProbeResult> {
@@ -105,16 +161,11 @@ function probeStdioServer(server: McpServerConfig): ProbeResult {
   const cmd = server.command;
   if (!cmd) return { name: server.name, status: "failed", error: "No command configured" };
 
-  try {
-    execFileSync("/usr/bin/which", [cmd], { stdio: "ignore", timeout: 3000 });
+  if (isCommandAvailable(cmd)) {
     return { name: server.name, status: "connected" };
-  } catch {
-    // Binary not found on PATH — still might work if it's an npx/bunx invocation
-    if (cmd === "npx" || cmd === "bunx" || cmd === "pnpx" || cmd === "node") {
-      return { name: server.name, status: "connected" };
-    }
-    return { name: server.name, status: "failed", error: `Command '${cmd}' not found` };
   }
+
+  return { name: server.name, status: "failed", error: `Command '${cmd}' not found` };
 }
 
 export function register(): void {

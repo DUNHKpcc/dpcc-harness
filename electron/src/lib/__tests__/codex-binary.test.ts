@@ -9,6 +9,9 @@ const {
   mockLog,
   mockApp,
   mockOsArch,
+  mockFsState,
+  mockRenameSync,
+  mockRmSync,
 } = vi.hoisted(() => ({
   mockAccessSync: vi.fn(),
   mockExecFile: vi.fn(),
@@ -24,7 +27,71 @@ const {
     getPath: vi.fn(() => "C:\\Users\\tester\\AppData\\Roaming\\PccAgent"),
   },
   mockOsArch: vi.fn(() => "x64"),
+  mockFsState: {
+    existing: new Set<string>(),
+    executable: new Set<string>(),
+  },
+  mockRenameSync: vi.fn(),
+  mockRmSync: vi.fn(),
 }));
+
+function normalize(filePath: string): string {
+  return path.normalize(filePath);
+}
+
+function replacePrefix(sourcePath: string, from: string, to: string): string {
+  if (sourcePath === from) return to;
+  if (sourcePath.startsWith(`${from}\\`)) return `${to}${sourcePath.slice(from.length)}`;
+  if (sourcePath.startsWith(`${from}/`)) return `${to}${sourcePath.slice(from.length)}`;
+  return sourcePath;
+}
+
+function movePathEntries(sourcePath: string, destinationPath: string): void {
+  const from = normalize(sourcePath);
+  const to = normalize(destinationPath);
+  const movedEntries = [...mockFsState.existing].filter(
+    (entry) => entry === from || entry.startsWith(`${from}\\`) || entry.startsWith(`${from}/`),
+  );
+  const movedExecutables = [...mockFsState.executable].filter(
+    (entry) => entry === from || entry.startsWith(`${from}\\`) || entry.startsWith(`${from}/`),
+  );
+
+  for (const entry of movedEntries) {
+    mockFsState.existing.delete(entry);
+    mockFsState.existing.add(replacePrefix(entry, from, to));
+  }
+  for (const entry of movedExecutables) {
+    mockFsState.executable.delete(entry);
+    mockFsState.executable.add(replacePrefix(entry, from, to));
+  }
+}
+
+function defaultRenameSync(source: string, destination: string): void {
+  const sourcePath = normalize(source);
+  const destinationPath = normalize(destination);
+  if (!mockFsState.existing.has(sourcePath)) {
+    throw new Error(
+      `ENOENT: no such file or directory, rename '${sourcePath}' -> '${destinationPath}'`,
+    );
+  }
+  movePathEntries(sourcePath, destinationPath);
+}
+
+function removePath(targetPath: string): void {
+  const target = normalize(targetPath);
+  const toDelete = [...mockFsState.existing].filter(
+    (entry) => entry === target || entry.startsWith(`${target}\\`) || entry.startsWith(`${target}/`),
+  );
+  for (const entry of toDelete) {
+    mockFsState.existing.delete(entry);
+  }
+  const execDelete = [...mockFsState.executable].filter(
+    (entry) => entry === target || entry.startsWith(`${target}\\`) || entry.startsWith(`${target}/`),
+  );
+  for (const entry of execDelete) {
+    mockFsState.executable.delete(entry);
+  }
+}
 
 vi.mock("fs", () => ({
   default: {
@@ -32,12 +99,17 @@ vi.mock("fs", () => ({
     chmodSync: vi.fn(),
     constants: { X_OK: 1 },
     copyFileSync: vi.fn(),
-    existsSync: vi.fn(() => false),
+    existsSync: (candidate: string) => mockFsState.existing.has(normalize(candidate)),
     mkdirSync: vi.fn(),
     mkdtempSync: vi.fn(),
     readFileSync: vi.fn(),
     readdirSync: vi.fn(() => []),
-    rmSync: vi.fn(),
+    renameSync: mockRenameSync.mockImplementation(defaultRenameSync),
+    rmSync: mockRmSync.mockImplementation((target: string, options?: unknown) => {
+      const normalized = normalize(target);
+      removePath(normalized);
+      return options;
+    }),
     writeFileSync: vi.fn(),
   },
 }));
@@ -71,10 +143,25 @@ vi.mock("../error-utils", () => ({
 }));
 
 function allowExecutable(...filePaths: string[]): void {
+  mockFsState.executable.clear();
+  for (const filePath of filePaths) {
+    mockFsState.executable.add(normalize(filePath));
+  }
   mockAccessSync.mockImplementation((candidate: string) => {
-    if (filePaths.includes(candidate)) return;
+    if (mockFsState.executable.has(normalize(candidate))) return;
     throw new Error("missing");
   });
+}
+
+function markPaths(...filePaths: string[]): void {
+  for (const filePath of filePaths) {
+    mockFsState.existing.add(normalize(filePath));
+  }
+}
+
+function clearMockFsState(): void {
+  mockFsState.existing.clear();
+  mockFsState.executable.clear();
 }
 
 async function loadModule() {
@@ -84,6 +171,7 @@ async function loadModule() {
 
 describe("codex binary resolution", () => {
   beforeEach(() => {
+    clearMockFsState();
     vi.restoreAllMocks();
     vi.spyOn(process, "platform", "get").mockReturnValue("win32");
     Object.defineProperty(process, "resourcesPath", {
@@ -103,6 +191,15 @@ describe("codex binary resolution", () => {
     mockOsArch.mockReturnValue("x64");
     mockApp.isPackaged = true;
     mockApp.getPath.mockReturnValue("C:\\Users\\tester\\AppData\\Roaming\\PccAgent");
+    mockRenameSync.mockReset().mockImplementation(defaultRenameSync);
+    mockRmSync.mockReset().mockImplementation((target: string) => {
+      const normalized = normalize(target);
+      removePath(normalized);
+      return undefined;
+    });
+    mockAccessSync.mockImplementation(() => {
+      throw new Error("missing");
+    });
   });
 
   it("prefers the bundled Windows codex.exe over npm PATH shims in auto mode", async () => {
@@ -162,5 +259,82 @@ describe("codex binary resolution", () => {
       expect.arrayContaining(["pack", "@openai/codex@win32-x64"]),
       expect.anything(),
     );
+  });
+
+  function getManagedVendorPaths() {
+    const managedVendorDir = path.join(
+      "C:\\Users\\tester\\AppData\\Roaming\\PccAgent",
+      "pcc-agent-data",
+      "bin",
+      "codex-vendor",
+      "x86_64-pc-windows-msvc",
+    );
+    return {
+      managedVendorDir,
+      managedVendorBackup: `${managedVendorDir}.backup`,
+    };
+  }
+
+  it("restores the old managed vendor when staging replacement fails", async () => {
+    const mod = await loadModule();
+    const { managedVendorDir, managedVendorBackup } = getManagedVendorPaths();
+    const stagingDir = path.join("C:\\Temp", "codex-staging");
+    const managedBinary = path.join(managedVendorDir, "bin", "codex.exe");
+    const stagedBinary = path.join(stagingDir, "bin", "codex.exe");
+
+    markPaths(managedVendorDir, `${managedVendorDir}\\bin`, managedBinary, stagingDir, `${stagingDir}\\bin`, stagedBinary);
+    mockRenameSync.mockImplementation((source: string, destination: string) => {
+      if (normalize(source) === normalize(stagingDir)) {
+        throw new Error("staging rename failed");
+      }
+      return defaultRenameSync(source, destination);
+    });
+
+    expect(() => mod.__test.replaceManagedVendorDirectory(stagingDir)).toThrow("staging rename failed");
+    expect(mockRenameSync).toHaveBeenCalledWith(managedVendorDir, managedVendorBackup);
+    expect(mockRenameSync).toHaveBeenCalledWith(managedVendorBackup, managedVendorDir);
+    expect(mockFsState.existing.has(normalize(managedVendorDir))).toBe(true);
+    expect(mockFsState.existing.has(normalize(managedVendorBackup))).toBe(false);
+    expect(mockFsState.existing.has(normalize(stagingDir))).toBe(true);
+  });
+
+  it("recovers a missing managed vendor from backup during startup", async () => {
+    const mod = await loadModule();
+    const { managedVendorDir, managedVendorBackup } = getManagedVendorPaths();
+    const backupBinary = path.join(managedVendorBackup, "bin", "codex.exe");
+
+    markPaths(managedVendorBackup, path.join(managedVendorBackup, "bin"), backupBinary);
+    allowExecutable(backupBinary);
+
+    mod.__test.recoverInterruptedManagedInstall();
+
+    expect(mockRenameSync).toHaveBeenCalledWith(managedVendorBackup, managedVendorDir);
+    expect(mockFsState.existing.has(normalize(managedVendorDir))).toBe(true);
+    expect(mockFsState.existing.has(normalize(managedVendorBackup))).toBe(false);
+  });
+
+  it("cleans backup directory after successful managed vendor replacement", async () => {
+    const mod = await loadModule();
+    const { managedVendorDir, managedVendorBackup } = getManagedVendorPaths();
+    const stagingDir = path.join("C:\\Temp", "codex-staging");
+    const managedBinary = path.join(managedVendorDir, "bin", "codex.exe");
+    const stagedBinary = path.join(stagingDir, "bin", "codex.exe");
+
+    markPaths(
+      managedVendorDir,
+      `${managedVendorDir}\\bin`,
+      managedBinary,
+      stagingDir,
+      `${stagingDir}\\bin`,
+      stagedBinary,
+    );
+
+    mod.__test.replaceManagedVendorDirectory(stagingDir);
+
+    expect(mockRenameSync).toHaveBeenCalledWith(managedVendorDir, managedVendorBackup);
+    expect(mockRenameSync).toHaveBeenCalledWith(stagingDir, managedVendorDir);
+    expect(mockRmSync).toHaveBeenCalledWith(managedVendorBackup, { recursive: true, force: true });
+    expect(mockFsState.existing.has(normalize(managedVendorDir))).toBe(true);
+    expect(mockFsState.existing.has(normalize(managedVendorBackup))).toBe(false);
   });
 });

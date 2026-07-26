@@ -89,7 +89,7 @@ describe("files IPC", () => {
     fs.mkdirSync(docsDir);
     fs.writeFileSync(path.join(docsDir, "note.txt"), "hello", "utf-8");
     fs.writeFileSync(path.join(docsDir, "image.png"), Buffer.alloc(MAX_PROMPT_TEXT_FILE_BYTES));
-    mockGitExec.mockResolvedValue("docs/note.txt\ndocs/image.png\n");
+    mockGitExec.mockResolvedValue("docs/note.txt\0docs/image.png\0");
 
     const { register } = await loadModule();
     register(() => null);
@@ -118,6 +118,34 @@ describe("files IPC", () => {
         expect.objectContaining({ path: "docs", error: expect.stringContaining("Deep folder content too large") }),
       ]),
     );
+  });
+
+  it("preserves Git paths that require quoting in line-delimited output", async () => {
+    const files = [
+      "docs/中文 name.txt",
+      "docs/tab\tname.txt",
+      "docs/line\nbreak.txt",
+      "docs/back\\slash.txt",
+    ];
+    mockGitExec.mockResolvedValue(`${files.join("\0")}\0`);
+
+    const { register } = await loadModule();
+    register(() => null);
+
+    const listFiles = handlerFor<
+      [string],
+      { files: string[]; dirs: string[] }
+    >("files:list");
+    expect(listFiles).toBeDefined();
+
+    const result = await listFiles!(null, tmpDir);
+
+    expect(mockGitExec).toHaveBeenCalledWith(
+      ["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+      tmpDir,
+    );
+    expect(result.files).toEqual([...files].sort());
+    expect(result.dirs).toEqual(["docs/"]);
   });
 
   it("opens files through a Windows shell command with quoted goto arguments", async () => {

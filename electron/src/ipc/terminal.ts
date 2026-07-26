@@ -51,7 +51,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       const isWin = process.platform === "win32";
       const shellPath = isWin
         ? process.env.COMSPEC || "powershell.exe"
-        : process.env.SHELL || "/bin/zsh";
+        : process.env.SHELL || (process.platform === "darwin" ? "/bin/zsh" : "/bin/sh");
       const terminalId = crypto.randomUUID();
 
       // Seed env with the user's ~/.claude/settings.json env block AFTER process.env

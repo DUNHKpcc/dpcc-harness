@@ -800,16 +800,6 @@ async function performRestartSession(
   const logPrefix = `session=${sessionId.slice(0, 8)}`;
   log("SESSION_RESTART", `${logPrefix} (rebuilding with fresh MCP config)`);
 
-  // Mark old session so its event loop doesn't send claude:exit
-  session.restarting = true;
-  closeSessionTransport(sessionId, session, "restart");
-
-  // Deny all pending permissions
-  for (const [reqId, pending] of session.pendingPermissions) {
-    pending.resolve({ behavior: "deny", message: "Session restarting" });
-    session.pendingPermissions.delete(reqId);
-  }
-
   const opts = session.startOptions;
   const mcpServers = mcpServersOverride ?? opts.mcpServers;
   const bridgeEnabled = bridgeEnabledOverride ?? opts.claudeCodexBridgeEnabled === true;
@@ -894,6 +884,26 @@ async function performRestartSession(
   }
 
   log("SESSION_RESTART_SPAWN", { sessionId, options: summarizeSpawnOptions(queryOptions) });
+
+  // Keep the old transport alive while resolving binaries, models, and MCP
+  // config. Once teardown starts there are no remaining awaited preparation
+  // steps that can leave a closed SessionEntry behind on failure/cancellation.
+  if (
+    isRestartCancelled(sessionId, cancellationGeneration)
+    || sessions.get(sessionId) !== session
+  ) {
+    return { error: "Session restart cancelled" };
+  }
+
+  // Mark old session so its event loop doesn't send claude:exit.
+  session.restarting = true;
+  closeSessionTransport(sessionId, session, "restart");
+
+  // Deny all pending permissions.
+  for (const [reqId, pending] of session.pendingPermissions) {
+    pending.resolve({ behavior: "deny", message: "Session restarting" });
+    session.pendingPermissions.delete(reqId);
+  }
 
   let q;
   try {

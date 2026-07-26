@@ -200,12 +200,11 @@ describe("Claude model IPC catalog", () => {
     mocks.resolveClaudeUpstream.mockImplementation(() => upstream);
     let resolveSdk!: (query: unknown) => void;
     mocks.getSDK.mockReturnValue(new Promise((resolve) => { resolveSdk = resolve; }));
-    const close = vi.fn();
     const query = vi.fn(() => ({ close: vi.fn(), async *[Symbol.asyncIterator]() {} }));
     const { sessions } = await import("./claude-sessions");
     sessions.set("session-1", {
       channel: { close: vi.fn() } as never,
-      queryHandle: { close } as never,
+      queryHandle: { close: vi.fn() } as never,
       eventCounter: 0,
       pendingPermissions: new Map(),
       startOptions: { model: "glm-5.2" },
@@ -218,8 +217,12 @@ describe("Claude model IPC catalog", () => {
       sessionId: "session-1",
       model: "glm-5.2",
     });
-    await vi.waitFor(() => expect(close).toHaveBeenCalled());
+
+    // Wait for the queued restart path to enter in-flight state before canceling.
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(await mocks.handlers.get("claude:stop")?.({}, "session-1")).toEqual({ ok: true });
+    expect(query).not.toHaveBeenCalled();
+
     resolveSdk(query);
 
     await expect(switching).resolves.toEqual({ error: "Session restart cancelled" });

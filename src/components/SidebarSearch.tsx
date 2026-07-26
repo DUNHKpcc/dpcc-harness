@@ -26,24 +26,31 @@ export const SidebarSearch = memo(function SidebarSearch({
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const searchGenerationRef = useRef(0);
 
   const doSearch = useCallback(
     async (q: string) => {
+      const generation = ++searchGenerationRef.current;
       if (!q.trim() || projectIds.length === 0) {
         setMessageResults([]);
         setSessionResults([]);
+        setIsSearching(false);
         return;
       }
       setIsSearching(true);
       try {
         const results = await window.claude.sessions.search(projectIds, q.trim());
+        if (generation !== searchGenerationRef.current) return;
         setMessageResults(results.messageResults);
         setSessionResults(results.sessionResults);
       } catch {
+        if (generation !== searchGenerationRef.current) return;
         setMessageResults([]);
         setSessionResults([]);
       } finally {
-        setIsSearching(false);
+        if (generation === searchGenerationRef.current) {
+          setIsSearching(false);
+        }
       }
     },
     [projectIds],
@@ -52,13 +59,18 @@ export const SidebarSearch = memo(function SidebarSearch({
   // Debounced search
   useEffect(() => {
     clearTimeout(timerRef.current);
+    searchGenerationRef.current += 1;
     if (!query.trim()) {
       setMessageResults([]);
       setSessionResults([]);
+      setIsSearching(false);
       return;
     }
     timerRef.current = setTimeout(() => doSearch(query), 300);
-    return () => clearTimeout(timerRef.current);
+    return () => {
+      clearTimeout(timerRef.current);
+      searchGenerationRef.current += 1;
+    };
   }, [query, doSearch]);
 
   // Close on click outside

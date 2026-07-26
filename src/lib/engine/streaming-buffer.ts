@@ -31,29 +31,28 @@ export function mergeStreamingChunk(current: string, incoming: string): string {
  */
 export class SimpleStreamingBuffer {
   messageId: string | null = null;
-  private textChunks: string[] = [];
-  private thinkingChunks: string[] = [];
+  private text = "";
+  private thinking = "";
   thinkingComplete = false;
 
   appendText(text: string): void {
     // Text deltas are pure incremental chunks — simple concatenation avoids
     // false-positive overlap detection eating markdown chars.
-    this.textChunks.push(text);
+    this.text += text;
   }
 
   appendThinking(text: string): void {
     // Thinking may arrive as cumulative snapshots, so overlap detection is needed.
-    const current = this.thinkingChunks.join("");
-    this.thinkingChunks = [mergeStreamingChunk(current, text)];
+    this.thinking = mergeStreamingChunk(this.thinking, text);
   }
 
-  getText(): string { return this.textChunks.join(""); }
-  getThinking(): string { return this.thinkingChunks.join(""); }
+  getText(): string { return this.text; }
+  getThinking(): string { return this.thinking; }
 
   reset(): void {
     this.messageId = null;
-    this.textChunks = [];
-    this.thinkingChunks = [];
+    this.text = "";
+    this.thinking = "";
     this.thinkingComplete = false;
   }
 }

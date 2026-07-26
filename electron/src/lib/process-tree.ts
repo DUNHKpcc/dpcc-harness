@@ -7,7 +7,7 @@ interface ProcessLike {
 
 const DEFAULT_TIMEOUT_MS = 1000;
 
-function listChildPids(pid: number): number[] {
+function listChildPidsWithPgrep(pid: number): number[] {
   try {
     const output = execFileSync("pgrep", ["-P", String(pid)], {
       encoding: "utf8",
@@ -23,12 +23,43 @@ function listChildPids(pid: number): number[] {
   }
 }
 
-function collectDescendantPids(pid: number, seen = new Set<number>()): number[] {
+function listUnixProcessChildren(): Map<number, number[]> | null {
+  try {
+    const output = execFileSync("ps", ["-A", "-o", "pid=,ppid="], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+      timeout: DEFAULT_TIMEOUT_MS,
+    });
+    const childrenByParent = new Map<number, number[]>();
+    for (const line of output.split(/\r?\n/)) {
+      const [pidText, parentPidText] = line.trim().split(/\s+/, 2);
+      const childPid = Number.parseInt(pidText, 10);
+      const parentPid = Number.parseInt(parentPidText, 10);
+      if (!Number.isInteger(childPid) || childPid <= 0) continue;
+      if (!Number.isInteger(parentPid) || parentPid < 0) continue;
+      const children = childrenByParent.get(parentPid) ?? [];
+      children.push(childPid);
+      childrenByParent.set(parentPid, children);
+    }
+    return childrenByParent;
+  } catch {
+    return null;
+  }
+}
+
+function collectDescendantPids(
+  pid: number,
+  childrenByParent: Map<number, number[]> | null,
+  seen = new Set<number>(),
+): number[] {
   const descendants: number[] = [];
-  for (const childPid of listChildPids(pid)) {
+  const childPids = childrenByParent
+    ? (childrenByParent.get(pid) ?? [])
+    : listChildPidsWithPgrep(pid);
+  for (const childPid of childPids) {
     if (seen.has(childPid)) continue;
     seen.add(childPid);
-    descendants.push(...collectDescendantPids(childPid, seen), childPid);
+    descendants.push(...collectDescendantPids(childPid, childrenByParent, seen), childPid);
   }
   return descendants;
 }
@@ -65,7 +96,8 @@ export function killProcessTree(proc: ProcessLike | number | null | undefined, s
     return;
   }
 
-  for (const childPid of collectDescendantPids(pid)) {
+  const childrenByParent = listUnixProcessChildren();
+  for (const childPid of collectDescendantPids(pid, childrenByParent)) {
     killPid(childPid, signal);
   }
 

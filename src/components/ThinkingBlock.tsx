@@ -81,7 +81,6 @@ export const ThinkingBlock = memo(function ThinkingBlock({
   // Tracks whether user manually scrolled up in the inner thinking div
   const userScrolledRef = useRef(false);
   const isThinking = Boolean(isStreaming && !thinkingComplete && thinking.length > 0);
-  const hasThinkingContent = thinking.length > 0;
 
   // Text reveal animation for both views — per-token fade-in via DOM surgery
   // (same technique as assistant messages in MessageBubble).
@@ -115,35 +114,38 @@ export const ThinkingBlock = memo(function ThinkingBlock({
     userScrolledRef.current = !isNearBottom;
   }, []);
 
-  // Continuous rAF loop for expanded view — smooth lerp scroll that respects
-  // user scroll intent. Only auto-scrolls when user is near the bottom.
+  // Chase new streaming content only until scrolling converges. Depending on
+  // `thinking` restarts the chase for each rendered batch without leaving a
+  // permanent rAF loop behind for completed history.
   useEffect(() => {
-    if (!open || !hasThinkingContent) return;
+    if (!open || thinking.length === 0) return;
     const el = contentRef.current;
     if (!el) return;
 
     cancelAnimationFrame(contentRafRef.current);
+    if (!isThinking) {
+      if (!userScrolledRef.current) {
+        el.scrollTop = el.scrollHeight - el.clientHeight;
+      }
+      return;
+    }
 
     const chase = () => {
-      if (!userScrolledRef.current) {
-        const target = el.scrollHeight - el.clientHeight;
-        const diff = target - el.scrollTop;
-        if (diff > 0.5) {
-          el.scrollTop += Math.min(Math.max(diff * 0.1, 1.5), diff);
-        }
-      }
+      if (userScrolledRef.current) return;
+      const target = el.scrollHeight - el.clientHeight;
+      const diff = target - el.scrollTop;
+      if (diff <= 0.5) return;
+      el.scrollTop += Math.min(Math.max(diff * 0.1, 1.5), diff);
       contentRafRef.current = requestAnimationFrame(chase);
     };
 
     contentRafRef.current = requestAnimationFrame(chase);
     return () => cancelAnimationFrame(contentRafRef.current);
-  }, [open, hasThinkingContent]);
+  }, [open, isThinking, thinking]);
 
-  // Continuous rAF loop for collapsed preview — slow lerp scroll with 3D depth
-  // effect. Perspective tilt + multi-stop mask create a "receding into distance"
-  // illusion as text scrolls upward through the 3-line window.
+  // Collapsed preview uses the same bounded chase while streaming.
   useEffect(() => {
-    if (open || !hasThinkingContent) return;
+    if (open || thinking.length === 0) return;
     const el = previewRef.current;
     if (!el) return;
 
@@ -160,19 +162,24 @@ export const ThinkingBlock = memo(function ThinkingBlock({
       }
     };
 
+    if (!isThinking) {
+      el.scrollTop = el.scrollHeight - el.clientHeight;
+      applyDepthEffect();
+      return;
+    }
+
     const chase = () => {
       const target = el.scrollHeight - el.clientHeight;
       const diff = target - el.scrollTop;
       applyDepthEffect();
-      if (diff > 0.5) {
-        el.scrollTop += Math.min(Math.max(diff * 0.05, 1), diff);
-      }
+      if (diff <= 0.5) return;
+      el.scrollTop += Math.min(Math.max(diff * 0.05, 1), diff);
       previewRafRef.current = requestAnimationFrame(chase);
     };
 
     previewRafRef.current = requestAnimationFrame(chase);
     return () => cancelAnimationFrame(previewRafRef.current);
-  }, [open, hasThinkingContent]);
+  }, [open, isThinking, thinking]);
 
   const handleOpenChange = useCallback((isOpen: boolean) => {
     setOpen(isOpen);

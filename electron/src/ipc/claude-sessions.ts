@@ -36,6 +36,7 @@ import {
 } from "../lib/claude-binary";
 import { prepareClaudeSpawnEnv, claudeSettingSources } from "../lib/claude-gateway-env";
 import { normalizeSessionCwd } from "../lib/session-cwd";
+import { isAccountCredentialRejection } from "../lib/account-auth-rejection";
 
 /** SDK options for file checkpointing — enables Write/Edit/NotebookEdit revert support.
  *  Env is resolved from the selected Current Config source,
@@ -97,11 +98,40 @@ interface SessionEntry {
   stopping?: boolean;
   /** Why the stop was requested (user action, cleanup, etc.). */
   stopReason?: string;
+  accountRejectionHandled?: boolean;
 }
 
 export const sessions = new Map<string, SessionEntry>();
 const restartQueues = new Map<string, Promise<{ ok?: boolean; error?: string; restarted?: boolean }>>();
 const restartCancellationGenerations = new Map<string, number>();
+
+function handleAccountCredentialRejection(
+  sessionId: string,
+  session: SessionEntry,
+  value: unknown,
+  source: string,
+): void {
+  if (
+    session.upstreamTier !== "default"
+    || session.accountRejectionHandled
+    || !isAccountCredentialRejection(value)
+  ) {
+    return;
+  }
+  session.accountRejectionHandled = true;
+  log("ACCOUNT_AUTH_REJECTED", {
+    engine: "claude",
+    session: sessionId.slice(0, 8),
+    source,
+  });
+  void import("./account-auth")
+    .then(({ markTokenRejected }) => markTokenRejected())
+    .catch((error) => reportError("ACCOUNT_AUTH_REJECT_ERR", error, {
+      engine: "claude",
+      sessionId,
+      source,
+    }));
+}
 
 function cancelPendingRestarts(sessionId: string): void {
   restartCancellationGenerations.set(
@@ -360,6 +390,7 @@ function startEventLoop(
 
       }
     } catch (err) {
+      handleAccountCredentialRejection(sessionId, session, err, "query");
       queryError = reportError("QUERY_ERROR", err, { engine: "claude", sessionId });
       log("QUERY_ERROR", `${logPrefix} stopping=${!!session.stopping} reason=${session.stopReason ?? "none"}`);
     } finally {
@@ -837,6 +868,7 @@ async function performRestartSession(
     resume: sessionId,
     stderr: (data: string) => {
       const trimmed = data.trim();
+      handleAccountCredentialRejection(sessionId, newSession, trimmed, "stderr");
       log("STDERR", `${logPrefix} ${trimmed}`);
       safeSend(getMainWindow,"claude:stderr", { data, _sessionId: sessionId });
     },
@@ -1003,6 +1035,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         ...fileCheckpointOptions(spawnEnv),
         stderr: (data: string) => {
           const trimmed = data.trim();
+          handleAccountCredentialRejection(sessionId, session, trimmed, "stderr");
           log("STDERR", `session=${sessionId.slice(0, 8)} ${trimmed}`);
           safeSend(getMainWindow,"claude:stderr", { data, _sessionId: sessionId });
         },
@@ -1494,4 +1527,19 @@ export function stopAll(): void {
   }
   sessions.clear();
   restartQueues.clear();
+}
+
+/** Stop only sessions whose subprocess environment contains the DPCC account token. */
+export function stopDesktopAccountSessions(reason = "account-revoked"): void {
+  for (const [sessionId, session] of sessions) {
+    if (session.upstreamTier !== "default") continue;
+    cancelPendingRestarts(sessionId);
+    session.stopping = true;
+    session.stopReason = reason;
+    for (const [, pending] of session.pendingPermissions) {
+      pending.resolve({ behavior: "deny", message: "DPCC account authorization ended" });
+    }
+    session.pendingPermissions.clear();
+    closeSessionTransport(sessionId, session, reason);
+  }
 }

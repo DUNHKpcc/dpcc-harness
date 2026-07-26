@@ -7,6 +7,8 @@ import { migrateLegacyAccountCredentials } from "../lib/account-credential-store
 import { reportError } from "../lib/error-utils";
 import { reclaimMacDockFocus } from "../lib/macos-dock-focus";
 import { safeSend } from "../lib/safe-send";
+import { stopDesktopAccountSessions as stopClaudeDesktopAccountSessions } from "./claude-sessions";
+import { stopDesktopAccountSessions as stopCodexDesktopAccountSessions } from "./codex-sessions";
 
 let coordinator: AccountAuthorizationCoordinator | null = null;
 let mainWindowGetter: (() => BrowserWindow | null) | null = null;
@@ -34,7 +36,11 @@ function createCoordinator(): AccountAuthorizationCoordinator {
   };
   return new AccountAuthorizationCoordinator(
     metadata,
-    (url) => shell.openExternal(url),
+    (url) => {
+      // The coordinator validates the exact HTTPS origin, path, and request token first.
+      // nosemgrep: harnss-shell-open-external-unvalidated
+      return shell.openExternal(url);
+    },
     (snapshot) => {
       if (mainWindowGetter) {
         safeSend(mainWindowGetter, "account-auth:changed", snapshot);
@@ -42,6 +48,12 @@ function createCoordinator(): AccountAuthorizationCoordinator {
       if (snapshot.status === "connected") {
         bringAccountWindowToFront();
       }
+    },
+    undefined,
+    undefined,
+    (reason) => {
+      stopClaudeDesktopAccountSessions(reason);
+      stopCodexDesktopAccountSessions(reason);
     },
   );
 }
@@ -58,6 +70,7 @@ export function initialize(): void {
     reportError("ACCOUNT_AUTH_MIGRATION", error);
   }
   coordinator ??= createCoordinator();
+  coordinator.resumePendingConfirmation();
 }
 
 export function register(getMainWindow: () => BrowserWindow | null): void {

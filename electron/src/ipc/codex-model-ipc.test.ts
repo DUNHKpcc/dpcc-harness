@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   rpcInstances: [] as Array<{ isAlive: boolean }>,
   requests: [] as Array<{ method: string; params?: Record<string, unknown> }>,
   findCodexRolloutPath: vi.fn(),
+  resolveCodexUpstream: vi.fn(),
 }));
 
 vi.mock("electron", () => ({
@@ -88,13 +89,7 @@ vi.mock("../lib/codex-upstream", () => ({
   codexUpstreamThreadParams: vi.fn(() => ({})),
 }));
 vi.mock("../lib/upstream-resolver", () => ({
-  resolveCodexUpstream: vi.fn(() => ({
-    tier: "default",
-    providerName: "DPCC API",
-    baseUrl: "https://api.dpcc.example/v1",
-    apiKey: "desktop-token",
-    model: "",
-  })),
+  resolveCodexUpstream: mocks.resolveCodexUpstream,
 }));
 
 vi.mock("../lib/codex-home-isolation", () => ({
@@ -116,6 +111,14 @@ describe("Codex model IPC catalog", () => {
     mocks.resolveEffectiveCodexModels.mockReset();
     mocks.requests.length = 0;
     mocks.findCodexRolloutPath.mockReset();
+    mocks.resolveCodexUpstream.mockReset();
+    mocks.resolveCodexUpstream.mockReturnValue({
+      tier: "default",
+      providerName: "DPCC API",
+      baseUrl: "https://api.dpcc.example/v1",
+      apiKey: "desktop-token",
+      model: "",
+    });
     mocks.resolveEffectiveCodexModels.mockImplementation(async (models: Array<{ id: string }>) => (
       models.map((model) => ({ ...model, id: `upstream-${model.id}`, model: `upstream-${model.id}` }))
     ));
@@ -180,5 +183,26 @@ describe("Codex model IPC catalog", () => {
       threadId: "thread-resumed",
       rolloutPath,
     });
+  });
+
+  it("does not resume a default DPCC thread without an active account token", async () => {
+    mocks.resolveCodexUpstream.mockReturnValue({
+      tier: "default",
+      providerName: "DPCC API",
+      baseUrl: "https://api.dpcc.example/v1",
+      apiKey: "",
+      model: "",
+    });
+    const { register } = await import("./codex-sessions");
+    register(() => null);
+    const resume = mocks.handlers.get("codex:resume");
+
+    await expect(resume?.({}, {
+      cwd: "/tmp/project",
+      threadId: "thread-without-account",
+    })).resolves.toEqual({ error: "account_required" });
+    expect(mocks.requests).not.toContainEqual(
+      expect.objectContaining({ method: "thread/resume" }),
+    );
   });
 });

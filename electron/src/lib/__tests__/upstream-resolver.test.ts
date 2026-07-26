@@ -34,6 +34,7 @@ async function loadModule() {
 }
 
 function mockSettings({
+  accountMode = "unset",
   cliConfigSource = "default",
   claudeCliConfigSource,
   codexCliConfigSource,
@@ -41,6 +42,7 @@ function mockSettings({
   claudeGateway = { enabled: false, baseUrl: "", authToken: "", model: "" },
   codexGateway = { enabled: false, name: "", baseUrl: "", apiKey: "", model: "" },
 }: {
+  accountMode?: "unset" | "guest";
   cliConfigSource?: "default" | "local" | "gateway";
   claudeCliConfigSource?: "default" | "local" | "gateway";
   codexCliConfigSource?: "default" | "local" | "gateway";
@@ -57,6 +59,7 @@ function mockSettings({
   };
 
   mockGetAppSetting.mockImplementation((key: string) => {
+    if (key === "accountMode") return accountMode;
     if (key === "cliConfigSource") return cliConfigSource;
     if (key === "claudeCliConfigSource") return claudeCliConfigSource ?? cliConfigSource;
     if (key === "codexCliConfigSource") return codexCliConfigSource ?? cliConfigSource;
@@ -158,6 +161,20 @@ describe("upstream resolver", () => {
 
     expect(resolveClaudeUpstream().baseUrl).toBe("https://origin-api.dpccgaming.xyz");
     expect(resolveCodexUpstream().baseUrl).toBe("https://origin-api.dpccgaming.xyz/v1");
+  });
+
+  it("never injects saved DPCC credentials while in Guest mode", async () => {
+    mockSettings({ accountMode: "guest" });
+    const { resolveClaudeUpstream, resolveCodexUpstream } = await loadModule();
+
+    expect(resolveClaudeUpstream()).toMatchObject({
+      tier: "default",
+      token: "",
+    });
+    expect(resolveCodexUpstream()).toMatchObject({
+      tier: "default",
+      apiKey: "",
+    });
   });
 
   it("uses local Claude and Codex CLI configs when selected", async () => {

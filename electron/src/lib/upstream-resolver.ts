@@ -48,6 +48,12 @@ export interface CodexUpstream {
   model: string;
 }
 
+function activeAccountCredential() {
+  return getAppSetting("accountMode") === "guest"
+    ? null
+    : loadAccountCredential();
+}
+
 /**
  * DPCC resource host with no trailing slash or /v1.
  *
@@ -56,7 +62,7 @@ export interface CodexUpstream {
  * origin. Legacy manual credentials retain their explicitly configured host.
  */
 function dpccHost(): string {
-  const credential = loadAccountCredential();
+  const credential = activeAccountCredential();
   const configured = credential?.source === "desktop"
     ? DEFAULT_NEWAPI_BASE_URL
     : getAppSetting("dpccUpstream").baseUrl;
@@ -114,7 +120,7 @@ function hasConfiguredClaudeGateway(): boolean {
 
 function resolveDefaultClaudeUpstream(): ClaudeUpstream {
   const dpcc = getAppSetting("dpccUpstream");
-  const credential = loadAccountCredential();
+  const credential = activeAccountCredential();
   return {
     tier: "default",
     baseUrl: dpccHost(),
@@ -158,7 +164,7 @@ function hasConfiguredCodexGateway(): boolean {
 
 function resolveDefaultCodexUpstream(): CodexUpstream {
   const dpcc = getAppSetting("dpccUpstream");
-  const credential = loadAccountCredential();
+  const credential = activeAccountCredential();
   return {
     tier: "default",
     providerName: "DPCC API",

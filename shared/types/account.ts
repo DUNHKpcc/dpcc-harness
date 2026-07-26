@@ -71,7 +71,7 @@ export interface AccountStatus {
 
 // ── Usage statistics (Token activity) ──
 
-/** Per-day aggregated usage. `date` is a local-time YYYY-MM-DD key. */
+/** Per-day aggregated usage. `date` is the server's UTC YYYY-MM-DD key. */
 export interface UsageDayBucket {
   date: string;
   /** Total tokens that day (prompt + completion + cache read + cache creation). */

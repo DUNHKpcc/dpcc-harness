@@ -1,0 +1,343 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://new-api.example/contracts/desktop-auth-v2.schema.json",
+  "title": "new-api PCC Agent desktop authorization contract",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "error_codes"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": 2
+    },
+    "error_codes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/errorCode"
+      }
+    }
+  },
+  "$defs": {
+    "errorCode": {
+      "type": "string",
+      "enum": [
+        "DESKTOP_INTERNAL_ERROR",
+        "DESKTOP_UNSUPPORTED_CLIENT",
+        "DESKTOP_INVALID_REDIRECT_URI",
+        "DESKTOP_INVALID_PKCE",
+        "DESKTOP_INVALID_REQUEST",
+        "DESKTOP_BROWSER_SESSION_REQUIRED",
+        "DESKTOP_REQUEST_EXPIRED",
+        "DESKTOP_REQUEST_CONSUMED",
+        "DESKTOP_DEVICE_LIMIT",
+        "DESKTOP_TOKEN_GROUP_UNAVAILABLE",
+        "DESKTOP_TOKEN_INVALID",
+        "DESKTOP_SCOPE_DENIED",
+        "DESKTOP_CONFIRMATION_INVALID",
+        "DESKTOP_CONFIRMATION_EXPIRED",
+        "DESKTOP_NOT_FOUND",
+        "DESKTOP_GRANT_NOT_FOUND"
+      ]
+    },
+    "errorResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract_version",
+        "error",
+        "error_description"
+      ],
+      "properties": {
+        "contract_version": {
+          "const": 2
+        },
+        "error": {
+          "$ref": "#/$defs/errorCode"
+        },
+        "error_description": {
+          "type": "string"
+        }
+      }
+    },
+    "engineToken": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "access_token",
+        "group",
+        "allowed_models"
+      ],
+      "properties": {
+        "access_token": {
+          "type": "string",
+          "minLength": 1
+        },
+        "group": {
+          "type": "string"
+        },
+        "allowed_models": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "tokenExchangeResponse": {
+      "type": "object",
+      "required": [
+        "contract_version",
+        "token_type",
+        "tokens",
+        "expires_in",
+        "scope",
+        "confirmation_required",
+        "account"
+      ],
+      "properties": {
+        "contract_version": {
+          "const": 2
+        },
+        "token_type": {
+          "const": "Bearer"
+        },
+        "tokens": {
+          "type": "object",
+          "required": [
+            "claude",
+            "codex"
+          ],
+          "properties": {
+            "claude": {
+              "$ref": "#/$defs/engineToken"
+            },
+            "codex": {
+              "$ref": "#/$defs/engineToken"
+            }
+          }
+        },
+        "expires_in": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "scope": {
+          "type": "string"
+        },
+        "confirmation_required": {
+          "type": "boolean"
+        },
+        "confirmation_token": {
+          "type": "string",
+          "minLength": 1
+        },
+        "confirmation_expires_in": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "account": {
+          "$ref": "#/$defs/account"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "confirmation_required": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "confirmation_token",
+              "confirmation_expires_in"
+            ]
+          }
+        }
+      ]
+    },
+    "account": {
+      "type": "object",
+      "required": [
+        "contract_version",
+        "display_name",
+        "email",
+        "status",
+        "quota",
+        "used_quota",
+        "subscription",
+        "subscription_state",
+        "allowed_models",
+        "token_expires_at",
+        "scopes",
+        "device_name",
+        "grant_public_id"
+      ],
+      "properties": {
+        "contract_version": {
+          "const": 2
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "status": {
+          "type": "integer"
+        },
+        "quota": {
+          "type": "integer"
+        },
+        "used_quota": {
+          "type": "integer"
+        },
+        "subscription": {
+          "type": "object"
+        },
+        "subscription_state": {
+          "type": "string"
+        },
+        "allowed_models": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "token_expires_at": {
+          "type": "integer"
+        },
+        "scopes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "device_name": {
+          "type": "string"
+        },
+        "grant_public_id": {
+          "type": "string"
+        }
+      }
+    },
+    "usagePage": {
+      "type": "object",
+      "required": [
+        "contract_version",
+        "page_size",
+        "total",
+        "has_more",
+        "truncated",
+        "items"
+      ],
+      "properties": {
+        "contract_version": {
+          "const": 2
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "page_size": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "has_more": {
+          "type": "boolean"
+        },
+        "next_cursor": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "items": {
+          "type": "array"
+        }
+      }
+    },
+    "usageSummary": {
+      "type": "object",
+      "required": [
+        "contract_version",
+        "start_timestamp",
+        "end_timestamp",
+        "totals",
+        "by_day",
+        "by_model",
+        "truncated",
+        "days_truncated",
+        "models_truncated",
+        "legacy_cache_truncated",
+        "longest_task_seconds",
+        "activity_truncated"
+      ],
+      "properties": {
+        "contract_version": {
+          "const": 2
+        },
+        "start_timestamp": {
+          "type": "integer"
+        },
+        "end_timestamp": {
+          "type": "integer"
+        },
+        "totals": {
+          "type": "object"
+        },
+        "by_day": {
+          "type": "array"
+        },
+        "by_model": {
+          "type": "array"
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "days_truncated": {
+          "type": "boolean"
+        },
+        "models_truncated": {
+          "type": "boolean"
+        },
+        "legacy_cache_truncated": {
+          "type": "boolean"
+        },
+        "longest_task_seconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "activity_truncated": {
+          "type": "boolean"
+        }
+      }
+    }
+  },
+  "contract_version": 2,
+  "error_codes": [
+    "DESKTOP_INTERNAL_ERROR",
+    "DESKTOP_UNSUPPORTED_CLIENT",
+    "DESKTOP_INVALID_REDIRECT_URI",
+    "DESKTOP_INVALID_PKCE",
+    "DESKTOP_INVALID_REQUEST",
+    "DESKTOP_BROWSER_SESSION_REQUIRED",
+    "DESKTOP_REQUEST_EXPIRED",
+    "DESKTOP_REQUEST_CONSUMED",
+    "DESKTOP_DEVICE_LIMIT",
+    "DESKTOP_TOKEN_GROUP_UNAVAILABLE",
+    "DESKTOP_TOKEN_INVALID",
+    "DESKTOP_SCOPE_DENIED",
+    "DESKTOP_CONFIRMATION_INVALID",
+    "DESKTOP_CONFIRMATION_EXPIRED",
+    "DESKTOP_NOT_FOUND",
+    "DESKTOP_GRANT_NOT_FOUND"
+  ]
+}

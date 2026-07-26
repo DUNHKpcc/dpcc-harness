@@ -82,7 +82,9 @@ function pickHost(...candidates: string[]): string {
  */
 function resolveUpstream(): ResolvedUpstream {
   const dpcc = getAppSetting("dpccUpstream");
-  const credential = loadAccountCredential();
+  const credential = getAppSetting("accountMode") === "guest"
+    ? null
+    : loadAccountCredential();
   const claudeToken = credentialTokenForEngine(credential, "claude");
   const codexToken = credentialTokenForEngine(credential, "codex");
   const host = credential?.source === "desktop"
@@ -130,6 +132,7 @@ async function upstreamGet<T>(
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
     const res = await fetch(`${root}${urlPath}`, {
+      redirect: "error",
       headers: {
         Authorization: `Bearer ${token}`,
         Accept: "application/json",
@@ -227,7 +230,7 @@ async function computeSelfBalance(
 }
 
 /** Account projection exposed specifically to an active DesktopGrant token. */
-async function computeDesktopBalance(
+export async function computeDesktopBalance(
   root: string,
   token: string,
 ): Promise<AccountBalanceResult> {
@@ -264,9 +267,9 @@ async function computeDesktopBalance(
   };
 }
 
-/** List model ids available to a given token group via /v1/models. Empty on failure. */
-async function fetchModels(root: string, token: string): Promise<string[]> {
-  return (await fetchUpstreamModels(root, token)).models;
+/** List model ids available to a given token group via /v1/models. */
+async function fetchModels(root: string, token: string) {
+  return fetchUpstreamModels(root, token);
 }
 
 // ── Usage statistics (Token activity) ──
@@ -281,26 +284,63 @@ interface RawLogItem {
   type?: number;
   prompt_tokens?: number;
   completion_tokens?: number;
+  cache_tokens?: number;
+  cache_creation_tokens?: number;
   /** JSON string carrying cache_tokens / cache_creation_tokens (Claude). */
   other?: string;
+}
+
+interface RawUsageAggregate {
+  request_count?: number;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  cache_tokens?: number;
+  cache_creation_tokens?: number;
+}
+
+interface RawUsageDay extends RawUsageAggregate {
+  day_start?: number;
 }
 
 /** Total tokens for one log entry: input + output + cache read + cache creation. */
 function tokensOf(item: RawLogItem): number {
   const prompt = typeof item.prompt_tokens === "number" ? item.prompt_tokens : 0;
   const completion = typeof item.completion_tokens === "number" ? item.completion_tokens : 0;
-  let cache = 0;
+  let cacheRead = typeof item.cache_tokens === "number" ? item.cache_tokens : 0;
+  let cacheWrite =
+    typeof item.cache_creation_tokens === "number" ? item.cache_creation_tokens : 0;
   if (typeof item.other === "string" && item.other) {
     try {
       const o = JSON.parse(item.other) as Record<string, unknown>;
-      const read = typeof o.cache_tokens === "number" ? o.cache_tokens : 0;
-      const write = typeof o.cache_creation_tokens === "number" ? o.cache_creation_tokens : 0;
-      cache = read + write;
+      if (cacheRead === 0 && typeof o.cache_tokens === "number") {
+        cacheRead = o.cache_tokens;
+      }
+      if (cacheWrite === 0 && typeof o.cache_creation_tokens === "number") {
+        cacheWrite = o.cache_creation_tokens;
+      }
+      if (cacheWrite === 0 && typeof o.cache_write_tokens === "number") {
+        cacheWrite = o.cache_write_tokens;
+      }
     } catch {
       /* malformed `other` — count only prompt + completion */
     }
   }
-  return prompt + completion + cache;
+  return prompt + completion + cacheRead + cacheWrite;
+}
+
+function aggregateTokensOf(item: RawUsageAggregate): number {
+  let total = 0;
+  for (const value of [
+    item.prompt_tokens,
+    item.completion_tokens,
+    item.cache_tokens,
+    item.cache_creation_tokens,
+  ]) {
+    if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+      total += value;
+    }
+  }
+  return total;
 }
 
 /** Local-calendar day index (days since epoch) — used for streak adjacency + day keys. */
@@ -380,6 +420,82 @@ function aggregateUsage(
   return { totalTokens, peakDayTokens, longestTaskSec, currentStreak, longestStreak, days, truncated };
 }
 
+function usageFromDesktopSummary(response: Record<string, unknown>): UsageStats | null {
+  const data = response.data && typeof response.data === "object"
+    ? response.data as Record<string, unknown>
+    : response;
+  if (
+    data.contract_version !== 2
+    || !data.totals
+    || typeof data.totals !== "object"
+    || !Array.isArray(data.by_day)
+  ) {
+    return null;
+  }
+
+  const longestTaskSec = data.longest_task_seconds;
+  if (
+    typeof longestTaskSec !== "number"
+    || !Number.isFinite(longestTaskSec)
+    || longestTaskSec < 0
+  ) {
+    return null;
+  }
+
+  const daysByNumber = new Map<number, UsageDayBucket>();
+  for (const raw of data.by_day) {
+    if (!raw || typeof raw !== "object") return null;
+    const day = raw as RawUsageDay;
+    if (
+      typeof day.day_start !== "number"
+      || !Number.isFinite(day.day_start)
+      || day.day_start < 0
+    ) {
+      return null;
+    }
+    const dayNumber = Math.floor(day.day_start / 86_400);
+    daysByNumber.set(dayNumber, {
+      date: dayKeyFromNumber(dayNumber),
+      tokens: aggregateTokensOf(day),
+      count: typeof day.request_count === "number" && Number.isFinite(day.request_count)
+        ? Math.max(0, day.request_count)
+        : 0,
+    });
+  }
+
+  const dayNumbers = [...daysByNumber.keys()].sort((a, b) => a - b);
+  const days = dayNumbers.map((dayNumber) => daysByNumber.get(dayNumber)!);
+  let longestStreak = dayNumbers.length > 0 ? 1 : 0;
+  let run = longestStreak;
+  for (let i = 1; i < dayNumbers.length; i++) {
+    run = dayNumbers[i] === dayNumbers[i - 1] + 1 ? run + 1 : 1;
+    longestStreak = Math.max(longestStreak, run);
+  }
+
+  const daySet = new Set(dayNumbers);
+  const todayNumber = Math.floor(Date.now() / 86_400_000);
+  let cursor = daySet.has(todayNumber) ? todayNumber : todayNumber - 1;
+  let currentStreak = 0;
+  while (daySet.has(cursor)) {
+    currentStreak++;
+    cursor--;
+  }
+
+  return {
+    totalTokens: aggregateTokensOf(data.totals as RawUsageAggregate),
+    peakDayTokens: days.length > 0 ? Math.max(...days.map((day) => day.tokens)) : 0,
+    longestTaskSec,
+    currentStreak,
+    longestStreak,
+    days,
+    truncated: data.truncated === true
+      || data.days_truncated === true
+      || data.models_truncated === true
+      || data.legacy_cache_truncated === true
+      || data.activity_truncated === true,
+  };
+}
+
 /** Disk-persisted usage cache so stats survive restarts and only refetch on refresh. */
 interface UsageCacheFile {
   /** host|userId — invalidates the cache when the account credentials change. */
@@ -422,6 +538,24 @@ function isRejectedDesktopToken(result: unknown): boolean {
 }
 
 export async function fetchDesktopUsage(root: string, token: string): Promise<UsageStatsResult> {
+  const summaryResponse = await upstreamGet<Record<string, unknown>>(
+    root,
+    token,
+    "/api/desktop/usage/summary",
+  );
+  const summaryError = "error" in summaryResponse && typeof summaryResponse.error === "string"
+    ? summaryResponse.error
+    : null;
+  if (summaryError === null) {
+    const summary = usageFromDesktopSummary(summaryResponse);
+    if (summary) return summary;
+  } else if (/^(401|403)\b/.test(summaryError)) {
+    return { error: summaryError };
+  } else if (!/^(404|405)\b/.test(summaryError)) {
+    return { error: summaryError };
+  }
+
+  // Compatibility with origin deployments that predate the v2 summary contract.
   const entries: { createdAt: number; tokens: number }[] = [];
   let truncated = false;
 
@@ -526,13 +660,21 @@ export function register(): void {
   });
 
   ipcMain.handle("account:models", async (): Promise<AccountModelsResult> => {
-    const { host, claudeToken, codexToken } = resolveUpstream();
+    const { host, claudeToken, codexToken, credentialSource } = resolveUpstream();
     if (!host || (!claudeToken && !codexToken)) return { error: "not_configured" };
     const [claude, codex] = await Promise.all([
       fetchModels(host, claudeToken),
       fetchModels(host, codexToken),
     ]);
-    return { claude, codex };
+    if (
+      credentialSource === "desktop"
+      && [claude.error, codex.error].some(
+        (error) => typeof error === "string" && /^(401|403)\b/.test(error),
+      )
+    ) {
+      markTokenRejected();
+    }
+    return { claude: claude.models, codex: codex.models };
   });
 
   ipcMain.handle("account:usageStatsCached", async (): Promise<UsageStats | null> => {

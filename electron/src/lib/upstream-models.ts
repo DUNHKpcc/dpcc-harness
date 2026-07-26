@@ -33,6 +33,7 @@ export async function fetchUpstreamModels(
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
     const res = await fetch(`${root}/v1/models`, {
+      redirect: "error",
       headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
       signal: controller.signal,
     });

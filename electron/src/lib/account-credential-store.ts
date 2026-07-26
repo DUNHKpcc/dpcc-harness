@@ -31,8 +31,16 @@ export interface StoredAccountCredential {
   scopes: string[];
   expiresAt: number | null;
   account: DesktopAccountSummary | null;
+  grantPublicId?: string;
   source: "desktop" | "legacy_manual";
   legacy?: LegacyCredentialSet;
+}
+
+export interface PendingAccountCredential {
+  version: 1;
+  credential: StoredAccountCredential;
+  confirmationToken: string;
+  confirmationExpiresAt: number;
 }
 
 export type AccountCredentialReadResult =
@@ -52,6 +60,7 @@ export class AccountCredentialStoreError extends Error {
 
 const CREDENTIAL_DIR = "account-credentials";
 const DEVICE_ID_FILE = "account-installation-id";
+const rejectedCredentialPaths = new Set<string>();
 
 export function normalizeAccountIssuer(raw: string): string {
   const url = new URL(raw);
@@ -101,6 +110,11 @@ function secureStorageCheck(): { ok: true } | { ok: false; errorCode: AccountAut
 function credentialDir(): string {
   const dir = path.join(getDataDir(), CREDENTIAL_DIR);
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  try {
+    fs.chmodSync(dir, 0o700);
+  } catch {
+    // Windows and some mounted filesystems do not expose POSIX modes.
+  }
   return dir;
 }
 
@@ -111,8 +125,30 @@ function credentialPath(issuer: string, deviceId: string): string {
   return path.join(credentialDir(), `${key}.bin`);
 }
 
+function accountCredentialRecordKey(issuer: string, deviceId: string): string {
+  return createHash("sha256")
+    .update(`${normalizeAccountIssuer(issuer)}\0${ACCOUNT_CLIENT_ID}\0${deviceId}`)
+    .digest("hex");
+}
+
+function pendingCredentialPath(issuer: string, deviceId: string): string {
+  return path.join(credentialDir(), `${accountCredentialRecordKey(issuer, deviceId)}.pending.bin`);
+}
+
+function rejectedCredentialPath(issuer: string, deviceId: string): string {
+  return path.join(credentialDir(), `${accountCredentialRecordKey(issuer, deviceId)}.rejected.bin`);
+}
+
 function deviceIdPath(): string {
   return path.join(getDataDir(), DEVICE_ID_FILE);
+}
+
+function enforcePrivateFileMode(filePath: string): void {
+  try {
+    fs.chmodSync(filePath, 0o600);
+  } catch {
+    // Encryption remains mandatory where POSIX modes are unavailable.
+  }
 }
 
 function writeFileAtomic(
@@ -146,7 +182,10 @@ export function loadOrCreateAccountDeviceId(): string {
   const filePath = deviceIdPath();
   try {
     const current = fs.readFileSync(filePath, "utf-8").trim();
-    if (/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(current)) return current;
+    if (/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(current)) {
+      enforcePrivateFileMode(filePath);
+      return current;
+    }
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
@@ -216,6 +255,9 @@ export function parseAccountCredential(json: string): StoredAccountCredential {
       parsed.account && typeof parsed.account === "object"
         ? parsed.account as DesktopAccountSummary
         : null,
+    ...(typeof parsed.grantPublicId === "string" && parsed.grantPublicId
+      ? { grantPublicId: parsed.grantPublicId }
+      : {}),
     source: parsed.source,
     ...(legacy ? { legacy } : {}),
   };
@@ -229,8 +271,16 @@ export function readAccountCredential(
 
   const deviceId = loadOrCreateAccountDeviceId();
   const filePath = credentialPath(issuer, deviceId);
+  if (
+    rejectedCredentialPaths.has(filePath)
+    || fs.existsSync(rejectedCredentialPath(issuer, deviceId))
+  ) {
+    enforcePrivateFileMode(rejectedCredentialPath(issuer, deviceId));
+    return { kind: "missing" };
+  }
   let encrypted: Buffer;
   try {
+    enforcePrivateFileMode(filePath);
     encrypted = fs.readFileSync(filePath);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return { kind: "missing" };
@@ -300,6 +350,12 @@ export function saveAccountCredential(credential: StoredAccountCredential): void
     ) {
       throw new Error("Credential verification mismatch");
     }
+    try {
+      fs.unlinkSync(rejectedCredentialPath(normalized.issuer, normalized.deviceId));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+    rejectedCredentialPaths.delete(filePath);
   } catch (error) {
     if (error instanceof AccountCredentialStoreError) throw error;
     throw new AccountCredentialStoreError(
@@ -311,8 +367,142 @@ export function saveAccountCredential(credential: StoredAccountCredential): void
 
 export function deleteAccountCredential(issuer = ACCOUNT_ISSUER): boolean {
   const deviceId = loadOrCreateAccountDeviceId();
+  const filePath = credentialPath(issuer, deviceId);
   try {
-    fs.unlinkSync(credentialPath(issuer, deviceId));
+    fs.unlinkSync(filePath);
+    try {
+      fs.unlinkSync(rejectedCredentialPath(issuer, deviceId));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+    rejectedCredentialPaths.delete(filePath);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      try {
+        fs.unlinkSync(rejectedCredentialPath(issuer, deviceId));
+      } catch (tombstoneError) {
+        if ((tombstoneError as NodeJS.ErrnoException).code !== "ENOENT") throw tombstoneError;
+      }
+      rejectedCredentialPaths.delete(filePath);
+      return false;
+    }
+    throw error;
+  }
+}
+
+export function markAccountCredentialRejected(issuer = ACCOUNT_ISSUER): void {
+  const deviceId = loadOrCreateAccountDeviceId();
+  const filePath = credentialPath(issuer, deviceId);
+  rejectedCredentialPaths.add(filePath);
+  const tombstone = {
+    version: 1,
+    issuer: normalizeAccountIssuer(issuer),
+    clientId: ACCOUNT_CLIENT_ID,
+    deviceId,
+    rejectedAt: Date.now(),
+  };
+  try {
+    const storage = secureStorageCheck();
+    if (!storage.ok) return;
+    writeFileAtomic(
+      rejectedCredentialPath(issuer, deviceId),
+      safeStorage.encryptString(JSON.stringify(tombstone)),
+      0o600,
+    );
+  } catch {
+    // The in-memory rejection remains fail-closed for this process.
+  }
+}
+
+export function savePendingAccountCredential(pending: PendingAccountCredential): void {
+  const storage = secureStorageCheck();
+  if (!storage.ok) {
+    throw new AccountCredentialStoreError(storage.errorCode, "Secure credential storage unavailable");
+  }
+  if (
+    pending.version !== 1
+    || !pending.confirmationToken
+    || !Number.isFinite(pending.confirmationExpiresAt)
+    || pending.confirmationExpiresAt <= Date.now()
+  ) {
+    throw new AccountCredentialStoreError(
+      "secure_storage_write_failed",
+      "Invalid pending account credential",
+    );
+  }
+  const normalized: PendingAccountCredential = {
+    ...pending,
+    credential: {
+      ...pending.credential,
+      issuer: normalizeAccountIssuer(pending.credential.issuer),
+      clientId: ACCOUNT_CLIENT_ID,
+    },
+  };
+  try {
+    const encrypted = safeStorage.encryptString(JSON.stringify(normalized));
+    writeFileAtomic(
+      pendingCredentialPath(normalized.credential.issuer, normalized.credential.deviceId),
+      encrypted,
+      0o600,
+    );
+    const verified = JSON.parse(
+      safeStorage.decryptString(fs.readFileSync(
+        pendingCredentialPath(normalized.credential.issuer, normalized.credential.deviceId),
+      )),
+    ) as PendingAccountCredential;
+    if (
+      verified.confirmationToken !== normalized.confirmationToken
+      || verified.credential.accessTokens.claude !== normalized.credential.accessTokens.claude
+      || verified.credential.accessTokens.codex !== normalized.credential.accessTokens.codex
+    ) {
+      throw new Error("Pending credential verification mismatch");
+    }
+  } catch (error) {
+    if (error instanceof AccountCredentialStoreError) throw error;
+    throw new AccountCredentialStoreError(
+      "secure_storage_write_failed",
+      "Failed to persist pending account credential",
+    );
+  }
+}
+
+export function readPendingAccountCredential(
+  issuer = ACCOUNT_ISSUER,
+): PendingAccountCredential | null {
+  const storage = secureStorageCheck();
+  if (!storage.ok) return null;
+  const deviceId = loadOrCreateAccountDeviceId();
+  try {
+    enforcePrivateFileMode(pendingCredentialPath(issuer, deviceId));
+    const parsed = JSON.parse(safeStorage.decryptString(
+      fs.readFileSync(pendingCredentialPath(issuer, deviceId)),
+    )) as PendingAccountCredential;
+    if (
+      parsed.version !== 1
+      || !parsed.confirmationToken
+      || !Number.isFinite(parsed.confirmationExpiresAt)
+    ) {
+      throw new Error("Invalid pending credential record");
+    }
+    const credential = parseAccountCredential(JSON.stringify(parsed.credential));
+    if (
+      credential.issuer !== normalizeAccountIssuer(issuer)
+      || credential.clientId !== ACCOUNT_CLIENT_ID
+      || credential.deviceId !== deviceId
+    ) {
+      throw new Error("Pending credential binding mismatch");
+    }
+    return { ...parsed, credential };
+  } catch {
+    return null;
+  }
+}
+
+export function deletePendingAccountCredential(issuer = ACCOUNT_ISSUER): boolean {
+  const deviceId = loadOrCreateAccountDeviceId();
+  try {
+    fs.unlinkSync(pendingCredentialPath(issuer, deviceId));
     return true;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
@@ -329,6 +519,9 @@ export function credentialTokenForEngine(
     return engine === "claude"
       ? credential.legacy.claudeToken
       : credential.legacy.codexToken;
+  }
+  if (credential.expiresAt !== null && credential.expiresAt <= Date.now()) {
+    return "";
   }
   return credential.accessTokens[engine];
 }

@@ -32,6 +32,7 @@ import { resolveEffectiveCodexModels } from "../lib/codex-model-catalog";
 import { reclaimMacDockFocus } from "../lib/macos-dock-focus";
 import { normalizeSessionCwd } from "../lib/session-cwd";
 import { formatCodexResumeError } from "../lib/codex-resume-error";
+import { isAccountCredentialRejection } from "../lib/account-auth-rejection";
 import { codexPermissionOptionsFromMode, codexSandboxPolicyFromMode, normalizeAppPermissionMode } from "@shared/lib/codex-permissions";
 
 import type {
@@ -67,6 +68,8 @@ interface CodexSession {
   sandbox?: string;
   /** App permission mode used to derive turn-level Codex overrides. */
   permissionMode?: string;
+  upstreamTier: ReturnType<typeof resolveCodexUpstream>["tier"];
+  accountRejectionHandled?: boolean;
 }
 
 import { isSupportedServerRequestMethod, pickModelId } from "@shared/lib/codex-helpers";
@@ -75,6 +78,34 @@ type CodexImageInput = Extract<CodexUserInput, { type: "image" | "localImage" }>
 type CodexMentionInput = Extract<CodexUserInput, { type: "mention" }>;
 
 const codexSessions = new Map<string, CodexSession>();
+
+function handleAccountCredentialRejection(
+  internalId: string,
+  session: CodexSession,
+  value: unknown,
+  source: string,
+): void {
+  if (
+    session.upstreamTier !== "default"
+    || session.accountRejectionHandled
+    || !isAccountCredentialRejection(value)
+  ) {
+    return;
+  }
+  session.accountRejectionHandled = true;
+  log("ACCOUNT_AUTH_REJECTED", {
+    engine: "codex",
+    session: internalId.slice(0, 8),
+    source,
+  });
+  void import("./account-auth")
+    .then(({ markTokenRejected }) => markTokenRejected())
+    .catch((error) => reportError("ACCOUNT_AUTH_REJECT_ERR", error, {
+      engine: "codex",
+      sessionId: internalId,
+      source,
+    }));
+}
 
 /** Expose the currently selected model for utility prompts (title/commit generation). */
 export function getCodexSessionModel(internalId: string): string | undefined {
@@ -169,6 +200,7 @@ function setupCodexHandlers(
   getMainWindow: () => BrowserWindow | null,
 ): void {
   rpc.onStderr = (text) => {
+    handleAccountCredentialRejection(internalId, session, text, "stderr");
     log("codex", `[stderr:${internalId.slice(0, 8)}] ${text.slice(0, 500)}`);
   };
 
@@ -196,6 +228,19 @@ function setupCodexHandlers(
       session.activeTurnId = notification.params.turn.id;
     } else if (notification.method === "turn/completed") {
       session.activeTurnId = null;
+      handleAccountCredentialRejection(
+        internalId,
+        session,
+        notification.params.turn.error,
+        "turn",
+      );
+    } else if (notification.method === "error") {
+      handleAccountCredentialRejection(
+        internalId,
+        session,
+        notification.params.error,
+        "notification",
+      );
     }
 
     safeSend(getMainWindow, "codex:event", {
@@ -288,6 +333,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
           threadId: null,
           activeTurnId: null,
           eventCounter: 0,
+          upstreamTier: initialUpstream.tier,
           cwd,
           model: undefined,
           approvalPolicy: options.approvalPolicy,
@@ -742,6 +788,10 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       const cwd = normalizeSessionCwd(data.cwd);
 
       try {
+        const resumeUpstream = resolveCodexUpstream();
+        if (resumeUpstream.tier === "default" && !resumeUpstream.apiKey) {
+          return { error: "account_required" };
+        }
         const codexPath = await getCodexBinaryPath();
         log("codex",` Resuming thread ${data.threadId} in new process (session=${internalId})`);
 
@@ -762,6 +812,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
           threadId: null,
           activeTurnId: null,
           eventCounter: 0,
+          upstreamTier: resumeUpstream.tier,
           cwd,
           model: data.model,
           approvalPolicy: data.approvalPolicy,
@@ -894,4 +945,18 @@ export function stopAll(): void {
     try { session.rpc.destroy(); } catch { /* already dead */ }
   }
   codexSessions.clear();
+}
+
+/** Stop only app-server processes whose environment contains the DPCC account token. */
+export function stopDesktopAccountSessions(reason = "account-revoked"): void {
+  for (const [id, session] of codexSessions) {
+    if (session.upstreamTier !== "default") continue;
+    log("ACCOUNT_SESSION_STOP", {
+      engine: "codex",
+      session: id.slice(0, 8),
+      reason,
+    });
+    try { session.rpc.destroy(); } catch { /* already dead */ }
+    codexSessions.delete(id);
+  }
 }

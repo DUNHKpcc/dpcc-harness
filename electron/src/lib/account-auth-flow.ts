@@ -7,20 +7,27 @@ import type {
   AccountAuthSnapshot,
   DesktopAccountSummary,
 } from "@shared/types/account-auth";
+import { DESKTOP_CONTRACT_VERSION } from "@shared/types/account-auth";
 import { DEFAULT_NEWAPI_AUTHORIZATION_ORIGIN } from "@shared/types/account";
 import {
   ACCOUNT_CLIENT_ID,
   ACCOUNT_ISSUER,
   AccountCredentialStoreError,
   credentialTokenForEngine,
+  deletePendingAccountCredential,
   deleteAccountCredential,
   loadOrCreateAccountDeviceId,
+  markAccountCredentialRejected,
   normalizeAccountIssuer,
+  readPendingAccountCredential,
   readAccountCredential,
+  savePendingAccountCredential,
   saveAccountCredential,
+  type PendingAccountCredential,
   type StoredAccountCredential,
 } from "./account-credential-store";
 import { getAppSetting, getAppSettings, setAppSettings } from "./app-settings";
+import { log } from "./logger";
 
 const AUTHORIZATION_TIMEOUT_MS = 180_000;
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -54,6 +61,7 @@ interface AuthorizationRequestResponse {
 }
 
 interface TokenExchangeResponse {
+  contractVersion: number | null;
   accessTokens: {
     claude: string;
     codex: string;
@@ -61,6 +69,10 @@ interface TokenExchangeResponse {
   expiresIn: number;
   scopes: string[];
   account: DesktopAccountSummary | null;
+  grantPublicId: string;
+  confirmationRequired: boolean;
+  confirmationToken: string;
+  confirmationExpiresIn: number;
 }
 
 export class AccountAuthorizationError extends Error {
@@ -71,6 +83,29 @@ export class AccountAuthorizationError extends Error {
     super(message);
     this.name = "AccountAuthorizationError";
   }
+}
+
+function recordAuthorizationStage(
+  stage: "request" | "browser_callback" | "exchange" | "storage" | "confirmation",
+  outcome: "ok" | "error",
+  startedAt: number,
+  errorCode?: AccountAuthErrorCode,
+  grantPublicId?: string,
+): void {
+  log("ACCOUNT_AUTH_STAGE", {
+    stage,
+    outcome,
+    latencyMs: Math.max(0, Date.now() - startedAt),
+    ...(errorCode ? { errorCode } : {}),
+    ...(grantPublicId
+      ? {
+          grant: createHash("sha256")
+            .update(grantPublicId)
+            .digest("hex")
+            .slice(0, 16),
+        }
+      : {}),
+  });
 }
 
 function base64Url(bytes: Buffer): string {
@@ -102,9 +137,11 @@ export function constantTimeStringEqual(expected: string, actual: string): boole
 export function validateAuthorizationUrl(
   expectedAuthorizationOrigin: string,
   candidate: string,
+  expectedRequestToken: string,
 ): URL {
   const expectedOrigin = normalizeAccountIssuer(expectedAuthorizationOrigin);
   const parsed = new URL(candidate);
+  const requestTokens = parsed.searchParams.getAll("request");
   if (
     parsed.origin !== expectedOrigin
     || parsed.protocol !== "https:"
@@ -112,6 +149,9 @@ export function validateAuthorizationUrl(
     || parsed.username
     || parsed.password
     || parsed.hash
+    || requestTokens.length !== 1
+    || requestTokens[0] !== expectedRequestToken
+    || [...parsed.searchParams.keys()].some((key) => key !== "request")
   ) {
     throw new AccountAuthorizationError(
       "authorization_url_invalid",
@@ -248,7 +288,11 @@ export async function createLoopbackReceiver(
     ));
     server.close();
   };
-  signal.addEventListener("abort", abort, { once: true });
+  if (signal.aborted) {
+    abort();
+  } else {
+    signal.addEventListener("abort", abort, { once: true });
+  }
 
   const close = () => {
     clearTimeout(timeout);
@@ -292,7 +336,9 @@ function parseAccountSummary(value: unknown): DesktopAccountSummary | null {
   if (!value || typeof value !== "object") return null;
   const record = value as Record<string, unknown>;
   const displayName = stringField(record, "display_name", "displayName");
-  const maskedEmail = stringField(record, "masked_email", "maskedEmail");
+  const maskedEmail =
+    stringField(record, "masked_email", "maskedEmail")
+    || stringField(record, "email");
   const subscriptionState = stringField(record, "subscription_state", "subscriptionState");
   const allowed = record.allowed_models ?? record.allowedModels;
   const allowedModels = Array.isArray(allowed)
@@ -316,7 +362,11 @@ async function postJson(
 ): Promise<Record<string, unknown>> {
   const controller = new AbortController();
   const abort = () => controller.abort();
-  signal.addEventListener("abort", abort, { once: true });
+  if (signal.aborted) {
+    controller.abort();
+  } else {
+    signal.addEventListener("abort", abort, { once: true });
+  }
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
     const response = await fetch(url, {
@@ -364,9 +414,29 @@ function mapProtocolError(
   error: string,
   fallback: AccountAuthErrorCode,
 ): AccountAuthErrorCode {
-  if (error === "access_denied") return "access_denied";
-  if (error === "request_expired" || error === "expired_request") return "request_expired";
-  if (error === "invalid_grant" || error === "token_expired") return "token_exchange_failed";
+  const normalized = error.trim().toLowerCase();
+  if (normalized === "access_denied") return "access_denied";
+  if (
+    normalized === "request_expired"
+    || normalized === "expired_request"
+    || normalized === "desktop_request_expired"
+  ) {
+    return "request_expired";
+  }
+  if (
+    normalized === "invalid_grant"
+    || normalized === "token_expired"
+    || normalized === "desktop_request_consumed"
+    || normalized === "desktop_invalid_pkce"
+  ) {
+    return "token_exchange_failed";
+  }
+  if (normalized === "desktop_confirmation_expired") return "token_confirmation_expired";
+  if (normalized === "desktop_confirmation_invalid") return "token_confirmation_failed";
+  if (normalized === "desktop_device_limit") return "device_limit_reached";
+  if (normalized === "desktop_token_invalid" || normalized === "desktop_scope_denied") {
+    return "token_rejected";
+  }
   return fallback;
 }
 
@@ -383,6 +453,7 @@ function parseAuthorizationRequest(value: Record<string, unknown>): Authorizatio
 }
 
 export function parseTokenExchange(value: Record<string, unknown>): TokenExchangeResponse {
+  const contractVersion = numberField(value, "contract_version", "contractVersion") ?? null;
   const legacyAccessToken = stringField(value, "access_token", "accessToken");
   const tokenEnvelope =
     value.tokens && typeof value.tokens === "object"
@@ -404,12 +475,35 @@ export function parseTokenExchange(value: Record<string, unknown>): TokenExchang
   const tokenType = stringField(value, "token_type", "tokenType");
   const expiresIn = numberField(value, "expires_in", "expiresIn");
   const scope = stringField(value, "scope");
+  const confirmationRequired =
+    value.confirmation_required === true || value.confirmationRequired === true;
+  const confirmationToken = stringField(
+    value,
+    "confirmation_token",
+    "confirmationToken",
+  );
+  const confirmationExpiresIn =
+    numberField(value, "confirmation_expires_in", "confirmationExpiresIn") ?? 0;
+  const accountRecord =
+    value.account && typeof value.account === "object"
+      ? value.account as Record<string, unknown>
+      : {};
+  const grantPublicId = stringField(accountRecord, "grant_public_id", "grantPublicId");
   if (
     !accessTokens.claude
     || !accessTokens.codex
     || tokenType.toLowerCase() !== "bearer"
     || expiresIn === undefined
     || expiresIn <= 0
+    || (contractVersion !== null && contractVersion !== DESKTOP_CONTRACT_VERSION)
+    || (
+      contractVersion === DESKTOP_CONTRACT_VERSION
+      && (!confirmationRequired || !grantPublicId)
+    )
+    || (
+      confirmationRequired
+      && (!confirmationToken || confirmationExpiresIn <= 0)
+    )
   ) {
     throw new AccountAuthorizationError(
       "token_exchange_failed",
@@ -417,10 +511,15 @@ export function parseTokenExchange(value: Record<string, unknown>): TokenExchang
     );
   }
   return {
+    contractVersion,
     accessTokens,
     expiresIn,
     scopes: scope.split(/\s+/).filter(Boolean),
     account: parseAccountSummary(value.account),
+    grantPublicId,
+    confirmationRequired,
+    confirmationToken,
+    confirmationExpiresIn,
   };
 }
 
@@ -445,6 +544,7 @@ export class AccountAuthorizationCoordinator {
     private readonly onSnapshot: (snapshot: AccountAuthSnapshot) => void,
     private readonly issuer = ACCOUNT_ISSUER,
     private readonly authorizationOrigin = DEFAULT_NEWAPI_AUTHORIZATION_ORIGIN,
+    private readonly stopDesktopSessions: (reason: string) => void = () => {},
   ) {
     this.snapshot = this.readSnapshot();
   }
@@ -458,6 +558,22 @@ export class AccountAuthorizationCoordinator {
   beginAuthorization(): AccountAuthActionResult {
     if (this.active) {
       return { ok: false, errorCode: "authorization_in_progress" };
+    }
+    if (readPendingAccountCredential(this.issuer)) {
+      if (getAppSetting("accountMode") !== "guest") {
+        this.resumePendingConfirmation();
+        return { ok: true };
+      }
+      try {
+        deletePendingAccountCredential(this.issuer);
+      } catch {
+        this.publish({
+          ...this.emptySnapshot(),
+          status: "storage_error",
+          errorCode: "secure_storage_write_failed",
+        });
+        return { ok: false, errorCode: "secure_storage_write_failed" };
+      }
     }
     const storage = readAccountCredential(this.issuer);
     if (storage.kind === "storage_error") {
@@ -485,6 +601,59 @@ export class AccountAuthorizationCoordinator {
     return this.beginAuthorization();
   }
 
+  resumePendingConfirmation(): void {
+    if (this.active || getAppSetting("accountMode") === "guest") return;
+    const pending = readPendingAccountCredential(this.issuer);
+    if (!pending) return;
+    const controller = new AbortController();
+    const active: ActiveAuthorization = { controller, closeLoopback: () => {} };
+    this.active = active;
+    this.publish({
+      ...this.readSnapshot(),
+      status: "authorizing",
+      errorCode: undefined,
+    });
+    void (async () => {
+      const startedAt = Date.now();
+      const grantPublicId = pending.credential.grantPublicId;
+      try {
+        const credential = await this.confirmPendingCredential(
+          pending,
+          active.controller.signal,
+        );
+        recordAuthorizationStage(
+          "confirmation",
+          "ok",
+          startedAt,
+          undefined,
+          grantPublicId,
+        );
+        if (this.active === active) this.publishConnectedCredential(credential);
+      } catch (error) {
+        if (this.active !== active) return;
+        const code = error instanceof AccountAuthorizationError
+          ? error.code
+          : error instanceof AccountCredentialStoreError
+            ? error.code
+            : "unknown";
+        recordAuthorizationStage(
+          "confirmation",
+          "error",
+          startedAt,
+          code,
+          grantPublicId,
+        );
+        if (code === "token_confirmation_expired") {
+          try { deletePendingAccountCredential(this.issuer); } catch { /* fail closed */ }
+        }
+        const current = this.readSnapshot(code);
+        this.publish(current);
+      } finally {
+        if (this.active === active) this.active = null;
+      }
+    })();
+  }
+
   cancelAuthorization(): AccountAuthActionResult {
     const active = this.active;
     if (!active) return { ok: true };
@@ -500,6 +669,12 @@ export class AccountAuthorizationCoordinator {
 
   continueAsGuest(): AccountAuthActionResult {
     this.cancelAuthorization();
+    this.stopDesktopSessions("account-guest-mode");
+    try {
+      deletePendingAccountCredential(this.issuer);
+    } catch {
+      // Guest mode remains fail-closed even when pending cleanup is unavailable.
+    }
     const settings = getAppSettings();
     setAppSettings({
       accountMode: "guest",
@@ -549,8 +724,10 @@ export class AccountAuthorizationCoordinator {
   }
 
   clearLocalAuthorization(): AccountAuthActionResult {
+    this.stopDesktopSessions("account-authorization-cleared");
     try {
       deleteAccountCredential(this.issuer);
+      deletePendingAccountCredential(this.issuer);
       setAppSettings({ accountMode: "unset" });
       this.publish({ ...this.emptySnapshot(), status: "signed_out" });
       return { ok: true };
@@ -560,6 +737,8 @@ export class AccountAuthorizationCoordinator {
   }
 
   markTokenRejected(): void {
+    this.stopDesktopSessions("account-token-rejected");
+    markAccountCredentialRejected(this.issuer);
     try {
       deleteAccountCredential(this.issuer);
     } catch {
@@ -581,6 +760,9 @@ export class AccountAuthorizationCoordinator {
 
   private async runAuthorization(active: ActiveAuthorization): Promise<void> {
     let receiver: LoopbackReceiver | null = null;
+    let observedStage: Parameters<typeof recordAuthorizationStage>[0] = "request";
+    let stageStartedAt = Date.now();
+    let grantPublicId = "";
     try {
       const issuer = normalizeAccountIssuer(this.issuer);
       const deviceId = loadOrCreateAccountDeviceId();
@@ -607,11 +789,13 @@ export class AccountAuthorizationCoordinator {
         },
         active.controller.signal,
         undefined,
-        "token_exchange_failed",
+        "authorization_request_failed",
       ));
+      recordAuthorizationStage("request", "ok", stageStartedAt);
       const authorizationUrl = validateAuthorizationUrl(
         this.authorizationOrigin,
         authorizationRequest.authorizationUrl,
+        authorizationRequest.requestToken,
       );
 
       try {
@@ -620,6 +804,8 @@ export class AccountAuthorizationCoordinator {
         throw new AccountAuthorizationError("browser_open_failed", "Failed to open the browser");
       }
 
+      observedStage = "browser_callback";
+      stageStartedAt = Date.now();
       const callback = await receiver.callback;
       if (callback.error) {
         throw new AccountAuthorizationError(
@@ -630,7 +816,10 @@ export class AccountAuthorizationCoordinator {
       if (!callback.code) {
         throw new AccountAuthorizationError("callback_invalid", "Authorization code missing");
       }
+      recordAuthorizationStage("browser_callback", "ok", stageStartedAt);
 
+      observedStage = "exchange";
+      stageStartedAt = Date.now();
       const exchanged = parseTokenExchange(await postJson(
         `${issuer}/api/desktop/oauth/token`,
         {
@@ -640,9 +829,14 @@ export class AccountAuthorizationCoordinator {
           redirect_uri: receiver.redirectUri,
           code_verifier: pkce.verifier,
           device_id: deviceId,
+          protocol_version: DESKTOP_CONTRACT_VERSION,
         },
         active.controller.signal,
+        undefined,
+        "token_exchange_failed",
       ));
+      grantPublicId = exchanged.grantPublicId;
+      recordAuthorizationStage("exchange", "ok", stageStartedAt, undefined, grantPublicId);
       const credential: StoredAccountCredential = {
         version: 2,
         issuer,
@@ -654,21 +848,47 @@ export class AccountAuthorizationCoordinator {
         scopes: exchanged.scopes,
         expiresAt: Date.now() + exchanged.expiresIn * 1_000,
         account: exchanged.account,
+        ...(grantPublicId ? { grantPublicId } : {}),
         source: "desktop",
       };
-      saveAccountCredential(credential);
-      const wasGuest = getAppSetting("accountMode") === "guest";
-      setAppSettings({
-        accountMode: "unset",
-        ...(wasGuest
-          ? {
-              claudeCliConfigSource: "default" as const,
-              codexCliConfigSource: "default" as const,
-            }
-          : {}),
-      });
+
+      observedStage = "storage";
+      stageStartedAt = Date.now();
+      if (exchanged.confirmationRequired) {
+        const pending: PendingAccountCredential = {
+          version: 1,
+          credential,
+          confirmationToken: exchanged.confirmationToken,
+          confirmationExpiresAt: Date.now() + exchanged.confirmationExpiresIn * 1_000,
+        };
+        savePendingAccountCredential(pending);
+        recordAuthorizationStage("storage", "ok", stageStartedAt, undefined, grantPublicId);
+        observedStage = "confirmation";
+        stageStartedAt = Date.now();
+        await this.confirmPendingCredential(pending, active.controller.signal);
+        recordAuthorizationStage("confirmation", "ok", stageStartedAt, undefined, grantPublicId);
+      } else {
+        try {
+          saveAccountCredential(credential);
+          recordAuthorizationStage("storage", "ok", stageStartedAt, undefined, grantPublicId);
+        } catch (storageError) {
+          const cleanupController = new AbortController();
+          try {
+            await postJson(
+              `${issuer}/api/desktop/oauth/revoke`,
+              {},
+              cleanupController.signal,
+              `Bearer ${exchanged.accessTokens.claude || exchanged.accessTokens.codex}`,
+              "revoke_failed",
+            );
+          } catch {
+            // Legacy servers activate during exchange, so cleanup remains best-effort.
+          }
+          throw storageError;
+        }
+      }
       if (this.active === active) {
-        this.publish(this.snapshotForCredential(credential));
+        this.publishConnectedCredential(credential);
       }
     } catch (error) {
       if (this.active !== active) return;
@@ -677,19 +897,75 @@ export class AccountAuthorizationCoordinator {
         : error instanceof AccountCredentialStoreError
           ? error.code
           : "unknown";
-      const status = code.startsWith("secure_storage_")
-        ? "storage_error"
-        : getAppSetting("accountMode") === "guest"
-          ? "guest"
-          : "signed_out";
-      this.publish({ ...this.emptySnapshot(), status, errorCode: code });
+      recordAuthorizationStage(
+        observedStage,
+        "error",
+        stageStartedAt,
+        code,
+        grantPublicId,
+      );
+      const current = this.readSnapshot(code);
+      this.publish(
+        current.status === "signed_out" && code.startsWith("secure_storage_")
+          ? { ...current, status: "storage_error" }
+          : current,
+      );
     } finally {
       receiver?.close();
       if (this.active === active) this.active = null;
     }
   }
 
+  private async confirmPendingCredential(
+    pending: PendingAccountCredential,
+    signal: AbortSignal,
+  ): Promise<StoredAccountCredential> {
+    if (pending.confirmationExpiresAt <= Date.now()) {
+      throw new AccountAuthorizationError(
+        "token_confirmation_expired",
+        "Token confirmation expired",
+      );
+    }
+    await postJson(
+      `${normalizeAccountIssuer(this.issuer)}/api/desktop/oauth/confirm`,
+      { confirmation_token: pending.confirmationToken },
+      signal,
+      undefined,
+      "token_confirmation_failed",
+    );
+    saveAccountCredential(pending.credential);
+    try {
+      deletePendingAccountCredential(this.issuer);
+    } catch {
+      // The active credential is already verified. A stale pending record can be
+      // retried idempotently on the next launch without exposing the token.
+    }
+    return pending.credential;
+  }
+
+  private publishConnectedCredential(credential: StoredAccountCredential): void {
+    this.stopDesktopSessions("account-credential-rotated");
+    const wasGuest = getAppSetting("accountMode") === "guest";
+    setAppSettings({
+      accountMode: "unset",
+      ...(wasGuest
+        ? {
+            claudeCliConfigSource: "default" as const,
+            codexCliConfigSource: "default" as const,
+          }
+        : {}),
+    });
+    this.publish(this.snapshotForCredential(credential));
+  }
+
   private readSnapshot(errorCode?: AccountAuthErrorCode): AccountAuthSnapshot {
+    if (getAppSetting("accountMode") === "guest") {
+      return {
+        ...this.emptySnapshot(),
+        status: "guest",
+        ...(errorCode ? { errorCode } : {}),
+      };
+    }
     const read = readAccountCredential(this.issuer);
     if (read.kind === "storage_error") {
       return {

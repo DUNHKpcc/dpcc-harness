@@ -1,0 +1,49 @@
+name: Account secure storage matrix
+
+on:
+  pull_request:
+    paths:
+      - "electron/src/lib/account-auth-flow.ts"
+      - "electron/src/lib/account-auth-flow.test.ts"
+      - "electron/src/lib/account-credential-store.ts"
+      - "electron/src/lib/account-credential-store.test.ts"
+      - "shared/types/account-auth.ts"
+      - "shared/contracts/desktop-auth-v2.schema.json"
+      - ".github/workflows/account-secure-storage-matrix.yml"
+      - "package.json"
+      - "pnpm-lock.yaml"
+  push:
+    branches:
+      - master
+    paths:
+      - "electron/src/lib/account-auth-flow.ts"
+      - "electron/src/lib/account-auth-flow.test.ts"
+      - "electron/src/lib/account-credential-store.ts"
+      - "electron/src/lib/account-credential-store.test.ts"
+      - "shared/types/account-auth.ts"
+      - "shared/contracts/desktop-auth-v2.schema.json"
+      - ".github/workflows/account-secure-storage-matrix.yml"
+      - "package.json"
+      - "pnpm-lock.yaml"
+
+jobs:
+  credential-contract:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-14
+          - windows-2022
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm exec vitest run --config vitest.config.electron.ts electron/src/lib/account-auth-flow.test.ts electron/src/lib/account-credential-store.test.ts

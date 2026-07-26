@@ -27,6 +27,10 @@ import {
   type StoredAccountCredential,
 } from "./account-credential-store";
 import { getAppSetting, getAppSettings, setAppSettings } from "./app-settings";
+import {
+  renderAccountAuthorizationPage,
+  type AccountAuthorizationPageKind,
+} from "./account-auth-loopback-page";
 import { log } from "./logger";
 
 const AUTHORIZATION_TIMEOUT_MS = 180_000;
@@ -164,21 +168,17 @@ export function validateAuthorizationUrl(
 function sendLoopbackPage(
   response: http.ServerResponse,
   statusCode: number,
-  title: string,
-  message: string,
+  kind: AccountAuthorizationPageKind,
+  acceptLanguage: string | string[] | undefined,
 ): void {
   response.writeHead(statusCode, {
     "Content-Type": "text/html; charset=utf-8",
     "Cache-Control": "no-store",
-    "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'",
+    "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; img-src data:; frame-ancestors 'none'",
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "no-referrer",
   });
-  response.end(
-    `<!doctype html><html><head><meta charset="utf-8"><title>${title}</title>`
-    + "<style>body{font:16px system-ui;margin:48px;color:#202124}h1{font-size:22px}</style>"
-    + `</head><body><h1>${title}</h1><p>${message}</p></body></html>`,
-  );
+  response.end(renderAccountAuthorizationPage({ kind, acceptLanguage }));
 }
 
 export async function createLoopbackReceiver(
@@ -217,7 +217,12 @@ export async function createLoopbackReceiver(
       return;
     }
     if (request.headers.host !== expectedHost) {
-      sendLoopbackPage(response, 400, "Authorization failed", "The callback host was invalid.");
+      sendLoopbackPage(
+        response,
+        400,
+        "invalid-host",
+        request.headers["accept-language"],
+      );
       return;
     }
     if (settled) {
@@ -234,7 +239,12 @@ export async function createLoopbackReceiver(
       states.length !== 1
       || !constantTimeStringEqual(expectedState, states[0])
     ) {
-      sendLoopbackPage(response, 400, "Authorization failed", "The callback state did not match.");
+      sendLoopbackPage(
+        response,
+        400,
+        "state-mismatch",
+        request.headers["accept-language"],
+      );
       rejectCallback(new AccountAuthorizationError(
         "callback_state_mismatch",
         "Authorization callback state mismatch",
@@ -243,17 +253,32 @@ export async function createLoopbackReceiver(
       return;
     }
     if ((codes.length === 1) === (errors.length === 1)) {
-      sendLoopbackPage(response, 400, "Authorization failed", "The callback response was invalid.");
+      sendLoopbackPage(
+        response,
+        400,
+        "invalid-response",
+        request.headers["accept-language"],
+      );
       rejectCallback(new AccountAuthorizationError("callback_invalid", "Invalid callback response"));
       server.close();
       return;
     }
 
     if (errors.length === 1) {
-      sendLoopbackPage(response, 200, "Authorization cancelled", "You can close this tab and return to PccAgent.");
+      sendLoopbackPage(
+        response,
+        200,
+        "cancelled",
+        request.headers["accept-language"],
+      );
       resolveCallback({ error: errors[0] });
     } else {
-      sendLoopbackPage(response, 200, "Authorization received", "You can close this tab and return to PccAgent.");
+      sendLoopbackPage(
+        response,
+        200,
+        "success",
+        request.headers["accept-language"],
+      );
       resolveCallback({ code: codes[0] });
     }
     server.close();

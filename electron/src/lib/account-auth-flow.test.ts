@@ -10,6 +10,7 @@ import {
   parseTokenExchange,
   validateAuthorizationUrl,
 } from "./account-auth-flow";
+import { renderAccountAuthorizationPage } from "./account-auth-loopback-page";
 import { ACCOUNT_ISSUER } from "./account-credential-store";
 import { isAccountCredentialRejection } from "./account-auth-rejection";
 import { DEFAULT_NEWAPI_AUTHORIZATION_ORIGIN } from "@shared/types/account";
@@ -101,6 +102,31 @@ describe("desktop account authorization primitives", () => {
     )).toThrow(AccountAuthorizationError);
   });
 
+  it("localizes the loopback page from the browser language preference", () => {
+    const chinesePage = renderAccountAuthorizationPage({
+      kind: "success",
+      acceptLanguage: "zh-CN,zh;q=0.9,en;q=0.8",
+    });
+    const englishPage = renderAccountAuthorizationPage({
+      kind: "success",
+      acceptLanguage: "en-US,en;q=0.9,zh;q=0.8",
+    });
+
+    expect(chinesePage).toContain("<html lang=\"zh-CN\"");
+    expect(chinesePage).toContain("<title>授权已接收 | PccAgent</title>");
+    expect(chinesePage).toContain("本地授权交接完成");
+    expect(chinesePage).toContain("现在可以安全关闭此页面。");
+    expect(englishPage).toContain("<html lang=\"en\"");
+    expect(englishPage).toContain("<title>Authorization received | PccAgent</title>");
+  });
+
+  it("uses the Anthropic clay color for successful authorization", () => {
+    const page = renderAccountAuthorizationPage({ kind: "success" });
+
+    expect(page).toContain("<meta name=\"theme-color\" content=\"#d97757\">");
+    expect(page).toContain("--accent: #d97757;");
+  });
+
   it("parses independent Claude and Codex keys from the token exchange", () => {
     const exchanged = parseTokenExchange({
       token_type: "Bearer",
@@ -187,7 +213,7 @@ describe("desktop account authorization primitives", () => {
     });
   });
 
-  it("binds a one-shot random loopback path and validates state", async () => {
+  it("confirms a successful local handoff and directs the user back to PccAgent", async () => {
     const controller = new AbortController();
     const receiver = await createLoopbackReceiver(
       "callback-nonce",
@@ -204,6 +230,14 @@ describe("desktop account authorization primitives", () => {
     const response = await fetch(callbackUrl);
 
     expect(response.status).toBe(200);
+    expect(response.headers.get("content-security-policy")).toContain("default-src 'none'");
+    const page = await response.text();
+    expect(page).toContain("<title>Authorization received | PccAgent</title>");
+    expect(page).toContain("Local handoff complete");
+    expect(page).toContain("PccAgent is securely completing setup.");
+    expect(page).toContain("Continue in PccAgent");
+    expect(page).toContain("You can safely close this tab.");
+    expect(page).toContain("@media (prefers-reduced-motion: reduce)");
     await expect(receiver.callback).resolves.toEqual({ code: "one-time-code" });
     receiver.close();
   });

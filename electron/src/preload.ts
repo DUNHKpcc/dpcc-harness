@@ -189,6 +189,9 @@ contextBridge.exposeInMainWorld("claude", {
     ipcRenderer.on("tray:open-session", listener);
     return () => ipcRenderer.removeListener("tray:open-session", listener);
   },
+  windowActivationReady: () => {
+    ipcRenderer.send("app:window-activation-ready");
+  },
   notifications: {
     show: (payload: AppNotificationPayload) =>
       ipcRenderer.invoke("notifications:show", payload) as Promise<AppNotificationShowResult>,

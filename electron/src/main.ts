@@ -8,6 +8,7 @@ import {
   Menu,
   nativeImage,
   nativeTheme,
+  screen,
   session,
   systemPreferences,
   Tray,
@@ -36,7 +37,7 @@ import { log, closeLogStream } from "./lib/logger";
 import { reportError } from "./lib/error-utils";
 import { migrateFromOpenAcpUi } from "./lib/migration";
 import { glassEnabled, applyGlass, setGlassTint } from "./lib/glass";
-import { getAppSettings } from "./lib/app-settings";
+import { getAppSettings, setAppSettings } from "./lib/app-settings";
 import { initAutoUpdater, getIsInstallingUpdate } from "./lib/updater";
 import { initPreReleaseCheck } from "./lib/prerelease-check";
 import {
@@ -92,19 +93,17 @@ import * as notificationsIpc from "./ipc/notifications";
 
 // --- Performance: Chromium/V8 flags (must be set before app.whenReady()) ---
 // --- Single-instance lock ---
-// Without this, any stray re-launch of the packaged binary boots a whole second
-// app instance whose own window flashes the welcome screen on top of the running
-// one. Claim the lock; if another instance already holds it, quit immediately and
-// focus the existing window instead. (getMainWindow is a hoisted declaration.)
-if (!app.requestSingleInstanceLock()) {
+// Keep the ready callback gated as well as requesting quit. On Windows, a fast
+// relaunch can otherwise race app.quit() and briefly initialize its own window
+// and loopback services before the process exits.
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+if (!hasSingleInstanceLock) {
+  log("SINGLE_INSTANCE", `Secondary instance exiting (argumentCount=${Math.max(process.argv.length - 1, 0)})`);
   app.quit();
 } else {
-  app.on("second-instance", () => {
-    const win = getMainWindow();
-    if (!win) return;
-    if (!win.isVisible()) win.show();
-    if (win.isMinimized()) win.restore();
-    win.focus();
+  app.on("second-instance", (_event, argv) => {
+    log("SINGLE_INSTANCE", `Second instance requested activation (argumentCount=${Math.max(argv.length - 1, 0)})`);
+    setImmediate(() => showMainWindow("second-instance"));
   });
 }
 
@@ -125,13 +124,83 @@ let isQuitting = false;
 let persistenceFlushComplete = false;
 let persistenceFlushInProgress = false;
 let persistenceFlushRequestId = 0;
+let rendererWindowActivationReady = false;
+let pendingWindowShowReason: WindowActivationReason | null = null;
+let pendingTraySession: { projectId: string; sessionId: string } | null = null;
+let pendingNotificationSessionId: string | null = null;
+let windowStateSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
-import type { ThemeOption, MacBackgroundEffect as SharedMacBackgroundEffect } from "@shared/types/settings";
+import type {
+  ThemeOption,
+  MacBackgroundEffect as SharedMacBackgroundEffect,
+  WindowBounds,
+} from "@shared/types/settings";
 
 /** In main process, "off" is never applied — it resolves to vibrancy or liquid-glass before use. */
 type MacBackgroundEffect = Exclude<SharedMacBackgroundEffect, "off">;
+type WindowActivationReason =
+  | "notification"
+  | "second-instance"
+  | "tray-double-click"
+  | "tray-session";
 
 let pendingMacBackgroundEffect: MacBackgroundEffect = "liquid-glass";
+const DEFAULT_WINDOW_BOUNDS = { width: 1200, height: 800 };
+const MIN_WINDOW_HEIGHT = 600;
+const WINDOW_STATE_SAVE_DELAY_MS = 250;
+
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.min(Math.max(value, minimum), maximum);
+}
+
+function restoreWindowBounds(
+  savedBounds: WindowBounds | null,
+  minWidth: number,
+): WindowBounds | null {
+  if (!savedBounds) return null;
+  const workArea = screen.getDisplayMatching(savedBounds).workArea;
+  const width = clamp(savedBounds.width, Math.min(minWidth, workArea.width), workArea.width);
+  const height = clamp(
+    savedBounds.height,
+    Math.min(MIN_WINDOW_HEIGHT, workArea.height),
+    workArea.height,
+  );
+  return {
+    x: clamp(savedBounds.x, workArea.x, workArea.x + workArea.width - width),
+    y: clamp(savedBounds.y, workArea.y, workArea.y + workArea.height - height),
+    width,
+    height,
+  };
+}
+
+function persistMainWindowState(): void {
+  const win = getMainWindow();
+  if (packageSmokeCheck || !win || win.isDestroyed()) return;
+  try {
+    setAppSettings({
+      windowBounds: win.getNormalBounds(),
+      windowMaximized: win.isMaximized(),
+    });
+  } catch (err) {
+    reportError("WINDOW_STATE_SAVE_ERR", err);
+  }
+}
+
+function scheduleWindowStateSave(): void {
+  if (windowStateSaveTimer) clearTimeout(windowStateSaveTimer);
+  windowStateSaveTimer = setTimeout(() => {
+    windowStateSaveTimer = null;
+    persistMainWindowState();
+  }, WINDOW_STATE_SAVE_DELAY_MS);
+}
+
+function flushWindowStateSave(): void {
+  if (windowStateSaveTimer) {
+    clearTimeout(windowStateSaveTimer);
+    windowStateSaveTimer = null;
+  }
+  persistMainWindowState();
+}
 
 function normalizeThemeSource(value: unknown): ThemeOption {
   return value === "light" || value === "dark" || value === "system"
@@ -248,42 +317,64 @@ function getTrayIconPath(): string | null {
   return candidates.find(existsSync) ?? null;
 }
 
-function showMainWindow(): void {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
-  if (mainWindow.isMinimized()) mainWindow.restore();
-  if (!mainWindow.isVisible()) mainWindow.show();
-  mainWindow.focus();
+function showMainWindow(reason: WindowActivationReason): void {
+  const win = getMainWindow();
+  if (!win || win.isDestroyed()) {
+    pendingWindowShowReason = reason;
+    log("WINDOW_ACTIVATE", `${reason}: queued because the main window is not ready`);
+    return;
+  }
+
+  const wasMinimized = win.isMinimized();
+  const wasVisible = win.isVisible();
+  log(
+    "WINDOW_ACTIVATE",
+    `${reason}: restoring window (visible=${wasVisible}, minimized=${wasMinimized})`,
+  );
+  if (wasMinimized) win.restore();
+  if (!win.isVisible()) win.show();
+  win.focus();
+  pendingWindowShowReason = null;
+  log("WINDOW_ACTIVATE", `${reason}: restore/focus completed`);
+}
+
+function flushPendingWindowActivations(): void {
+  if (!rendererWindowActivationReady) {
+    log("WINDOW_ACTIVATE", "Renderer not ready; navigation request remains queued");
+    return;
+  }
+  const win = getMainWindow();
+  if (!win || win.isDestroyed() || win.webContents.isDestroyed()) {
+    rendererWindowActivationReady = false;
+    log("WINDOW_ACTIVATE", "Renderer unavailable; navigation request remains queued");
+    return;
+  }
+
+  if (pendingTraySession) {
+    const target = pendingTraySession;
+    pendingTraySession = null;
+    log("WINDOW_ACTIVATE", `Dispatching tray session ${target.sessionId}`);
+    safeSend(getMainWindow, "tray:open-session", target);
+  }
+  if (pendingNotificationSessionId) {
+    const sessionId = pendingNotificationSessionId;
+    pendingNotificationSessionId = null;
+    log("WINDOW_ACTIVATE", `Dispatching notification session ${sessionId}`);
+    safeSend(getMainWindow, "notifications:activated", { sessionId });
+  }
 }
 
 function openSessionFromTray(projectId: string, sessionId: string): void {
-  showMainWindow();
-  const win = getMainWindow();
-  if (!win || win.isDestroyed()) return;
-
-  const sendTarget = () => {
-    safeSend(getMainWindow, "tray:open-session", { projectId, sessionId });
-  };
-  if (win.webContents.isLoadingMainFrame()) {
-    win.webContents.once("did-finish-load", sendTarget);
-    return;
-  }
-  sendTarget();
+  pendingTraySession = { projectId, sessionId };
+  showMainWindow("tray-session");
+  queueMicrotask(flushPendingWindowActivations);
 }
 
 function activateNotification(sessionId?: string): void {
-  showMainWindow();
+  showMainWindow("notification");
   if (!sessionId) return;
-
-  const win = getMainWindow();
-  if (!win || win.isDestroyed()) return;
-  const sendActivation = () => {
-    safeSend(getMainWindow, "notifications:activated", { sessionId });
-  };
-  if (win.webContents.isLoadingMainFrame()) {
-    win.webContents.once("did-finish-load", sendActivation);
-    return;
-  }
-  queueMicrotask(sendActivation);
+  pendingNotificationSessionId = sessionId;
+  queueMicrotask(flushPendingWindowActivations);
 }
 
 async function showTrayContextMenu(): Promise<void> {
@@ -296,7 +387,9 @@ async function showTrayContextMenu(): Promise<void> {
   const recentItems: Electron.MenuItemConstructorOptions[] = recentSessions.length > 0
     ? recentSessions.map((session) => ({
         label: formatTraySessionLabel(session),
-        click: () => openSessionFromTray(session.projectId, session.id),
+        click: () => {
+          setImmediate(() => openSessionFromTray(session.projectId, session.id));
+        },
       }))
     : [{ label: "暂无最近对话", enabled: false }];
 
@@ -306,7 +399,9 @@ async function showTrayContextMenu(): Promise<void> {
     { type: "separator" },
     {
       label: "显示 / 恢复",
-      click: showMainWindow,
+      click: () => {
+        setImmediate(() => showMainWindow("tray-double-click"));
+      },
     },
     { type: "separator" },
     {
@@ -319,11 +414,22 @@ async function showTrayContextMenu(): Promise<void> {
   ]));
 }
 
+ipcMain.on("app:window-activation-ready", (event) => {
+  if (event.sender.id !== getMainWindow()?.webContents.id) return;
+  rendererWindowActivationReady = true;
+  log("WINDOW_ACTIVATE", "Renderer listeners ready");
+  queueMicrotask(flushPendingWindowActivations);
+});
+
 function isMainRendererPermissionRequest(webContents: Electron.WebContents | null): boolean {
   return !!webContents && webContents.id === mainWindow?.webContents.id;
 }
 
 function createWindow(): void {
+  rendererWindowActivationReady = false;
+  const appSettings = getAppSettings();
+  const minWidth = getBootstrapMinWindowWidth(process.platform);
+  const restoredBounds = restoreWindowBounds(appSettings.windowBounds, minWidth);
   const initialMacBackgroundEffect: MacBackgroundEffect = resolveMacBackgroundEffect(pendingMacBackgroundEffect);
   if (process.platform === "darwin") {
     pendingMacBackgroundEffect = initialMacBackgroundEffect;
@@ -331,12 +437,11 @@ function createWindow(): void {
 
   const windowOptions: Electron.BrowserWindowConstructorOptions = {
     show: false,
-    width: 1200,
-    height: 800,
+    ...(restoredBounds ?? DEFAULT_WINDOW_BOUNDS),
     // Matches the renderer's stricter island-layout minimum before first IPC sync,
     // including the extra Windows frame buffer.
-    minWidth: getBootstrapMinWindowWidth(process.platform),
-    minHeight: 600,
+    minWidth,
+    minHeight: MIN_WINDOW_HEIGHT,
     // Packaged builds get the icon from the .app bundle / electron-builder config
     ...(!app.isPackaged && { icon: path.join(__dirname, "../../build/icon.png") }),
     webPreferences: {
@@ -393,20 +498,33 @@ function createWindow(): void {
   }
 
   mainWindow = new BrowserWindow(windowOptions);
+  if (appSettings.windowMaximized) mainWindow.maximize();
   if (process.platform === "darwin") applyMacBackgroundEffect(initialMacBackgroundEffect);
 
+  mainWindow.on("move", scheduleWindowStateSave);
+  mainWindow.on("resize", scheduleWindowStateSave);
+  mainWindow.on("maximize", scheduleWindowStateSave);
+  mainWindow.on("unmaximize", scheduleWindowStateSave);
+
   mainWindow.once("ready-to-show", () => {
-    if (!packageSmokeCheck) mainWindow?.show();
+    if (packageSmokeCheck) return;
+    if (pendingWindowShowReason) {
+      showMainWindow(pendingWindowShowReason);
+      return;
+    }
+    mainWindow?.show();
   });
 
   if (process.platform === "win32") {
     mainWindow.on("minimize", () => {
-      mainWindow?.hide();
+      log("WINDOW_STATE", "Main window minimized; keeping native taskbar presence");
     });
 
     mainWindow.on("close", (event) => {
       if (isQuitting) return;
       event.preventDefault();
+      flushWindowStateSave();
+      log("WINDOW_STATE", "Main window close requested; hiding to tray");
       mainWindow?.hide();
     });
   } else {
@@ -414,6 +532,7 @@ function createWindow(): void {
       if (persistenceFlushComplete) return;
       event.preventDefault();
       if (persistenceFlushInProgress) return;
+      flushWindowStateSave();
       persistenceFlushInProgress = true;
       const closingWindow = mainWindow;
       void requestRendererPersistenceFlush().finally(() => {
@@ -432,12 +551,24 @@ function createWindow(): void {
     });
   }
 
+  mainWindow.on("unresponsive", () => {
+    log("WINDOW_STATE", "Main window became unresponsive");
+  });
+  mainWindow.on("responsive", () => {
+    log("WINDOW_STATE", "Main window became responsive");
+  });
+  mainWindow.webContents.on("did-start-loading", () => {
+    rendererWindowActivationReady = false;
+    log("WINDOW_ACTIVATE", "Renderer navigation started; activation delivery paused");
+  });
+
   // A renderer crash abandons every session/terminal handle it owned. Without
   // this, the orphaned SDK queries (and their bundled CLI subprocesses), ACP/
   // Codex child processes, and node-pty shells keep running and holding RAM/CPU
   // until the whole app quits. Tear them down so the reloaded renderer starts
   // clean (it revives sessions via `resume`).
   mainWindow.webContents.on("render-process-gone", (_e, details) => {
+    rendererWindowActivationReady = false;
     reportError(
       "RENDER_PROCESS_GONE",
       new Error(`Renderer process gone: ${details.reason}`),
@@ -719,7 +850,7 @@ ipcMain.handle("speech:request-mic-permission", async () => {
   return { granted: true };
 });
 
-app.whenReady().then(() => {
+function initializeApp(): void {
   // Migrate data from old "OpenACP UI" app directory before anything reads it
   migrateFromOpenAcpUi();
   accountAuthIpc.initialize();
@@ -767,7 +898,9 @@ app.whenReady().then(() => {
     tray.on("right-click", () => {
       void showTrayContextMenu();
     });
-    tray.on("double-click", showMainWindow);
+    tray.on("double-click", () => {
+      setImmediate(() => showMainWindow("tray-double-click"));
+    });
   }
 
   initAutoUpdater(getMainWindow, diagnosticBuild);
@@ -820,7 +953,11 @@ app.whenReady().then(() => {
       log("DEVTOOLS", `Register ${shortcut}: ${ok ? "OK" : "FAILED"}`);
     }
   }
-});
+}
+
+if (hasSingleInstanceLock) {
+  void app.whenReady().then(initializeApp);
+}
 
 // Kill all renderer-owned processes (Claude/ACP/Codex sessions + node-pty
 // terminals). Idempotent and safe to call repeatedly — used by window-all-closed,
@@ -853,6 +990,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 
 app.on("before-quit", (event) => {
   isQuitting = true;
+  flushWindowStateSave();
   if (
     persistenceFlushComplete
     || persistenceFlushInProgress

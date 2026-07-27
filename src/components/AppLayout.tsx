@@ -135,8 +135,8 @@ export function AppLayout() {
   // closure snapshot.
   const managerRef = useRef(manager);
   managerRef.current = manager;
-  const [pendingTraySession, setPendingTraySession] = useState<{
-    projectId: string;
+  const [pendingExternalSession, setPendingExternalSession] = useState<{
+    projectId?: string;
     sessionId: string;
   } | null>(null);
   const {
@@ -411,24 +411,30 @@ export function AppLayout() {
     [handleSelectSession, projectManager.projects, setJiraBoardProjectForSpace, splitView],
   );
 
-  openSessionFromNotificationRef.current = handleSidebarSelectSession;
+  openSessionFromNotificationRef.current = (sessionId) => {
+    setPendingExternalSession({ sessionId });
+  };
 
   useEffect(() => window.claude.onTrayOpenSession((target) => {
-    setPendingTraySession(target);
+    setPendingExternalSession(target);
   }), []);
 
   useEffect(() => {
-    if (!pendingTraySession) return;
+    if (isWindows) window.claude.windowActivationReady();
+  }, []);
+
+  useEffect(() => {
+    if (!pendingExternalSession) return;
     const sessionExists = manager.sessions.some((session) =>
-      session.id === pendingTraySession.sessionId &&
-      session.projectId === pendingTraySession.projectId,
+      session.id === pendingExternalSession.sessionId &&
+      (!pendingExternalSession.projectId || session.projectId === pendingExternalSession.projectId),
     );
     if (!sessionExists) return;
 
-    setPendingTraySession(null);
+    setPendingExternalSession(null);
     setShowSettings(false);
-    handleSidebarSelectSession(pendingTraySession.sessionId);
-  }, [handleSidebarSelectSession, manager.sessions, pendingTraySession, setShowSettings]);
+    handleSidebarSelectSession(pendingExternalSession.sessionId);
+  }, [handleSidebarSelectSession, manager.sessions, pendingExternalSession, setShowSettings]);
 
 
   useEffect(() => {

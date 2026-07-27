@@ -86,6 +86,7 @@ declare global {
       onTrayOpenSession: (
         callback: (target: { projectId: string; sessionId: string }) => void,
       ) => () => void;
+      windowActivationReady: () => void;
       notifications: AppNotificationBridge;
       glass: {
         setTintColor: (tintColor: string | null) => void;

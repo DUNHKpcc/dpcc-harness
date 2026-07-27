@@ -18,7 +18,10 @@ import type {
   CodexGatewaySettings,
   DpccUpstreamSettings,
   CliConfigSource,
+  TerminalShell,
+  WindowBounds,
 } from "@shared/types/settings";
+import { TERMINAL_SHELLS } from "@shared/types/settings";
 import {
   CLAUDE_GATEWAY_MODEL_PRESETS,
   CODEX_GATEWAY_MODEL_PRESETS,
@@ -28,7 +31,7 @@ import { DEFAULT_NEWAPI_BASE_URL } from "@shared/types/account";
 import { isActiveThirdPartyGateway, isDpccUpstreamUrl } from "@shared/lib/upstream-routing";
 
 // Re-export shared types so existing `import from "./app-settings"` consumers still work
-export type { AppSettings, MacBackgroundEffect, PreferredEditor, VoiceDictationMode, NotificationTrigger, NotificationEventSettings, NotificationSettings, CodexBinarySource, ClaudeBinarySource, ClaudeGatewaySettings, CodexGatewaySettings, DpccUpstreamSettings, UpdateSource, CliConfigSource, AccountMode } from "@shared/types/settings";
+export type { AppSettings, MacBackgroundEffect, PreferredEditor, VoiceDictationMode, TerminalShell, TerminalShellOption, WindowBounds, NotificationTrigger, NotificationEventSettings, NotificationSettings, CodexBinarySource, ClaudeBinarySource, ClaudeGatewaySettings, CodexGatewaySettings, DpccUpstreamSettings, UpdateSource, CliConfigSource, AccountMode } from "@shared/types/settings";
 
 const NOTIFICATION_DEFAULTS: NotificationSettings = {
   exitPlanMode: { osNotification: "unfocused", sound: "always" },
@@ -43,6 +46,10 @@ const DEFAULTS: AppSettings = {
   defaultChatLimit: 10,
   preferredEditor: "auto",
   voiceDictation: "native",
+  terminalShell: "auto",
+  terminalCustomShellPath: "",
+  windowBounds: null,
+  windowMaximized: false,
   notifications: NOTIFICATION_DEFAULTS,
   codexClientName: "PccAgent",
   codexBinarySource: "builtin",
@@ -149,6 +156,33 @@ function hasLegacyThirdPartyGatewaySelection(parsed: Partial<AppSettings>): bool
 
 function normalizeCliConfigSource(source: unknown): CliConfigSource | null {
   return source === "local" || source === "gateway" || source === "default" ? source : null;
+}
+
+function normalizeTerminalShell(value: unknown): TerminalShell {
+  return TERMINAL_SHELLS.includes(value as TerminalShell) ? value as TerminalShell : "auto";
+}
+
+function normalizeWindowBounds(value: unknown): WindowBounds | null {
+  if (!value || typeof value !== "object") return null;
+  const bounds = value as Partial<WindowBounds>;
+  const isFiniteNumber = (candidate: unknown): candidate is number =>
+    typeof candidate === "number" && Number.isFinite(candidate);
+  if (
+    !isFiniteNumber(bounds.x)
+    || !isFiniteNumber(bounds.y)
+    || !isFiniteNumber(bounds.width)
+    || !isFiniteNumber(bounds.height)
+    || bounds.width <= 0
+    || bounds.height <= 0
+  ) {
+    return null;
+  }
+  return {
+    x: Math.round(bounds.x),
+    y: Math.round(bounds.y),
+    width: Math.round(bounds.width),
+    height: Math.round(bounds.height),
+  };
 }
 
 function legacyCliConfigSource(parsed: Partial<AppSettings>): CliConfigSource {
@@ -271,6 +305,13 @@ export function getAppSettings(): AppSettings {
     cached = {
       ...DEFAULTS,
       ...parsed,
+      terminalShell: normalizeTerminalShell(parsed.terminalShell),
+      terminalCustomShellPath:
+        typeof parsed.terminalCustomShellPath === "string"
+          ? parsed.terminalCustomShellPath
+          : DEFAULTS.terminalCustomShellPath,
+      windowBounds: normalizeWindowBounds(parsed.windowBounds),
+      windowMaximized: parsed.windowMaximized === true,
       notifications: {
         exitPlanMode: { ...NOTIFICATION_DEFAULTS.exitPlanMode, ...parsedNotif?.exitPlanMode },
         permissions: { ...NOTIFICATION_DEFAULTS.permissions, ...parsedNotif?.permissions },
@@ -314,9 +355,29 @@ export function getAppSetting<K extends keyof AppSettings>(key: K): AppSettings[
 /** Update one or more settings and persist to disk. */
 export function setAppSettings(patch: Partial<AppSettings>): AppSettings {
   const current = getAppSettings();
-  const normalizedPatch = patch.dpccUpstream
-    ? { ...patch, dpccUpstream: migrateDpccOriginBaseUrl(patch.dpccUpstream).upstream }
-    : patch;
+  const normalizedPatch: Partial<AppSettings> = {
+    ...patch,
+    ...(patch.terminalShell !== undefined
+      ? { terminalShell: normalizeTerminalShell(patch.terminalShell) }
+      : {}),
+    ...(patch.terminalCustomShellPath !== undefined
+      ? {
+          terminalCustomShellPath:
+            typeof patch.terminalCustomShellPath === "string"
+              ? patch.terminalCustomShellPath
+              : current.terminalCustomShellPath,
+        }
+      : {}),
+    ...(patch.windowBounds !== undefined
+      ? { windowBounds: normalizeWindowBounds(patch.windowBounds) }
+      : {}),
+    ...(patch.windowMaximized !== undefined
+      ? { windowMaximized: patch.windowMaximized === true }
+      : {}),
+    ...(patch.dpccUpstream
+      ? { dpccUpstream: migrateDpccOriginBaseUrl(patch.dpccUpstream).upstream }
+      : {}),
+  };
   const next = { ...current, ...normalizedPatch };
   cached = next;
 

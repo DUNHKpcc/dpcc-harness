@@ -25,6 +25,65 @@ describe("app settings", () => {
     fs.rmSync(dataDirRef.current, { recursive: true, force: true });
   });
 
+  it("defaults an invalid terminal shell selection to auto", async () => {
+    fs.writeFileSync(path.join(dataDirRef.current, "settings.json"), JSON.stringify({
+      terminalShell: "not-a-shell",
+      terminalCustomShellPath: 42,
+      binarySourceDefaultsMigrated: true,
+    }), "utf-8");
+
+    const { getAppSettings } = await loadModule();
+
+    expect(getAppSettings()).toMatchObject({
+      terminalShell: "auto",
+      terminalCustomShellPath: "",
+    });
+  });
+
+  it("persists the integrated terminal shell preference", async () => {
+    const settingsPath = path.join(dataDirRef.current, "settings.json");
+    const { setAppSettings } = await loadModule();
+
+    const settings = setAppSettings({
+      terminalShell: "fish",
+      terminalCustomShellPath: "/opt/homebrew/bin/fish",
+    });
+
+    expect(settings).toMatchObject({
+      terminalShell: "fish",
+      terminalCustomShellPath: "/opt/homebrew/bin/fish",
+    });
+    expect(JSON.parse(fs.readFileSync(settingsPath, "utf-8"))).toMatchObject({
+      terminalShell: "fish",
+      terminalCustomShellPath: "/opt/homebrew/bin/fish",
+    });
+  });
+
+  it("normalizes and persists the main window state", async () => {
+    const settingsPath = path.join(dataDirRef.current, "settings.json");
+    fs.writeFileSync(settingsPath, JSON.stringify({
+      windowBounds: { x: 10, y: 20, width: -1, height: 800 },
+      windowMaximized: "yes",
+      binarySourceDefaultsMigrated: true,
+    }), "utf-8");
+    const { getAppSettings, setAppSettings } = await loadModule();
+
+    expect(getAppSettings()).toMatchObject({
+      windowBounds: null,
+      windowMaximized: false,
+    });
+
+    setAppSettings({
+      windowBounds: { x: 120, y: 80, width: 1440, height: 900 },
+      windowMaximized: true,
+    });
+
+    expect(JSON.parse(fs.readFileSync(settingsPath, "utf-8"))).toMatchObject({
+      windowBounds: { x: 120, y: 80, width: 1440, height: 900 },
+      windowMaximized: true,
+    });
+  });
+
   it("migrates legacy Claude and Codex binary sources to built-in by default", async () => {
     const settingsPath = path.join(dataDirRef.current, "settings.json");
     fs.writeFileSync(settingsPath, JSON.stringify({

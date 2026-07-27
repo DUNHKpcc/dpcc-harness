@@ -8,6 +8,30 @@
 
 export type PreferredEditor = "auto" | "cursor" | "code" | "zed";
 export type VoiceDictationMode = "native" | "whisper";
+export const TERMINAL_SHELLS = [
+  "auto",
+  "pwsh",
+  "powershell",
+  "cmd",
+  "git-bash",
+  "wsl",
+  "zsh",
+  "bash",
+  "fish",
+  "custom",
+] as const;
+export type TerminalShell = (typeof TERMINAL_SHELLS)[number];
+export interface TerminalShellOption {
+  shell: Exclude<TerminalShell, "custom">;
+  available: boolean;
+  path?: string;
+}
+export interface WindowBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 export type ThemeOption = "light" | "dark" | "system";
 /** UI language. "system" follows the OS locale (zh-* → Chinese, otherwise English). */
 export type LanguageOption = "system" | "en" | "zh";
@@ -114,6 +138,14 @@ export interface AppSettings {
   preferredEditor: PreferredEditor;
   /** Voice dictation mode: "native" uses OS dictation, "whisper" uses local AI model (default: "native") */
   voiceDictation: VoiceDictationMode;
+  /** Shell used for newly created integrated terminals */
+  terminalShell: TerminalShell;
+  /** Absolute executable path used when terminalShell is "custom" */
+  terminalCustomShellPath: string;
+  /** Last non-maximized main-window bounds */
+  windowBounds: WindowBounds | null;
+  /** Whether the main window was maximized when its state was last saved */
+  windowMaximized: boolean;
   /** Per-event notification and sound configuration */
   notifications: NotificationSettings;
   /** Custom client name sent to Codex servers during handshake (default: "PccAgent") */

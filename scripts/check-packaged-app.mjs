@@ -7,6 +7,10 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const asar = require("@electron/asar");
+const {
+  normalizeAsarEntry,
+  toAsarLookupEntry,
+} = require("./lib/asar-entry-path.js");
 const packageJson = require("../package.json");
 const [targetArgument] = process.argv.slice(2).filter((argument) => argument !== "--");
 const targetPath = path.resolve(targetArgument ?? "");
@@ -37,10 +41,6 @@ function collectAsarPaths(startPath) {
   return found.sort();
 }
 
-function normalizeAsarEntry(entry) {
-  return entry.replaceAll("\\", "/").replace(/^\/+/, "");
-}
-
 function assertPackagedRenderer(asarPath) {
   const entries = asar.listPackage(asarPath).map(normalizeAsarEntry);
   const entrySet = new Set(entries);
@@ -50,12 +50,14 @@ function assertPackagedRenderer(asarPath) {
     }
   }
 
-  const icon = asar.extractFile(asarPath, "dist/icon.png");
+  const icon = asar.extractFile(asarPath, toAsarLookupEntry("dist/icon.png"));
   if (icon.length < 24 || icon.subarray(1, 4).toString("ascii") !== "PNG") {
     throw new Error(`${asarPath} contains an invalid dist/icon.png`);
   }
 
-  const indexHtml = asar.extractFile(asarPath, "dist/index.html").toString("utf8");
+  const indexHtml = asar
+    .extractFile(asarPath, toAsarLookupEntry("dist/index.html"))
+    .toString("utf8");
   for (const match of indexHtml.matchAll(/\b(?:href|src)="\.\/([^"]+)"/g)) {
     const referencedEntry = `dist/${match[1].split(/[?#]/, 1)[0]}`;
     if (!entrySet.has(referencedEntry)) {
@@ -75,7 +77,7 @@ function assertPackagedRenderer(asarPath) {
   ]);
   for (const entry of entries) {
     if (!entry.startsWith("dist/assets/") || !entry.endsWith(".js")) continue;
-    const source = asar.extractFile(asarPath, entry).toString("utf8");
+    const source = asar.extractFile(asarPath, toAsarLookupEntry(entry)).toString("utf8");
     for (const marker of productionMarkers) {
       if (source.includes(marker)) productionMarkers.delete(marker);
     }

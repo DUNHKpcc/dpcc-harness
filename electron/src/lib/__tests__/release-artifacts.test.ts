@@ -5,8 +5,32 @@ import { describe, expect, it } from "vitest";
 
 const repoRoot = path.resolve(__dirname, "../../../..");
 const requireFromTest = createRequire(import.meta.url);
+const {
+  normalizeAsarEntry,
+  toAsarLookupEntry,
+} = requireFromTest(path.join(repoRoot, "scripts/lib/asar-entry-path.js")) as {
+  normalizeAsarEntry: (entry: string) => string;
+  toAsarLookupEntry: (
+    entry: string,
+    pathApi?: { join: (...paths: string[]) => string },
+  ) => string;
+};
 
 describe("release artifact configuration", () => {
+  it("uses native separators when looking up normalized ASAR entries", () => {
+    const listedEntry = "\\dist\\assets\\ImageAnnotationEditor-D9S_tWj1.js";
+
+    expect(normalizeAsarEntry(listedEntry)).toBe(
+      "dist/assets/ImageAnnotationEditor-D9S_tWj1.js",
+    );
+    expect(toAsarLookupEntry(listedEntry, path.win32)).toBe(
+      "dist\\assets\\ImageAnnotationEditor-D9S_tWj1.js",
+    );
+    expect(toAsarLookupEntry(listedEntry, path.posix)).toBe(
+      "dist/assets/ImageAnnotationEditor-D9S_tWj1.js",
+    );
+  });
+
   it("uses explicit platform and architecture names for downloadable installers", () => {
     const config = requireFromTest(path.join(repoRoot, "electron-builder.config.js"));
 

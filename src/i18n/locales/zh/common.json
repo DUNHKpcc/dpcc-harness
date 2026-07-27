@@ -140,5 +140,19 @@
       "secure_storage_write_failed": "无法保存加密凭据。",
       "unknown": "授权失败，请重试。"
     }
+  },
+  "accountSubscription": {
+    "title": "DPCC API 订阅",
+    "description": "由 DPCC 上游返回的有效订阅套餐。",
+    "active": "生效中",
+    "none": "暂无有效订阅",
+    "expired": "已到期",
+    "unavailable": "暂无订阅信息",
+    "current": "当前订阅",
+    "validUntil": "有效期至 {{date}}",
+    "used": "已用",
+    "remaining": "剩余",
+    "unlimited": "无限额度",
+    "progressLabel": "已用 {{used}}%，剩余 {{remaining}}%"
   }
 }

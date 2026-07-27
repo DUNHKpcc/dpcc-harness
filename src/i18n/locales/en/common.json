@@ -140,5 +140,19 @@
       "secure_storage_write_failed": "The encrypted credential could not be saved.",
       "unknown": "Authorization failed. Try again."
     }
+  },
+  "accountSubscription": {
+    "title": "DPCC API subscription",
+    "description": "Active plans reported by the DPCC upstream.",
+    "active": "Active",
+    "none": "No active subscription",
+    "expired": "Expired",
+    "unavailable": "Unavailable",
+    "current": "Current subscription",
+    "validUntil": "Valid until {{date}}",
+    "used": "Used",
+    "remaining": "Remaining",
+    "unlimited": "Unlimited",
+    "progressLabel": "Used {{used}}%, remaining {{remaining}}%"
   }
 }

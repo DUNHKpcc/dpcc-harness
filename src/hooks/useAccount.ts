@@ -5,17 +5,22 @@ import type {
   AccountBalanceResult,
   AccountModelsResult,
   AccountStatus,
+  AccountSubscription,
+  AccountSubscriptionResult,
 } from "@shared/types/account";
 
 export interface UseAccountResult {
   config: AccountConfig | null;
   status: AccountStatus | null;
   balance: AccountBalance | null;
+  subscription: AccountSubscription | null;
   claudeModels: string[];
   codexModels: string[];
   loading: boolean;
   /** Non-null when the balance lookup failed (e.g. endpoint disabled). */
   error: string | null;
+  /** Non-null when the upstream subscription lookup failed. */
+  subscriptionError: string | null;
   refresh: () => Promise<void>;
 }
 
@@ -110,6 +115,8 @@ function getAccountBalanceStorage(): AccountBalanceCacheStorage | null {
 
 let cachedConfig: AccountConfig | null = null;
 let cachedStatus: AccountStatus | null = null;
+let cachedSubscription: AccountSubscription | null = null;
+let cachedSubscriptionAccountKey = "";
 const accountBalanceStorage = getAccountBalanceStorage();
 let cachedBalanceSnapshot = readCachedAccountBalance(accountBalanceStorage);
 let cachedBalance: AccountBalance | null = cachedBalanceSnapshot?.balance ?? null;
@@ -124,6 +131,16 @@ export function resolveBalanceResult(
   return { balance: result, error: null };
 }
 
+export function resolveSubscriptionResult(
+  previous: AccountSubscription | null,
+  result: AccountSubscriptionResult,
+): { subscription: AccountSubscription | null; error: string | null } {
+  if ("error" in result) {
+    return { subscription: previous, error: result.error };
+  }
+  return { subscription: result, error: null };
+}
+
 /**
  * Reads the upstream (new-api) account: effective config, balance, and per-engine
  * model lists when requested. Loads lazily — only fetches while `active` is true
@@ -135,10 +152,14 @@ export function useAccount(active: boolean, options: UseAccountOptions = {}): Us
   const [config, setConfig] = useState<AccountConfig | null>(() => cachedConfig);
   const [status, setStatus] = useState<AccountStatus | null>(() => cachedStatus);
   const [balance, setBalance] = useState<AccountBalance | null>(() => cachedBalance);
+  const [subscription, setSubscription] = useState<AccountSubscription | null>(
+    () => cachedSubscription,
+  );
   const [claudeModels, setClaudeModels] = useState<string[]>([]);
   const [codexModels, setCodexModels] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
 
   const loadStatus = useCallback(async () => {
     try {
@@ -153,11 +174,20 @@ export function useAccount(active: boolean, options: UseAccountOptions = {}): Us
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setSubscriptionError(null);
     void loadStatus();
     try {
       const cfg = await window.claude.account.getConfig();
       cachedConfig = cfg;
       setConfig(cfg);
+      if (
+        cachedSubscriptionAccountKey
+        && cachedSubscriptionAccountKey !== cfg.cacheKey
+      ) {
+        cachedSubscription = null;
+        cachedSubscriptionAccountKey = "";
+        setSubscription(null);
+      }
       if (cachedBalanceSnapshot && !resolveCachedBalanceForAccount(cachedBalanceSnapshot, cfg.cacheKey)) {
         cachedBalanceSnapshot = null;
         cachedBalance = null;
@@ -169,6 +199,9 @@ export function useAccount(active: boolean, options: UseAccountOptions = {}): Us
         cachedBalance = null;
         writeCachedAccountBalance(accountBalanceStorage, null);
         setBalance(null);
+        cachedSubscription = null;
+        cachedSubscriptionAccountKey = "";
+        setSubscription(null);
         setClaudeModels([]);
         setCodexModels([]);
         return;
@@ -176,11 +209,11 @@ export function useAccount(active: boolean, options: UseAccountOptions = {}): Us
       const modelsPromise: Promise<AccountModelsResult | null> = loadModels && shouldLoadAccountModels(cfg)
         ? window.claude.account.getModels()
         : Promise.resolve(null);
-      const [bal, mdl] = await Promise.all([
-        window.claude.account.getBalance(),
+      const [overview, mdl] = await Promise.all([
+        window.claude.account.getOverview(),
         modelsPromise,
       ]);
-      const resolvedBalance = resolveBalanceResult(cachedBalance, bal);
+      const resolvedBalance = resolveBalanceResult(cachedBalance, overview.balance);
       cachedBalance = resolvedBalance.balance;
       if (!resolvedBalance.error) {
         cachedBalanceSnapshot = resolvedBalance.balance
@@ -190,6 +223,16 @@ export function useAccount(active: boolean, options: UseAccountOptions = {}): Us
       }
       setBalance(resolvedBalance.balance);
       setError(resolvedBalance.error);
+      const resolvedSubscription = resolveSubscriptionResult(
+        cachedSubscription,
+        overview.subscription,
+      );
+      cachedSubscription = resolvedSubscription.subscription;
+      if (!resolvedSubscription.error) {
+        cachedSubscriptionAccountKey = resolvedSubscription.subscription ? cfg.cacheKey : "";
+      }
+      setSubscription(resolvedSubscription.subscription);
+      setSubscriptionError(resolvedSubscription.error);
       if (mdl === null) {
         setClaudeModels([]);
         setCodexModels([]);
@@ -219,10 +262,12 @@ export function useAccount(active: boolean, options: UseAccountOptions = {}): Us
     config,
     status,
     balance,
+    subscription,
     claudeModels,
     codexModels,
     loading,
     error,
+    subscriptionError,
     refresh: load,
   };
 }

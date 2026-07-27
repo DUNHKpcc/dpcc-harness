@@ -28,7 +28,9 @@ import type {
   AccountBalance,
   AccountBalanceResult,
   AccountModelsResult,
+  AccountOverview,
   AccountStatus,
+  AccountSubscriptionResult,
   UsageStats,
   UsageStatsResult,
   UsageDayBucket,
@@ -229,23 +231,215 @@ async function computeSelfBalance(
   };
 }
 
-/** Account projection exposed specifically to an active DesktopGrant token. */
-export async function computeDesktopBalance(
+function accountRecordFromResponse(response: Record<string, unknown>): Record<string, unknown> {
+  return response.data && typeof response.data === "object"
+    ? response.data as Record<string, unknown>
+    : response;
+}
+
+function parseDesktopSubscription(
+  data: Record<string, unknown>,
+): AccountSubscriptionResult {
+  const rawSubscription = data.subscription;
+  const subscription = rawSubscription && typeof rawSubscription === "object"
+    ? rawSubscription as Record<string, unknown>
+    : null;
+  const stateValue = subscription?.state ?? data.subscription_state;
+  const state = typeof stateValue === "string" ? stateValue.trim() : "";
+  if (!state) return { error: "invalid_subscription_response" };
+  const expiresAtValue = subscription?.expires_at;
+  const expiresAtSeconds =
+    typeof expiresAtValue === "number" && Number.isFinite(expiresAtValue) && expiresAtValue > 0
+      ? expiresAtValue
+      : null;
+  return {
+    state,
+    expiresAt: expiresAtSeconds === null ? null : expiresAtSeconds * 1_000,
+    items: [],
+  };
+}
+
+interface RawSubscription {
+  id?: number;
+  plan_id?: number;
+  status?: string;
+  end_time?: number;
+  amount_total?: number;
+  amount_used?: number;
+}
+
+interface RawSubscriptionPlan {
+  id?: number;
+  title?: string;
+}
+
+interface RawDesktopSubscription extends RawSubscription {
+  plan_title?: string;
+}
+
+export function buildAccountSubscription(
+  records: Array<{ subscription?: RawSubscription }>,
+  planRecords: Array<{ plan?: RawSubscriptionPlan }>,
+  quotaPerUnit: number,
+  now = Date.now(),
+): AccountSubscriptionResult {
+  if (!Number.isFinite(quotaPerUnit) || quotaPerUnit <= 0) {
+    return { error: "invalid_quota_unit" };
+  }
+  const planNames = new Map<number, string>();
+  for (const record of planRecords) {
+    const id = record.plan?.id;
+    const title = record.plan?.title?.trim();
+    if (typeof id === "number" && Number.isFinite(id) && title) {
+      planNames.set(id, title);
+    }
+  }
+
+  const items = records.flatMap(({ subscription }) => {
+    if (!subscription || subscription.status !== "active") return [];
+    const id = subscription.id;
+    const planId = subscription.plan_id;
+    const endTime = subscription.end_time;
+    const totalQuota = subscription.amount_total;
+    const usedQuota = subscription.amount_used;
+    if (
+      typeof id !== "number"
+      || !Number.isFinite(id)
+      || typeof planId !== "number"
+      || !Number.isFinite(planId)
+      || typeof totalQuota !== "number"
+      || !Number.isFinite(totalQuota)
+      || typeof usedQuota !== "number"
+      || !Number.isFinite(usedQuota)
+    ) {
+      return [];
+    }
+    const expiresAt =
+      typeof endTime === "number" && Number.isFinite(endTime) && endTime > 0
+        ? endTime * 1_000
+        : null;
+    if (expiresAt !== null && expiresAt <= now) return [];
+
+    const safeTotal = Math.max(0, totalQuota);
+    const safeUsed = Math.max(0, usedQuota);
+    const unlimited = safeTotal === 0;
+    return [{
+      id,
+      planId,
+      name: planNames.get(planId) ?? "",
+      totalUsd: safeTotal / quotaPerUnit,
+      usedUsd: safeUsed / quotaPerUnit,
+      remainingUsd: unlimited ? 0 : Math.max(0, safeTotal - safeUsed) / quotaPerUnit,
+      unlimited,
+      expiresAt,
+    }];
+  }).sort((left, right) => {
+    if (left.expiresAt === null) return 1;
+    if (right.expiresAt === null) return -1;
+    return left.expiresAt - right.expiresAt;
+  });
+
+  return {
+    state: items.length > 0 ? "active" : "none",
+    expiresAt: items[0]?.expiresAt ?? null,
+    items,
+  };
+}
+
+function buildDesktopAccountSubscription(
+  subscriptions: RawDesktopSubscription[],
+  quotaPerUnit: number,
+): AccountSubscriptionResult {
+  return buildAccountSubscription(
+    subscriptions.map((subscription) => ({ subscription })),
+    subscriptions.map((subscription) => ({
+      plan: {
+        id: subscription.plan_id,
+        title: subscription.plan_title,
+      },
+    })),
+    quotaPerUnit,
+  );
+}
+
+async function fetchAccountSubscription(
   root: string,
   token: string,
-): Promise<AccountBalanceResult> {
+  extraHeaders?: Record<string, string>,
+): Promise<{
+  subscription: AccountSubscriptionResult;
+  quotaPerUnit: number;
+}> {
+  const [status, subscriptions, plans] = await Promise.all([
+    fetchStatus(root),
+    upstreamGet<{
+      data?: { subscriptions?: Array<{ subscription?: RawSubscription }> };
+    }>(root, token, "/api/subscription/self", extraHeaders),
+    upstreamGet<{
+      data?: Array<{ plan?: RawSubscriptionPlan }>;
+    }>(root, token, "/api/subscription/plans", extraHeaders),
+  ]);
+  if ("error" in subscriptions) {
+    return {
+      subscription: { error: subscriptions.error },
+      quotaPerUnit: status.quotaPerUnit,
+    };
+  }
+  if (!Array.isArray(subscriptions.data?.subscriptions)) {
+    return {
+      subscription: { error: "invalid_subscription_response" },
+      quotaPerUnit: status.quotaPerUnit,
+    };
+  }
+  const planRecords = !("error" in plans) && Array.isArray(plans.data)
+    ? plans.data
+    : [];
+  return {
+    subscription: buildAccountSubscription(
+      subscriptions.data.subscriptions,
+      planRecords,
+      status.quotaPerUnit,
+    ),
+    quotaPerUnit: status.quotaPerUnit,
+  };
+}
+
+/** Account projection exposed specifically to an active DesktopGrant token. */
+export async function computeDesktopAccountOverview(
+  root: string,
+  token: string,
+  loadSubscriptionDetails = true,
+): Promise<AccountOverview> {
   const account = await upstreamGet<Record<string, unknown>>(
     root,
     token,
     "/api/desktop/account",
   );
   if ("error" in account && typeof account.error === "string") {
-    return { error: account.error };
+    const error = { error: account.error };
+    return { balance: error, subscription: error };
   }
-  const accountRecord = account as Record<string, unknown>;
-  const data = accountRecord.data && typeof accountRecord.data === "object"
-    ? accountRecord.data as Record<string, unknown>
-    : accountRecord;
+  const data = accountRecordFromResponse(account as Record<string, unknown>);
+  const fallbackSubscription = parseDesktopSubscription(data);
+  const [status, detailed] = await Promise.all([
+    fetchStatus(root),
+    loadSubscriptionDetails
+      ? upstreamGet<{ subscriptions?: RawDesktopSubscription[] }>(
+          root,
+          token,
+          "/api/desktop/subscriptions",
+        )
+      : Promise.resolve(null),
+  ]);
+  const subscription =
+    detailed
+    && !("error" in detailed)
+    && Array.isArray(detailed.subscriptions)
+      ? buildDesktopAccountSubscription(
+          detailed.subscriptions,
+          status.quotaPerUnit,
+        )
+      : fallbackSubscription;
   const remainingQuota = [
     data.available_quota,
     data.remaining_quota,
@@ -254,17 +448,32 @@ export async function computeDesktopBalance(
   const usedQuota = typeof data.used_quota === "number" && Number.isFinite(data.used_quota)
     ? data.used_quota
     : 0;
-  if (remainingQuota === undefined) return { error: "invalid_account_response" };
+  if (remainingQuota === undefined) {
+    return {
+      balance: { error: "invalid_account_response" },
+      subscription,
+    };
+  }
 
-  const unit = (await fetchStatus(root)).quotaPerUnit;
+  const unit = status.quotaPerUnit;
   const remainingUsd = Math.max(0, remainingQuota / unit);
   const usedUsd = Math.max(0, usedQuota / unit);
   return {
-    totalUsd: remainingUsd + usedUsd,
-    usedUsd,
-    remainingUsd,
-    unlimited: false,
+    balance: {
+      totalUsd: remainingUsd + usedUsd,
+      usedUsd,
+      remainingUsd,
+      unlimited: false,
+    },
+    subscription,
   };
+}
+
+export async function computeDesktopBalance(
+  root: string,
+  token: string,
+): Promise<AccountBalanceResult> {
+  return (await computeDesktopAccountOverview(root, token, false)).balance;
 }
 
 /** List model ids available to a given token group via /v1/models. */
@@ -608,6 +817,53 @@ export async function fetchDesktopUsage(root: string, token: string): Promise<Us
   return aggregateUsage(entries, truncated);
 }
 
+async function computeBalanceForUpstream(
+  upstream: ResolvedUpstream,
+): Promise<AccountBalanceResult> {
+  const { host, primaryToken, accessToken, userId, desktopToken, source } = upstream;
+  if (!host) return { error: "not_configured" };
+  if (desktopToken) return computeDesktopBalance(host, desktopToken);
+
+  // Preferred: the billing endpoint — only needs an sk gateway token.
+  if (source !== "none" && primaryToken) {
+    const billing = await computeBillingBalance(host, primaryToken);
+    if (!("error" in billing) && !billing.unlimited) return billing;
+    // Billing disabled or token-scoped/unlimited → try /api/user/self if configured.
+    if (accessToken && userId) {
+      const self = await computeSelfBalance(host, accessToken, userId);
+      if (self) return self;
+    }
+    return billing;
+  }
+
+  if (accessToken && userId) {
+    const self = await computeSelfBalance(host, accessToken, userId);
+    if (self) return self;
+  }
+  return { error: "not_configured" };
+}
+
+async function computeAccountOverview(upstream: ResolvedUpstream): Promise<AccountOverview> {
+  const { host, accessToken, userId, desktopToken } = upstream;
+  if (!host) {
+    const error = { error: "not_configured" };
+    return { balance: error, subscription: error };
+  }
+  if (desktopToken) return computeDesktopAccountOverview(host, desktopToken);
+
+  const [balance, subscription] = await Promise.all([
+    computeBalanceForUpstream(upstream),
+    accessToken && userId
+      ? fetchAccountSubscription(
+          host,
+          accessToken,
+          { "New-API-User": userId },
+        ).then((result) => result.subscription)
+      : Promise.resolve<AccountSubscriptionResult>({ error: "not_configured" }),
+  ]);
+  return { balance, subscription };
+}
+
 export function register(): void {
   ipcMain.handle("account:config", async (): Promise<AccountConfig> => {
     const upstream = resolveUpstream();
@@ -630,33 +886,25 @@ export function register(): void {
   });
 
   ipcMain.handle("account:balance", async (): Promise<AccountBalanceResult> => {
-    const { host, primaryToken, accessToken, userId, desktopToken, source } = resolveUpstream();
-    if (!host) return { error: "not_configured" };
+    const upstream = resolveUpstream();
+    const result = await computeBalanceForUpstream(upstream);
+    if (upstream.desktopToken && isRejectedDesktopToken(result)) markTokenRejected();
+    return result;
+  });
 
-    if (desktopToken) {
-      const result = await computeDesktopBalance(host, desktopToken);
-      if (isRejectedDesktopToken(result)) markTokenRejected();
-      return result;
+  ipcMain.handle("account:overview", async (): Promise<AccountOverview> => {
+    const upstream = resolveUpstream();
+    const overview = await computeAccountOverview(upstream);
+    if (
+      upstream.desktopToken
+      && (
+        isRejectedDesktopToken(overview.balance)
+        || isRejectedDesktopToken(overview.subscription)
+      )
+    ) {
+      markTokenRejected();
     }
-
-    // Preferred: the billing endpoint — only needs an sk gateway token.
-    if (source !== "none" && primaryToken) {
-      const billing = await computeBillingBalance(host, primaryToken);
-      if (!("error" in billing) && !billing.unlimited) return billing;
-      // Billing disabled or token-scoped/unlimited → try /api/user/self if configured.
-      if (accessToken && userId) {
-        const self = await computeSelfBalance(host, accessToken, userId);
-        if (self) return self;
-      }
-      return billing; // best effort (may be unlimited or an error)
-    }
-
-    // No gateway token → fall back to /api/user/self.
-    if (accessToken && userId) {
-      const self = await computeSelfBalance(host, accessToken, userId);
-      if (self) return self;
-    }
-    return { error: "not_configured" };
+    return overview;
   });
 
   ipcMain.handle("account:models", async (): Promise<AccountModelsResult> => {

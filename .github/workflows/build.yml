@@ -116,6 +116,11 @@ jobs:
           --config electron-builder.config.js
           --publish never
 
+      - name: Smoke check packaged app
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          pnpm package:smoke -- "release/${VERSION}"
+
       - name: Publish selected macOS assets to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
@@ -193,6 +198,12 @@ jobs:
           --x64
           --config electron-builder.config.js
           --publish never
+
+      - name: Smoke check packaged app
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          pnpm package:smoke -- "release/${VERSION}"
 
       - name: Package Microsoft Store (win x64)
         run: >
@@ -283,7 +294,7 @@ jobs:
       - name: Install Linux build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential python3 libsecret-1-dev libnotify-dev
+          sudo apt-get install -y build-essential python3 libsecret-1-dev libnotify-dev xvfb
 
       - name: Strip mac-only native dependency from Linux CI manifest
         shell: bash
@@ -310,6 +321,11 @@ jobs:
           --linux --x64
           --config electron-builder.config.js
           --publish never
+
+      - name: Smoke check packaged app
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          xvfb-run -a pnpm package:smoke -- "release/${VERSION}"
 
       - name: Save x64 update manifest
         run: cp release/*/latest-linux.yml latest-linux-x64.yml 2>/dev/null || true

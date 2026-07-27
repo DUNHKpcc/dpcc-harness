@@ -59,6 +59,36 @@ export interface AccountBalance {
 export type AccountBalanceResult = AccountBalance | { error: string };
 export type AccountModelsResult = AccountModels | { error: string };
 
+/** One active subscription merged with its upstream plan metadata. */
+export interface AccountSubscriptionItem {
+  id: number;
+  planId: number;
+  name: string;
+  totalUsd: number;
+  usedUsd: number;
+  remainingUsd: number;
+  unlimited: boolean;
+  expiresAt: number | null;
+}
+
+/** Active subscriptions reported by the DPCC upstream. */
+export interface AccountSubscription {
+  /** Upstream state, currently "active" or "none". */
+  state: string;
+  /** Nearest subscription expiry as a Unix timestamp in milliseconds. */
+  expiresAt: number | null;
+  /** Active subscriptions ordered by expiry. */
+  items: AccountSubscriptionItem[];
+}
+
+export type AccountSubscriptionResult = AccountSubscription | { error: string };
+
+/** Account data loaded together so the desktop account endpoint is requested once. */
+export interface AccountOverview {
+  balance: AccountBalanceResult;
+  subscription: AccountSubscriptionResult;
+}
+
 /** Public branding/config from new-api's /api/status (no auth required). */
 export interface AccountStatus {
   /** system_name, e.g. "DPCC API" (empty when unavailable) */

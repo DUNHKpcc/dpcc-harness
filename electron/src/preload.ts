@@ -440,6 +440,7 @@ contextBridge.exposeInMainWorld("claude", {
     getConfig: () => ipcRenderer.invoke("account:config"),
     getStatus: () => ipcRenderer.invoke("account:status"),
     getBalance: () => ipcRenderer.invoke("account:balance"),
+    getOverview: () => ipcRenderer.invoke("account:overview"),
     getModels: () => ipcRenderer.invoke("account:models"),
     getCachedUsageStats: () => ipcRenderer.invoke("account:usageStatsCached"),
     getUsageStats: (force?: boolean) => ipcRenderer.invoke("account:usageStats", force),

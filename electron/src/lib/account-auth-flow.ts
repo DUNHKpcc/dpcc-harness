@@ -1,6 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
+import { nativeTheme } from "electron";
 import type {
   AccountAuthActionResult,
   AccountAuthErrorCode,
@@ -8,7 +9,10 @@ import type {
   DesktopAccountSummary,
 } from "@shared/types/account-auth";
 import { DESKTOP_CONTRACT_VERSION } from "@shared/types/account-auth";
-import { DEFAULT_NEWAPI_AUTHORIZATION_ORIGIN } from "@shared/types/account";
+import {
+  DEFAULT_NEWAPI_AUTHORIZATION_ORIGIN,
+  type AccountSubscription,
+} from "@shared/types/account";
 import {
   ACCOUNT_CLIENT_ID,
   ACCOUNT_ISSUER,
@@ -30,6 +34,7 @@ import { getAppSetting, getAppSettings, setAppSettings } from "./app-settings";
 import {
   renderAccountAuthorizationPage,
   type AccountAuthorizationPageKind,
+  type AccountAuthorizationPageTheme,
 } from "./account-auth-loopback-page";
 import { log } from "./logger";
 
@@ -170,6 +175,7 @@ function sendLoopbackPage(
   statusCode: number,
   kind: AccountAuthorizationPageKind,
   acceptLanguage: string | string[] | undefined,
+  theme?: AccountAuthorizationPageTheme,
 ): void {
   response.writeHead(statusCode, {
     "Content-Type": "text/html; charset=utf-8",
@@ -178,13 +184,14 @@ function sendLoopbackPage(
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "no-referrer",
   });
-  response.end(renderAccountAuthorizationPage({ kind, acceptLanguage }));
+  response.end(renderAccountAuthorizationPage({ kind, acceptLanguage, theme }));
 }
 
 export async function createLoopbackReceiver(
   callbackNonce: string,
   expectedState: string,
   signal: AbortSignal,
+  theme?: AccountAuthorizationPageTheme,
 ): Promise<LoopbackReceiver> {
   const callbackPath = `/oauth/callback/${callbackNonce}`;
   let settled = false;
@@ -222,6 +229,7 @@ export async function createLoopbackReceiver(
         400,
         "invalid-host",
         request.headers["accept-language"],
+        theme,
       );
       return;
     }
@@ -244,6 +252,7 @@ export async function createLoopbackReceiver(
         400,
         "state-mismatch",
         request.headers["accept-language"],
+        theme,
       );
       rejectCallback(new AccountAuthorizationError(
         "callback_state_mismatch",
@@ -258,6 +267,7 @@ export async function createLoopbackReceiver(
         400,
         "invalid-response",
         request.headers["accept-language"],
+        theme,
       );
       rejectCallback(new AccountAuthorizationError("callback_invalid", "Invalid callback response"));
       server.close();
@@ -270,6 +280,7 @@ export async function createLoopbackReceiver(
         200,
         "cancelled",
         request.headers["accept-language"],
+        theme,
       );
       resolveCallback({ error: errors[0] });
     } else {
@@ -278,6 +289,7 @@ export async function createLoopbackReceiver(
         200,
         "success",
         request.headers["accept-language"],
+        theme,
       );
       resolveCallback({ code: codes[0] });
     }
@@ -357,6 +369,29 @@ function numberField(
     : undefined;
 }
 
+function parseAccountSubscription(
+  record: Record<string, unknown>,
+): AccountSubscription | undefined {
+  const raw = record.subscription;
+  const subscription = raw && typeof raw === "object"
+    ? raw as Record<string, unknown>
+    : null;
+  const state =
+    (subscription ? stringField(subscription, "state") : "")
+    || stringField(record, "subscription_state", "subscriptionState");
+  if (!state) return undefined;
+  const expiresAtSeconds = subscription
+    ? numberField(subscription, "expires_at", "expiresAt")
+    : undefined;
+  return {
+    state,
+    expiresAt: expiresAtSeconds && expiresAtSeconds > 0
+      ? expiresAtSeconds * 1_000
+      : null,
+    items: [],
+  };
+}
+
 function parseAccountSummary(value: unknown): DesktopAccountSummary | null {
   if (!value || typeof value !== "object") return null;
   const record = value as Record<string, unknown>;
@@ -365,6 +400,7 @@ function parseAccountSummary(value: unknown): DesktopAccountSummary | null {
     stringField(record, "masked_email", "maskedEmail")
     || stringField(record, "email");
   const subscriptionState = stringField(record, "subscription_state", "subscriptionState");
+  const subscription = parseAccountSubscription(record);
   const allowed = record.allowed_models ?? record.allowedModels;
   const allowedModels = Array.isArray(allowed)
     ? allowed.filter((item): item is string => typeof item === "string")
@@ -373,6 +409,7 @@ function parseAccountSummary(value: unknown): DesktopAccountSummary | null {
     displayName: displayName || maskedEmail || "DPCC API user",
     ...(maskedEmail ? { maskedEmail } : {}),
     ...(numberField(record, "quota") !== undefined ? { quota: numberField(record, "quota") } : {}),
+    ...(subscription ? { subscription } : {}),
     ...(subscriptionState ? { subscriptionState } : {}),
     ...(allowedModels ? { allowedModels } : {}),
   };
@@ -796,6 +833,7 @@ export class AccountAuthorizationCoordinator {
         pkce.callbackNonce,
         pkce.state,
         active.controller.signal,
+        nativeTheme?.shouldUseDarkColors ? "dark" : "light",
       );
       active.closeLoopback = receiver.close;
 

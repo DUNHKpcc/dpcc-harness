@@ -13,7 +13,7 @@ import {
   Tray,
   webContents,
 } from "electron";
-import { existsSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import path from "path";
 import http from "http";
 import { getBootstrapMinWindowWidth } from "../../src/lib/layout/constants";
@@ -55,8 +55,17 @@ import {
   shouldRegisterDevToolsShortcuts,
 } from "./lib/devtools-policy";
 import { terminals } from "./ipc/terminal";
+import {
+  isPackageSmokeCheckRequested,
+  runPackageSmokeCheck,
+} from "./lib/package-smoke-check";
 
 const diagnosticBuild = __PCC_DIAGNOSTIC_BUILD__;
+const packageSmokeCheck = isPackageSmokeCheckRequested();
+
+if (packageSmokeCheck && process.env.PCC_PACKAGE_SMOKE_USER_DATA) {
+  app.setPath("userData", process.env.PCC_PACKAGE_SMOKE_USER_DATA);
+}
 
 // IPC module registrations
 import * as spacesIpc from "./ipc/spaces";
@@ -387,7 +396,7 @@ function createWindow(): void {
   if (process.platform === "darwin") applyMacBackgroundEffect(initialMacBackgroundEffect);
 
   mainWindow.once("ready-to-show", () => {
-    mainWindow?.show();
+    if (!packageSmokeCheck) mainWindow?.show();
   });
 
   if (process.platform === "win32") {
@@ -439,19 +448,21 @@ function createWindow(): void {
 
   // electron-context-menu is ESM-only (and pulls in ESM-only electron-dl), so it
   // must be loaded via dynamic import rather than a synchronous require.
-  void import("electron-context-menu").then(({ default: contextMenu }) => {
-    if (!mainWindow) return;
-    contextMenu({
-      window: mainWindow,
-      showSearchWithGoogle: false,
-      showLookUpSelection: false,
-      showInspectElement: false,
+  if (!packageSmokeCheck) {
+    void import("electron-context-menu").then(({ default: contextMenu }) => {
+      if (!mainWindow) return;
+      contextMenu({
+        window: mainWindow,
+        showSearchWithGoogle: false,
+        showLookUpSelection: false,
+        showInspectElement: false,
+      });
     });
-  });
+  }
 
-  const isDev = !app.isPackaged;
+  const isDev = !app.isPackaged && !packageSmokeCheck;
   if (isDev) {
-    mainWindow.loadURL("http://localhost:5173");
+    mainWindow.loadURL(process.env.PCC_DEV_SERVER_URL || "http://localhost:5173");
   } else {
     mainWindow.loadFile(path.join(__dirname, "../../dist/index.html"));
   }
@@ -722,6 +733,32 @@ app.whenReady().then(() => {
   }
 
   createWindow();
+
+  if (packageSmokeCheck) {
+    if (!mainWindow) {
+      throw new Error("Package smoke check could not create the main window");
+    }
+    void runPackageSmokeCheck(mainWindow).then(
+      (result) => {
+        const payload = { ok: true, ...result };
+        if (process.env.PCC_PACKAGE_SMOKE_RESULT) {
+          writeFileSync(process.env.PCC_PACKAGE_SMOKE_RESULT, JSON.stringify(payload));
+        }
+        console.log(`PACKAGE_SMOKE_CHECK_OK ${JSON.stringify(result)}`);
+        app.exit(0);
+      },
+      (error) => {
+        const message = error instanceof Error ? error.stack ?? error.message : String(error);
+        const payload = { ok: false, error: message };
+        if (process.env.PCC_PACKAGE_SMOKE_RESULT) {
+          writeFileSync(process.env.PCC_PACKAGE_SMOKE_RESULT, JSON.stringify(payload));
+        }
+        console.error(`PACKAGE_SMOKE_CHECK_FAILED ${message}`);
+        app.exit(1);
+      },
+    );
+    return;
+  }
 
   if (process.platform === "win32") {
     const trayIconPath = getTrayIconPath();

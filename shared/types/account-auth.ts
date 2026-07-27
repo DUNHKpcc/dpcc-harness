@@ -5,6 +5,8 @@
  * and installation identifiers must never be added to these types.
  */
 
+import type { AccountSubscription } from "./account";
+
 export type AccountAuthStatus =
   | "signed_out"
   | "authorizing"
@@ -66,6 +68,7 @@ export interface DesktopAccountSummary {
   displayName: string;
   maskedEmail?: string;
   quota?: number;
+  subscription?: AccountSubscription;
   subscriptionState?: string;
   allowedModels?: string[];
 }

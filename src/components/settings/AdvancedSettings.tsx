@@ -126,6 +126,7 @@ export const AdvancedSettings = memo(function AdvancedSettings({
               description={t("advanced.replayWelcomeDesc")}
             >
               <button
+                data-package-smoke="replay-welcome"
                 onClick={onReplayWelcome}
                 className="rounded-md border border-foreground/10 bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-foreground/20 hover:bg-foreground/[0.03]"
               >

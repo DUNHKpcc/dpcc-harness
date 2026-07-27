@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+
 export type AccountAuthorizationPageKind =
   | "success"
   | "cancelled"
@@ -5,9 +8,12 @@ export type AccountAuthorizationPageKind =
   | "state-mismatch"
   | "invalid-response";
 
+export type AccountAuthorizationPageTheme = "light" | "dark";
+
 interface AccountAuthorizationPageOptions {
   kind: AccountAuthorizationPageKind;
   acceptLanguage?: string | string[];
+  theme?: AccountAuthorizationPageTheme;
 }
 
 type AccountAuthorizationPageLocale = "en" | "zh-CN" | "zh-TW";
@@ -27,7 +33,7 @@ interface AccountAuthorizationPageCopy {
       message: string;
       browserCaption: string;
       destination: string;
-      note: string;
+      note?: string;
     }
   >;
 }
@@ -67,7 +73,6 @@ const pageCopy: Record<
           "PccAgent is securely completing setup. You can close this tab and continue in the app.",
         browserCaption: "Authorization response received",
         destination: "Continue in PccAgent",
-        note: "This callback was delivered directly to PccAgent on this device.",
       },
       cancelled: {
         status: "No access was granted",
@@ -120,7 +125,6 @@ const pageCopy: Record<
           "PccAgent 正在安全地完成账户连接。你可以关闭此页面，并返回应用继续使用。",
         browserCaption: "已收到授权响应",
         destination: "继续使用 PccAgent",
-        note: "此授权回调已通过本机连接直接交付给 PccAgent。",
       },
       cancelled: {
         status: "未授予任何访问权限",
@@ -170,7 +174,6 @@ const pageCopy: Record<
           "PccAgent 正在安全完成帳戶連線。你可以關閉此頁面，並返回應用程式繼續使用。",
         browserCaption: "已收到授權回應",
         destination: "繼續使用 PccAgent",
-        note: "此授權回呼已透過本機連線直接交付給 PccAgent。",
       },
       cancelled: {
         status: "未授予任何存取權限",
@@ -219,6 +222,38 @@ function escapeHtml(value: string): string {
       "'": "&#39;",
     })[character] ?? character,
   );
+}
+
+let cachedProjectLogoDataUrl: string | null = null;
+
+function projectLogoDataUrl(): string {
+  if (cachedProjectLogoDataUrl !== null) return cachedProjectLogoDataUrl;
+
+  const resourcesPath = (
+    process as NodeJS.Process & { resourcesPath?: string }
+  ).resourcesPath;
+  const candidates = [
+    path.resolve(process.cwd(), "public/icon.png"),
+    path.resolve(__dirname, "../../public/icon.png"),
+    path.resolve(__dirname, "../../dist/icon.png"),
+    ...(resourcesPath
+      ? [path.resolve(resourcesPath, "pcc-agent-logo.png")]
+      : []),
+  ];
+  for (const candidate of new Set(candidates)) {
+    try {
+      cachedProjectLogoDataUrl =
+        `data:image/png;base64,${fs.readFileSync(candidate).toString("base64")}`;
+      return cachedProjectLogoDataUrl;
+    } catch {
+      // Try the next development, asar, or extraResources location.
+    }
+  }
+
+  // The callback page must remain usable even if a broken package omitted its logo.
+  cachedProjectLogoDataUrl =
+    "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
+  return cachedProjectLogoDataUrl;
 }
 
 export function renderAccountAuthorizationPage(
@@ -284,9 +319,20 @@ export function renderAccountAuthorizationPage(
   const title = escapeHtml(stateCopy.title);
   const message = escapeHtml(stateCopy.message);
   const themeColor = pageThemeColors[tone];
+  const themeClass = options.theme ? ` theme-${options.theme}` : "";
+  const logoDataUrl = projectLogoDataUrl();
+  const note = stateCopy.note
+    ? `<p class="note">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="5" y="10" width="14" height="10" rx="2" />
+          <path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v2" />
+        </svg>
+        <span>${escapeHtml(stateCopy.note)}</span>
+      </p>`
+    : "";
 
   return `<!doctype html>
-<html lang="${locale}" class="is-${tone}">
+<html lang="${locale}" class="is-${tone}${themeClass}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -305,8 +351,6 @@ export function renderAccountAuthorizationPage(
       --accent: #d97757;
       --accent-soft: #f4e4dc;
       --accent-ink: #9c4d35;
-      --mark-bg: #ffffff;
-      --mark-ink: #181613;
     }
 
     .is-cancelled {
@@ -538,6 +582,14 @@ export function renderAccountAuthorizationPage(
       stroke-linecap: round;
       stroke-linejoin: round;
       fill: none;
+    }
+
+    .endpoint-logo {
+      display: block;
+      width: 30px;
+      height: 30px;
+      border-radius: 7px;
+      object-fit: contain;
     }
 
     .endpoint-title {
@@ -803,7 +855,7 @@ export function renderAccountAuthorizationPage(
     }
 
     @media (prefers-color-scheme: dark) {
-      :root {
+      :root:not(.theme-light) {
         --page: #191816;
         --surface: #27241f;
         --ink: #f2f0e8;
@@ -812,21 +864,47 @@ export function renderAccountAuthorizationPage(
         --accent: #e18a6d;
         --accent-soft: #4a3027;
         --accent-ink: #f0a68b;
-        --mark-bg: #f2f0e8;
-        --mark-ink: #121310;
       }
 
-      .is-cancelled {
+      :root:not(.theme-light).is-cancelled {
         --accent: #d7a85d;
         --accent-soft: #46371f;
         --accent-ink: #e6bd7c;
       }
 
-      .is-error {
+      :root:not(.theme-light).is-error {
         --accent: #e17d73;
         --accent-soft: #4a2927;
         --accent-ink: #eea199;
       }
+    }
+
+    :root.theme-dark {
+      color-scheme: dark;
+      --page: #191816;
+      --surface: #27241f;
+      --ink: #f2f0e8;
+      --muted: #bdb5aa;
+      --line: #403b35;
+      --accent: #e18a6d;
+      --accent-soft: #4a3027;
+      --accent-ink: #f0a68b;
+    }
+
+    :root.theme-dark.is-cancelled {
+      --accent: #d7a85d;
+      --accent-soft: #46371f;
+      --accent-ink: #e6bd7c;
+    }
+
+    :root.theme-dark.is-error {
+      --accent: #e17d73;
+      --accent-soft: #4a2927;
+      --accent-ink: #eea199;
+    }
+
+    :root.theme-light {
+      color-scheme: light;
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -844,13 +922,13 @@ export function renderAccountAuthorizationPage(
   <div class="page">
     <header>
       <div class="brand" aria-label="PccAgent">
-        <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true">
-          <rect x="1.5" y="1.5" width="61" height="61" rx="16" fill="var(--mark-bg)" stroke="var(--line)" />
-          <circle cx="32" cy="32" r="25" fill="var(--mark-ink)" />
-          <rect x="21" y="19.5" width="9" height="26" rx="3.2" fill="var(--mark-bg)" />
-          <circle cx="38" cy="24.5" r="4.8" fill="var(--mark-bg)" />
-          <path d="M33 33.5a12.5 12.5 0 0 1 12.5 12.5H33z" fill="var(--mark-bg)" />
-        </svg>
+        <img
+          class="brand-mark"
+          src="${logoDataUrl}"
+          alt=""
+          draggable="false"
+          data-project-logo
+        >
         <span>PccAgent</span>
       </div>
     </header>
@@ -897,21 +975,18 @@ export function renderAccountAuthorizationPage(
             <span class="endpoint-caption">${escapeHtml(copy.destinationCaption)}</span>
           </span>
           <span class="endpoint-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <rect x="3" y="3" width="18" height="18" rx="4" />
-              <path d="M8.5 15.5v-7M15.5 15.5a7 7 0 0 0-7-7M15.5 8.5h.01" />
-            </svg>
+            <img
+              class="endpoint-logo"
+              src="${logoDataUrl}"
+              alt=""
+              draggable="false"
+              data-project-logo
+            >
           </span>
         </div>
       </section>
 
-      <p class="note">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <rect x="5" y="10" width="14" height="10" rx="2" />
-          <path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v2" />
-        </svg>
-        <span>${escapeHtml(stateCopy.note)}</span>
-      </p>
+      ${note}
     </main>
 
     <footer>

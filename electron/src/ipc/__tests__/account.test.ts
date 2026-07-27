@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { accountCacheKey, computeDesktopBalance, fetchDesktopUsage } from "../account";
+import {
+  accountCacheKey,
+  computeDesktopAccountOverview,
+  computeDesktopBalance,
+  fetchDesktopUsage,
+} from "../account";
 
 const account = {
   host: "https://api.example.test",
@@ -213,6 +218,130 @@ describe("desktop balance", () => {
       usedUsd: 0.2,
       remainingUsd: 0.8,
       unlimited: false,
+    });
+  });
+
+  it("loads balance and the active subscription details for a desktop account", async () => {
+    const expiresAt = 1_800_000_000;
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          contract_version: 2,
+          quota: 400_000,
+          used_quota: 100_000,
+          subscription: {
+            state: "active",
+            expires_at: expiresAt,
+          },
+          subscription_state: "active",
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: { quota_per_unit: 500_000 } }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          contract_version: 2,
+          subscriptions: [{
+            id: 7,
+            plan_id: 3,
+            plan_title: "DPCC Pro",
+            status: "active",
+            end_time: expiresAt,
+            amount_total: 2_000_000,
+            amount_used: 500_000,
+            amount_remaining: 1_500_000,
+            unlimited: false,
+          }],
+        }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      computeDesktopAccountOverview("https://api.example.test", "sk-desktop"),
+    ).resolves.toEqual({
+      balance: {
+        totalUsd: 1,
+        usedUsd: 0.2,
+        remainingUsd: 0.8,
+        unlimited: false,
+      },
+      subscription: {
+        state: "active",
+        expiresAt: expiresAt * 1_000,
+        items: [{
+          id: 7,
+          planId: 3,
+          name: "DPCC Pro",
+          totalUsd: 4,
+          usedUsd: 1,
+          remainingUsd: 3,
+          unlimited: false,
+          expiresAt: expiresAt * 1_000,
+        }],
+      },
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://api.example.test/api/desktop/account",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer sk-desktop",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.example.test/api/desktop/subscriptions",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer sk-desktop",
+        }),
+      }),
+    );
+  });
+
+  it("keeps the desktop subscription summary when the detail endpoint is unavailable", async () => {
+    const expiresAt = 1_800_000_000;
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          quota: 400_000,
+          used_quota: 100_000,
+          subscription: {
+            state: "active",
+            expires_at: expiresAt,
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: { quota_per_unit: 500_000 } }),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: "Not Found",
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      computeDesktopAccountOverview("https://api.example.test", "sk-desktop"),
+    ).resolves.toEqual({
+      balance: {
+        totalUsd: 1,
+        usedUsd: 0.2,
+        remainingUsd: 0.8,
+        unlimited: false,
+      },
+      subscription: {
+        state: "active",
+        expiresAt: expiresAt * 1_000,
+        items: [],
+      },
     });
   });
 });

@@ -119,6 +119,7 @@ export function WelcomeWizard({
 
   return (
     <motion.div
+      data-package-smoke="welcome-wizard"
       className={outerClass}
       style={{
         fontFamily: "'Sora', system-ui, sans-serif",

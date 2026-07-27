@@ -12,7 +12,7 @@ import type {
   AppNotificationBridge,
 } from "@shared/types/notifications";
 import type { WeChatBridgeState, WeChatBridgeConfig, WeChatBridgeEvent } from "@shared/types/wechat";
-import type { AccountConfig, AccountBalanceResult, AccountModelsResult, AccountStatus, UsageStats, UsageStatsResult } from "@shared/types/account";
+import type { AccountConfig, AccountBalanceResult, AccountModelsResult, AccountOverview, AccountStatus, UsageStats, UsageStatsResult } from "@shared/types/account";
 import type { AccountAuthActionResult, AccountAuthSnapshot } from "@shared/types/account-auth";
 import type {
   ACPSessionEvent,
@@ -492,6 +492,7 @@ declare global {
         getConfig: () => Promise<AccountConfig>;
         getStatus: () => Promise<AccountStatus>;
         getBalance: () => Promise<AccountBalanceResult>;
+        getOverview: () => Promise<AccountOverview>;
         getModels: () => Promise<AccountModelsResult>;
         getCachedUsageStats: () => Promise<UsageStats | null>;
         getUsageStats: (force?: boolean) => Promise<UsageStatsResult>;

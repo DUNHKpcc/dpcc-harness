@@ -17,6 +17,8 @@ describe("AboutSettings", () => {
     expect(html).toContain('alt="PccAgent"');
     expect(html).toContain('src="icon.png"');
     expect(html).not.toContain('src="/icon.png"');
+    expect(html).toContain("data-pcc-agent-logo");
+    expect(html).toContain('data-extra-resources-src="../../pcc-agent-logo.png"');
   });
 
   it("renders an accessible bundled release history without a runtime network request", () => {

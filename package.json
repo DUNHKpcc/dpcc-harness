@@ -41,6 +41,7 @@
     "postinstall": "node -e \"require('child_process').execSync('electron-rebuild'+(process.platform==='darwin'?'':' --ignore electron-liquid-glass'),{stdio:'inherit'})\"",
     "test": "vitest run --config vitest.config.electron.ts",
     "test:watch": "vitest --config vitest.config.electron.ts",
+    "package:smoke": "node scripts/check-packaged-app.mjs",
     "docs:check": "node scripts/check-release-docs.mjs",
     "test-map:check": "node scripts/check-test-map.mjs"
   },
@@ -74,6 +75,7 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@electron/asar": "3.4.1",
     "@electron/notarize": "^3.1.0",
     "@electron/rebuild": "^4.0.3",
     "@tailwindcss/typography": "^0.5.19",

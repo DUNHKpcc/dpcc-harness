@@ -196,6 +196,16 @@ describe("electron-builder config", () => {
     expect(readIcoSizes(path.join(repoRoot, "build", "icon.ico"))).toEqual(windowsTargetSizes);
   });
 
+  it("copies the renderer logo outside app.asar as a packaged fallback", async () => {
+    const config = await import("../../../../electron-builder.config.js");
+
+    expect(config.default.extraResources).toContainEqual({
+      from: "public/icon.png",
+      to: "pcc-agent-logo.png",
+    });
+    expect(fs.existsSync(path.join(repoRoot, "public", "icon.png"))).toBe(true);
+  });
+
   it("provides unplated AppList icons for every Windows target size and theme", () => {
     const appxDir = path.join(repoRoot, "build", "appx");
     const variants = ["", "_altform-unplated", "_altform-lightunplated"];

@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { AccountBalance, AccountConfig } from "@shared/types/account";
+import type { AccountBalance, AccountConfig, AccountSubscription } from "@shared/types/account";
 import {
   ACCOUNT_BALANCE_CACHE_KEY,
   readCachedAccountBalance,
   resolveBalanceResult,
   resolveCachedBalanceForAccount,
+  resolveSubscriptionResult,
   shouldLoadAccountDetails,
   shouldLoadAccountModels,
   shouldShowAccountDetails,
@@ -47,6 +48,31 @@ describe("useAccount helpers", () => {
     expect(resolveBalanceResult(previous, { error: "temporary failure" })).toEqual({
       balance: previous,
       error: "temporary failure",
+    });
+  });
+
+  it("keeps the previous subscription when an upstream refresh fails", () => {
+    const previous: AccountSubscription = {
+      state: "active",
+      expiresAt: 1_800_000_000_000,
+      items: [],
+    };
+
+    expect(resolveSubscriptionResult(previous, { error: "temporary failure" })).toEqual({
+      subscription: previous,
+      error: "temporary failure",
+    });
+    expect(resolveSubscriptionResult(previous, {
+      state: "none",
+      expiresAt: null,
+      items: [],
+    })).toEqual({
+      subscription: {
+        state: "none",
+        expiresAt: null,
+        items: [],
+      },
+      error: null,
     });
   });
 

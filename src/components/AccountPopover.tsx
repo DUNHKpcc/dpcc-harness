@@ -21,6 +21,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  AccountSubscriptionDetails,
+  resolveAccountSubscription,
+} from "@/components/AccountSubscriptionDetails";
 import { useAccount } from "@/hooks/useAccount";
 import { useAccountAuth } from "@/hooks/useAccountAuth";
 
@@ -43,10 +47,10 @@ export const AccountPopover = memo(function AccountPopover({
   const connected = auth.snapshot?.status === "connected" || auth.snapshot?.status === "expiring";
   const account = useAccount(open && connected, { loadModels: false });
   const balance = account.balance;
-  const usedPct =
-    balance && !balance.unlimited && balance.totalUsd > 0
-      ? Math.min(100, (balance.usedUsd / balance.totalUsd) * 100)
-      : 0;
+  const subscription = resolveAccountSubscription(
+    account.subscription,
+    auth.snapshot?.account,
+  );
 
   const openSettings = useCallback(() => {
     setOpen(false);
@@ -59,6 +63,7 @@ export const AccountPopover = memo(function AccountPopover({
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>
             <button
+              data-package-smoke="account-menu"
               className="mb-1.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sidebar-foreground/40 transition-all hover:bg-black/5 hover:text-sidebar-foreground dark:hover:bg-white/10"
             >
               <PccAgentLogo className="h-5 w-5 rounded" />
@@ -117,12 +122,6 @@ export const AccountPopover = memo(function AccountPopover({
                     <div className="mt-1 text-xl font-semibold tabular-nums text-foreground">
                       ${balance.remainingUsd.toFixed(2)}
                     </div>
-                    <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-foreground/10">
-                      <div
-                        className="h-full rounded-full bg-primary"
-                        style={{ width: `${usedPct}%` }}
-                      />
-                    </div>
                   </>
                 )
               ) : (
@@ -132,6 +131,13 @@ export const AccountPopover = memo(function AccountPopover({
                     : t("account.balanceUnavailable")}
                 </div>
               )}
+            </div>
+
+            <div className="border-b border-border/60 px-4 py-3">
+              <AccountSubscriptionDetails
+                subscription={subscription}
+                variant="popover"
+              />
             </div>
 
             <div className="p-1.5">
@@ -152,6 +158,7 @@ export const AccountPopover = memo(function AccountPopover({
                 <ExternalLink className="ms-auto h-3.5 w-3.5 text-muted-foreground/50" />
               </button>
               <button
+                data-package-smoke="open-settings"
                 onClick={openSettings}
                 className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-sm text-foreground transition-colors hover:bg-foreground/5"
               >
@@ -221,6 +228,7 @@ export const AccountPopover = memo(function AccountPopover({
                 <ExternalLink className="ms-auto h-3.5 w-3.5 text-muted-foreground/50" />
               </button>
               <button
+                data-package-smoke="open-settings"
                 onClick={openSettings}
                 className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-sm text-foreground transition-colors hover:bg-foreground/5"
               >

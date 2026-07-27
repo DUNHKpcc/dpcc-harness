@@ -202,6 +202,10 @@ function pruneSharpForWindowsX64(modulesRoot, context) {
 function extraResourcesConfig() {
   const resources = [
     {
+      from: "public/icon.png",
+      to: "pcc-agent-logo.png",
+    },
+    {
       from: "build/codex-vendor",
       to: "codex-vendor",
       filter: ["**/*"],

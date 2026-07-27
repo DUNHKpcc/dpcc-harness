@@ -2,6 +2,10 @@ import { memo } from "react";
 import { useTranslation } from "react-i18next";
 import { CreditCard, ExternalLink, RefreshCw, Smartphone } from "lucide-react";
 import { AccountEntryScreen } from "@/components/AccountEntryScreen";
+import {
+  AccountSubscriptionDetails,
+  resolveAccountSubscription,
+} from "@/components/AccountSubscriptionDetails";
 import { UsageStatsCard } from "@/components/settings/UsageStatsCard";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -28,12 +32,12 @@ export const AccountSettings = memo(function AccountSettings(
     auth.snapshot?.status === "connected" || auth.snapshot?.status === "expiring",
   );
   const balance = account.balance;
+  const subscription = resolveAccountSubscription(
+    account.subscription,
+    auth.snapshot?.account,
+  );
   const connected =
     auth.snapshot?.status === "connected" || auth.snapshot?.status === "expiring";
-  const usedPct =
-    balance && !balance.unlimited && balance.totalUsd > 0
-      ? Math.min(100, (balance.usedUsd / balance.totalUsd) * 100)
-      : 0;
 
   return (
     <div className="flex h-full flex-col">
@@ -41,6 +45,13 @@ export const AccountSettings = memo(function AccountSettings(
         <div className="space-y-4 px-6 py-5">
           <section className="border-b border-foreground/[0.06] pb-4">
             <AccountEntryScreen variant="settings" />
+
+            <div className="mt-4 border-t border-foreground/[0.06] pt-4">
+              <AccountSubscriptionDetails
+                subscription={subscription}
+                variant="settings"
+              />
+            </div>
 
             <div className="mt-4 border-t border-foreground/[0.06] pt-4">
               {balance ? (
@@ -65,9 +76,6 @@ export const AccountSettings = memo(function AccountSettings(
                     </div>
                     <div className="text-2xl font-semibold tabular-nums text-foreground">
                       ${balance.remainingUsd.toFixed(2)}
-                    </div>
-                    <div className="mt-3 h-1.5 w-full overflow-hidden bg-foreground/10">
-                      <div className="h-full bg-primary" style={{ width: `${usedPct}%` }} />
                     </div>
                   </>
                 )

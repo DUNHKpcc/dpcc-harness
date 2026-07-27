@@ -120,12 +120,15 @@ describe("desktop account authorization primitives", () => {
     expect(chinesePage).toContain("<title>授权已接收 | PccAgent</title>");
     expect(chinesePage).toContain("本地授权交接完成");
     expect(chinesePage).toContain("现在可以安全关闭此页面。");
+    expect(chinesePage).not.toContain("此授权回调已通过");
     expect(traditionalChinesePage).toContain("<html lang=\"zh-TW\"");
     expect(traditionalChinesePage).toContain("<title>已收到授權 | PccAgent</title>");
     expect(traditionalChinesePage).toContain("本機授權交接完成");
     expect(traditionalChinesePage).toContain("現在可以安全關閉此頁面。");
+    expect(traditionalChinesePage).not.toContain("此授權回呼已透過");
     expect(englishPage).toContain("<html lang=\"en\"");
     expect(englishPage).toContain("<title>Authorization received | PccAgent</title>");
+    expect(englishPage).not.toContain("This callback was delivered directly");
   });
 
   it.each([
@@ -168,6 +171,22 @@ describe("desktop account authorization primitives", () => {
 
     expect(page).toContain("<meta name=\"theme-color\" content=\"#d97757\">");
     expect(page).toContain("--accent: #d97757;");
+  });
+
+  it("embeds the project logo and honors the resolved app theme", () => {
+    const logoData = fs.readFileSync(
+      path.resolve(process.cwd(), "public/icon.png"),
+    ).toString("base64");
+    const page = renderAccountAuthorizationPage({
+      kind: "success",
+      theme: "dark",
+    });
+
+    expect(page).toContain("<html lang=\"en\" class=\"is-success theme-dark\">");
+    expect(page.match(/data-project-logo/g)).toHaveLength(2);
+    expect(page).toContain(`data:image/png;base64,${logoData}`);
+    expect(page).toContain(":root.theme-dark");
+    expect(page).toContain(":root:not(.theme-light)");
   });
 
   it("parses independent Claude and Codex keys from the token exchange", () => {
@@ -236,10 +255,20 @@ describe("desktop account authorization primitives", () => {
       account: {
         display_name: "DPCC User",
         email: "d***@example.test",
+        subscription: {
+          state: "active",
+          expires_at: 1_800_000_000,
+        },
+        subscription_state: "active",
       },
     });
 
     expect(exchanged.account?.maskedEmail).toBe("d***@example.test");
+    expect(exchanged.account?.subscription).toEqual({
+      state: "active",
+      expiresAt: 1_800_000_000_000,
+      items: [],
+    });
   });
 
   it("keeps legacy single-key exchange responses compatible", () => {
@@ -280,6 +309,8 @@ describe("desktop account authorization primitives", () => {
     expect(page).toContain("PccAgent is securely completing setup.");
     expect(page).toContain("Continue in PccAgent");
     expect(page).toContain("You can safely close this tab.");
+    expect(page).not.toContain("This callback was delivered directly");
+    expect(page.match(/data-project-logo/g)).toHaveLength(2);
     expect(page).toContain("@media (prefers-reduced-motion: reduce)");
     await expect(receiver.callback).resolves.toEqual({ code: "one-time-code" });
     receiver.close();

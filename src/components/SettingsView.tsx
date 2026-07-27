@@ -72,7 +72,7 @@ interface SettingsViewProps {
   onClose: () => void;
   glassSupported: boolean;
   macLiquidGlassSupported: boolean;
-  /** Resets the welcome wizard so it shows again. Dev-only. */
+  /** Resets the welcome wizard so it shows again. */
   onReplayWelcome: () => void;
   /** Open directly to a specific section (e.g. "agents" from the engine picker). */
   initialSection?: SettingsSection;
@@ -234,6 +234,7 @@ export const SettingsView = memo(function SettingsView({
               return (
                 <button
                   key={item.id}
+                  data-settings-section={item.id}
                   onClick={() => setActiveSection(item.id)}
                   aria-current={isActive ? "page" : undefined}
                   className={`no-drag flex w-full items-center justify-start gap-2 rounded-md px-2 py-1.5 text-[13px] text-start transition-colors ${isActive

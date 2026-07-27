@@ -209,6 +209,27 @@
       "defaultDesc": "Choose which editor opens when you click 'Open in Editor'. Auto tries Cursor, VS Code, then Zed.",
       "auto": "Auto"
     },
+    "terminal": {
+      "section": "Integrated Terminal",
+      "defaultLabel": "Default shell",
+      "defaultDesc": "Choose the shell used by newly created integrated terminals. Existing terminals keep their current shell.",
+      "unavailable": "Not installed",
+      "customPathLabel": "Custom shell path",
+      "customPathDesc": "Enter the absolute path to an executable shell.",
+      "customPathPlaceholder": "/bin/zsh or C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+      "shells": {
+        "auto": "Auto (System Default)",
+        "pwsh": "PowerShell 7",
+        "powershell": "Windows PowerShell 5.1",
+        "cmd": "Command Prompt",
+        "git-bash": "Git Bash",
+        "wsl": "WSL",
+        "zsh": "zsh",
+        "bash": "bash",
+        "fish": "fish",
+        "custom": "Custom Path"
+      }
+    },
     "voice": {
       "section": "Voice Dictation",
       "modeLabel": "Dictation mode",

@@ -71,6 +71,7 @@ function assertPackagedRenderer(asarPath) {
     "account-menu",
     "open-settings",
     "data-settings-section",
+    "terminal-shell-setting",
     "replay-welcome",
     "welcome-wizard",
     "pcc-agent-welcome-completed",
@@ -180,7 +181,16 @@ function runPackagedApp(executable, appRoot, extraResourcesLogo) {
           );
         }
         const result = JSON.parse(fs.readFileSync(resultPath, "utf8"));
-        if (code !== 0 || result.ok !== true || result.welcomeReplayTriggered !== true) {
+        if (
+          code !== 0
+          || result.ok !== true
+          || result.welcomeReplayTriggered !== true
+          || result.terminalShellOptionsLoaded !== true
+          || !Number.isInteger(result.terminalShellOptionCount)
+          || result.terminalShellOptionCount < 2
+          || typeof result.terminalAutoShellPath !== "string"
+          || !path.isAbsolute(result.terminalAutoShellPath)
+        ) {
           throw new Error(
             `Packaged app smoke check failed (code=${code}): ${result.error ?? "invalid result"}\n${stdout}\n${stderr}`,
           );
@@ -237,4 +247,7 @@ console.log(
 );
 console.log(`  asar logo: ${result.asarLogoUrl}`);
 console.log(`  extraResources logo: ${result.extraResourcesLogoUrl}`);
+console.log(
+  `  terminal shells: ${result.terminalShellOptionCount} option(s), auto=${result.terminalAutoShellPath}`,
+);
 console.log("  production welcome replay: triggered");

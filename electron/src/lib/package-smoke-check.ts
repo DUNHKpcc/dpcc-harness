@@ -5,6 +5,9 @@ export const PACKAGE_SMOKE_CHECK_ARG = "--package-smoke-check";
 export interface PackageSmokeCheckResult {
   asarLogoUrl: string;
   extraResourcesLogoUrl: string;
+  terminalShellOptionsLoaded: boolean;
+  terminalShellOptionCount: number;
+  terminalAutoShellPath: string;
   welcomeReplayTriggered: boolean;
 }
 
@@ -112,6 +115,37 @@ export async function runPackageSmokeCheck(
       );
       openSettings.click();
 
+      const generalSettings = await waitFor(
+        () => document.querySelector('[data-settings-section="general"]'),
+        "General settings navigation",
+      );
+      generalSettings.click();
+
+      const terminalShellSetting = await waitFor(
+        () => document.querySelector('[data-package-smoke="terminal-shell-setting"]'),
+        "Integrated terminal shell setting",
+      );
+      if (!terminalShellSetting.querySelector("button")) {
+        throw new Error("Integrated terminal shell setting is missing its selector");
+      }
+
+      const shellOptionsApi = window.claude?.terminal?.shellOptions;
+      if (typeof shellOptionsApi !== "function") {
+        throw new Error("Preload is missing terminal.shellOptions");
+      }
+      const shellOptionsResult = await shellOptionsApi();
+      if (shellOptionsResult.error) {
+        throw new Error("terminal.shellOptions failed: " + shellOptionsResult.error);
+      }
+      const terminalShellOptions = shellOptionsResult.options;
+      if (!Array.isArray(terminalShellOptions) || terminalShellOptions.length < 2) {
+        throw new Error("terminal.shellOptions returned no platform shell options");
+      }
+      const autoShell = terminalShellOptions.find((option) => option.shell === "auto");
+      if (!autoShell?.available || typeof autoShell.path !== "string" || !autoShell.path) {
+        throw new Error("terminal.shellOptions did not resolve the automatic shell");
+      }
+
       const advancedSettings = await waitFor(
         () => document.querySelector('[data-settings-section="advanced"]'),
         "Advanced settings navigation",
@@ -138,6 +172,9 @@ export async function runPackageSmokeCheck(
       return {
         asarLogoUrl,
         extraResourcesLogoUrl,
+        terminalShellOptionsLoaded: true,
+        terminalShellOptionCount: terminalShellOptions.length,
+        terminalAutoShellPath: autoShell.path,
         welcomeReplayTriggered: true,
       };
     })()

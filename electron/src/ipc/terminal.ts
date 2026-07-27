@@ -5,6 +5,8 @@ import { safeSend } from "../lib/safe-send";
 import { reportError } from "../lib/error-utils";
 import { loadLocalClaudeEnv } from "../lib/local-cli-config";
 import { killProcessTree } from "../lib/process-tree";
+import { getAppSetting } from "../lib/app-settings";
+import { listTerminalShellOptions, resolveTerminalShell } from "../lib/terminal-shell";
 import {
   appendTerminalHistory,
   EMPTY_TERMINAL_HISTORY,
@@ -45,13 +47,22 @@ function getPty() {
 }
 
 export function register(getMainWindow: () => BrowserWindow | null): void {
+  ipcMain.handle("terminal:shell-options", () => {
+    try {
+      return { options: listTerminalShellOptions() };
+    } catch (err) {
+      return { error: reportError("TERMINAL_SHELL_OPTIONS_ERR", err) };
+    }
+  });
+
   ipcMain.handle("terminal:create", (_event, { cwd, cols, rows, spaceId }: { cwd?: string; cols?: number; rows?: number; spaceId?: string } = {}) => {
     try {
       const pty = getPty();
       const isWin = process.platform === "win32";
-      const shellPath = isWin
-        ? process.env.COMSPEC || "powershell.exe"
-        : process.env.SHELL || (process.platform === "darwin" ? "/bin/zsh" : "/bin/sh");
+      const { shellPath, args } = resolveTerminalShell(
+        getAppSetting("terminalShell"),
+        getAppSetting("terminalCustomShellPath"),
+      );
       const terminalId = crypto.randomUUID();
 
       // Seed env with the user's ~/.claude/settings.json env block AFTER process.env
@@ -59,7 +70,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       // Without this, running `claude` in the toolbar terminal would hit the official
       // API even when the user has a custom gateway configured locally.
       const localClaudeEnv = loadLocalClaudeEnv();
-      const ptyProcess = pty.spawn(shellPath, [], {
+      const ptyProcess = pty.spawn(shellPath, args, {
         name: "xterm-256color",
         cols: cols || 80,
         rows: rows || 24,

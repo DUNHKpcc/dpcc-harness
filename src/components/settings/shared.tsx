@@ -96,7 +96,7 @@ export function SettingsSelect<T extends string>({
 }: {
   value: T;
   onValueChange: (value: T) => void | Promise<void>;
-  options: Array<{ value: T; label: string }>;
+  options: Array<{ value: T; label: string; disabled?: boolean }>;
   className?: string;
   disabled?: boolean;
 }) {
@@ -113,7 +113,7 @@ export function SettingsSelect<T extends string>({
       </SelectTrigger>
       <SelectContent>
         {options.map((opt) => (
-          <SelectItem key={opt.value} value={opt.value}>
+          <SelectItem key={opt.value} value={opt.value} disabled={opt.disabled}>
             {opt.label}
           </SelectItem>
         ))}

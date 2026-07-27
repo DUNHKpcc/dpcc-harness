@@ -1,10 +1,18 @@
 import { memo, useState, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Download, MessageSquare, Code, Mic } from "lucide-react";
+import { Download, MessageSquare, Code, Mic, SquareTerminal } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SettingRow, SettingsSelect, SettingsHeader, SettingsSection } from "@/components/settings/shared";
-import type { AppSettings, PreferredEditor, VoiceDictationMode, UpdateSource } from "@/types";
+import { isImeComposing } from "@/lib/utils";
+import type {
+  AppSettings,
+  PreferredEditor,
+  TerminalShell,
+  TerminalShellOption,
+  VoiceDictationMode,
+  UpdateSource,
+} from "@/types";
 
 interface GeneralSettingsProps {
   appSettings: AppSettings | null;
@@ -24,6 +32,9 @@ export const GeneralSettings = memo(function GeneralSettings({
   const [chatLimit, setChatLimit] = useState(10);
   const [preferredEditor, setPreferredEditor] = useState<PreferredEditor>("auto");
   const [voiceDictation, setVoiceDictation] = useState<VoiceDictationMode>("native");
+  const [terminalShell, setTerminalShell] = useState<TerminalShell>("auto");
+  const [terminalCustomShellPath, setTerminalCustomShellPath] = useState("");
+  const [terminalShellOptions, setTerminalShellOptions] = useState<TerminalShellOption[]>([]);
 
   useEffect(() => {
     if (appSettings) {
@@ -32,8 +43,16 @@ export const GeneralSettings = memo(function GeneralSettings({
       setChatLimit(appSettings.defaultChatLimit || 10);
       setPreferredEditor(appSettings.preferredEditor || "auto");
       setVoiceDictation(appSettings.voiceDictation || "native");
+      setTerminalShell(appSettings.terminalShell || "auto");
+      setTerminalCustomShellPath(appSettings.terminalCustomShellPath || "");
     }
   }, [appSettings]);
+
+  useEffect(() => {
+    void window.claude.terminal.shellOptions().then((result) => {
+      if (result.options) setTerminalShellOptions(result.options);
+    }).catch(() => {});
+  }, []);
 
   const handleTogglePrerelease = useCallback(
     async (checked: boolean) => {
@@ -75,6 +94,46 @@ export const GeneralSettings = memo(function GeneralSettings({
     },
     [onUpdateAppSettings],
   );
+
+  const handleTerminalShellChange = useCallback(
+    async (value: TerminalShell) => {
+      setTerminalShell(value);
+      await onUpdateAppSettings({ terminalShell: value });
+    },
+    [onUpdateAppSettings],
+  );
+
+  const handleTerminalCustomShellPathSave = useCallback(
+    async (value: string) => {
+      const next = value.trim();
+      setTerminalCustomShellPath(next);
+      await onUpdateAppSettings({ terminalCustomShellPath: next });
+    },
+    [onUpdateAppSettings],
+  );
+
+  const terminalSelectOptions = terminalShellOptions.map((option) => ({
+    value: option.shell as TerminalShell,
+    label: `${t(`general.terminal.shells.${option.shell}`)}${
+      option.available ? "" : ` (${t("general.terminal.unavailable")})`
+    }`,
+    disabled: !option.available,
+  }));
+  if (
+    terminalShell !== "custom"
+    && !terminalSelectOptions.some((option) => option.value === terminalShell)
+  ) {
+    terminalSelectOptions.push({
+      value: terminalShell,
+      label: `${t(`general.terminal.shells.${terminalShell}`)} (${t("general.terminal.unavailable")})`,
+      disabled: true,
+    });
+  }
+  terminalSelectOptions.push({
+    value: "custom",
+    label: t("general.terminal.shells.custom"),
+    disabled: false,
+  });
 
   return (
     <div className="flex h-full flex-col">
@@ -141,6 +200,47 @@ export const GeneralSettings = memo(function GeneralSettings({
                 ]}
               />
             </SettingRow>
+          </SettingsSection>
+
+          {/* ── Integrated terminal section ── */}
+          <SettingsSection icon={SquareTerminal} label={t("general.terminal.section")}>
+            <div data-package-smoke="terminal-shell-setting">
+              <SettingRow
+                label={t("general.terminal.defaultLabel")}
+                description={t("general.terminal.defaultDesc")}
+              >
+                <SettingsSelect
+                  value={terminalShell}
+                  onValueChange={handleTerminalShellChange}
+                  options={terminalSelectOptions}
+                  className="w-52"
+                />
+              </SettingRow>
+            </div>
+            {terminalShell === "custom" && (
+              <SettingRow
+                label={t("general.terminal.customPathLabel")}
+                description={t("general.terminal.customPathDesc")}
+              >
+                <input
+                  type="text"
+                  value={terminalCustomShellPath}
+                  onChange={(event) => setTerminalCustomShellPath(event.target.value)}
+                  onBlur={(event) => {
+                    void handleTerminalCustomShellPathSave(event.target.value).catch(() => {});
+                  }}
+                  onKeyDown={(event) => {
+                    if (isImeComposing(event)) return;
+                    if (event.key === "Enter") {
+                      void handleTerminalCustomShellPathSave(event.currentTarget.value).catch(() => {});
+                    }
+                  }}
+                  spellCheck={false}
+                  className="h-8 w-80 rounded-md border border-foreground/10 bg-background px-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground hover:border-foreground/20 focus:border-foreground/30 focus:ring-1 focus:ring-foreground/20"
+                  placeholder={t("general.terminal.customPathPlaceholder")}
+                />
+              </SettingRow>
+            )}
           </SettingsSection>
 
           {/* ── Voice Dictation section ── */}

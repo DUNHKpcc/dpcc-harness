@@ -117,6 +117,8 @@ export type {
 export type {
   PreferredEditor,
   VoiceDictationMode,
+  TerminalShell,
+  TerminalShellOption,
   ThemeOption,
   LanguageOption,
   MacBackgroundEffect,

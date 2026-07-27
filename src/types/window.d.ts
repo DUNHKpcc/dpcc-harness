@@ -341,6 +341,10 @@ declare global {
       };
       terminal: {
         create: (options: { cwd?: string; cols?: number; rows?: number; spaceId?: string }) => Promise<{ terminalId?: string; error?: string }>;
+        shellOptions: () => Promise<{
+          options?: import("@shared/types/settings").TerminalShellOption[];
+          error?: string;
+        }>;
         list: () => Promise<{
           terminals?: Array<{
             terminalId: string;

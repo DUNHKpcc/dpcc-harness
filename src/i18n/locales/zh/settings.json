@@ -209,6 +209,27 @@
       "defaultDesc": "选择点击「在编辑器中打开」时使用的编辑器。「自动」会依次尝试 Cursor、VS Code 和 Zed。",
       "auto": "自动"
     },
+    "terminal": {
+      "section": "集成终端",
+      "defaultLabel": "默认 shell",
+      "defaultDesc": "选择新建集成终端使用的 shell，已经打开的终端不会受到影响。",
+      "unavailable": "未安装",
+      "customPathLabel": "自定义 shell 路径",
+      "customPathDesc": "输入 shell 可执行文件的绝对路径。",
+      "customPathPlaceholder": "/bin/zsh 或 C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+      "shells": {
+        "auto": "自动（系统默认）",
+        "pwsh": "PowerShell 7",
+        "powershell": "Windows PowerShell 5.1",
+        "cmd": "命令提示符",
+        "git-bash": "Git Bash",
+        "wsl": "WSL",
+        "zsh": "zsh",
+        "bash": "bash",
+        "fish": "fish",
+        "custom": "自定义路径"
+      }
+    },
     "voice": {
       "section": "语音听写",
       "modeLabel": "听写模式",

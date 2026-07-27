@@ -26,9 +26,9 @@ describe("AboutSettings", () => {
 
     expect(INITIAL_RELEASE_HISTORY_LIMIT).toBe(3);
     expect(html).toContain("Release history");
-    expect(html).toContain("v2.1.6");
+    expect(html).toContain("v2.1.7");
     expect(html).toContain('aria-expanded="true"');
-    expect(html).toContain("release-details-v2_1_6");
+    expect(html).toContain("release-details-v2_2_0");
     expect(html).toContain("Show older releases");
   });
 
@@ -39,7 +39,7 @@ describe("AboutSettings", () => {
     expect(new Set(versions).size).toBe(versions.length);
     expect(versions[0]).toBe(packageJson.version);
     expect(versions).toEqual([
-      "2.1.8", "2.1.7", "2.1.6", "2.1.5", "2.1.4", "2.1.3", "2.1.2", "2.1.1", "2.1.0", "2.0.9",
+      "2.2.0", "2.1.8", "2.1.7", "2.1.6", "2.1.5", "2.1.4", "2.1.3", "2.1.2", "2.1.1", "2.1.0", "2.0.9",
       "2.0.8", "2.0.7", "2.0.6", "2.0.5", "2.0.4", "2.0.3",
       "2.0.2", "2.0.1", "2.0.0", "1.0.2", "1.0.1", "1.0.0",
     ]);

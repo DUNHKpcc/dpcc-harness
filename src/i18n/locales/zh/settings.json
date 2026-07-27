@@ -419,6 +419,12 @@
       "showOlder": "显示更早版本",
       "showLess": "收起早期版本",
       "entries": {
+        "v2_2_0": {
+          "title": "DPCC 订阅与授权体验完善",
+          "subscriptionUsage": "侧边栏与设置页现可显示每个 DPCC API 套餐名称、剩余额度及已用/剩余比例；多订阅会在紧凑区域内滚动。",
+          "authorizationPolish": "浏览器授权完成页改用 PccAgent 官方 Logo，并跟随应用的浅色或深色外观。",
+          "releaseVerification": "发布前会自动验证生产包中的品牌资源与欢迎页重放功能。"
+        },
         "v2_1_8": {
           "title": "完善生产构建体验",
           "packagedLogo": "恢复生产构建中 PccAgent Logo 的显示，包括侧边栏、欢迎页、账户入口与设置页。",

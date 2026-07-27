@@ -419,6 +419,12 @@
       "showOlder": "Show older releases",
       "showLess": "Hide older releases",
       "entries": {
+        "v2_2_0": {
+          "title": "DPCC subscriptions and authorization polish",
+          "subscriptionUsage": "DPCC API subscriptions now show each plan name, remaining quota, and used-versus-remaining progress in the sidebar and Settings, with compact scrolling for multiple plans.",
+          "authorizationPolish": "The browser authorization completion page now uses the official PccAgent logo and follows the app's light or dark appearance.",
+          "releaseVerification": "Release packages now verify branded assets and production welcome replay before publishing."
+        },
         "v2_1_8": {
           "title": "Packaged app polish",
           "packagedLogo": "Restored the PccAgent logo throughout packaged builds, including the sidebar, welcome screen, account entry, and Settings.",

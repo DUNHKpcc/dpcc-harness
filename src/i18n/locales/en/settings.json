@@ -440,6 +440,12 @@
       "showOlder": "Show older releases",
       "showLess": "Hide older releases",
       "entries": {
+        "v2_2_1": {
+          "title": "Cross-platform terminals and reliable window recovery",
+          "terminalShellSelection": "The integrated terminal can now use a user-selected shell on Windows, macOS, and Linux, including PowerShell 7, Windows PowerShell, Command Prompt, Git Bash, WSL, zsh, bash, fish, and custom executables.",
+          "windowsWindowLifecycle": "Fixed Windows taskbar, tray, notification, recent-conversation, and second-instance activation paths so PccAgent restores and focuses its existing window instead of disappearing or opening an unresponsive duplicate.",
+          "windowStatePersistence": "PccAgent now restores the previous main-window size, position, and maximized state while keeping saved bounds visible on the current display."
+        },
         "v2_2_0": {
           "title": "DPCC subscriptions and authorization polish",
           "subscriptionUsage": "DPCC API subscriptions now show each plan name, remaining quota, and used-versus-remaining progress in the sidebar and Settings, with compact scrolling for multiple plans.",

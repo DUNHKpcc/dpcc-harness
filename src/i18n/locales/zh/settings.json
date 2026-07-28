@@ -440,6 +440,12 @@
       "showOlder": "显示更早版本",
       "showLess": "收起早期版本",
       "entries": {
+        "v2_2_1": {
+          "title": "跨平台终端与可靠的窗口恢复",
+          "terminalShellSelection": "集成终端现可在 Windows、macOS 与 Linux 上使用用户选择的 shell，包括 PowerShell 7、Windows PowerShell、Command Prompt、Git Bash、WSL、zsh、bash、fish 及自定义可执行文件。",
+          "windowsWindowLifecycle": "修复 Windows 任务栏、托盘、通知、最近对话及第二实例的窗口激活路径；PccAgent 会恢复并聚焦已有窗口，不再直接消失或打开无响应的重复实例。",
+          "windowStatePersistence": "PccAgent 现会恢复上次主窗口的尺寸、位置与最大化状态，并确保保存的窗口范围在当前显示器内可见。"
+        },
         "v2_2_0": {
           "title": "DPCC 订阅与授权体验完善",
           "subscriptionUsage": "侧边栏与设置页现可显示每个 DPCC API 套餐名称、剩余额度及已用/剩余比例；多订阅会在紧凑区域内滚动。",

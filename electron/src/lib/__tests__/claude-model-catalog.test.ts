@@ -30,7 +30,7 @@ const defaultUpstream = (overrides: Partial<{
 }> = {}) => ({
   tier: "default" as const,
   baseUrl: "https://api.dpcc.example",
-  token: "sk-claude",
+  token: "token-a",
   model: "claude-sonnet-4-6",
   ...overrides,
 });
@@ -39,21 +39,18 @@ const sdkModels: CachedModelInfo[] = [
   {
     value: "sonnet",
     displayName: "Sonnet",
-    description: "Sonnet 4.6",
+    description: "Local SDK metadata",
     supportsEffort: true,
-    supportedEffortLevels: ["low", "medium", "high"],
-    supportsAdaptiveThinking: true,
-    supportsFastMode: true,
   },
   {
     value: "claude-opus-4-6",
-    displayName: "Opus 4.6",
-    description: "Exact Opus metadata",
-    supportsEffort: true,
+    displayName: "Local Opus",
+    description: "Must not appear in the DPCC catalog",
+    supportsAdaptiveThinking: true,
   },
 ];
 
-describe("Claude DPCC model catalog", () => {
+describe("Claude model catalog", () => {
   beforeEach(() => {
     clearClaudeModelCatalogCache();
     mocks.fetchUpstreamModels.mockReset();
@@ -67,119 +64,51 @@ describe("Claude DPCC model catalog", () => {
   });
 
   it("uses an opaque fingerprint that includes source, credential, and model identity", () => {
-    const upstream = defaultUpstream({ token: "secret-token" });
-    const fingerprint = claudeUpstreamFingerprint(upstream);
+    const base = defaultUpstream();
 
-    expect(fingerprint).toMatch(/^[a-f0-9]{64}$/);
-    expect(fingerprint).not.toContain("secret-token");
-    expect(new Set([
-      fingerprint,
-      claudeUpstreamFingerprint(defaultUpstream({ tier: "gateway" })),
-      claudeUpstreamFingerprint(defaultUpstream({ token: "other-token" })),
-      claudeUpstreamFingerprint(defaultUpstream({ model: "claude-opus-4-6" })),
-    ]).size).toBe(4);
+    expect(claudeUpstreamFingerprint(base)).not.toBe(
+      claudeUpstreamFingerprint({ ...base, tier: "gateway" }),
+    );
+    expect(claudeUpstreamFingerprint(base)).not.toBe(
+      claudeUpstreamFingerprint({ ...base, token: "token-b" }),
+    );
+    expect(claudeUpstreamFingerprint(base)).not.toBe(
+      claudeUpstreamFingerprint({ ...base, model: "claude-opus-4-6" }),
+    );
   });
 
-  it("uses successful DPCC ids as the authoritative visible set", async () => {
+  it("uses DPCC ids as the sole authoritative catalog", async () => {
     mocks.fetchUpstreamModels.mockResolvedValue({
       models: ["claude-opus-4-6", "claude-dpcc-only"],
       error: null,
     });
 
-    const result = await resolveEffectiveClaudeModels(sdkModels);
-
-    expect(result.map((model) => model.value)).toEqual([
-      "claude-opus-4-6",
-      "claude-dpcc-only",
-    ]);
+    await expect(resolveEffectiveClaudeModelsResult(sdkModels)).resolves.toEqual({
+      models: [
+        {
+          value: "claude-opus-4-6",
+          displayName: "claude-opus-4-6",
+          description: "",
+        },
+        {
+          value: "claude-dpcc-only",
+          displayName: "claude-dpcc-only",
+          description: "",
+        },
+      ],
+      authoritative: true,
+    });
   });
 
-  it("uses exact SDK metadata before alias metadata", async () => {
+  it("does not borrow exact, alias, description, or capability metadata from SDK models", async () => {
     mocks.fetchUpstreamModels.mockResolvedValue({
-      models: ["claude-opus-4-6"],
+      models: ["sonnet", "claude-opus-4-6"],
       error: null,
     });
 
-    const [result] = await resolveEffectiveClaudeModels(sdkModels);
-
-    expect(result).toEqual(sdkModels[1]);
-  });
-
-  it("supplements matching Claude family aliases without mutating SDK models", async () => {
-    mocks.fetchUpstreamModels.mockResolvedValue({
-      models: ["claude-sonnet-4-6"],
-      error: null,
-    });
-    const originalSdkModels = structuredClone(sdkModels);
-
-    const [result] = await resolveEffectiveClaudeModels(sdkModels);
-
-    expect(result).toEqual({
-      value: "claude-sonnet-4-6",
-      displayName: "Sonnet",
-      description: "Sonnet 4.6",
-      supportsEffort: true,
-      supportedEffortLevels: ["low", "medium", "high"],
-      supportsAdaptiveThinking: true,
-      supportsFastMode: true,
-    });
-    expect(sdkModels).toEqual(originalSdkModels);
-  });
-
-  it("keeps DPCC model labels authoritative while borrowing only effort metadata from local aliases", async () => {
-    mocks.fetchUpstreamModels.mockResolvedValue({
-      models: ["claude-opus-4-6", "claude-sonnet-4-6", "claude-haiku-4-5"],
-      error: null,
-    });
-    const localAliases: CachedModelInfo[] = [
-      {
-        value: "opus",
-        displayName: "glm-5.2",
-        description: "Custom Opus model (1M context)",
-        supportsEffort: true,
-        supportedEffortLevels: ["low", "medium", "high", "max"],
-        supportsAdaptiveThinking: true,
-      },
-      {
-        value: "sonnet",
-        displayName: "deepseek-v4-pro",
-        description: "Custom Sonnet model",
-        supportsEffort: true,
-        supportedEffortLevels: ["low", "medium", "high", "max"],
-        supportsAdaptiveThinking: true,
-      },
-      {
-        value: "haiku",
-        displayName: "kimi-k2.7-code",
-        description: "Custom Haiku model",
-        supportsEffort: true,
-        supportedEffortLevels: ["low", "medium", "high", "max"],
-        supportsAdaptiveThinking: true,
-      },
-    ];
-
-    const result = await resolveEffectiveClaudeModels(localAliases);
-
-    expect(result).toEqual([
-      expect.objectContaining({
-        value: "claude-opus-4-6",
-        displayName: "claude-opus-4-6",
-        description: "",
-        supportsEffort: true,
-        supportedEffortLevels: ["low", "medium", "high", "max"],
-      }),
-      expect.objectContaining({
-        value: "claude-sonnet-4-6",
-        displayName: "claude-sonnet-4-6",
-        description: "",
-        supportsEffort: true,
-      }),
-      expect.objectContaining({
-        value: "claude-haiku-4-5",
-        displayName: "claude-haiku-4-5",
-        description: "",
-        supportsEffort: true,
-      }),
+    await expect(resolveEffectiveClaudeModels(sdkModels)).resolves.toEqual([
+      { value: "sonnet", displayName: "sonnet", description: "" },
+      { value: "claude-opus-4-6", displayName: "claude-opus-4-6", description: "" },
     ]);
   });
 
@@ -192,249 +121,8 @@ describe("Claude DPCC model catalog", () => {
 
     await expect(resolveClaudeModelForRequest("claude-sonnet-4-6"))
       .resolves.toBe("claude-sonnet-4-6");
-    await expect(resolveClaudeModelForRequest("glm-5.2"))
+    await expect(resolveClaudeModelForRequest("local-sdk-model"))
       .resolves.toBe("claude-haiku-4-5");
-  });
-
-  it("re-resolves a request when the upstream changes while DPCC models are loading", async () => {
-    let upstream = defaultUpstream({ model: "" });
-    mocks.resolveClaudeUpstream.mockImplementation(() => upstream);
-    let resolveModels!: (value: { models: string[]; error: null }) => void;
-    mocks.fetchUpstreamModels.mockReturnValue(new Promise((resolve) => {
-      resolveModels = resolve;
-    }));
-
-    const result = resolveClaudeModelForRequest("local-sonnet");
-    upstream = defaultUpstream({ tier: "local", baseUrl: "", token: "", model: "" });
-    resolveModels({ models: ["claude-sonnet-4-6"], error: null });
-
-    await expect(result).resolves.toBe("local-sonnet");
-  });
-
-  it("sanitizes exact custom SDK metadata for a DPCC model id", async () => {
-    mocks.fetchUpstreamModels.mockResolvedValue({
-      models: ["claude-sonnet-4-6"],
-      error: null,
-    });
-    const customExact: CachedModelInfo = {
-      value: "claude-sonnet-4-6",
-      displayName: "deepseek-v4-pro",
-      description: "Custom Sonnet model",
-      supportsEffort: true,
-      supportedEffortLevels: ["low", "medium", "high"],
-    };
-
-    await expect(resolveEffectiveClaudeModels([customExact])).resolves.toEqual([{
-      value: "claude-sonnet-4-6",
-      displayName: "claude-sonnet-4-6",
-      description: "",
-      supportsEffort: true,
-      supportedEffortLevels: ["low", "medium", "high"],
-    }]);
-  });
-
-  it("does not borrow custom effort metadata across context variants", async () => {
-    mocks.fetchUpstreamModels.mockResolvedValue({
-      models: ["claude-opus-4-6"],
-      error: null,
-    });
-    const customLongContext: CachedModelInfo = {
-      value: "opus[1m]",
-      displayName: "glm-5.2",
-      description: "Custom Opus model (1M context)",
-      supportsEffort: true,
-      supportedEffortLevels: ["low", "medium", "high", "max"],
-    };
-
-    await expect(resolveEffectiveClaudeModels([customLongContext])).resolves.toEqual([{
-      value: "claude-opus-4-6",
-      displayName: "claude-opus-4-6",
-      description: "",
-    }]);
-  });
-
-  it("prefers same-version metadata across SDK value, display name, and description", async () => {
-    mocks.fetchUpstreamModels.mockResolvedValue({
-      models: ["claude-sonnet-4-6"],
-      error: null,
-    });
-    const versionedModels: CachedModelInfo[] = [
-      {
-        value: "sonnet-old",
-        displayName: "Sonnet 4.5",
-        description: "Previous Sonnet metadata",
-        supportsFastMode: false,
-      },
-      {
-        value: "sonnet-current",
-        displayName: "Current Sonnet",
-        description: "Claude Sonnet 4.6 metadata",
-        supportsFastMode: true,
-      },
-    ];
-
-    const [result] = await resolveEffectiveClaudeModels(versionedModels);
-
-    expect(result).toEqual({
-      value: "claude-sonnet-4-6",
-      displayName: "Current Sonnet",
-      description: "Claude Sonnet 4.6 metadata",
-      supportsFastMode: true,
-    });
-  });
-
-  it("uses a generic family alias instead of a different concrete version", async () => {
-    mocks.fetchUpstreamModels.mockResolvedValue({
-      models: ["claude-sonnet-4-6"],
-      error: null,
-    });
-    const versionedModels: CachedModelInfo[] = [
-      {
-        value: "sonnet-4-5",
-        displayName: "Sonnet 4.5",
-        description: "Wrong concrete version",
-      },
-      {
-        value: "sonnet",
-        displayName: "Generic Sonnet",
-        description: "Versionless fallback",
-      },
-    ];
-
-    const [result] = await resolveEffectiveClaudeModels(versionedModels);
-
-    expect(result).toEqual({
-      value: "claude-sonnet-4-6",
-      displayName: "Generic Sonnet",
-      description: "Versionless fallback",
-    });
-  });
-
-  it("does not use metadata from a different concrete family version", async () => {
-    mocks.fetchUpstreamModels.mockResolvedValue({
-      models: ["claude-sonnet-4-6"],
-      error: null,
-    });
-    const oldModel: CachedModelInfo = {
-      value: "sonnet-4-5",
-      displayName: "Sonnet 4.5",
-      description: "Wrong concrete version",
-      supportsEffort: true,
-    };
-
-    const result = await resolveEffectiveClaudeModels([oldModel]);
-
-    expect(result).toEqual([
-      { value: "claude-sonnet-4-6", displayName: "claude-sonnet-4-6", description: "" },
-    ]);
-  });
-
-  it("maps bracketed 1M SDK aliases only to 1M DPCC variants", async () => {
-    mocks.fetchUpstreamModels.mockResolvedValue({
-      models: ["claude-sonnet-4-6-1m", "claude-sonnet-4-6"],
-      error: null,
-    });
-    const bracketedModel: CachedModelInfo = {
-      value: "sonnet[1m]",
-      displayName: "Sonnet 1M",
-      description: "Extended context",
-      supportsEffort: true,
-    };
-
-    const result = await resolveEffectiveClaudeModels([bracketedModel]);
-
-    expect(result).toEqual([
-      {
-        value: "claude-sonnet-4-6-1m",
-        displayName: "Sonnet 1M",
-        description: "Extended context",
-        supportsEffort: true,
-      },
-      { value: "claude-sonnet-4-6", displayName: "claude-sonnet-4-6", description: "" },
-    ]);
-  });
-
-  it("uses configured default metadata before family alias metadata", async () => {
-    mocks.fetchUpstreamModels.mockResolvedValue({
-      models: ["claude-sonnet-4-6"],
-      error: null,
-    });
-    const defaultModel: CachedModelInfo = {
-      value: "default",
-      displayName: "Configured default",
-      description: "Preferred upstream model",
-      supportsFastMode: true,
-    };
-
-    const [result] = await resolveEffectiveClaudeModels([sdkModels[0], defaultModel]);
-
-    expect(result).toEqual({
-      value: "claude-sonnet-4-6",
-      displayName: "Configured default",
-      description: "Preferred upstream model",
-      supportsFastMode: true,
-    });
-  });
-
-  it("uses exact SDK metadata before configured default metadata", async () => {
-    mocks.resolveClaudeUpstream.mockReturnValue(defaultUpstream({ model: "claude-opus-4-6" }));
-    mocks.fetchUpstreamModels.mockResolvedValue({
-      models: ["claude-opus-4-6"],
-      error: null,
-    });
-    const defaultModel: CachedModelInfo = {
-      value: "default",
-      displayName: "Configured default",
-      description: "Must not replace exact metadata",
-    };
-
-    const [result] = await resolveEffectiveClaudeModels([defaultModel, sdkModels[1]]);
-
-    expect(result).toEqual(sdkModels[1]);
-  });
-
-  it.each(["", "claude-opus-4-6"])(
-    "does not guess default metadata when configured model is %j",
-    async (model) => {
-      mocks.resolveClaudeUpstream.mockReturnValue(defaultUpstream({ model }));
-      mocks.fetchUpstreamModels.mockResolvedValue({
-        models: ["claude-sonnet-4-6"],
-        error: null,
-      });
-      const defaultModel: CachedModelInfo = {
-        value: "default",
-        displayName: "SDK default",
-        description: "Must remain unassigned",
-        supportsEffort: true,
-      };
-
-      const result = await resolveEffectiveClaudeModels([defaultModel]);
-
-      expect(result).toEqual([
-        { value: "claude-sonnet-4-6", displayName: "claude-sonnet-4-6", description: "" },
-      ]);
-    },
-  );
-
-  it("uses plain fallback metadata for unknown, cross-family, and 1M-mismatched IDs", async () => {
-    mocks.fetchUpstreamModels.mockResolvedValue({
-      models: ["claude-dpcc-only", "claude-opus-4-6", "claude-sonnet-4-6-1m", "claude-haiku-4-5"],
-      error: null,
-    });
-
-    const result = await resolveEffectiveClaudeModels([sdkModels[0], {
-      value: "default",
-      displayName: "SDK default",
-      description: "Must not become a model family",
-      supportsEffort: true,
-    }]);
-
-    expect(result).toEqual([
-      { value: "claude-dpcc-only", displayName: "claude-dpcc-only", description: "" },
-      { value: "claude-opus-4-6", displayName: "claude-opus-4-6", description: "" },
-      { value: "claude-sonnet-4-6-1m", displayName: "claude-sonnet-4-6-1m", description: "" },
-      { value: "claude-haiku-4-5", displayName: "claude-haiku-4-5", description: "" },
-    ]);
   });
 
   it("trims and deduplicates DPCC IDs while retaining their order", async () => {
@@ -454,28 +142,39 @@ describe("Claude DPCC model catalog", () => {
   it("treats a successful empty DPCC catalog as authoritative", async () => {
     mocks.fetchUpstreamModels.mockResolvedValue({ models: [], error: null });
 
-    await expect(resolveEffectiveClaudeModels(sdkModels)).resolves.toEqual([]);
-  });
-
-  it("marks a successful empty DPCC catalog as authoritative in the resolver result", async () => {
-    mocks.fetchUpstreamModels.mockResolvedValue({ models: [], error: null });
-
     await expect(resolveEffectiveClaudeModelsResult(sdkModels)).resolves.toEqual({
       models: [],
       authoritative: true,
     });
   });
 
-  it("marks a failed DPCC request that falls back to SDK metadata as non-authoritative", async () => {
+  it("does not fall back to SDK models when the DPCC request fails", async () => {
     mocks.fetchUpstreamModels.mockResolvedValue({ models: [], error: "unavailable" });
 
     await expect(resolveEffectiveClaudeModelsResult(sdkModels)).resolves.toEqual({
-      models: sdkModels,
+      models: [],
       authoritative: false,
     });
   });
 
-  it("caches a successful catalog for 60 seconds", async () => {
+  it("does not fall back to SDK models when an expired DPCC catalog cannot refresh", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(0));
+    mocks.fetchUpstreamModels
+      .mockResolvedValueOnce({ models: ["claude-sonnet-4-6"], error: null })
+      .mockResolvedValueOnce({ models: [], error: "unavailable" });
+
+    await resolveEffectiveClaudeModels(sdkModels);
+    vi.setSystemTime(new Date(60_000));
+
+    await expect(resolveEffectiveClaudeModelsResult(sdkModels)).resolves.toEqual({
+      models: [],
+      authoritative: false,
+    });
+    expect(mocks.fetchUpstreamModels).toHaveBeenCalledTimes(2);
+  });
+
+  it("caches a successful DPCC catalog for 60 seconds", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(0));
     mocks.fetchUpstreamModels.mockResolvedValue({
@@ -488,29 +187,6 @@ describe("Claude DPCC model catalog", () => {
     await resolveEffectiveClaudeModels(sdkModels);
 
     expect(mocks.fetchUpstreamModels).toHaveBeenCalledTimes(1);
-  });
-
-  it("falls back to the exact SDK array when the first DPCC request fails", async () => {
-    mocks.fetchUpstreamModels.mockResolvedValue({ models: [], error: "unavailable" });
-
-    const result = await resolveEffectiveClaudeModels(sdkModels);
-
-    expect(result).toBe(sdkModels);
-  });
-
-  it("falls back to SDK metadata when an expired DPCC catalog cannot be refreshed", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date(0));
-    mocks.fetchUpstreamModels
-      .mockResolvedValueOnce({ models: ["claude-sonnet-4-6"], error: null })
-      .mockResolvedValueOnce({ models: [], error: "unavailable" });
-
-    await resolveEffectiveClaudeModels(sdkModels);
-    vi.setSystemTime(new Date(60_000));
-    const afterFailure = await resolveEffectiveClaudeModelsResult(sdkModels);
-
-    expect(afterFailure).toEqual({ models: sdkModels, authoritative: false });
-    expect(mocks.fetchUpstreamModels).toHaveBeenCalledTimes(2);
   });
 
   it("isolates cached catalogs by base URL and token", async () => {
@@ -533,9 +209,7 @@ describe("Claude DPCC model catalog", () => {
     expect(mocks.fetchUpstreamModels).toHaveBeenCalledTimes(3);
   });
 
-  it("does not reuse stale model IDs across credentials", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date(0));
+  it("does not reuse another credential's catalog after a DPCC failure", async () => {
     let upstream = defaultUpstream({ baseUrl: "https://one.example", token: "token-one" });
     mocks.resolveClaudeUpstream.mockImplementation(() => upstream);
     mocks.fetchUpstreamModels
@@ -543,11 +217,9 @@ describe("Claude DPCC model catalog", () => {
       .mockResolvedValueOnce({ models: [], error: "unavailable" });
 
     await resolveEffectiveClaudeModels(sdkModels);
-    vi.setSystemTime(new Date(60_000));
     upstream = defaultUpstream({ baseUrl: "https://two.example", token: "token-two" });
-    const failedSecondAccount = await resolveEffectiveClaudeModels(sdkModels);
 
-    expect(failedSecondAccount).toBe(sdkModels);
+    await expect(resolveEffectiveClaudeModels(sdkModels)).resolves.toEqual([]);
     expect(mocks.fetchUpstreamModels).toHaveBeenCalledTimes(2);
   });
 
@@ -606,29 +278,20 @@ describe("Claude DPCC model catalog", () => {
       { value: "claude-fresh", displayName: "claude-fresh", description: "" },
     ]);
     resolveFirst({ models: ["claude-stale"], error: null });
-    await expect(first).resolves.toBe(sdkModels);
+    await expect(first).resolves.toEqual([]);
   });
 
-  it.each(["local", "gateway"] as const)("passes through the SDK array by reference for %s sources", async (tier) => {
+  it.each(["local", "gateway"] as const)("preserves SDK models for %s sources", async (tier) => {
     mocks.resolveClaudeUpstream.mockReturnValue({ ...defaultUpstream(), tier });
 
-    const result = await resolveEffectiveClaudeModels(sdkModels);
+    const result = await resolveEffectiveClaudeModelsResult(sdkModels);
 
-    expect(result).toBe(sdkModels);
+    expect(result).toEqual({ models: sdkModels, authoritative: false });
+    expect(result.models).toBe(sdkModels);
     expect(mocks.fetchUpstreamModels).not.toHaveBeenCalled();
   });
 
-  it.each(["local", "gateway"] as const)("marks an empty SDK catalog as non-authoritative for %s sources", async (tier) => {
-    mocks.resolveClaudeUpstream.mockReturnValue({ ...defaultUpstream(), tier });
-
-    await expect(resolveEffectiveClaudeModelsResult([])).resolves.toEqual({
-      models: [],
-      authoritative: false,
-    });
-    expect(mocks.fetchUpstreamModels).not.toHaveBeenCalled();
-  });
-
-  it("marks a source change during a DPCC request as stale rather than authoritative empty", async () => {
+  it("marks a source change during a DPCC request as stale", async () => {
     let upstream = defaultUpstream({ baseUrl: "https://a.example", token: "token-a" });
     mocks.resolveClaudeUpstream.mockImplementation(() => upstream);
     let resolveRequest!: (value: { models: string[]; error: null }) => void;

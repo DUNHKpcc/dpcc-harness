@@ -92,8 +92,8 @@ const rawModels = [{
 
 const effectiveModels = [{
   value: "claude-sonnet-4-6",
-  displayName: "Sonnet",
-  description: "Raw SDK metadata",
+  displayName: "claude-sonnet-4-6",
+  description: "",
 }];
 
 const defaultUpstream = (overrides: Partial<{
@@ -143,20 +143,246 @@ describe("Claude model IPC catalog", () => {
     register(() => null);
   });
 
-  it("caches the raw supported models while returning the effective catalog", async () => {
+  it("uses only the DPCC catalog for active-session model queries", async () => {
+    const supportedModels = vi.fn(async () => rawModels);
     const { sessions } = await import("./claude-sessions");
     sessions.set("session-1", {
       channel: {} as never,
-      queryHandle: { supportedModels: vi.fn(async () => rawModels) } as never,
+      queryHandle: { supportedModels } as never,
       eventCounter: 0,
       pendingPermissions: new Map(),
     });
 
     const result = await mocks.handlers.get("claude:supported-models")?.({}, "session-1");
 
-    expect(mocks.setClaudeModelsCache).toHaveBeenCalledWith(rawModels);
-    expect(mocks.resolveEffectiveClaudeModelsResult).toHaveBeenCalledWith(rawModels, expect.any(String));
     expect(result).toEqual({ models: effectiveModels, authoritative: true });
+    expect(mocks.resolveEffectiveClaudeModelsResult).toHaveBeenCalledWith([], expect.any(String));
+    expect(supportedModels).not.toHaveBeenCalled();
+    expect(mocks.getClaudeModelsCache).not.toHaveBeenCalled();
+    expect(mocks.setClaudeModelsCache).not.toHaveBeenCalled();
+  });
+
+  it("does not read the SDK disk cache for DPCC cache queries", async () => {
+    const result = await mocks.handlers.get("claude:models-cache:get")?.({});
+
+    expect(result).toEqual({ models: effectiveModels, authoritative: true });
+    expect(mocks.resolveEffectiveClaudeModelsResult).toHaveBeenCalledWith([], expect.any(String));
+    expect(mocks.getClaudeModelsCache).not.toHaveBeenCalled();
+    expect(mocks.setClaudeModelsCache).not.toHaveBeenCalled();
+  });
+
+  it("does not start an SDK model probe for DPCC revalidation", async () => {
+    const result = await mocks.handlers.get("claude:models-cache:revalidate")?.(
+      {},
+      { cwd: "/tmp/project" },
+    );
+
+    expect(result).toEqual({ models: effectiveModels, authoritative: true });
+    expect(mocks.resolveEffectiveClaudeModelsResult).toHaveBeenCalledWith([], expect.any(String));
+    expect(mocks.getClaudeModelsCache).not.toHaveBeenCalled();
+    expect(mocks.getSDK).not.toHaveBeenCalled();
+    expect(mocks.setClaudeModelsCache).not.toHaveBeenCalled();
+  });
+
+  it("returns an empty structured result when DPCC catalog resolution fails", async () => {
+    mocks.resolveEffectiveClaudeModelsResult.mockRejectedValue(new Error("resolver failed"));
+
+    const result = await mocks.handlers.get("claude:models-cache:get")?.({});
+
+    expect(result).toEqual({
+      models: [],
+      authoritative: false,
+      error: "CLAUDE_MODEL_CATALOG_RESOLVE_ERR: Error: resolver failed",
+    });
+    expect(mocks.getClaudeModelsCache).not.toHaveBeenCalled();
+    expect(mocks.getSDK).not.toHaveBeenCalled();
+  });
+
+  it.each(["local", "gateway"] as const)(
+    "keeps SDK supported models for %s mode",
+    async (tier) => {
+      mocks.resolveClaudeUpstream.mockReturnValue(defaultUpstream({
+        tier,
+        baseUrl: `https://${tier}.example`,
+      }));
+      mocks.resolveEffectiveClaudeModelsResult.mockImplementation(async (models) => ({
+        models,
+        authoritative: false,
+      }));
+      const supportedModels = vi.fn(async () => rawModels);
+      const { sessions } = await import("./claude-sessions");
+      sessions.set("session-1", {
+        channel: {} as never,
+        queryHandle: { supportedModels } as never,
+        eventCounter: 0,
+        pendingPermissions: new Map(),
+      });
+
+      const result = await mocks.handlers.get("claude:supported-models")?.({}, "session-1");
+
+      expect(result).toEqual({ models: rawModels, authoritative: false });
+      expect(supportedModels).toHaveBeenCalledTimes(1);
+      expect(mocks.setClaudeModelsCache).toHaveBeenCalledWith(rawModels);
+      expect(mocks.resolveEffectiveClaudeModelsResult).toHaveBeenCalledWith(
+        rawModels,
+        expect.any(String),
+      );
+    },
+  );
+
+  it.each(["local", "gateway"] as const)(
+    "keeps the persisted SDK fallback when %s returns an empty live list",
+    async (tier) => {
+      mocks.resolveClaudeUpstream.mockReturnValue(defaultUpstream({
+        tier,
+        baseUrl: `https://${tier}-empty.example`,
+      }));
+      mocks.resolveEffectiveClaudeModelsResult.mockImplementation(async (models) => ({
+        models,
+        authoritative: false,
+      }));
+      const { sessions } = await import("./claude-sessions");
+      sessions.set("session-1", {
+        channel: {} as never,
+        queryHandle: { supportedModels: vi.fn(async () => []) } as never,
+        eventCounter: 0,
+        pendingPermissions: new Map(),
+      });
+
+      const result = await mocks.handlers.get("claude:supported-models")?.({}, "session-1");
+
+      expect(result).toEqual({ models: rawModels, authoritative: false });
+      expect(mocks.getClaudeModelsCache).toHaveBeenCalledTimes(1);
+      expect(mocks.setClaudeModelsCache).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["local", "gateway"] as const)(
+    "reads the persisted SDK cache for %s cache queries",
+    async (tier) => {
+      mocks.resolveClaudeUpstream.mockReturnValue(defaultUpstream({
+        tier,
+        baseUrl: `https://${tier}-cache.example`,
+      }));
+      mocks.resolveEffectiveClaudeModelsResult.mockImplementation(async (models) => ({
+        models,
+        authoritative: false,
+      }));
+
+      const result = await mocks.handlers.get("claude:models-cache:get")?.({});
+
+      expect(result).toEqual({
+        models: rawModels,
+        updatedAt: 100,
+        authoritative: false,
+      });
+      expect(mocks.getClaudeModelsCache).toHaveBeenCalledTimes(1);
+      expect(mocks.resolveEffectiveClaudeModelsResult).toHaveBeenCalledWith(
+        rawModels,
+        expect.any(String),
+      );
+    },
+  );
+
+  it.each(["local", "gateway"] as const)(
+    "revalidates and persists SDK models for %s mode",
+    async (tier) => {
+      mocks.resolveClaudeUpstream.mockReturnValue(defaultUpstream({
+        tier,
+        baseUrl: `https://${tier}-revalidate.example`,
+      }));
+      mocks.resolveEffectiveClaudeModelsResult.mockImplementation(async (models) => ({
+        models,
+        authoritative: false,
+      }));
+      const close = vi.fn();
+      const supportedModels = vi.fn(async () => rawModels);
+      mocks.getSDK.mockResolvedValue(() => ({ supportedModels, close }));
+
+      const result = await mocks.handlers.get("claude:models-cache:revalidate")?.(
+        {},
+        { cwd: "/tmp/project" },
+      );
+
+      expect(result).toEqual({
+        models: rawModels,
+        updatedAt: 200,
+        authoritative: false,
+      });
+      expect(mocks.getClaudeModelsCache).toHaveBeenCalledTimes(1);
+      expect(mocks.setClaudeModelsCache).toHaveBeenCalledWith(rawModels);
+      expect(supportedModels).toHaveBeenCalledTimes(1);
+      expect(close).toHaveBeenCalled();
+    },
+  );
+
+  it("does not cache an in-flight SDK result after switching to DPCC", async () => {
+    let upstream = defaultUpstream({
+      tier: "local",
+      baseUrl: "https://local-switch.example",
+    });
+    mocks.resolveClaudeUpstream.mockImplementation(() => upstream);
+    let resolveModels!: (models: typeof rawModels) => void;
+    const supportedModels = vi.fn(
+      () => new Promise<typeof rawModels>((resolve) => { resolveModels = resolve; }),
+    );
+    const { sessions } = await import("./claude-sessions");
+    sessions.set("session-1", {
+      channel: {} as never,
+      queryHandle: { supportedModels } as never,
+      eventCounter: 0,
+      pendingPermissions: new Map(),
+    });
+
+    const resultPromise = mocks.handlers.get("claude:supported-models")?.({}, "session-1");
+    await vi.waitFor(() => expect(supportedModels).toHaveBeenCalledTimes(1));
+    upstream = defaultUpstream();
+    resolveModels(rawModels);
+
+    await expect(resultPromise).resolves.toEqual({
+      models: effectiveModels,
+      authoritative: true,
+    });
+    expect(mocks.setClaudeModelsCache).not.toHaveBeenCalled();
+    expect(mocks.resolveEffectiveClaudeModelsResult).toHaveBeenLastCalledWith(
+      [],
+      expect.any(String),
+    );
+  });
+
+  it("does not start a second SDK probe after revalidation switches to DPCC", async () => {
+    let upstream = defaultUpstream({
+      tier: "local",
+      baseUrl: "https://local-revalidate-switch.example",
+    });
+    mocks.resolveClaudeUpstream.mockImplementation(() => upstream);
+    let resolveModels!: (models: typeof rawModels) => void;
+    const close = vi.fn();
+    const supportedModels = vi.fn(
+      () => new Promise<typeof rawModels>((resolve) => { resolveModels = resolve; }),
+    );
+    const query = vi.fn(() => ({ supportedModels, close }));
+    mocks.getSDK.mockResolvedValue(query);
+
+    const resultPromise = mocks.handlers.get("claude:models-cache:revalidate")?.(
+      {},
+      { cwd: "/tmp/project" },
+    );
+    await vi.waitFor(() => expect(supportedModels).toHaveBeenCalledTimes(1));
+    upstream = defaultUpstream();
+    resolveModels(rawModels);
+
+    await expect(resultPromise).resolves.toEqual({
+      models: effectiveModels,
+      authoritative: true,
+    });
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(mocks.setClaudeModelsCache).not.toHaveBeenCalled();
+    expect(mocks.resolveEffectiveClaudeModelsResult).toHaveBeenLastCalledWith(
+      [],
+      expect.any(String),
+    );
+    expect(close).toHaveBeenCalled();
   });
 
   it("restarts a live Claude transport before changing models after the upstream changes", async () => {
@@ -218,7 +444,6 @@ describe("Claude model IPC catalog", () => {
       model: "glm-5.2",
     });
 
-    // Wait for the queued restart path to enter in-flight state before canceling.
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(await mocks.handlers.get("claude:stop")?.({}, "session-1")).toEqual({ ok: true });
     expect(query).not.toHaveBeenCalled();
@@ -228,340 +453,5 @@ describe("Claude model IPC catalog", () => {
     await expect(switching).resolves.toEqual({ error: "Session restart cancelled" });
     expect(query).not.toHaveBeenCalled();
     expect(sessions.get("session-1")?.stopping).toBe(true);
-  });
-
-  it.each([
-    ["source", defaultUpstream({ tier: "gateway", baseUrl: "https://gateway.example" })],
-    ["credential", defaultUpstream({ token: "token-b" })],
-    ["model", defaultUpstream({ model: "claude-opus-4-6" })],
-  ] as const)("does not cache or apply active SDK metadata after a %s change", async (_kind, nextUpstream) => {
-    let upstream = defaultUpstream();
-    mocks.resolveClaudeUpstream.mockImplementation(() => upstream);
-    let resolveModels!: (models: typeof rawModels) => void;
-    const { sessions } = await import("./claude-sessions");
-    sessions.set("session-1", {
-      channel: {} as never,
-      queryHandle: {
-        supportedModels: vi.fn(() => new Promise<typeof rawModels>((resolve) => { resolveModels = resolve; })),
-      } as never,
-      eventCounter: 0,
-      pendingPermissions: new Map(),
-    });
-
-    const resultPromise = mocks.handlers.get("claude:supported-models")?.({}, "session-1");
-    await vi.waitFor(() => {
-      expect(sessions.get("session-1")?.queryHandle?.supportedModels).toHaveBeenCalledTimes(1);
-    });
-    upstream = nextUpstream;
-    resolveModels(rawModels);
-
-    mocks.resolveEffectiveClaudeModelsResult.mockResolvedValue({ models: effectiveModels, authoritative: false });
-    await expect(resultPromise).resolves.toEqual({ models: effectiveModels, authoritative: false });
-    expect(mocks.setClaudeModelsCache).not.toHaveBeenCalled();
-    expect(mocks.resolveEffectiveClaudeModelsResult).toHaveBeenLastCalledWith([], expect.any(String));
-  });
-
-  it("resolves an empty supported model list so DPCC ids can be synthesized", async () => {
-    const { sessions } = await import("./claude-sessions");
-    sessions.set("session-1", {
-      channel: {} as never,
-      queryHandle: { supportedModels: vi.fn(async () => []) } as never,
-      eventCounter: 0,
-      pendingPermissions: new Map(),
-    });
-
-    const result = await mocks.handlers.get("claude:supported-models")?.({}, "session-1");
-
-    expect(mocks.setClaudeModelsCache).not.toHaveBeenCalled();
-    expect(mocks.resolveEffectiveClaudeModelsResult).toHaveBeenCalledWith(rawModels, expect.any(String));
-    expect(result).toEqual({ models: effectiveModels, authoritative: true });
-  });
-
-  it("preserves SDK metadata when DPCC resolution fails after an empty live SDK response", async () => {
-    mocks.resolveEffectiveClaudeModelsResult.mockImplementation(async (models) => ({
-      models,
-      authoritative: false,
-    }));
-    const { sessions } = await import("./claude-sessions");
-    sessions.set("session-1", {
-      channel: {} as never,
-      queryHandle: { supportedModels: vi.fn(async () => []) } as never,
-      eventCounter: 0,
-      pendingPermissions: new Map(),
-    });
-
-    const result = await mocks.handlers.get("claude:supported-models")?.({}, "session-1");
-
-    expect(result).toEqual({ models: rawModels, authoritative: false });
-  });
-
-  it.each(["local", "gateway"] as const)("keeps the existing SDK fallback when %s supported models are empty", async (tier) => {
-    mocks.resolveClaudeUpstream.mockReturnValue(defaultUpstream({ tier }));
-    mocks.resolveEffectiveClaudeModelsResult.mockImplementation(async (models) => ({
-      models,
-      authoritative: false,
-    }));
-    const { sessions } = await import("./claude-sessions");
-    sessions.set("session-1", {
-      channel: {} as never,
-      queryHandle: { supportedModels: vi.fn(async () => []) } as never,
-      eventCounter: 0,
-      pendingPermissions: new Map(),
-    });
-
-    const result = await mocks.handlers.get("claude:supported-models")?.({}, "session-1");
-
-    expect(result).toEqual({ models: rawModels, authoritative: false });
-    expect(mocks.setClaudeModelsCache).not.toHaveBeenCalled();
-  });
-
-  it("resolves the persisted raw cache while preserving updatedAt", async () => {
-    const result = await mocks.handlers.get("claude:models-cache:get")?.({});
-
-    expect(mocks.resolveEffectiveClaudeModelsResult).toHaveBeenCalledWith(rawModels, expect.any(String));
-    expect(result).toEqual({ models: effectiveModels, updatedAt: 100, authoritative: true });
-  });
-
-  it("returns the raw cache with a structured catalog error when cache resolution fails", async () => {
-    mocks.resolveEffectiveClaudeModelsResult.mockRejectedValue(new Error("resolver failed"));
-
-    const resultPromise = mocks.handlers.get("claude:models-cache:get")?.({});
-
-    await expect(resultPromise).resolves.toEqual({
-      models: rawModels,
-      updatedAt: 100,
-      authoritative: false,
-      error: "CLAUDE_MODEL_CATALOG_RESOLVE_ERR: Error: resolver failed",
-    });
-    expect(mocks.setClaudeModelsCache).not.toHaveBeenCalled();
-    expect(mocks.reportError).toHaveBeenCalledWith(
-      "CLAUDE_MODEL_CATALOG_RESOLVE_ERR",
-      expect.any(Error),
-      { engine: "claude" },
-    );
-  });
-
-  it("persists a revalidated raw SDK list while returning the effective catalog", async () => {
-    const close = vi.fn();
-    const supportedModels = vi.fn(async () => rawModels);
-    mocks.getSDK.mockResolvedValue(() => ({ supportedModels, close }));
-
-    const result = await mocks.handlers.get("claude:models-cache:revalidate")?.({}, { cwd: "/tmp/project" });
-
-    expect(mocks.setClaudeModelsCache).toHaveBeenCalledWith(rawModels);
-    expect(mocks.resolveEffectiveClaudeModelsResult).toHaveBeenCalledWith(rawModels, expect.any(String));
-    expect(result).toEqual({ models: effectiveModels, updatedAt: 200, authoritative: true });
-    expect(close).toHaveBeenCalled();
-  });
-
-  it("does not cache or apply revalidated SDK metadata after the source changes", async () => {
-    let upstream = defaultUpstream();
-    mocks.resolveClaudeUpstream.mockImplementation(() => upstream);
-    let resolveModels!: (models: typeof rawModels) => void;
-    const close = vi.fn();
-    const supportedModels = vi
-      .fn()
-      .mockImplementationOnce(() => new Promise<typeof rawModels>((resolve) => { resolveModels = resolve; }))
-      .mockResolvedValueOnce([]);
-    mocks.getClaudeModelsCache.mockReturnValue({ models: [], updatedAt: 100 });
-    mocks.getSDK.mockResolvedValue(() => ({ supportedModels, close }));
-
-    const resultPromise = mocks.handlers.get("claude:models-cache:revalidate")?.({}, { cwd: "/tmp/project" });
-    await vi.waitFor(() => {
-      expect(supportedModels).toHaveBeenCalledTimes(1);
-    });
-    upstream = defaultUpstream({ tier: "gateway", baseUrl: "https://gateway.example" });
-    mocks.resolveEffectiveClaudeModelsResult.mockResolvedValue({ models: effectiveModels, authoritative: false });
-    resolveModels(rawModels);
-
-    await expect(resultPromise).resolves.toEqual({ models: effectiveModels, updatedAt: 100, authoritative: false });
-    expect(mocks.setClaudeModelsCache).not.toHaveBeenCalled();
-    expect(mocks.resolveEffectiveClaudeModelsResult).toHaveBeenLastCalledWith([], expect.any(String));
-    expect(supportedModels).toHaveBeenCalledTimes(2);
-    expect(close).toHaveBeenCalled();
-  });
-
-  it("resolves an empty revalidated SDK list without enriching it from the raw cache", async () => {
-    const close = vi.fn();
-    const supportedModels = vi.fn(async () => []);
-    mocks.getSDK.mockResolvedValue(() => ({ supportedModels, close }));
-
-    const result = await mocks.handlers.get("claude:models-cache:revalidate")?.({}, { cwd: "/tmp/project" });
-
-    expect(mocks.setClaudeModelsCache).not.toHaveBeenCalled();
-    expect(mocks.resolveEffectiveClaudeModelsResult).toHaveBeenCalledWith(rawModels, expect.any(String));
-    expect(result).toEqual({ models: effectiveModels, updatedAt: 100, authoritative: true });
-    expect(close).toHaveBeenCalled();
-  });
-
-  it("preserves SDK metadata when DPCC resolution fails after an empty revalidation", async () => {
-    mocks.resolveEffectiveClaudeModelsResult.mockImplementation(async (models) => ({
-      models,
-      authoritative: false,
-    }));
-    const close = vi.fn();
-    mocks.getSDK.mockResolvedValue(() => ({ supportedModels: vi.fn(async () => []), close }));
-
-    const result = await mocks.handlers.get("claude:models-cache:revalidate")?.({}, { cwd: "/tmp/project" });
-
-    expect(result).toEqual({ models: rawModels, updatedAt: 100, authoritative: false });
-    expect(close).toHaveBeenCalled();
-  });
-
-  it.each(["local", "gateway"] as const)("keeps the existing SDK fallback when %s revalidation returns no models", async (tier) => {
-    mocks.resolveClaudeUpstream.mockReturnValue(defaultUpstream({ tier }));
-    mocks.resolveEffectiveClaudeModelsResult.mockImplementation(async (models) => ({
-      models,
-      authoritative: false,
-    }));
-    const close = vi.fn();
-    const supportedModels = vi.fn(async () => []);
-    mocks.getSDK.mockResolvedValue(() => ({ supportedModels, close }));
-
-    const result = await mocks.handlers.get("claude:models-cache:revalidate")?.({}, { cwd: "/tmp/project" });
-
-    expect(result).toEqual({ models: rawModels, updatedAt: 100, authoritative: false });
-    expect(mocks.setClaudeModelsCache).not.toHaveBeenCalled();
-    expect(close).toHaveBeenCalled();
-  });
-
-  it("revalidates the current source once after a shared in-flight request becomes stale", async () => {
-    let upstream = defaultUpstream();
-    mocks.resolveClaudeUpstream.mockImplementation(() => upstream);
-    const close = vi.fn();
-    let resolveFirst!: (models: typeof rawModels) => void;
-    const firstSupportedModels = vi.fn(() => new Promise<typeof rawModels>((resolve) => { resolveFirst = resolve; }));
-    const secondSupportedModels = vi.fn(async () => [{
-      value: "gateway-sonnet",
-      displayName: "Gateway Sonnet",
-      description: "",
-    }]);
-    const query = vi
-      .fn()
-      .mockReturnValueOnce({ supportedModels: firstSupportedModels, close })
-      .mockReturnValueOnce({ supportedModels: secondSupportedModels, close });
-    mocks.getSDK.mockResolvedValue(query);
-    mocks.resolveEffectiveClaudeModelsResult.mockImplementation(async (models) => ({
-      models,
-      authoritative: false,
-    }));
-
-    const first = mocks.handlers.get("claude:models-cache:revalidate")?.({}, { cwd: "/tmp/project" });
-    await vi.waitFor(() => {
-      expect(firstSupportedModels).toHaveBeenCalledTimes(1);
-    });
-    upstream = defaultUpstream({ tier: "gateway", baseUrl: "https://gateway.example" });
-    const second = mocks.handlers.get("claude:models-cache:revalidate")?.({}, { cwd: "/tmp/project" });
-    resolveFirst(rawModels);
-
-    await vi.waitFor(() => {
-      expect(secondSupportedModels).toHaveBeenCalledTimes(1);
-    });
-    await expect(Promise.all([first, second])).resolves.toEqual([
-      {
-        models: [{ value: "gateway-sonnet", displayName: "Gateway Sonnet", description: "" }],
-        updatedAt: 200,
-        authoritative: false,
-      },
-      {
-        models: [{ value: "gateway-sonnet", displayName: "Gateway Sonnet", description: "" }],
-        updatedAt: 200,
-        authoritative: false,
-      },
-    ]);
-    expect(query).toHaveBeenCalledTimes(2);
-  });
-
-  it("does not reuse an in-flight model request after the Claude binary changes", async () => {
-    let binaryPath = "/old/claude";
-    mocks.getClaudeBinaryMetadata.mockImplementation(() => ({
-      path: binaryPath,
-      source: "custom",
-      strategy: "custom",
-    }));
-    const close = vi.fn();
-    let resolveFirst!: (models: typeof rawModels) => void;
-    const firstSupportedModels = vi.fn(() => new Promise<typeof rawModels>((resolve) => { resolveFirst = resolve; }));
-    const freshModels = [{ value: "fresh", displayName: "Fresh", description: "" }];
-    const secondSupportedModels = vi.fn(async () => freshModels);
-    const query = vi
-      .fn()
-      .mockReturnValueOnce({ supportedModels: firstSupportedModels, close })
-      .mockReturnValueOnce({ supportedModels: secondSupportedModels, close });
-    mocks.getSDK.mockResolvedValue(query);
-    mocks.setClaudeModelsCache.mockImplementation((models) => ({ models, updatedAt: 200 }));
-    mocks.resolveEffectiveClaudeModelsResult.mockImplementation(async (models) => ({
-      models,
-      authoritative: false,
-    }));
-
-    const first = mocks.handlers.get("claude:models-cache:revalidate")?.({}, { cwd: "/tmp/project" });
-    await vi.waitFor(() => expect(firstSupportedModels).toHaveBeenCalledTimes(1));
-    binaryPath = "/new/claude";
-    const second = mocks.handlers.get("claude:models-cache:revalidate")?.({}, { cwd: "/tmp/project" });
-    resolveFirst(rawModels);
-
-    await expect(Promise.all([first, second])).resolves.toEqual([
-      { models: freshModels, updatedAt: 200, authoritative: false },
-      { models: freshModels, updatedAt: 200, authoritative: false },
-    ]);
-    expect(query).toHaveBeenCalledTimes(2);
-  });
-
-  it("preserves a revalidation error when catalog resolution also fails", async () => {
-    const close = vi.fn();
-    const supportedModels = vi.fn(async () => {
-      throw new Error("SDK failed");
-    });
-    mocks.getSDK.mockResolvedValue(() => ({ supportedModels, close }));
-    mocks.resolveEffectiveClaudeModelsResult.mockRejectedValue(new Error("resolver failed"));
-
-    const resultPromise = mocks.handlers.get("claude:models-cache:revalidate")?.({}, { cwd: "/tmp/project" });
-
-    await expect(resultPromise).resolves.toEqual({
-      models: rawModels,
-      updatedAt: 100,
-      authoritative: false,
-      error: "MODELS_CACHE_REVALIDATE_ERR: Error: SDK failed",
-    });
-    expect(mocks.setClaudeModelsCache).not.toHaveBeenCalled();
-    expect(mocks.reportError).toHaveBeenCalledWith(
-      "CLAUDE_MODEL_CATALOG_RESOLVE_ERR",
-      expect.any(Error),
-      { engine: "claude" },
-    );
-    expect(close).toHaveBeenCalled();
-  });
-
-  it("reports resolver failures without replacing the raw cache with effective models", async () => {
-    const normalizedRawModels = [{
-      value: "sonnet",
-      displayName: "Sonnet",
-      description: "",
-    }];
-    const { sessions } = await import("./claude-sessions");
-    sessions.set("session-1", {
-      channel: {} as never,
-      queryHandle: { supportedModels: vi.fn(async () => rawModels) } as never,
-      eventCounter: 0,
-      pendingPermissions: new Map(),
-    });
-    mocks.setClaudeModelsCache.mockReturnValue({ models: normalizedRawModels, updatedAt: 200 });
-    mocks.resolveEffectiveClaudeModelsResult.mockRejectedValue(new Error("resolver failed"));
-
-    const result = await mocks.handlers.get("claude:supported-models")?.({}, "session-1");
-
-    expect(mocks.setClaudeModelsCache).toHaveBeenCalledWith(rawModels);
-    expect(mocks.setClaudeModelsCache).not.toHaveBeenCalledWith(effectiveModels);
-    expect(mocks.reportError).toHaveBeenCalledWith(
-      "SUPPORTED_MODELS_ERR",
-      expect.any(Error),
-      { engine: "claude", sessionId: "session-1" },
-    );
-    expect(result).toEqual({
-      models: normalizedRawModels,
-      authoritative: false,
-      error: "SUPPORTED_MODELS_ERR: Error: resolver failed",
-    });
   });
 });

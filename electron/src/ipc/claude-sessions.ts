@@ -539,16 +539,27 @@ async function resolveCurrentEffectiveClaudeModels(): Promise<{
   models: CachedModelInfo[];
   authoritative: boolean;
   stale?: boolean;
+  error?: string;
 }> {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const upstreamFingerprint = currentClaudeUpstreamFingerprint();
-    const result = await resolveEffectiveClaudeModelsResult(
-      rawClaudeModelsForUpstream(upstreamFingerprint),
-      upstreamFingerprint,
-    );
-    if (upstreamFingerprint === currentClaudeUpstreamFingerprint()) return result;
+  try {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const source = currentClaudeUpstream();
+      const result = await resolveEffectiveClaudeModelsResult(
+        source.upstream.tier === "default"
+          ? []
+          : rawClaudeModelsForUpstream(source.fingerprint),
+        source.fingerprint,
+      );
+      if (source.fingerprint === currentClaudeUpstreamFingerprint()) return result;
+    }
+    return { models: [], authoritative: false, stale: true };
+  } catch (err) {
+    return {
+      models: [],
+      authoritative: false,
+      error: reportError("CLAUDE_MODEL_CATALOG_RESOLVE_ERR", err, { engine: "claude" }),
+    };
   }
-  return { models: [], authoritative: false, stale: true };
 }
 
 async function resolveEffectiveClaudeModelsCache(
@@ -739,10 +750,20 @@ async function revalidateRawClaudeModelsCache(cwd?: string): Promise<RawClaudeMo
   return promise;
 }
 
-async function revalidateClaudeModelsCache(cwd?: string): Promise<ClaudeModelsCacheResult> {
-  let result = await revalidateRawClaudeModelsCache(cwd);
+async function revalidateClaudeModelsCache(
+  cwd?: string,
+  retryCount = 0,
+): Promise<ClaudeModelsCacheResult> {
+  if (currentClaudeUpstream().upstream.tier === "default") {
+    return resolveCurrentEffectiveClaudeModels();
+  }
+
+  const result = await revalidateRawClaudeModelsCache(cwd);
   if (result.stale || result.runtimeFingerprint !== currentClaudeModelRuntime().fingerprint) {
-    result = await revalidateRawClaudeModelsCache(cwd);
+    if (retryCount >= 1) {
+      return { models: [], authoritative: false, stale: true };
+    }
+    return revalidateClaudeModelsCache(cwd, retryCount + 1);
   }
   return resolveEffectiveClaudeModelsCache(result);
 }
@@ -1398,6 +1419,10 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     const session = sessions.get(sessionId);
     let rawModels: ClaudeModelsCacheResult["models"] = [];
     try {
+      if (currentClaudeUpstream().upstream.tier === "default") {
+        return await resolveCurrentEffectiveClaudeModels();
+      }
+
       const supportedModelsRuntime = currentClaudeModelRuntime();
       const supportedModelsSource = supportedModelsRuntime.source;
       const models = session?.queryHandle?.supportedModels
@@ -1432,6 +1457,10 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
   });
 
   ipcMain.handle("claude:models-cache:get", async () => {
+    if (currentClaudeUpstream().upstream.tier === "default") {
+      return resolveCurrentEffectiveClaudeModels();
+    }
+
     const cached = getClaudeModelsCache();
     return resolveEffectiveClaudeModelsCache(cached);
   });

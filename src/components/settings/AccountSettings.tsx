@@ -28,16 +28,14 @@ export const AccountSettings = memo(function AccountSettings(
 ) {
   const { t } = useTranslation("settings");
   const auth = useAccountAuth();
-  const account = useAccount(
-    auth.snapshot?.status === "connected" || auth.snapshot?.status === "expiring",
-  );
+  const connected =
+    auth.snapshot?.status === "connected" || auth.snapshot?.status === "expiring";
+  const account = useAccount(connected);
   const balance = account.balance;
   const subscription = resolveAccountSubscription(
     account.subscription,
     auth.snapshot?.account,
   );
-  const connected =
-    auth.snapshot?.status === "connected" || auth.snapshot?.status === "expiring";
 
   return (
     <div className="flex h-full flex-col">
@@ -46,62 +44,64 @@ export const AccountSettings = memo(function AccountSettings(
           <section className="border-b border-foreground/[0.06] pb-4">
             <AccountEntryScreen variant="settings" />
 
-            <div className="mt-4 border-t border-foreground/[0.06] pt-4">
-              <AccountSubscriptionDetails
-                subscription={subscription}
-                variant="settings"
-              />
-            </div>
-
-            <div className="mt-4 border-t border-foreground/[0.06] pt-4">
-              {balance ? (
-                balance.unlimited ? (
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-2xl font-semibold tabular-nums text-foreground">
-                      ${balance.usedUsd.toFixed(2)}
-                    </span>
-                    <span className="rounded bg-foreground/[0.06] px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                      {t("account.unlimited")}
-                    </span>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex items-baseline justify-between">
-                      <span className="text-xs text-muted-foreground">
-                        {t("account.balanceLabel")}
-                      </span>
-                      <span className="text-[11px] tabular-nums text-muted-foreground">
-                        ${balance.usedUsd.toFixed(2)} / ${balance.totalUsd.toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="text-2xl font-semibold tabular-nums text-foreground">
-                      ${balance.remainingUsd.toFixed(2)}
-                    </div>
-                  </>
-                )
-              ) : (
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-xs text-muted-foreground">
-                    {account.error
-                      ? t("account.balanceError")
-                      : t("account.balanceUnavailable")}
-                  </span>
-                  {connected ? (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      title={t("account.refresh")}
-                      onClick={() => void account.refresh()}
-                    >
-                      <RefreshCw
-                        className={`h-3.5 w-3.5 ${account.loading ? "animate-spin" : ""}`}
-                      />
-                    </Button>
-                  ) : null}
+            {connected ? (
+              <>
+                <div className="mt-4 border-t border-foreground/[0.06] pt-4">
+                  <AccountSubscriptionDetails
+                    subscription={subscription}
+                    variant="settings"
+                  />
                 </div>
-              )}
-            </div>
+
+                <div className="mt-4 border-t border-foreground/[0.06] pt-4">
+                  {balance ? (
+                    balance.unlimited ? (
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-2xl font-semibold tabular-nums text-foreground">
+                          ${balance.usedUsd.toFixed(2)}
+                        </span>
+                        <span className="rounded bg-foreground/[0.06] px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                          {t("account.unlimited")}
+                        </span>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex items-baseline justify-between">
+                          <span className="text-xs text-muted-foreground">
+                            {t("account.balanceLabel")}
+                          </span>
+                          <span className="text-[11px] tabular-nums text-muted-foreground">
+                            ${balance.usedUsd.toFixed(2)} / ${balance.totalUsd.toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="text-2xl font-semibold tabular-nums text-foreground">
+                          ${balance.remainingUsd.toFixed(2)}
+                        </div>
+                      </>
+                    )
+                  ) : (
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs text-muted-foreground">
+                        {account.error
+                          ? t("account.balanceError")
+                          : t("account.balanceUnavailable")}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        title={t("account.refresh")}
+                        onClick={() => void account.refresh()}
+                      >
+                        <RefreshCw
+                          className={`h-3.5 w-3.5 ${account.loading ? "animate-spin" : ""}`}
+                        />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : null}
           </section>
 
           {connected ? (

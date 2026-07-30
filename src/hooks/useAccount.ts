@@ -8,6 +8,7 @@ import type {
   AccountSubscription,
   AccountSubscriptionResult,
 } from "@shared/types/account";
+import type { AccountAuthSnapshot, AccountAuthStatus } from "@shared/types/account-auth";
 
 export interface UseAccountResult {
   config: AccountConfig | null;
@@ -51,6 +52,13 @@ export function shouldShowAccountDetails(
   balance: AccountBalance | null,
 ): boolean {
   return config ? shouldLoadAccountDetails(config) : balance !== null;
+}
+
+export function shouldClearAccountDetails(status: AccountAuthStatus): boolean {
+  return status === "signed_out"
+    || status === "revoked"
+    || status === "expired"
+    || status === "guest";
 }
 
 function isAccountBalance(value: unknown): value is AccountBalance {
@@ -120,6 +128,15 @@ let cachedSubscriptionAccountKey = "";
 const accountBalanceStorage = getAccountBalanceStorage();
 let cachedBalanceSnapshot = readCachedAccountBalance(accountBalanceStorage);
 let cachedBalance: AccountBalance | null = cachedBalanceSnapshot?.balance ?? null;
+let accountDetailsGeneration = 0;
+
+function clearCachedAccountDetails(): void {
+  cachedBalanceSnapshot = null;
+  cachedBalance = null;
+  cachedSubscription = null;
+  cachedSubscriptionAccountKey = "";
+  writeCachedAccountBalance(accountBalanceStorage, null);
+}
 
 export function resolveBalanceResult(
   previous: AccountBalance | null,
@@ -161,6 +178,20 @@ export function useAccount(active: boolean, options: UseAccountOptions = {}): Us
   const [error, setError] = useState<string | null>(null);
   const [subscriptionError, setSubscriptionError] = useState<string | null>(null);
 
+  const clearAccountDetails = useCallback(() => {
+    accountDetailsGeneration += 1;
+    clearCachedAccountDetails();
+    cachedConfig = null;
+    setConfig(null);
+    setBalance(null);
+    setSubscription(null);
+    setClaudeModels([]);
+    setCodexModels([]);
+    setLoading(false);
+    setError(null);
+    setSubscriptionError(null);
+  }, []);
+
   const loadStatus = useCallback(async () => {
     try {
       const nextStatus = await window.claude.account.getStatus();
@@ -172,12 +203,14 @@ export function useAccount(active: boolean, options: UseAccountOptions = {}): Us
   }, []);
 
   const load = useCallback(async () => {
+    const generation = accountDetailsGeneration;
     setLoading(true);
     setError(null);
     setSubscriptionError(null);
     void loadStatus();
     try {
       const cfg = await window.claude.account.getConfig();
+      if (generation !== accountDetailsGeneration) return;
       cachedConfig = cfg;
       setConfig(cfg);
       if (
@@ -195,12 +228,8 @@ export function useAccount(active: boolean, options: UseAccountOptions = {}): Us
         setBalance(null);
       }
       if (!shouldLoadAccountDetails(cfg)) {
-        cachedBalanceSnapshot = null;
-        cachedBalance = null;
-        writeCachedAccountBalance(accountBalanceStorage, null);
+        clearCachedAccountDetails();
         setBalance(null);
-        cachedSubscription = null;
-        cachedSubscriptionAccountKey = "";
         setSubscription(null);
         setClaudeModels([]);
         setCodexModels([]);
@@ -213,6 +242,7 @@ export function useAccount(active: boolean, options: UseAccountOptions = {}): Us
         window.claude.account.getOverview(),
         modelsPromise,
       ]);
+      if (generation !== accountDetailsGeneration) return;
       const resolvedBalance = resolveBalanceResult(cachedBalance, overview.balance);
       cachedBalance = resolvedBalance.balance;
       if (!resolvedBalance.error) {
@@ -244,11 +274,36 @@ export function useAccount(active: boolean, options: UseAccountOptions = {}): Us
         setCodexModels(mdl.codex);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (generation === accountDetailsGeneration) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
     } finally {
-      setLoading(false);
+      if (generation === accountDetailsGeneration) setLoading(false);
     }
   }, [loadModels, loadStatus]);
+
+  useEffect(() => {
+    let disposed = false;
+    let receivedChange = false;
+    const handleSnapshot = (snapshot: AccountAuthSnapshot) => {
+      if (shouldClearAccountDetails(snapshot.status)) clearAccountDetails();
+    };
+    const unsubscribe = window.claude.accountAuth.onChanged((snapshot) => {
+      receivedChange = true;
+      handleSnapshot(snapshot);
+    });
+    void window.claude.accountAuth.getStatus()
+      .then((snapshot) => {
+        if (!disposed && !receivedChange) handleSnapshot(snapshot);
+      })
+      .catch(() => {
+        // Account authorization state is also delivered through onChanged.
+      });
+    return () => {
+      disposed = true;
+      unsubscribe();
+    };
+  }, [clearAccountDetails]);
 
   useEffect(() => {
     void loadStatus();

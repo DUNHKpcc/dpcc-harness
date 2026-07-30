@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { AccountBalance, AccountConfig, AccountSubscription } from "@shared/types/account";
+import type { AccountAuthStatus } from "@shared/types/account-auth";
 import {
   ACCOUNT_BALANCE_CACHE_KEY,
   readCachedAccountBalance,
   resolveBalanceResult,
   resolveCachedBalanceForAccount,
   resolveSubscriptionResult,
+  shouldClearAccountDetails,
   shouldLoadAccountDetails,
   shouldLoadAccountModels,
   shouldShowAccountDetails,
@@ -23,6 +25,20 @@ const baseConfig: AccountConfig = {
 };
 
 describe("useAccount helpers", () => {
+  it.each<AccountAuthStatus>(["signed_out", "revoked", "expired", "guest"])(
+    "clears account details when authorization becomes %s",
+    (status) => {
+      expect(shouldClearAccountDetails(status)).toBe(true);
+    },
+  );
+
+  it.each<AccountAuthStatus>(["authorizing", "connected", "expiring", "storage_error"])(
+    "keeps account details while authorization is %s",
+    (status) => {
+      expect(shouldClearAccountDetails(status)).toBe(false);
+    },
+  );
+
   it("allows balance loading with only access-token credentials", () => {
     expect(
       shouldLoadAccountDetails({

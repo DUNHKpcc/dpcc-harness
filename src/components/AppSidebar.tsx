@@ -30,6 +30,7 @@ import {
 } from "@/lib/session/chat-module";
 
 type ProjectDropPlacement = "before" | "after";
+export type SidebarWorkspaceView = "plugins" | "acp-agents" | null;
 
 interface ProjectDropTarget {
   placement: ProjectDropPlacement;
@@ -97,6 +98,7 @@ interface AppSidebarState {
   projects: Project[];
   sessions: ChatSession[];
   activeSessionId: string | null;
+  activeWorkspaceView: SidebarWorkspaceView;
   jiraBoardProjectId: string | null;
   jiraBoardEnabled: boolean;
   foldersByProject: Record<string, ChatFolder[]>;
@@ -118,6 +120,8 @@ interface AppSidebarProjectActions {
   onReorderProject: (projectId: string, targetProjectId: string) => void;
   onCreateFolder: (projectId: string) => void;
   onSetOrganizeByChatBranch: (on: boolean) => void;
+  onOpenPlugins: () => void;
+  onOpenAcpAgents: () => void;
 }
 
 interface AppSidebarSpaceState {
@@ -172,6 +176,7 @@ export const AppSidebar = memo(function AppSidebar({
     projects,
     sessions,
     activeSessionId,
+    activeWorkspaceView,
     jiraBoardProjectId,
     jiraBoardEnabled,
     foldersByProject,
@@ -192,6 +197,8 @@ export const AppSidebar = memo(function AppSidebar({
     onReorderProject,
     onCreateFolder,
     onSetOrganizeByChatBranch,
+    onOpenPlugins,
+    onOpenAcpAgents,
   } = projectActions;
   const { spaces, activeSpaceId } = spaceState;
   const {
@@ -635,6 +642,10 @@ export const AppSidebar = memo(function AppSidebar({
             onCreateChat={() => onNewChat(CHAT_MODULE_PROJECT_ID)}
             onNavigateToMessage={onNavigateToMessage}
             onSelectSession={onSelectSession}
+            pluginsActive={activeWorkspaceView === "plugins"}
+            acpAgentsActive={activeWorkspaceView === "acp-agents"}
+            onOpenPlugins={onOpenPlugins}
+            onOpenAcpAgents={onOpenAcpAgents}
           />
 
           <div

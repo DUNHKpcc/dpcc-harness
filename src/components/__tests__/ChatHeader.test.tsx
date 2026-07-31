@@ -92,10 +92,13 @@ describe("ChatSection", () => {
 });
 
 describe("SidebarPluginEntry", () => {
-  it("renders as a passive entry without opening the MCP or Skills menu", () => {
-    const markup = renderToStaticMarkup(<SidebarPluginEntry />);
+  it("renders as a fixed workspace entry with active state", () => {
+    const markup = renderToStaticMarkup(
+      <SidebarPluginEntry active={true} onOpen={vi.fn()} />,
+    );
 
     expect(markup).toContain("Plugins");
+    expect(markup).toContain('aria-current="page"');
     expect(markup).not.toContain("aria-haspopup");
     expect(markup).not.toContain("MCP Servers");
     expect(markup).not.toContain("Skills");

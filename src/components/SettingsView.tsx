@@ -4,7 +4,6 @@ import { toast } from "sonner";
 import {
   SlidersHorizontal,
   Bell,
-  Bot,
   Cpu,
   Info,
   Wrench,
@@ -18,7 +17,6 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { PccAgentLogo } from "@/components/PccAgentLogo";
-import { AgentSettings } from "@/components/settings/AgentSettings";
 import { WeChatSettings } from "@/components/settings/WeChatSettings";
 import { AppearanceSettings } from "@/components/settings/AppearanceSettings";
 import { GeneralSettings } from "@/components/settings/GeneralSettings";
@@ -34,12 +32,11 @@ import { ContactSettings } from "@/components/settings/ContactSettings";
 import { setAppSettingsChecked } from "@/lib/app-settings-ipc";
 import { isMac } from "@/lib/utils";
 import type { AppSettings } from "@/types";
-import { useAgentContext } from "./AgentContext";
 
 // ── Section definitions ──
 
 export type SettingsSection = "general" | "account" | "appearance" | "notifications" |
-  "agents" | "mcp" | "engines" | "wechat" | "current-config" | "skills" |
+  "mcp" | "engines" | "wechat" | "current-config" | "skills" |
   "custom-agents" | "advanced" | "contact" | "about";
 
 interface NavItem {
@@ -56,7 +53,6 @@ const NAV_ITEMS: NavItem[] = [
   { id: "general", labelKey: "nav.general", icon: SlidersHorizontal },
   { id: "appearance", labelKey: "nav.appearance", icon: Palette },
   { id: "notifications", labelKey: "nav.notifications", icon: Bell },
-  { id: "agents", labelKey: "nav.agents", icon: Bot },
   { id: "engines", labelKey: "nav.engines", icon: Cpu },
   { id: "wechat", labelKey: "nav.wechat", icon: Smartphone },
   { id: "current-config", labelKey: "nav.currentConfig", icon: Server },
@@ -74,7 +70,7 @@ interface SettingsViewProps {
   macLiquidGlassSupported: boolean;
   /** Resets the welcome wizard so it shows again. */
   onReplayWelcome: () => void;
-  /** Open directly to a specific section (e.g. "agents" from the engine picker). */
+  /** Open directly to a specific section. */
   initialSection?: SettingsSection;
 }
 
@@ -88,7 +84,6 @@ export const SettingsView = memo(function SettingsView({
   initialSection,
 }: SettingsViewProps) {
   const { t } = useTranslation("settings");
-  const { agents, saveAgent, deleteAgent } = useAgentContext();
   const [activeSection, setActiveSection] = useState<SettingsSection>(initialSection ?? "account");
   const settingsNavTopPaddingClass = isMac ? "pt-[3.25rem]" : "pt-2";
   const settingsContentTopPaddingClass = isMac ? "pt-[3.25rem]" : "pt-2";
@@ -157,14 +152,6 @@ export const SettingsView = memo(function SettingsView({
             onUpdateAppSettings={updateAppSettings}
           />
         );
-      case "agents":
-        return (
-          <AgentSettings
-            agents={agents}
-            onSave={saveAgent}
-            onDelete={deleteAgent}
-          />
-        );
       case "mcp":
         return <McpSettings />;
       case "wechat":
@@ -211,7 +198,7 @@ export const SettingsView = memo(function SettingsView({
       default:
         return null;
     }
-  }, [activeSection, appSettings, updateAppSettings, agents, saveAgent, deleteAgent, glassSupported, macLiquidGlassSupported, onReplayWelcome]);
+  }, [activeSection, appSettings, updateAppSettings, glassSupported, macLiquidGlassSupported, onReplayWelcome, t]);
 
   return (
     <div className="flex h-full w-full flex-1 flex-col overflow-hidden rounded-none bg-background">

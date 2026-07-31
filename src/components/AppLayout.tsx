@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useEffect, useState } from "react";
+import React, { Suspense, lazy, useCallback, useMemo, useRef, useEffect, useState } from "react";
 import { LayoutGroup, motion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { PanelLeft } from "lucide-react";
@@ -25,7 +25,7 @@ import {
   resolveCodexDelegationRuntime,
 } from "@/lib/claude-codex-visible-session";
 import { CodexBridgeProvider } from "./input-bar/CodexBridgeContext";
-import { AppSidebar } from "./AppSidebar";
+import { AppSidebar, type SidebarWorkspaceView } from "./AppSidebar";
 import { ChatHeader } from "./ChatHeader";
 import { ChatSearchBar } from "./ChatSearchBar";
 import { ChatView } from "./ChatView";
@@ -37,6 +37,7 @@ import { WelcomeWizard } from "./welcome/WelcomeWizard";
 import { PanelDockPreview } from "./PanelDockPreview";
 import { FilePreviewOverlay } from "./FilePreviewOverlay";
 import { SettingsView } from "./SettingsView";
+import { AgentSettings } from "./settings/AgentSettings";
 import { CodexAuthDialog } from "./CodexAuthDialog";
 import { ACPAuthDialog } from "./ACPAuthDialog";
 import { JiraBoardPanel } from "./JiraBoardPanel";
@@ -89,6 +90,27 @@ import {
   isChatModuleProjectId,
 } from "@/lib/session/chat-module";
 
+const PluginCenter = lazy(() =>
+  import("./plugins/PluginCenter").then((module) => ({ default: module.PluginCenter })),
+);
+
+function PluginCenterFallback() {
+  return (
+    <div
+      data-plugin-center-loading="true"
+      aria-busy="true"
+      className="flex h-full min-h-0 w-full flex-col bg-background"
+    >
+      <div className="h-12 shrink-0 border-b border-border/60" />
+      <div className="mx-auto w-full max-w-5xl animate-pulse px-5 pt-10 sm:px-8">
+        <div className="h-8 w-28 rounded bg-muted" />
+        <div className="mt-3 h-5 w-72 max-w-full rounded bg-muted/70" />
+        <div className="mt-8 h-10 w-full rounded-md bg-muted/70" />
+      </div>
+    </div>
+  );
+}
+
 /**
  * Poll a ref until the delegated Codex session has materialised to a real id.
  * Returns the id, or null if it never appears within the timeout.
@@ -139,6 +161,7 @@ export function AppLayout() {
     projectId?: string;
     sessionId: string;
   } | null>(null);
+  const [sidebarWorkspaceView, setSidebarWorkspaceView] = useState<SidebarWorkspaceView>(null);
   const {
     agents, selectedAgent, saveAgent, deleteAgent, handleAgentChange, lockedEngine, lockedAgentId,
   } = agentState;
@@ -214,6 +237,17 @@ export function AppLayout() {
     fileReferences?: FileReference[];
   } | null>(null);
 
+  const handleOpenSidebarWorkspace = useCallback((view: Exclude<SidebarWorkspaceView, null>) => {
+    setShowSettings(false);
+    setJiraBoardProjectForSpace(spaceManager.activeSpaceId, null);
+    splitView.dismissSplitView();
+    setSidebarWorkspaceView(view);
+  }, [setJiraBoardProjectForSpace, setShowSettings, spaceManager.activeSpaceId, splitView]);
+
+  const handleOpenSettings = useCallback(() => {
+    setSidebarWorkspaceView(null);
+    setShowSettings("account");
+  }, [setShowSettings]);
 
   // Wrap handleSend to clear grabbed elements after sending
   const wrappedHandleSend = useCallback(
@@ -226,6 +260,7 @@ export function AppLayout() {
 
   const handleOpenNewChat = useCallback(
     async (projectId: string) => {
+      setSidebarWorkspaceView(null);
       if (isChatModuleProjectId(projectId)) {
         splitView.dismissSplitView();
         await handleNewChat(CHAT_MODULE_PROJECT_ID);
@@ -364,6 +399,7 @@ export function AppLayout() {
 
   const handleSidebarSelectSession = useCallback(
     (sessionId: string) => {
+      setSidebarWorkspaceView(null);
       const sessions = managerRef.current.sessions;
       const session = sessions.find((item) => item.id === sessionId);
       const project = session
@@ -433,8 +469,19 @@ export function AppLayout() {
 
     setPendingExternalSession(null);
     setShowSettings(false);
+    setSidebarWorkspaceView(null);
     handleSidebarSelectSession(pendingExternalSession.sessionId);
   }, [handleSidebarSelectSession, manager.sessions, pendingExternalSession, setShowSettings]);
+
+  const handleSidebarNavigateToMessage = useCallback((sessionId: string, messageId: string) => {
+    setSidebarWorkspaceView(null);
+    handleNavigateToMessage(sessionId, messageId);
+  }, [handleNavigateToMessage]);
+
+  const handleSidebarToggleJiraBoard = useCallback((projectId: string) => {
+    setSidebarWorkspaceView(null);
+    handleToggleProjectJiraBoard(projectId);
+  }, [handleToggleProjectJiraBoard]);
 
 
   useEffect(() => {
@@ -513,6 +560,12 @@ export function AppLayout() {
   });
 
   const mainWorkspaceProjectId = activeSpaceProject?.id ?? activeProjectId ?? null;
+  const mainWorkspaceProject = useMemo(
+    () => activeSpaceProject
+      ?? projectManager.projects.find((project) => project.id === activeProjectId)
+      ?? null,
+    [activeProjectId, activeSpaceProject, projectManager.projects],
+  );
   const mainCombinedWorkspaceWidthRef = useRef(0);
   const mainToolWorkspace = useMainToolWorkspace(mainWorkspaceProjectId, {
     activeToolIds: settings.activeTools,
@@ -1491,8 +1544,9 @@ export function AppLayout() {
           islandLayout: settings.islandLayout,
           projects: projectManager.projects,
           sessions: manager.sessions,
-          activeSessionId: manager.activeSessionId,
-          jiraBoardProjectId,
+          activeSessionId: sidebarWorkspaceView ? null : manager.activeSessionId,
+          activeWorkspaceView: sidebarWorkspaceView,
+          jiraBoardProjectId: sidebarWorkspaceView ? null : jiraBoardProjectId,
           jiraBoardEnabled,
           foldersByProject: o.foldersByProject,
           organizeByChatBranch: settings.organizeByChatBranch,
@@ -1500,18 +1554,20 @@ export function AppLayout() {
         }}
         projectActions={{
           onNewChat: handleOpenNewChat,
-          onToggleProjectJiraBoard: handleToggleProjectJiraBoard,
+          onToggleProjectJiraBoard: handleSidebarToggleJiraBoard,
           onCreateProject: handleCreateProject,
           onDeleteProject: projectManager.deleteProject,
           onRenameProject: projectManager.renameProject,
           onUpdateProjectIcon: projectManager.updateProjectIcon,
           onImportCCSession: handleImportCCSession,
           onToggleSidebar: sidebar.toggle,
-          onNavigateToMessage: handleNavigateToMessage,
+          onNavigateToMessage: handleSidebarNavigateToMessage,
           onMoveProjectToSpace: handleMoveProjectToSpace,
           onReorderProject: projectManager.reorderProject,
           onCreateFolder: o.handleCreateFolder,
           onSetOrganizeByChatBranch: settings.setOrganizeByChatBranch,
+          onOpenPlugins: () => handleOpenSidebarWorkspace("plugins"),
+          onOpenAcpAgents: () => handleOpenSidebarWorkspace("acp-agents"),
         }}
         spaceState={{
           spaces: spaceManager.spaces,
@@ -1522,7 +1578,7 @@ export function AppLayout() {
           onStartCreateSpace: handleStartCreateSpace,
           onUpdateSpace: handleUpdateSpace,
           onDeleteSpace: handleDeleteSpace,
-          onOpenSettings: () => setShowSettings("account"),
+          onOpenSettings: handleOpenSettings,
           onConfirmCreateSpace: handleConfirmCreateSpace,
           onCancelCreateSpace: handleCancelCreateSpace,
         }}
@@ -1558,6 +1614,31 @@ export function AppLayout() {
       )}
 
       <div ref={handleContentContainerRef} className={`flex min-w-0 flex-1 flex-col ${settings.islandLayout ? "m-[var(--island-gap)]" : sidebar.isOpen ? "flat-divider-s" : ""} ${isResizing || sidebar.isResizing ? "select-none" : ""}`}>
+        {sidebarWorkspaceView ? (
+          <div className="island flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-[var(--island-radius)] bg-background">
+            {sidebarWorkspaceView === "plugins" ? (
+              <Suspense fallback={<PluginCenterFallback />}>
+                <PluginCenter
+                  projectId={mainWorkspaceProject?.id ?? null}
+                  projectPath={mainWorkspaceProject?.path ?? activeProjectPath ?? null}
+                  projectName={mainWorkspaceProject?.name ?? null}
+                  activeEngine={manager.activeSession?.engine}
+                  hasLiveSession={!!manager.activeSessionId && !manager.isDraft}
+                  onRestartWithServers={manager.restartWithMcpServers}
+                />
+              </Suspense>
+            ) : (
+              <div className="min-h-0 flex-1 overflow-hidden">
+                <AgentSettings
+                  agents={agents}
+                  onSave={saveAgent}
+                  onDelete={deleteAgent}
+                />
+              </div>
+            )}
+          </div>
+        ) : (
+        <>
         <div className="flex min-h-0 flex-1 flex-col">
         {/* ── Top row: Split View OR (Chat | Right Panel | Tools Column | ToolPicker) ── */}
         <div
@@ -1737,7 +1818,7 @@ export function AppLayout() {
                             activeTodos={activeTodos}
                             bgAgents={bgAgents}
                             getPreviewPaneMetrics={getPreviewPaneMetrics}
-                            onManageACPs={() => setShowSettings("agents")}
+                            onManageACPs={() => handleOpenSidebarWorkspace("acp-agents")}
                           />
                         )}
 
@@ -2028,7 +2109,7 @@ export function AppLayout() {
                   selectedWorktreePath={activeSpaceTerminalCwd}
                   onSelectWorktree={handleAgentWorktreeChange}
                   isEmptySession={manager.messages.length === 0}
-                  onManageACPs={() => setShowSettings("agents")}
+                  onManageACPs={() => handleOpenSidebarWorkspace("acp-agents")}
                 />
               </div>
               </>
@@ -2174,6 +2255,8 @@ export function AppLayout() {
           />
         )}
         </div>{/* end main workspace */}
+        </>
+        )}
       </div>
         </>
       )}

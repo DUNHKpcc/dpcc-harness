@@ -1,0 +1,68 @@
+{
+  "title": "插件",
+  "subtitle": "安装可复用的 Skill 和项目 MCP Server",
+  "tabs": {
+    "skills": "Skills",
+    "mcp": "MCP"
+  },
+  "views": {
+    "discover": "发现",
+    "installed": "已安装",
+    "trending": "热门趋势",
+    "searchResults": "搜索结果"
+  },
+  "search": {
+    "skills": "搜索 skills.sh",
+    "mcp": "搜索 Official MCP Registry"
+  },
+  "source": {
+    "skills": "skills.sh",
+    "mcp": "Official MCP Registry",
+    "stale": "缓存结果"
+  },
+  "state": {
+    "searchSkills": "按名称或能力搜索 Skill。",
+    "empty": "没有匹配的插件",
+    "loading": "正在加载目录...",
+    "noInstalledSkills": "尚未安装由 PccAgent 管理的 Skill",
+    "noInstalledMcp": "当前项目尚未配置 MCP Server",
+    "projectRequired": "请先选择项目，再安装 MCP Server。",
+    "codexRestart": "Codex MCP 当前还不支持即时生效。"
+  },
+  "action": {
+    "install": "安装",
+    "update": "更新",
+    "remove": "移除",
+    "cancel": "取消",
+    "confirmInstall": "安装插件",
+    "replaceModified": "覆盖已修改文件",
+    "retry": "重试"
+  },
+  "skills": {
+    "subtitle": "查找并安装可复用的 Agent 能力",
+    "installs": "{{count}} 次安装",
+    "scope": "安装范围",
+    "project": "当前项目",
+    "global": "所有项目",
+    "targets": "目标 Agent",
+    "claude": "Claude Code",
+    "codex": "Codex",
+    "unsupportedSource": "v0.1 暂不支持安装此来源",
+    "modifiedConfirmation": "PccAgent 管理的文件在安装后被修改。再次确认将覆盖这些本地修改。",
+    "installedAt": "安装于 {{date}}",
+    "installSuccess": "已安装 {{name}}",
+    "removeSuccess": "已移除 {{name}}"
+  },
+  "mcp": {
+    "subtitle": "为当前项目连接外部工具与服务",
+    "project": "项目：{{name}}",
+    "transport": "连接方式",
+    "configuration": "配置",
+    "installPreview": "安装来源",
+    "openSource": "打开源码仓库",
+    "unsupported": "v0.1 暂不支持",
+    "secretUnsupported": "需要 Secret 安全存储能力",
+    "installSuccess": "已将 {{name}} 添加到项目",
+    "removeSuccess": "已从项目移除 {{name}}"
+  }
+}

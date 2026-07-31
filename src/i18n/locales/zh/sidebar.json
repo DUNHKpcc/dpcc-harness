@@ -40,6 +40,9 @@
     "mcpHint": "管理项目工具",
     "comingSoon": "即将推出"
   },
+  "acpAgents": {
+    "open": "ACP Agent"
+  },
   "project": {
     "openJiraBoard": "打开 Jira 看板",
     "newFolder": "新建文件夹",

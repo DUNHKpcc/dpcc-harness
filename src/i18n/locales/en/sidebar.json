@@ -40,6 +40,9 @@
     "mcpHint": "Manage project tools",
     "comingSoon": "Coming soon"
   },
+  "acpAgents": {
+    "open": "ACP Agents"
+  },
   "project": {
     "openJiraBoard": "Open Jira board",
     "newFolder": "New folder",

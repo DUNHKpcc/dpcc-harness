@@ -112,6 +112,25 @@ export type {
   McpServerStatus,
 } from "./mcp";
 
+// ── Plugin catalog types (shared) ──
+
+export type {
+  CatalogFreshness,
+  CatalogResult,
+  SkillCatalogItem,
+  SkillInstallScope,
+  SkillTarget,
+  SkillInstallRequest,
+  InstalledSkillRecord,
+  McpCatalogInstallKind,
+  McpCatalogTransport,
+  McpCatalogInput,
+  McpCatalogInstallOption,
+  McpCatalogItem,
+  McpCatalogInstallRequest,
+  McpCatalogInstallResult,
+} from "@shared/types/plugins";
+
 // ── Settings types (shared) ──
 
 export type {

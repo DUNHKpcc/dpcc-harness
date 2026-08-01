@@ -20,7 +20,7 @@ interface AccountSettingsProps {
 
 const ACCOUNT_LINKS = {
   devices: "https://api.dpccgaming.xyz/profile",
-  billing: "https://dpccgaming.xyz/payment",
+  billing: "https://api.dpccgaming.xyz/wallet",
 } as const;
 
 export const AccountSettings = memo(function AccountSettings(

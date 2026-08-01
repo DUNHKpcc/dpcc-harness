@@ -102,7 +102,7 @@ export function writeCachedAccountBalance(
       storage.removeItem(ACCOUNT_BALANCE_CACHE_KEY);
     }
   } catch {
-    // Cache persistence is best-effort and must not affect account refreshes.
+    // 缓存持久化正常做，绝不能影响账号刷新
   }
 }
 

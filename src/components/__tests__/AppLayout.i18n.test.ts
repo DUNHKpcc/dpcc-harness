@@ -68,3 +68,17 @@ describe("AppLayout i18n", () => {
     expect(appLayout).toContain("ref={handleContentContainerRef}");
   });
 });
+
+describe("DPCC account links", () => {
+  it("routes every recharge entry to the wallet page", () => {
+    const sources = [
+      "src/components/AccountPopover.tsx",
+      "src/components/settings/AccountSettings.tsx",
+    ].map((file) => fs.readFileSync(path.join(repoRoot, file), "utf8"));
+
+    for (const source of sources) {
+      expect(source).toContain("https://api.dpccgaming.xyz/wallet");
+      expect(source).not.toContain("https://dpccgaming.xyz/payment");
+    }
+  });
+});

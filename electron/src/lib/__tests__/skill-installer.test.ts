@@ -7,7 +7,9 @@ import {
   findSkillDirectory,
   hashSkillFiles,
   normalizeSkillInstallRequest,
+  resolveManagedSkillPaths,
 } from "../skill-installer";
+import type { InstalledSkillRecord } from "../../../../shared/types/plugins";
 
 describe("Skill installer validation", () => {
   let root: string;
@@ -73,5 +75,31 @@ describe("Skill installer validation", () => {
       scope: "project",
       targets: ["codex"],
     })).toThrow("project path is required");
+  });
+
+  it("accepts only manifest paths derived from the recorded scope and targets", () => {
+    const projectPath = path.join(root, "project");
+    const record: InstalledSkillRecord = {
+      id: "record",
+      catalogId: "owner/repo/skill",
+      name: "skill",
+      source: "owner/repo",
+      sourceRevision: "abc123",
+      contentHash: "hash",
+      scope: "project",
+      targets: ["claude-code", "codex"],
+      projectPath,
+      installPaths: [
+        path.join(projectPath, ".claude/skills/skill"),
+        path.join(projectPath, ".agents/skills/skill"),
+      ],
+      installedAt: new Date(0).toISOString(),
+    };
+
+    expect(resolveManagedSkillPaths(record)).toEqual(new Set(record.installPaths));
+    expect(() => resolveManagedSkillPaths({
+      ...record,
+      installPaths: [record.installPaths[0], path.join(root, "outside")],
+    })).toThrow("outside its managed root");
   });
 });

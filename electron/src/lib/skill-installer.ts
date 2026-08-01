@@ -81,6 +81,43 @@ function targetRoot(
   return path.join(os.homedir(), target === "claude-code" ? ".claude/skills" : ".agents/skills");
 }
 
+export function resolveManagedSkillPaths(record: InstalledSkillRecord): Set<string> {
+  if (!SKILL_NAME_PATTERN.test(record.name)) {
+    throw new Error("Installed Skill record has an invalid name");
+  }
+  if (record.scope !== "project" && record.scope !== "global") {
+    throw new Error("Installed Skill record has an invalid scope");
+  }
+  if (!Array.isArray(record.targets) || !Array.isArray(record.installPaths)) {
+    throw new Error("Installed Skill record has invalid paths");
+  }
+  const targets = new Set(record.targets);
+  if (
+    targets.size !== record.targets.length
+    || targets.size === 0
+    || [...targets].some((target) => target !== "claude-code" && target !== "codex")
+  ) {
+    throw new Error("Installed Skill record has invalid targets");
+  }
+  if (record.scope === "project" && !record.projectPath) {
+    throw new Error("Installed Skill record is missing its project path");
+  }
+
+  const expected = new Set(record.targets.map((target) => path.resolve(
+    targetRoot(target, record.scope, record.projectPath),
+    record.name,
+  )));
+  const actual = new Set(record.installPaths.map((installPath) => path.resolve(installPath)));
+  if (
+    expected.size !== record.installPaths.length
+    || actual.size !== record.installPaths.length
+    || [...actual].some((installPath) => !expected.has(installPath))
+  ) {
+    throw new Error("Installed Skill path is outside its managed root");
+  }
+  return actual;
+}
+
 function assertInsideRoot(candidate: string, root: string): void {
   const relative = path.relative(path.resolve(root), path.resolve(candidate));
   if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
@@ -243,9 +280,7 @@ export async function installSkill(request: SkillInstallRequest): Promise<Instal
   const existingRecords = loadManifest();
   const id = recordId(normalized);
   const previous = existingRecords.find((record) => record.id === id);
-  const currentManagedPaths = new Set(
-    previous?.installPaths.map((item) => path.resolve(item)) ?? [],
-  );
+  const currentManagedPaths = previous ? resolveManagedSkillPaths(previous) : new Set<string>();
   const installedThisRun: string[] = [];
 
   const temporaryRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), "pcc-skill-"));
@@ -264,15 +299,15 @@ export async function installSkill(request: SkillInstallRequest): Promise<Instal
       return destination;
     });
 
+    for (const destination of installPaths) {
+      const exists = await fs.promises.lstat(destination).then(() => true, () => false);
+      if (exists && !currentManagedPaths.has(path.resolve(destination))) {
+        throw new Error(`An unmanaged Skill already exists at ${destination}`);
+      }
+    }
+
     if (previous?.contentHash && !normalized.allowOverwriteModified) {
-      for (const destination of previous.installPaths) {
-        const allowedRoot = previous.targets
-          .map((target) => targetRoot(target, previous.scope, previous.projectPath))
-          .find((root) => {
-            const relative = path.relative(path.resolve(root), path.resolve(destination));
-            return relative && !relative.startsWith("..") && !path.isAbsolute(relative);
-          });
-        if (!allowedRoot) throw new Error("Installed Skill path is outside its managed root");
+      for (const destination of currentManagedPaths) {
         const exists = await fs.promises.lstat(destination).then(() => true, () => false);
         if (!exists) continue;
         const installedFiles = await collectSkillFiles(destination);
@@ -287,8 +322,9 @@ export async function installSkill(request: SkillInstallRequest): Promise<Instal
       installedThisRun.push(destination);
     }
 
-    for (const oldPath of previous?.installPaths ?? []) {
-      if (!installPaths.includes(oldPath)) {
+    const nextManagedPaths = new Set(installPaths.map((installPath) => path.resolve(installPath)));
+    for (const oldPath of currentManagedPaths) {
+      if (!nextManagedPaths.has(oldPath)) {
         await fs.promises.rm(oldPath, { recursive: true, force: true });
       }
     }
@@ -325,14 +361,7 @@ export async function removeSkill(id: string): Promise<void> {
   const record = records.find((item) => item.id === id);
   if (!record) throw new Error("Installed Skill record not found");
 
-  const allowedRoots = record.targets.map((target) =>
-    targetRoot(target, record.scope, record.projectPath));
-  for (const installPath of record.installPaths) {
-    const matchingRoot = allowedRoots.find((root) => {
-      const relative = path.relative(path.resolve(root), path.resolve(installPath));
-      return relative && !relative.startsWith("..") && !path.isAbsolute(relative);
-    });
-    if (!matchingRoot) throw new Error("Installed Skill path is outside its managed root");
+  for (const installPath of resolveManagedSkillPaths(record)) {
     await fs.promises.rm(installPath, { recursive: true, force: true });
   }
 

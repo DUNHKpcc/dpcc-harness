@@ -440,6 +440,13 @@
       "showOlder": "Show older releases",
       "showLess": "Hide older releases",
       "entries": {
+        "v2_2_2": {
+          "title": "Plugin Center and DPCC reliability",
+          "pluginCenter": "Added a first-class Plugin Center for discovering and installing Skills from skills.sh and MCP servers from the Official MCP Registry, with ACP Agents now available directly from the sidebar.",
+          "safeSkillManagement": "Skill installs support project or global scope and Claude Code or Codex targets, while protecting modified and unmanaged files and validating managed paths before updates or removal.",
+          "dpccModelCatalog": "DPCC Claude model choices now come exclusively from the current DPCC catalog, preventing stale SDK entries from appearing.",
+          "accountReliability": "Signing out or losing authorization now immediately clears cached account details, and every recharge action opens the DPCC API wallet."
+        },
         "v2_2_1": {
           "title": "Cross-platform terminals and reliable window recovery",
           "terminalShellSelection": "The integrated terminal can now use a user-selected shell on Windows, macOS, and Linux, including PowerShell 7, Windows PowerShell, Command Prompt, Git Bash, WSL, zsh, bash, fish, and custom executables.",

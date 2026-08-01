@@ -20,6 +20,12 @@ function release(version: string, date: string, changeKeys: readonly string[]): 
 
 /** Bundled release history, newest first, so settings remain useful offline. */
 export const RELEASE_HISTORY: readonly ReleaseHistoryEntry[] = [
+  release("2.2.2", "2026-08-01", [
+    "pluginCenter",
+    "safeSkillManagement",
+    "dpccModelCatalog",
+    "accountReliability",
+  ]),
   release("2.2.1", "2026-07-28", [
     "terminalShellSelection",
     "windowsWindowLifecycle",

@@ -29,7 +29,7 @@ import { useAccount } from "@/hooks/useAccount";
 import { useAccountAuth } from "@/hooks/useAccountAuth";
 
 const ACCOUNT_LINKS = {
-  recharge: "https://dpccgaming.xyz/payment",
+  recharge: "https://api.dpccgaming.xyz/wallet",
   website: "https://api.dpccgaming.xyz",
 } as const;
 

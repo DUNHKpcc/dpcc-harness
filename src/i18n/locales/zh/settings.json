@@ -440,6 +440,13 @@
       "showOlder": "显示更早版本",
       "showLess": "收起早期版本",
       "entries": {
+        "v2_2_2": {
+          "title": "插件中心与 DPCC 稳定性",
+          "pluginCenter": "新增一体化插件中心，可从 skills.sh 发现并安装 Skill、从 Official MCP Registry 安装 MCP Server；ACP Agents 也可直接从侧边栏进入。",
+          "safeSkillManagement": "Skill 安装支持项目或全局范围以及 Claude Code 或 Codex 目标，并会保护已修改和未托管文件，在更新或移除前严格校验托管路径。",
+          "dpccModelCatalog": "DPCC Claude 模型选项现在仅来自当前 DPCC 目录，避免显示过期的 SDK 模型。",
+          "accountReliability": "退出登录或授权失效时会立即清除缓存的账户详情，所有充值入口也会统一打开 DPCC API 钱包。"
+        },
         "v2_2_1": {
           "title": "跨平台终端与可靠的窗口恢复",
           "terminalShellSelection": "集成终端现可在 Windows、macOS 与 Linux 上使用用户选择的 shell，包括 PowerShell 7、Windows PowerShell、Command Prompt、Git Bash、WSL、zsh、bash、fish 及自定义可执行文件。",

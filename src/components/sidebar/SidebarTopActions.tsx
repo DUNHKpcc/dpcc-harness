@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { useTranslation } from "react-i18next";
-import { SquarePen } from "lucide-react";
+import { Bot, SquarePen } from "lucide-react";
 import { SidebarSearch } from "@/components/SidebarSearch";
 import { SidebarPluginEntry } from "./SidebarPluginEntry";
 
@@ -9,6 +9,10 @@ interface SidebarTopActionsProps {
   onCreateChat: () => void;
   onNavigateToMessage: (sessionId: string, messageId: string) => void;
   onSelectSession: (sessionId: string) => void;
+  pluginsActive: boolean;
+  acpAgentsActive: boolean;
+  onOpenPlugins: () => void;
+  onOpenAcpAgents: () => void;
 }
 
 export const SidebarTopActions = memo(function SidebarTopActions({
@@ -16,6 +20,10 @@ export const SidebarTopActions = memo(function SidebarTopActions({
   onCreateChat,
   onNavigateToMessage,
   onSelectSession,
+  pluginsActive,
+  acpAgentsActive,
+  onOpenPlugins,
+  onOpenAcpAgents,
 }: SidebarTopActionsProps) {
   const { t } = useTranslation("sidebar");
 
@@ -38,7 +46,22 @@ export const SidebarTopActions = memo(function SidebarTopActions({
           onSelectSession={onSelectSession}
         />
 
-        <SidebarPluginEntry />
+        <SidebarPluginEntry active={pluginsActive} onOpen={onOpenPlugins} />
+
+        <button
+          type="button"
+          data-sidebar-acp-agents-entry="true"
+          className={`flex h-8 w-full items-center gap-2.5 rounded-md px-3.5 text-start text-[14px] font-medium transition-colors ${
+            acpAgentsActive
+              ? "bg-sidebar-accent/70 text-sidebar-foreground"
+              : "text-sidebar-foreground/82 hover:bg-sidebar-accent/55"
+          }`}
+          aria-current={acpAgentsActive ? "page" : undefined}
+          onClick={onOpenAcpAgents}
+        >
+          <Bot className="h-4.5 w-4.5 shrink-0 stroke-[1.8] text-sidebar-foreground/75" />
+          <span>{t("acpAgents.open")}</span>
+        </button>
       </div>
     </div>
   );

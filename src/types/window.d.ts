@@ -15,6 +15,15 @@ import type { WeChatBridgeState, WeChatBridgeConfig, WeChatBridgeEvent } from "@
 import type { AccountConfig, AccountBalanceResult, AccountModelsResult, AccountOverview, AccountStatus, UsageStats, UsageStatsResult } from "@shared/types/account";
 import type { AccountAuthActionResult, AccountAuthSnapshot } from "@shared/types/account-auth";
 import type {
+  CatalogResult,
+  InstalledSkillRecord,
+  McpCatalogInstallRequest,
+  McpCatalogInstallResult,
+  McpCatalogItem,
+  SkillCatalogItem,
+  SkillInstallRequest,
+} from "@shared/types/plugins";
+import type {
   ACPSessionEvent,
   ACPPermissionEvent,
   ACPTurnCompleteEvent,
@@ -459,6 +468,21 @@ declare global {
         authenticate: (serverName: string, serverUrl: string) => Promise<IpcResult>;
         authStatus: (serverName: string) => Promise<{ hasToken: boolean; expiresAt?: number }>;
         probe: (servers: McpServerConfig[]) => Promise<Array<{ name: string; status: "connected" | "needs-auth" | "failed"; error?: string }>>;
+      };
+      plugins: {
+        skills: {
+          search: (query: string) => Promise<CatalogResult<SkillCatalogItem> | { error: string }>;
+          listInstalled: () => Promise<{ items: InstalledSkillRecord[] } | { error: string }>;
+          install: (request: SkillInstallRequest) => Promise<
+            { item: InstalledSkillRecord }
+            | { error: string; requiresConfirmation?: boolean }
+          >;
+          remove: (id: string) => Promise<IpcResult>;
+        };
+        mcp: {
+          list: (query: string) => Promise<CatalogResult<McpCatalogItem> | { error: string }>;
+          install: (request: McpCatalogInstallRequest) => Promise<McpCatalogInstallResult>;
+        };
       };
       agents: {
         list: () => Promise<InstalledAgent[]>;

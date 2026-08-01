@@ -405,6 +405,18 @@ contextBridge.exposeInMainWorld("claude", {
     authStatus: (serverName: string) => ipcRenderer.invoke("mcp:auth-status", serverName),
     probe: (servers: unknown[]) => ipcRenderer.invoke("mcp:probe", servers),
   },
+  plugins: {
+    skills: {
+      search: (query: string) => ipcRenderer.invoke("plugins:skills:search", query),
+      listInstalled: () => ipcRenderer.invoke("plugins:skills:list-installed"),
+      install: (request: unknown) => ipcRenderer.invoke("plugins:skills:install", request),
+      remove: (id: string) => ipcRenderer.invoke("plugins:skills:remove", id),
+    },
+    mcp: {
+      list: (query: string) => ipcRenderer.invoke("plugins:mcp:list", query),
+      install: (request: unknown) => ipcRenderer.invoke("plugins:mcp:install", request),
+    },
+  },
   agents: {
     list: () => ipcRenderer.invoke("agents:list"),
     save: (agent: unknown) => ipcRenderer.invoke("agents:save", agent),

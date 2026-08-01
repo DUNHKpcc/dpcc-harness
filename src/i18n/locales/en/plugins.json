@@ -1,0 +1,68 @@
+{
+  "title": "Plugins",
+  "subtitle": "Install reusable skills and project MCP servers",
+  "tabs": {
+    "skills": "Skills",
+    "mcp": "MCP"
+  },
+  "views": {
+    "discover": "Discover",
+    "installed": "Installed",
+    "trending": "Trending",
+    "searchResults": "Search results"
+  },
+  "search": {
+    "skills": "Search skills.sh",
+    "mcp": "Search Official MCP Registry"
+  },
+  "source": {
+    "skills": "skills.sh",
+    "mcp": "Official MCP Registry",
+    "stale": "Cached results"
+  },
+  "state": {
+    "searchSkills": "Search for a Skill by name or capability.",
+    "empty": "No matching plugins",
+    "loading": "Loading catalog...",
+    "noInstalledSkills": "No managed Skills installed",
+    "noInstalledMcp": "No MCP servers configured for this project",
+    "projectRequired": "Select a project before installing an MCP server.",
+    "codexRestart": "Codex MCP activation is not available yet."
+  },
+  "action": {
+    "install": "Install",
+    "update": "Update",
+    "remove": "Remove",
+    "cancel": "Cancel",
+    "confirmInstall": "Install plugin",
+    "replaceModified": "Replace modified files",
+    "retry": "Retry"
+  },
+  "skills": {
+    "subtitle": "Find and install reusable agent capabilities",
+    "installs": "{{count}} installs",
+    "scope": "Install scope",
+    "project": "Current project",
+    "global": "All projects",
+    "targets": "Target agents",
+    "claude": "Claude Code",
+    "codex": "Codex",
+    "unsupportedSource": "This source cannot be installed by v0.1",
+    "modifiedConfirmation": "Files managed by PccAgent were changed after installation. Installing again will replace those local edits.",
+    "installedAt": "Installed {{date}}",
+    "installSuccess": "{{name}} installed",
+    "removeSuccess": "{{name}} removed"
+  },
+  "mcp": {
+    "subtitle": "Connect external tools and services to this project",
+    "project": "Project: {{name}}",
+    "transport": "Connection",
+    "configuration": "Configuration",
+    "installPreview": "Install source",
+    "openSource": "Open source repository",
+    "unsupported": "Unsupported in v0.1",
+    "secretUnsupported": "Requires secret storage support",
+    "installSuccess": "{{name}} added to the project",
+    "removeSuccess": "{{name}} removed from the project"
+  }
+}

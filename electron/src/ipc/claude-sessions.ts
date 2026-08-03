@@ -114,7 +114,7 @@ function handleAccountCredentialRejection(
   if (
     session.upstreamTier !== "default"
     || session.accountRejectionHandled
-    || !isAccountCredentialRejection(value)
+    || !isAccountCredentialRejection(value, { allowGenericAuthStatus: source !== "stderr" })
   ) {
     return;
   }

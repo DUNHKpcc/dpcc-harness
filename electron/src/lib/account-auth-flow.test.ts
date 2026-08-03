@@ -363,10 +363,17 @@ describe("desktop account authorization primitives", () => {
     expect(isAccountCredentialRejection(value)).toBe(true);
   });
 
+  it("requires an explicit credential failure before acting on unstructured stderr", () => {
+    const stderrOptions = { allowGenericAuthStatus: false };
+    expect(isAccountCredentialRejection("HTTP 401 Unauthorized", stderrOptions)).toBe(false);
+    expect(isAccountCredentialRejection("authentication_error: invalid x-api-key", stderrOptions)).toBe(true);
+  });
+
   it.each([
     "403 model is not available for this account",
     "429 Too Many Requests",
     "request timed out",
+    "failed to warm featured plugin ids cache error=remote featured plugin request to https://chatgpt.com/backend-api/plugins/featured?platform=codex failed with status 401 Unauthorized: {\"detail\":\"Unauthorized\"}",
   ])("does not revoke credentials for unrelated provider failures", (value) => {
     expect(isAccountCredentialRejection(value)).toBe(false);
   });

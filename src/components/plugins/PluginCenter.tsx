@@ -14,6 +14,7 @@ interface PluginCenterProps {
   projectName: string | null;
   activeEngine?: EngineId;
   hasLiveSession: boolean;
+  isSessionProcessing: boolean;
   onRestartWithServers?: (servers: McpServerConfig[]) => Promise<void> | void;
 }
 
@@ -35,6 +36,7 @@ export const PluginCenter = memo(function PluginCenter({
   projectName,
   activeEngine,
   hasLiveSession,
+  isSessionProcessing,
   onRestartWithServers,
 }: PluginCenterProps) {
   const { t } = useTranslation("plugins");
@@ -70,6 +72,7 @@ export const PluginCenter = memo(function PluginCenter({
               projectName={projectName}
               activeEngine={activeEngine}
               hasLiveSession={hasLiveSession}
+              isSessionProcessing={isSessionProcessing}
               onRestartWithServers={onRestartWithServers}
             />
           </Suspense>

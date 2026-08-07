@@ -233,16 +233,25 @@ export class SkillFilesModifiedError extends Error {
   }
 }
 
+interface SkillPathChange {
+  destination: string;
+  backupPath?: string;
+}
+
+async function pathExists(candidate: string): Promise<boolean> {
+  return fs.promises.lstat(candidate).then(() => true, () => false);
+}
+
 async function copySkillAtomic(
   files: SkillFile[],
   destination: string,
   managedPaths: Set<string>,
-): Promise<void> {
+): Promise<SkillPathChange> {
   const root = path.dirname(destination);
   assertInsideRoot(destination, root);
   await fs.promises.mkdir(root, { recursive: true });
 
-  const destinationExists = await fs.promises.lstat(destination).then(() => true, () => false);
+  const destinationExists = await pathExists(destination);
   if (destinationExists && !managedPaths.has(path.resolve(destination))) {
     throw new Error(`An unmanaged Skill already exists at ${destination}`);
   }
@@ -261,18 +270,60 @@ async function copySkillAtomic(
 
     if (destinationExists) await fs.promises.rename(destination, backup);
     await fs.promises.rename(temporary, destination);
-    if (destinationExists) await fs.promises.rm(backup, { recursive: true, force: true });
+    return { destination, backupPath: destinationExists ? backup : undefined };
   } catch (error) {
     await fs.promises.rm(temporary, { recursive: true, force: true });
-    const backupExists = await fs.promises.lstat(backup).then(() => true, () => false);
-    const currentExists = await fs.promises.lstat(destination).then(() => true, () => false);
-    if (backupExists && !currentExists) await fs.promises.rename(backup, destination);
+    if (await pathExists(backup)) {
+      await fs.promises.rm(destination, { recursive: true, force: true });
+      await fs.promises.rename(backup, destination);
+    }
     throw error;
   }
 }
 
-export function listInstalledSkills(): InstalledSkillRecord[] {
-  return loadManifest();
+async function stageSkillRemoval(destination: string): Promise<SkillPathChange | null> {
+  if (!await pathExists(destination)) return null;
+  const root = path.dirname(destination);
+  const backupPath = path.join(root, `.${path.basename(destination)}.backup-${randomUUID()}`);
+  await fs.promises.rename(destination, backupPath);
+  return { destination, backupPath };
+}
+
+async function rollbackSkillChanges(changes: SkillPathChange[]): Promise<void> {
+  for (const change of [...changes].reverse()) {
+    await fs.promises.rm(change.destination, { recursive: true, force: true });
+    if (change.backupPath && await pathExists(change.backupPath)) {
+      await fs.promises.rename(change.backupPath, change.destination);
+    }
+  }
+}
+
+async function commitSkillChanges(changes: SkillPathChange[]): Promise<void> {
+  await Promise.allSettled(changes.map((change) => (
+    change.backupPath
+      ? fs.promises.rm(change.backupPath, { recursive: true, force: true })
+      : Promise.resolve()
+  )));
+}
+
+export function filterInstalledSkillsForProject(
+  records: InstalledSkillRecord[],
+  projectPath?: string | null,
+): InstalledSkillRecord[] {
+  const resolvedProjectPath = projectPath ? path.resolve(projectPath) : null;
+  return records.filter((record) => (
+    record.scope === "global"
+    || (
+      resolvedProjectPath !== null
+      && record.scope === "project"
+      && record.projectPath != null
+      && path.resolve(record.projectPath) === resolvedProjectPath
+    )
+  ));
+}
+
+export function listInstalledSkills(projectPath?: string | null): InstalledSkillRecord[] {
+  return filterInstalledSkillsForProject(loadManifest(), projectPath);
 }
 
 export async function installSkill(request: SkillInstallRequest): Promise<InstalledSkillRecord> {
@@ -281,7 +332,8 @@ export async function installSkill(request: SkillInstallRequest): Promise<Instal
   const id = recordId(normalized);
   const previous = existingRecords.find((record) => record.id === id);
   const currentManagedPaths = previous ? resolveManagedSkillPaths(previous) : new Set<string>();
-  const installedThisRun: string[] = [];
+  const appliedChanges: SkillPathChange[] = [];
+  let manifestSaved = false;
 
   const temporaryRoot = await fs.promises.mkdtemp(path.join(os.tmpdir(), "pcc-skill-"));
   const repositoryPath = path.join(temporaryRoot, "repository");
@@ -318,14 +370,14 @@ export async function installSkill(request: SkillInstallRequest): Promise<Instal
     }
 
     for (const destination of installPaths) {
-      await copySkillAtomic(files, destination, currentManagedPaths);
-      installedThisRun.push(destination);
+      appliedChanges.push(await copySkillAtomic(files, destination, currentManagedPaths));
     }
 
     const nextManagedPaths = new Set(installPaths.map((installPath) => path.resolve(installPath)));
     for (const oldPath of currentManagedPaths) {
       if (!nextManagedPaths.has(oldPath)) {
-        await fs.promises.rm(oldPath, { recursive: true, force: true });
+        const change = await stageSkillRemoval(oldPath);
+        if (change) appliedChanges.push(change);
       }
     }
 
@@ -343,11 +395,18 @@ export async function installSkill(request: SkillInstallRequest): Promise<Instal
       installedAt: new Date().toISOString(),
     };
     saveManifest([...existingRecords.filter((item) => item.id !== id), record]);
+    manifestSaved = true;
+    await commitSkillChanges(appliedChanges);
     return record;
   } catch (error) {
-    if (!previous) {
-      for (const createdPath of installedThisRun) {
-        await fs.promises.rm(createdPath, { recursive: true, force: true });
+    if (!manifestSaved) {
+      try {
+        await rollbackSkillChanges(appliedChanges);
+      } catch (rollbackError) {
+        throw new AggregateError(
+          [error, rollbackError],
+          "Skill update failed and could not be fully rolled back",
+        );
       }
     }
     throw error;

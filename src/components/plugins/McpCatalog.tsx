@@ -27,6 +27,7 @@ interface McpCatalogProps {
   projectName: string | null;
   activeEngine?: EngineId;
   hasLiveSession: boolean;
+  isSessionProcessing: boolean;
   onRestartWithServers?: (servers: McpServerConfig[]) => Promise<void> | void;
 }
 
@@ -35,6 +36,7 @@ export function McpCatalog({
   projectName,
   activeEngine,
   hasLiveSession,
+  isSessionProcessing,
   onRestartWithServers,
 }: McpCatalogProps) {
   const { t } = useTranslation("plugins");
@@ -130,15 +132,25 @@ export function McpCatalog({
 
   const restartSession = useCallback(async () => {
     if (!projectId || !hasLiveSession || !onRestartWithServers) return;
+    if (isSessionProcessing) {
+      toast.info(t("state.sessionBusy"));
+      return;
+    }
     if (activeEngine === "codex") {
       toast.info(t("state.codexRestart"));
       return;
     }
     await onRestartWithServers(await window.claude.mcp.list(projectId));
-  }, [activeEngine, hasLiveSession, onRestartWithServers, projectId, t]);
+  }, [activeEngine, hasLiveSession, isSessionProcessing, onRestartWithServers, projectId, t]);
 
   const handleInstall = useCallback(async () => {
-    if (!selected || !selectedOption || !projectId || !selectedOption.supported) return;
+    if (
+      !selected
+      || !selectedOption
+      || !projectId
+      || !selectedOption.supported
+      || isSessionProcessing
+    ) return;
     setInstalling(true);
     const response = await window.claude.plugins.mcp.install({
       projectId,
@@ -155,10 +167,10 @@ export function McpCatalog({
     setSelected(null);
     await refreshInstalled();
     await restartSession();
-  }, [projectId, refreshInstalled, restartSession, selected, selectedOption, t, values]);
+  }, [isSessionProcessing, projectId, refreshInstalled, restartSession, selected, selectedOption, t, values]);
 
   const handleRemove = useCallback(async (server: McpServerConfig) => {
-    if (!projectId) return;
+    if (!projectId || isSessionProcessing) return;
     setRemovingName(server.name);
     const response = await window.claude.mcp.remove(projectId, server.name);
     setRemovingName(null);
@@ -169,7 +181,7 @@ export function McpCatalog({
     toast.success(t("mcp.removeSuccess", { name: server.name }));
     await refreshInstalled();
     await restartSession();
-  }, [projectId, refreshInstalled, restartSession, t]);
+  }, [isSessionProcessing, projectId, refreshInstalled, restartSession, t]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -233,9 +245,9 @@ export function McpCatalog({
                       size="icon"
                       variant="ghost"
                       className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
-                      disabled={removingName === server.name}
+                      disabled={isSessionProcessing || removingName === server.name}
                       onClick={() => void handleRemove(server)}
-                      title={t("action.remove")}
+                      title={isSessionProcessing ? t("state.sessionBusy") : t("action.remove")}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
@@ -292,9 +304,15 @@ export function McpCatalog({
                         size="sm"
                         variant="outline"
                         className="h-8 shrink-0 rounded-full px-3"
-                        disabled={!projectId || !supported}
+                        disabled={!projectId || !supported || isSessionProcessing}
                         onClick={() => openInstall(item)}
-                        title={!projectId ? t("state.projectRequired") : !supported ? t("mcp.unsupported") : undefined}
+                        title={isSessionProcessing
+                          ? t("state.sessionBusy")
+                          : !projectId
+                            ? t("state.projectRequired")
+                            : !supported
+                              ? t("mcp.unsupported")
+                              : undefined}
                       >
                         {t(installed ? "action.update" : "action.install")}
                       </Button>
@@ -387,7 +405,8 @@ export function McpCatalog({
             <Button variant="outline" onClick={() => setSelected(null)}>{t("action.cancel")}</Button>
             <Button
               onClick={() => void handleInstall()}
-              disabled={!projectId || !selectedOption?.supported || installing}
+              disabled={!projectId || !selectedOption?.supported || installing || isSessionProcessing}
+              title={isSessionProcessing ? t("state.sessionBusy") : undefined}
             >
               <Download className="h-4 w-4" />
               {t("action.confirmInstall")}

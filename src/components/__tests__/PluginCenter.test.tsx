@@ -16,6 +16,7 @@ describe("Plugin Center workspace", () => {
         projectPath={null}
         projectName={null}
         hasLiveSession={false}
+        isSessionProcessing={false}
       />,
     );
 
@@ -33,6 +34,7 @@ describe("Plugin Center workspace", () => {
         projectId={null}
         projectName={null}
         hasLiveSession={false}
+        isSessionProcessing={false}
       />,
     );
 
@@ -78,6 +80,14 @@ describe("Plugin Center workspace", () => {
       path.join(repoRoot, "src/components/plugins/PluginCenter.tsx"),
       "utf8",
     );
+    const skillsCatalog = fs.readFileSync(
+      path.join(repoRoot, "src/components/plugins/SkillsCatalog.tsx"),
+      "utf8",
+    );
+    const mcpCatalog = fs.readFileSync(
+      path.join(repoRoot, "src/components/plugins/McpCatalog.tsx"),
+      "utf8",
+    );
     const settings = fs.readFileSync(
       path.join(repoRoot, "src/components/SettingsView.tsx"),
       "utf8",
@@ -93,5 +103,10 @@ describe("Plugin Center workspace", () => {
     expect(appLayout).not.toContain('import { PluginCenter } from "./plugins/PluginCenter"');
     expect(pluginCenter).toContain("const McpCatalog = lazy(() =>");
     expect(pluginCenter).not.toContain('import { McpCatalog } from "./McpCatalog"');
+    expect(appLayout).toContain("isSessionProcessing={manager.isProcessing}");
+    expect(pluginCenter).toContain("isSessionProcessing={isSessionProcessing}");
+    expect(mcpCatalog).toContain("isSessionProcessing || removingName === server.name");
+    expect(mcpCatalog).toContain("!selectedOption.supported\n      || isSessionProcessing");
+    expect(skillsCatalog).toContain("listInstalled(projectPath)");
   });
 });

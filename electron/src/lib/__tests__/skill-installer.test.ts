@@ -1,9 +1,11 @@
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   collectSkillFiles,
+  filterInstalledSkillsForProject,
   findSkillDirectory,
   hashSkillFiles,
   normalizeSkillInstallRequest,
@@ -101,5 +103,133 @@ describe("Skill installer validation", () => {
       ...record,
       installPaths: [record.installPaths[0], path.join(root, "outside")],
     })).toThrow("outside its managed root");
+  });
+
+  it("lists only global Skills and Skills installed for the selected project", () => {
+    const firstProject = path.join(root, "first");
+    const secondProject = path.join(root, "second");
+    const baseRecord: InstalledSkillRecord = {
+      id: "global",
+      catalogId: "owner/repo/skill",
+      name: "skill",
+      source: "owner/repo",
+      sourceRevision: "abc123",
+      contentHash: "hash",
+      scope: "global",
+      targets: ["codex"],
+      installPaths: [path.join(os.homedir(), ".agents/skills/skill")],
+      installedAt: new Date(0).toISOString(),
+    };
+    const records: InstalledSkillRecord[] = [
+      baseRecord,
+      {
+        ...baseRecord,
+        id: "first",
+        scope: "project",
+        projectPath: firstProject,
+        installPaths: [path.join(firstProject, ".agents/skills/skill")],
+      },
+      {
+        ...baseRecord,
+        id: "second",
+        scope: "project",
+        projectPath: secondProject,
+        installPaths: [path.join(secondProject, ".agents/skills/skill")],
+      },
+    ];
+
+    expect(filterInstalledSkillsForProject(records, firstProject).map((record) => record.id))
+      .toEqual(["global", "first"]);
+    expect(filterInstalledSkillsForProject(records, null).map((record) => record.id))
+      .toEqual(["global"]);
+  });
+
+  it("restores every target when a multi-target update fails partway through", async () => {
+    const projectPath = path.join(root, "project");
+    const claudePath = path.join(projectPath, ".claude/skills/skill");
+    const codexPath = path.join(projectPath, ".agents/skills/skill");
+    for (const destination of [claudePath, codexPath]) {
+      fs.mkdirSync(destination, { recursive: true });
+      fs.writeFileSync(path.join(destination, "SKILL.md"), "---\nname: skill\n---\n");
+      fs.writeFileSync(path.join(destination, "payload.txt"), "old");
+    }
+
+    const contentHash = await hashSkillFiles(await collectSkillFiles(claudePath));
+    const id = createHash("sha256").update(JSON.stringify({
+      catalogId: "owner/repo/skill",
+      scope: "project",
+      projectPath: path.resolve(projectPath),
+    })).digest("hex");
+    let manifest: InstalledSkillRecord[] = [{
+      id,
+      catalogId: "owner/repo/skill",
+      name: "skill",
+      source: "owner/repo",
+      sourceRevision: "old-revision",
+      contentHash,
+      scope: "project",
+      targets: ["claude-code", "codex"],
+      projectPath,
+      installPaths: [claudePath, codexPath],
+      installedAt: new Date(0).toISOString(),
+    }];
+    const saveManifest = vi.fn((_key: string, records: InstalledSkillRecord[]) => {
+      manifest = records;
+    });
+
+    vi.resetModules();
+    vi.doMock("../json-file-store", () => ({
+      JsonFileStore: class {
+        load() {
+          return manifest;
+        }
+
+        save(key: string, records: InstalledSkillRecord[]) {
+          saveManifest(key, records);
+        }
+      },
+    }));
+    vi.doMock("../git-exec", () => ({
+      gitExec: vi.fn(async (args: string[]) => {
+        if (args[0] === "clone") {
+          const repositoryPath = args.at(-1)!;
+          const skillPath = path.join(repositoryPath, "skill");
+          fs.mkdirSync(skillPath, { recursive: true });
+          fs.writeFileSync(path.join(skillPath, "SKILL.md"), "---\nname: skill\n---\n");
+          fs.writeFileSync(path.join(skillPath, "payload.txt"), "new");
+          return "";
+        }
+        return "new-revision\n";
+      }),
+    }));
+
+    const rename = fs.promises.rename.bind(fs.promises);
+    const renameSpy = vi.spyOn(fs.promises, "rename").mockImplementation(async (from, to) => {
+      if (String(from).includes(".skill.tmp-") && path.resolve(to) === path.resolve(codexPath)) {
+        throw new Error("simulated second-target failure");
+      }
+      return rename(from, to);
+    });
+
+    try {
+      const { installSkill } = await import("../skill-installer");
+      await expect(installSkill({
+        catalogId: "owner/repo/skill",
+        name: "skill",
+        source: "owner/repo",
+        scope: "project",
+        targets: ["claude-code", "codex"],
+        projectPath,
+      })).rejects.toThrow("simulated second-target failure");
+
+      expect(fs.readFileSync(path.join(claudePath, "payload.txt"), "utf8")).toBe("old");
+      expect(fs.readFileSync(path.join(codexPath, "payload.txt"), "utf8")).toBe("old");
+      expect(saveManifest).not.toHaveBeenCalled();
+    } finally {
+      renameSpy.mockRestore();
+      vi.doUnmock("../json-file-store");
+      vi.doUnmock("../git-exec");
+      vi.resetModules();
+    }
   });
 });

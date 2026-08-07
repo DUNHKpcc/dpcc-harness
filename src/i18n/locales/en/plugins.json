@@ -27,6 +27,7 @@
     "noInstalledSkills": "No managed Skills installed",
     "noInstalledMcp": "No MCP servers configured for this project",
     "projectRequired": "Select a project before installing an MCP server.",
+    "sessionBusy": "Wait for the current turn to finish before changing MCP servers.",
     "codexRestart": "Codex MCP activation is not available yet."
   },
   "action": {

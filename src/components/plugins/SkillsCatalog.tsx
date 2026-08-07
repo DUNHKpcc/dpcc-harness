@@ -48,13 +48,13 @@ export function SkillsCatalog({ projectPath }: SkillsCatalogProps) {
   const catalogQuery = trimmedQuery.length >= 2 ? trimmedQuery : "";
 
   const refreshInstalled = useCallback(async () => {
-    const response = await window.claude.plugins.skills.listInstalled();
+    const response = await window.claude.plugins.skills.listInstalled(projectPath);
     if ("error" in response) {
       setError(response.error);
       return;
     }
     setInstalled(response.items);
-  }, []);
+  }, [projectPath]);
 
   useEffect(() => {
     void refreshInstalled();
@@ -91,11 +91,14 @@ export function SkillsCatalog({ projectPath }: SkillsCatalogProps) {
   );
 
   const openInstall = useCallback((item: SkillCatalogItem) => {
+    const existing = installed.find((record) => (
+      record.catalogId === item.id && record.scope === "project"
+    )) ?? installed.find((record) => record.catalogId === item.id);
     setSelected(item);
-    setScope(projectPath ? "project" : "global");
-    setTargets(["claude-code", "codex"]);
+    setScope(existing?.scope ?? (projectPath ? "project" : "global"));
+    setTargets(existing?.targets ?? ["claude-code", "codex"]);
     setConfirmOverwrite(false);
-  }, [projectPath]);
+  }, [installed, projectPath]);
 
   const toggleTarget = useCallback((target: SkillTarget) => {
     setTargets((current) =>

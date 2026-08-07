@@ -408,7 +408,8 @@ contextBridge.exposeInMainWorld("claude", {
   plugins: {
     skills: {
       search: (query: string) => ipcRenderer.invoke("plugins:skills:search", query),
-      listInstalled: () => ipcRenderer.invoke("plugins:skills:list-installed"),
+      listInstalled: (projectPath?: string | null) =>
+        ipcRenderer.invoke("plugins:skills:list-installed", projectPath),
       install: (request: unknown) => ipcRenderer.invoke("plugins:skills:install", request),
       remove: (id: string) => ipcRenderer.invoke("plugins:skills:remove", id),
     },

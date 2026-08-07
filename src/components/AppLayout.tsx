@@ -1624,6 +1624,7 @@ export function AppLayout() {
                   projectName={mainWorkspaceProject?.name ?? null}
                   activeEngine={manager.activeSession?.engine}
                   hasLiveSession={!!manager.activeSessionId && !manager.isDraft}
+                  isSessionProcessing={manager.isProcessing}
                   onRestartWithServers={manager.restartWithMcpServers}
                 />
               </Suspense>

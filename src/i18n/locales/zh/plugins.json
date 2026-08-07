@@ -27,6 +27,7 @@
     "noInstalledSkills": "尚未安装由 PccAgent 管理的 Skill",
     "noInstalledMcp": "当前项目尚未配置 MCP Server",
     "projectRequired": "请先选择项目，再安装 MCP Server。",
+    "sessionBusy": "请等待当前任务完成后再更改 MCP Server。",
     "codexRestart": "Codex MCP 当前还不支持即时生效。"
   },
   "action": {

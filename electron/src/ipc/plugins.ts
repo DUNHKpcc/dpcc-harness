@@ -29,9 +29,21 @@ export function register(): void {
     }
   });
 
-  ipcMain.handle("plugins:skills:list-installed", () => {
+  ipcMain.handle("plugins:skills:list-installed", (_event, projectPath?: string | null) => {
     try {
-      return { items: listInstalledSkills() };
+      let validatedProjectPath: string | null = null;
+      if (projectPath != null) {
+        if (typeof projectPath !== "string" || !projectPath.trim()) {
+          return { error: "Select a registered project before listing installed Skills" };
+        }
+        const requestedPath = path.resolve(projectPath);
+        const project = readProjects().find((candidate) => path.resolve(candidate.path) === requestedPath);
+        if (!project) {
+          return { error: "Select a registered project before listing installed Skills" };
+        }
+        validatedProjectPath = project.path;
+      }
+      return { items: listInstalledSkills(validatedProjectPath) };
     } catch (error) {
       return { error: reportError("PLUGIN_SKILL_LIST_ERR", error) };
     }

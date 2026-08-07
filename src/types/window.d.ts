@@ -472,7 +472,9 @@ declare global {
       plugins: {
         skills: {
           search: (query: string) => Promise<CatalogResult<SkillCatalogItem> | { error: string }>;
-          listInstalled: () => Promise<{ items: InstalledSkillRecord[] } | { error: string }>;
+          listInstalled: (projectPath?: string | null) => Promise<
+            { items: InstalledSkillRecord[] } | { error: string }
+          >;
           install: (request: SkillInstallRequest) => Promise<
             { item: InstalledSkillRecord }
             | { error: string; requiresConfirmation?: boolean }

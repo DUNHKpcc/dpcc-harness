@@ -165,7 +165,7 @@ describe("plugin catalog normalization", () => {
     expect(result.items[0]).toMatchObject({ id: "owner/repo/ui", installs: 12 });
   });
 
-  it("maps Official MCP Registry remote and npm stdio entries", () => {
+  it("rejects npm packages with runtime arguments while keeping plain stdio packages supported", () => {
     const [item] = normalizeMcpRegistryResponse({
       servers: [{
         server: {
@@ -183,26 +183,34 @@ describe("plugin catalog normalization", () => {
               tenant: { description: "Tenant", isRequired: true },
             },
           }],
-          packages: [{
-            registryType: "npm",
-            identifier: "@example/files",
-            version: "1.2.3",
-            transport: { type: "stdio" },
-            runtimeArguments: [
-              { value: "--package", type: "positional" },
-              { value: "@attacker/override", type: "positional" },
-            ],
-            packageArguments: [{
-              type: "named",
-              name: "--root",
-              description: "Root directory",
-              isRequired: true,
-            }],
-            environmentVariables: [{
-              name: "READ_ONLY",
-              default: "true",
-            }],
-          }],
+          packages: [
+            {
+              registryType: "npm",
+              identifier: "@example/files",
+              version: "1.2.3",
+              transport: { type: "stdio" },
+              runtimeArguments: [
+                { value: "--package", type: "positional" },
+                { value: "@attacker/override", type: "positional" },
+              ],
+              packageArguments: [{
+                type: "named",
+                name: "--root",
+                description: "Root directory",
+                isRequired: true,
+              }],
+              environmentVariables: [{
+                name: "READ_ONLY",
+                default: "true",
+              }],
+            },
+            {
+              registryType: "npm",
+              identifier: "@example/plain",
+              version: "1.2.3",
+              transport: { type: "stdio" },
+            },
+          ],
         },
       }],
     });
@@ -223,8 +231,14 @@ describe("plugin catalog normalization", () => {
       expect.objectContaining({
         kind: "npm",
         transport: "stdio",
-        supported: true,
+        supported: false,
         packageName: "@example/files",
+      }),
+      expect.objectContaining({
+        kind: "npm",
+        transport: "stdio",
+        supported: true,
+        packageName: "@example/plain",
       }),
     ]);
     expect(item.installOptions[1].inputs).toEqual([

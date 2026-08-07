@@ -451,9 +451,12 @@ function normalizePackageOptions(server: Record<string, unknown>): McpCatalogIns
       }
     }
 
+    const hasRuntimeArguments = "runtimeArguments" in pkg
+      && (!Array.isArray(pkg.runtimeArguments) || pkg.runtimeArguments.length > 0);
     const supported =
       registryType === "npm" &&
       transportValue === "stdio" &&
+      !hasRuntimeArguments &&
       !inputs.some((input) => input.secret);
     return [{
       id: `${registryType}:${index}`,

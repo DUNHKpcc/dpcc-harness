@@ -43,7 +43,10 @@
     "permissionBodyWithDetail": "请检查 {{tool}}：{{detail}}",
     "taskCompleteTitle": "任务已完成",
     "taskCompleteBody": "{{actor}} 已完成处理。",
-    "backgroundTaskCompleteBody": "{{title}}：{{actor}} 已完成处理。"
+    "backgroundTaskCompleteBody": "{{title}}：{{actor}} 已完成处理。",
+    "balanceLowTitle": "DPCC API 账户余额不足",
+    "balanceLowBody": "当前剩余 ${{remaining}}，已达到或低于 ${{threshold}} 预警线。",
+    "balanceRecharge": "查看余额"
   },
   "toasts": {
     "permission": {

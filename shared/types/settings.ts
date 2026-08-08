@@ -61,6 +61,20 @@ export interface NotificationSettings {
   sessionComplete: NotificationEventSettings;
 }
 
+// ── Account balance alert settings ──
+
+export interface AccountBalanceAlertSettings {
+  /** Whether PccAgent should monitor the connected DPCC account balance. */
+  enabled: boolean;
+  /** Alert when the authoritative remaining account balance is at or below this USD amount. */
+  thresholdUsd: number;
+}
+
+export const DEFAULT_ACCOUNT_BALANCE_ALERT_SETTINGS: AccountBalanceAlertSettings = {
+  enabled: true,
+  thresholdUsd: 5,
+};
+
 // ── Custom gateway settings ──
 
 export interface GatewayModelMapping {
@@ -148,6 +162,8 @@ export interface AppSettings {
   windowMaximized: boolean;
   /** Per-event notification and sound configuration */
   notifications: NotificationSettings;
+  /** Low-balance monitoring for the connected DPCC account */
+  accountBalanceAlert: AccountBalanceAlertSettings;
   /** Custom client name sent to Codex servers during handshake (default: "PccAgent") */
   codexClientName: string;
   /** Which Codex binary source to use */

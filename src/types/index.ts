@@ -147,6 +147,7 @@ export type {
   NotificationTrigger,
   NotificationEventSettings,
   NotificationSettings,
+  AccountBalanceAlertSettings,
   AppSettings,
   ClaudeGatewaySettings,
   CodexGatewaySettings,

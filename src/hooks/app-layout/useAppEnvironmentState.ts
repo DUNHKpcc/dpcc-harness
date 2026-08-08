@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { useGlassOrchestrator } from "@/hooks/useGlassOrchestrator";
+import { useAccountBalanceAlert } from "@/hooks/useAccountBalanceAlert";
 import { useNotifications } from "@/hooks/useNotifications";
-import type { ChatSession, MacBackgroundEffect, NotificationSettings, PermissionRequest, SessionInfo, ThemeOption } from "@/types";
+import { reportError } from "@/lib/analytics/analytics";
+import type { AccountBalanceAlertSettings, AppSettings, ChatSession, MacBackgroundEffect, NotificationSettings, PermissionRequest, SessionInfo, ThemeOption } from "@/types";
 import type { SettingsSection } from "@/components/SettingsView";
 
 interface UseAppEnvironmentStateInput {
@@ -24,6 +26,7 @@ export function useAppEnvironmentState(input: UseAppEnvironmentStateInput) {
   const [scrollToMessageId, setScrollToMessageId] = useState<string | undefined>();
   const [chatSearchOpen, setChatSearchOpen] = useState(false);
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings | null>(null);
+  const [accountBalanceAlert, setAccountBalanceAlert] = useState<AccountBalanceAlertSettings | null>(null);
   const [devFillEnabled, setDevFillEnabled] = useState(false);
   const [jiraBoardEnabled, setJiraBoardEnabled] = useState(false);
 
@@ -35,14 +38,17 @@ export function useAppEnvironmentState(input: UseAppEnvironmentStateInput) {
   });
 
   useEffect(() => {
-    window.claude.settings.get().then((settings) => {
-      if (settings?.notifications) {
-        setNotificationSettings(settings.notifications as NotificationSettings);
-      }
+    const applySettings = (settings: AppSettings) => {
+      setNotificationSettings(settings.notifications);
+      setAccountBalanceAlert(settings.accountBalanceAlert);
       setDevFillEnabled(import.meta.env.DEV && !!settings?.showDevFillInChatTitleBar);
       setJiraBoardEnabled(!!settings?.showJiraBoard);
-    });
-  }, [showSettings]);
+    };
+    void window.claude.settings.get()
+      .then(applySettings)
+      .catch((error) => reportError("APP_ENVIRONMENT_SETTINGS", error));
+    return window.claude.settings.onChanged(applySettings);
+  }, []);
 
   useNotifications({
     pendingPermission: input.pendingPermission,
@@ -57,6 +63,11 @@ export function useAppEnvironmentState(input: UseAppEnvironmentStateInput) {
       input.setPlanMode(false);
       input.onOpenSession?.(sessionId);
     },
+  });
+
+  useAccountBalanceAlert({
+    settings: accountBalanceAlert,
+    isProcessing: input.isProcessing,
   });
 
   useEffect(() => {

@@ -270,6 +270,15 @@
     "balanceUnavailable": "暂无余额信息",
     "balanceError": "无法获取余额",
     "refresh": "刷新",
+    "balanceAlert": {
+      "title": "余额预警",
+      "enabledLabel": "低余额提醒",
+      "enabledDesc": "监控当前绑定的 DPCC API 账户余额。",
+      "thresholdLabel": "预警金额",
+      "thresholdDesc": "剩余余额达到或低于此金额时提醒。",
+      "deliveryDesc": "应用内会显示提醒；窗口未聚焦时发送系统通知，Windows 使用原生通知。",
+      "currentLow": "当前剩余 ${{remaining}}，已达到或低于 ${{threshold}} 预警线。"
+    },
     "manageDevices": "管理授权设备",
     "openBilling": "余额与订阅",
     "availableModels": "可用模型",

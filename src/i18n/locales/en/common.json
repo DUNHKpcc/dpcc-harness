@@ -43,7 +43,10 @@
     "permissionBodyWithDetail": "Review {{tool}}: {{detail}}",
     "taskCompleteTitle": "Task complete",
     "taskCompleteBody": "{{actor}} has finished processing.",
-    "backgroundTaskCompleteBody": "{{title}}: {{actor}} has finished processing."
+    "backgroundTaskCompleteBody": "{{title}}: {{actor}} has finished processing.",
+    "balanceLowTitle": "DPCC API account balance is low",
+    "balanceLowBody": "Your ${{remaining}} balance is at or below the ${{threshold}} alert threshold.",
+    "balanceRecharge": "View balance"
   },
   "toasts": {
     "permission": {

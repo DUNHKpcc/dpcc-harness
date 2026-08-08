@@ -13,6 +13,7 @@ import fs from "fs";
 import { getDataDir } from "./data-dir";
 import type {
   AppSettings,
+  AccountBalanceAlertSettings,
   NotificationSettings,
   ClaudeGatewaySettings,
   CodexGatewaySettings,
@@ -21,7 +22,10 @@ import type {
   TerminalShell,
   WindowBounds,
 } from "@shared/types/settings";
-import { TERMINAL_SHELLS } from "@shared/types/settings";
+import {
+  DEFAULT_ACCOUNT_BALANCE_ALERT_SETTINGS,
+  TERMINAL_SHELLS,
+} from "@shared/types/settings";
 import {
   CLAUDE_GATEWAY_MODEL_PRESETS,
   CODEX_GATEWAY_MODEL_PRESETS,
@@ -31,7 +35,7 @@ import { DEFAULT_NEWAPI_BASE_URL } from "@shared/types/account";
 import { isActiveThirdPartyGateway, isDpccUpstreamUrl } from "@shared/lib/upstream-routing";
 
 // Re-export shared types so existing `import from "./app-settings"` consumers still work
-export type { AppSettings, MacBackgroundEffect, PreferredEditor, VoiceDictationMode, TerminalShell, TerminalShellOption, WindowBounds, NotificationTrigger, NotificationEventSettings, NotificationSettings, CodexBinarySource, ClaudeBinarySource, ClaudeGatewaySettings, CodexGatewaySettings, DpccUpstreamSettings, UpdateSource, CliConfigSource, AccountMode } from "@shared/types/settings";
+export type { AppSettings, MacBackgroundEffect, PreferredEditor, VoiceDictationMode, TerminalShell, TerminalShellOption, WindowBounds, NotificationTrigger, NotificationEventSettings, NotificationSettings, AccountBalanceAlertSettings, CodexBinarySource, ClaudeBinarySource, ClaudeGatewaySettings, CodexGatewaySettings, DpccUpstreamSettings, UpdateSource, CliConfigSource, AccountMode } from "@shared/types/settings";
 
 const NOTIFICATION_DEFAULTS: NotificationSettings = {
   exitPlanMode: { osNotification: "unfocused", sound: "always" },
@@ -51,6 +55,7 @@ const DEFAULTS: AppSettings = {
   windowBounds: null,
   windowMaximized: false,
   notifications: NOTIFICATION_DEFAULTS,
+  accountBalanceAlert: DEFAULT_ACCOUNT_BALANCE_ALERT_SETTINGS,
   codexClientName: "PccAgent",
   codexBinarySource: "builtin",
   codexCustomBinaryPath: "",
@@ -182,6 +187,21 @@ function normalizeWindowBounds(value: unknown): WindowBounds | null {
     y: Math.round(bounds.y),
     width: Math.round(bounds.width),
     height: Math.round(bounds.height),
+  };
+}
+
+function normalizeAccountBalanceAlertSettings(
+  value: Partial<AccountBalanceAlertSettings> | undefined,
+): AccountBalanceAlertSettings {
+  const rawThreshold = value?.thresholdUsd;
+  const thresholdUsd = typeof rawThreshold === "number" && Number.isFinite(rawThreshold)
+    ? Math.round(Math.min(1_000_000, Math.max(0, rawThreshold)) * 100) / 100
+    : DEFAULT_ACCOUNT_BALANCE_ALERT_SETTINGS.thresholdUsd;
+  return {
+    enabled: typeof value?.enabled === "boolean"
+      ? value.enabled
+      : DEFAULT_ACCOUNT_BALANCE_ALERT_SETTINGS.enabled,
+    thresholdUsd,
   };
 }
 
@@ -318,6 +338,7 @@ export function getAppSettings(): AppSettings {
         askUserQuestion: { ...NOTIFICATION_DEFAULTS.askUserQuestion, ...parsedNotif?.askUserQuestion },
         sessionComplete: { ...NOTIFICATION_DEFAULTS.sessionComplete, ...parsedNotif?.sessionComplete },
       },
+      accountBalanceAlert: normalizeAccountBalanceAlertSettings(parsed.accountBalanceAlert),
       dpccUpstream: dpccOriginMigration.upstream,
       claudeGateway: hasDpccGatewayMigration
         ? normalizeClaudeGateway(dpccGatewayMigration.claudeGateway)
@@ -373,6 +394,9 @@ export function setAppSettings(patch: Partial<AppSettings>): AppSettings {
       : {}),
     ...(patch.windowMaximized !== undefined
       ? { windowMaximized: patch.windowMaximized === true }
+      : {}),
+    ...(patch.accountBalanceAlert !== undefined
+      ? { accountBalanceAlert: normalizeAccountBalanceAlertSettings(patch.accountBalanceAlert) }
       : {}),
     ...(patch.dpccUpstream
       ? { dpccUpstream: migrateDpccOriginBaseUrl(patch.dpccUpstream).upstream }

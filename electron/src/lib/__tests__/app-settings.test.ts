@@ -25,6 +25,26 @@ describe("app settings", () => {
     fs.rmSync(dataDirRef.current, { recursive: true, force: true });
   });
 
+  it("backfills and normalizes account balance alert settings", async () => {
+    const settingsPath = path.join(dataDirRef.current, "settings.json");
+    fs.writeFileSync(settingsPath, JSON.stringify({
+      binarySourceDefaultsMigrated: true,
+      accountBalanceAlert: { enabled: "yes", thresholdUsd: -3.456 },
+    }), "utf-8");
+    const { getAppSettings, setAppSettings } = await loadModule();
+
+    expect(getAppSettings().accountBalanceAlert).toEqual({
+      enabled: true,
+      thresholdUsd: 0,
+    });
+    expect(setAppSettings({
+      accountBalanceAlert: { enabled: false, thresholdUsd: 12.345 },
+    }).accountBalanceAlert).toEqual({
+      enabled: false,
+      thresholdUsd: 12.35,
+    });
+  });
+
   it("defaults an invalid terminal shell selection to auto", async () => {
     fs.writeFileSync(path.join(dataDirRef.current, "settings.json"), JSON.stringify({
       terminalShell: "not-a-shell",

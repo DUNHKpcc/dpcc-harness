@@ -406,6 +406,27 @@ describe("Windows notification IPC regression", () => {
     expect(notification?.close).not.toHaveBeenCalled();
   });
 
+  it("shows a native balance alert and activates the app without a session", async () => {
+    const { register } = await import("../../ipc/notifications");
+    const activate = vi.fn();
+    register(
+      () => mainWindow as unknown as import("electron").BrowserWindow,
+      activate,
+    );
+
+    const show = notificationIpcMocks.handlers.get("notifications:show");
+    await expect(show?.(event, {
+      id: "balance-alert:app:crossing-1",
+      kind: "balance-alert",
+      title: "DPCC API account balance is low",
+      body: "Your $4.00 balance is at or below the $5.00 alert threshold.",
+    })).resolves.toEqual({ shown: true });
+    notificationIpcMocks.MockNotification.instances[0]?.emit("click");
+    await new Promise<void>((resolve) => setImmediate(resolve));
+
+    expect(activate).toHaveBeenCalledWith(undefined);
+  });
+
   it("rejects notification requests from another renderer", async () => {
     const { register } = await import("../../ipc/notifications");
     register(

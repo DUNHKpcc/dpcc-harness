@@ -25,6 +25,20 @@
       ]
     },
     {
+      "contract": "account-balance-alert",
+      "sources": [
+        "src/hooks/useAccountBalanceAlert.ts",
+        "src/lib/account-balance-alert.ts",
+        "shared/types/settings.ts",
+        "shared/types/notifications.ts"
+      ],
+      "tests": [
+        "src/lib/__tests__/account-balance-alert.test.ts",
+        "electron/src/lib/__tests__/app-settings.test.ts",
+        "electron/src/lib/__tests__/notification-utils.test.ts"
+      ]
+    },
+    {
       "contract": "credential-rejection-session-stop",
       "sources": [
         "electron/src/lib/account-auth-rejection.ts",

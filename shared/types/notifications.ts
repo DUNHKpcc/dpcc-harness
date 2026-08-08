@@ -1,5 +1,6 @@
 export const APP_NOTIFICATION_KINDS = [
   "approval",
+  "balance-alert",
   "information",
   "task-complete",
 ] as const;

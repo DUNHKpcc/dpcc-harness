@@ -29,10 +29,13 @@
       "sources": [
         "src/hooks/useAccountBalanceAlert.ts",
         "src/lib/account-balance-alert.ts",
+        "src/components/settings/AccountSettings.tsx",
+        "src/components/settings/NotificationsSettings.tsx",
         "shared/types/settings.ts",
         "shared/types/notifications.ts"
       ],
       "tests": [
+        "src/components/__tests__/AppLayout.i18n.test.ts",
         "src/lib/__tests__/account-balance-alert.test.ts",
         "electron/src/lib/__tests__/app-settings.test.ts",
         "electron/src/lib/__tests__/notification-utils.test.ts"

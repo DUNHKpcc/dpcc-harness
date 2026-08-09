@@ -60,6 +60,21 @@ describe("AppLayout i18n", () => {
     );
   });
 
+  it("keeps balance alert controls in notification settings", () => {
+    const accountSettings = fs.readFileSync(
+      path.join(repoRoot, "src/components/settings/AccountSettings.tsx"),
+      "utf8",
+    );
+    const notificationsSettings = fs.readFileSync(
+      path.join(repoRoot, "src/components/settings/NotificationsSettings.tsx"),
+      "utf8",
+    );
+
+    expect(accountSettings).not.toContain("accountBalanceAlert");
+    expect(notificationsSettings).toContain('t("notifications.balanceAlert.title")');
+    expect(notificationsSettings).toContain("accountBalanceAlert");
+  });
+
   it("rebinds workspace width observation when the content node is replaced", () => {
     const appLayout = fs.readFileSync(path.join(repoRoot, "src/components/AppLayout.tsx"), "utf8");
 

@@ -132,12 +132,7 @@ export const SettingsView = memo(function SettingsView({
           />
         );
       case "account":
-        return (
-          <AccountSettings
-            appSettings={appSettings}
-            onUpdateAppSettings={updateAppSettings}
-          />
-        );
+        return <AccountSettings />;
       case "appearance":
         return (
           <AppearanceSettings

@@ -270,15 +270,6 @@
     "balanceUnavailable": "Balance unavailable",
     "balanceError": "Couldn't load balance",
     "refresh": "Refresh",
-    "balanceAlert": {
-      "title": "Balance alert",
-      "enabledLabel": "Low-balance alert",
-      "enabledDesc": "Monitor the currently connected DPCC API account balance.",
-      "thresholdLabel": "Alert threshold",
-      "thresholdDesc": "Alert when the remaining balance reaches or falls below this amount.",
-      "deliveryDesc": "Alerts appear in the app. When the window is unfocused, an OS notification is sent; Windows uses a native notification.",
-      "currentLow": "The current ${{remaining}} balance is at or below the ${{threshold}} alert threshold."
-    },
     "manageDevices": "Manage authorized devices",
     "openBilling": "Balance and subscription",
     "availableModels": "Available models",
@@ -334,6 +325,15 @@
   "notifications": {
     "title": "Notifications",
     "description": "Configure when OS notifications and sounds play for different events.",
+    "balanceAlert": {
+      "title": "Balance alert",
+      "enabledLabel": "Low-balance alert",
+      "enabledDesc": "Monitor the currently connected DPCC API account balance.",
+      "thresholdLabel": "Alert threshold",
+      "thresholdDesc": "Alert when the remaining balance reaches or falls below this amount.",
+      "deliveryDesc": "Alerts appear in the app. When the window is unfocused, an OS notification is sent; Windows uses a native notification.",
+      "currentLow": "The current ${{remaining}} balance is at or below the ${{threshold}} alert threshold."
+    },
     "events": {
       "sessionComplete": {
         "label": "Session Complete",

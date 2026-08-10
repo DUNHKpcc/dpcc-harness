@@ -117,53 +117,61 @@ describe("desktop account authorization primitives", () => {
     });
 
     expect(chinesePage).toContain("<html lang=\"zh-CN\"");
-    expect(chinesePage).toContain("<title>授权已接收 | PccAgent</title>");
-    expect(chinesePage).toContain("本地授权交接完成");
-    expect(chinesePage).toContain("现在可以安全关闭此页面。");
+    expect(chinesePage).toContain("<title>授权成功 | PccAgent</title>");
+    expect(chinesePage).toContain("请返回 PccAgent 继续使用");
+    expect(chinesePage).toContain("现在可以安全关闭此页面");
     expect(chinesePage).not.toContain("此授权回调已通过");
     expect(traditionalChinesePage).toContain("<html lang=\"zh-TW\"");
-    expect(traditionalChinesePage).toContain("<title>已收到授權 | PccAgent</title>");
-    expect(traditionalChinesePage).toContain("本機授權交接完成");
-    expect(traditionalChinesePage).toContain("現在可以安全關閉此頁面。");
+    expect(traditionalChinesePage).toContain("<title>授權成功 | PccAgent</title>");
+    expect(traditionalChinesePage).toContain("請返回 PccAgent 繼續使用");
+    expect(traditionalChinesePage).toContain("現在可以安全關閉此頁面");
     expect(traditionalChinesePage).not.toContain("此授權回呼已透過");
     expect(englishPage).toContain("<html lang=\"en\"");
-    expect(englishPage).toContain("<title>Authorization received | PccAgent</title>");
+    expect(englishPage).toContain("<title>Authorization successful | PccAgent</title>");
+    expect(englishPage).toContain("Return to PccAgent to continue");
     expect(englishPage).not.toContain("This callback was delivered directly");
   });
 
   it.each([
     {
       kind: "cancelled" as const,
-      expectedCaption: "Authorization cancelled",
+      expectedTitle: "Authorization cancelled",
       expectedNote: "No authorization credentials were delivered to PccAgent.",
     },
     {
       kind: "invalid-host" as const,
-      expectedCaption: "Callback rejected",
+      expectedTitle: "Authorization failed",
       expectedNote: "PccAgent rejected this callback before completing account setup.",
     },
     {
       kind: "state-mismatch" as const,
-      expectedCaption: "Security check failed",
+      expectedTitle: "Authorization failed",
       expectedNote: "PccAgent rejected this callback before completing account setup.",
     },
     {
       kind: "invalid-response" as const,
-      expectedCaption: "Invalid callback response",
+      expectedTitle: "Authorization failed",
       expectedNote: "PccAgent rejected this callback before completing account setup.",
     },
-  ])("keeps the $kind handoff copy consistent with its result", ({
+  ])("keeps the $kind result copy consistent", ({
     kind,
-    expectedCaption,
+    expectedTitle,
     expectedNote,
   }) => {
     const page = renderAccountAuthorizationPage({ kind });
 
-    expect(page).toContain(expectedCaption);
+    expect(page).toContain(expectedTitle);
     expect(page).toContain(expectedNote);
     expect(page).toContain("Return to PccAgent");
-    expect(page).not.toContain("Authorization response received");
-    expect(page).not.toContain("Continue in PccAgent");
+  });
+
+  it("keeps the authorization result page compact", () => {
+    const page = renderAccountAuthorizationPage({ kind: "success" });
+
+    expect(page).toContain("width: min(440px, 100%);");
+    expect(page).not.toContain('class="handoff"');
+    expect(page).not.toContain("@keyframes");
+    expect(page).not.toContain("ui-serif");
   });
 
   it("uses the Anthropic clay color for successful authorization", () => {
@@ -183,7 +191,7 @@ describe("desktop account authorization primitives", () => {
     });
 
     expect(page).toContain("<html lang=\"en\" class=\"is-success theme-dark\">");
-    expect(page.match(/data-project-logo/g)).toHaveLength(2);
+    expect(page.match(/data-project-logo/g)).toHaveLength(1);
     expect(page).toContain(`data:image/png;base64,${logoData}`);
     expect(page).toContain(":root.theme-dark");
     expect(page).toContain(":root:not(.theme-light)");
@@ -304,14 +312,11 @@ describe("desktop account authorization primitives", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-security-policy")).toContain("default-src 'none'");
     const page = await response.text();
-    expect(page).toContain("<title>Authorization received | PccAgent</title>");
-    expect(page).toContain("Local handoff complete");
-    expect(page).toContain("PccAgent is securely completing setup.");
-    expect(page).toContain("Continue in PccAgent");
-    expect(page).toContain("You can safely close this tab.");
+    expect(page).toContain("<title>Authorization successful | PccAgent</title>");
+    expect(page).toContain("Return to PccAgent to continue");
+    expect(page).toContain("You can safely close this tab");
     expect(page).not.toContain("This callback was delivered directly");
-    expect(page.match(/data-project-logo/g)).toHaveLength(2);
-    expect(page).toContain("@media (prefers-reduced-motion: reduce)");
+    expect(page.match(/data-project-logo/g)).toHaveLength(1);
     await expect(receiver.callback).resolves.toEqual({ code: "one-time-code" });
     receiver.close();
   });
@@ -330,9 +335,9 @@ describe("desktop account authorization primitives", () => {
     const response = await fetch(callbackUrl);
     expect(response.status).toBe(400);
     const page = await response.text();
-    expect(page).toContain("Security check failed");
+    expect(page).toContain("Authorization failed");
     expect(page).toContain("PccAgent rejected this callback before completing account setup.");
-    expect(page).not.toContain("Authorization response received");
+    expect(page).not.toContain("Authorization successful");
     await expect(receiver.callback).rejects.toMatchObject({
       code: "callback_state_mismatch",
     });

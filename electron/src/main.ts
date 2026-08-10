@@ -45,6 +45,7 @@ import {
   setClaudeCodexBridgeController,
 } from "./lib/claude-codex-bridge-controller";
 import { safeSend } from "./lib/safe-send";
+import { reclaimMacDockFocus } from "./lib/macos-dock-focus";
 import { killProcessTree } from "./lib/process-tree";
 import { openExternalUrl } from "./lib/open-external";
 import { formatTraySessionLabel } from "./lib/tray-menu";
@@ -140,6 +141,7 @@ import type {
 /** In main process, "off" is never applied — it resolves to vibrancy or liquid-glass before use. */
 type MacBackgroundEffect = Exclude<SharedMacBackgroundEffect, "off">;
 type WindowActivationReason =
+  | "account-authorization"
   | "notification"
   | "second-instance"
   | "tray-double-click"
@@ -333,8 +335,28 @@ function showMainWindow(reason: WindowActivationReason): void {
     `${reason}: restoring window (visible=${wasVisible}, minimized=${wasMinimized})`,
   );
   if (wasMinimized) win.restore();
-  if (!win.isVisible()) win.show();
+  const reclaimWindowsForeground = (
+    process.platform === "win32" && reason === "account-authorization"
+  );
+  const wasAlwaysOnTop = reclaimWindowsForeground && win.isAlwaysOnTop();
+  if (!win.isVisible() || reclaimWindowsForeground) win.show();
+  if (reclaimWindowsForeground) {
+    win.setAlwaysOnTop(true);
+    win.moveTop();
+  }
   win.focus();
+  if (reclaimWindowsForeground) {
+    setTimeout(() => {
+      if (win.isDestroyed()) return;
+      if (!wasAlwaysOnTop) win.setAlwaysOnTop(false);
+      win.moveTop();
+      win.focus();
+      log("WINDOW_ACTIVATE", `${reason}: Windows foreground reclaim completed`);
+    }, 100);
+  }
+  if (reason === "account-authorization") {
+    reclaimMacDockFocus(getMainWindow, reason);
+  }
   pendingWindowShowReason = null;
   log("WINDOW_ACTIVATE", `${reason}: restore/focus completed`);
 }
@@ -747,7 +769,10 @@ mcpIpc.register();
 pluginsIpc.register();
 settingsIpc.register(getMainWindow);
 accountIpc.register();
-accountAuthIpc.register(getMainWindow);
+accountAuthIpc.register(
+  getMainWindow,
+  () => showMainWindow("account-authorization"),
+);
 jiraIpc.register();
 wechatIpc.register(getMainWindow);
 notificationsIpc.register(getMainWindow, activateNotification);

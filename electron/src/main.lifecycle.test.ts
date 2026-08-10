@@ -28,6 +28,7 @@ interface MainState {
   safeSendCalls: SafeSendCall[];
   sessionsForTray: unknown[];
   activateNotification?: (sessionId?: string) => void;
+  activateAccountWindow?: () => void;
   notificationsListened: boolean;
   appSettings: {
     macBackgroundEffect: string;
@@ -73,6 +74,7 @@ function resetState(): void {
   state.safeSendCalls = [];
   state.sessionsForTray = [];
   state.activateNotification = undefined;
+  state.activateAccountWindow = undefined;
   state.notificationsListened = false;
   state.appSettings = {
     macBackgroundEffect: "liquid-glass",
@@ -163,6 +165,7 @@ class FakeBrowserWindow {
   private visible = false;
   private focused = false;
   private maximized = false;
+  private alwaysOnTop = false;
   private normalBounds: TestWindowBounds;
   private eventMap: MockEventMap = {};
 
@@ -171,6 +174,8 @@ class FakeBrowserWindow {
   public restoreCalls = 0;
   public focusCalls = 0;
   public maximizeCalls = 0;
+  public moveTopCalls = 0;
+  public alwaysOnTopCalls: boolean[] = [];
 
   constructor(options: Record<string, unknown> = {}) {
     this.webContents = new FakeWebContents(this);
@@ -229,6 +234,19 @@ class FakeBrowserWindow {
   focus(): void {
     this.focused = true;
     this.focusCalls += 1;
+  }
+
+  isAlwaysOnTop(): boolean {
+    return this.alwaysOnTop;
+  }
+
+  setAlwaysOnTop(value: boolean): void {
+    this.alwaysOnTop = value;
+    this.alwaysOnTopCalls.push(value);
+  }
+
+  moveTop(): void {
+    this.moveTopCalls += 1;
   }
 
   isMinimized(): boolean {
@@ -562,7 +580,9 @@ vi.mock("./ipc/account", () => ({
 }));
 
 vi.mock("./ipc/account-auth", () => ({
-  register: vi.fn(),
+  register: vi.fn((_getMainWindow: unknown, activateWindow: () => void) => {
+    state.activateAccountWindow = activateWindow;
+  }),
   initialize: vi.fn(),
   dispose: vi.fn(),
 }));
@@ -640,6 +660,35 @@ describe("main lifecycle / tray navigation", () => {
     expect(window?.isMinimized()).toBe(false);
     expect(window?.restoreCalls).toBeGreaterThanOrEqual(1);
     expect(window?.focusCalls).toBe(1);
+  });
+
+  it("reclaims the foreground window after Windows account authorization", async () => {
+    vi.useFakeTimers();
+    try {
+      await loadMainModule();
+      const window = state.browserWindows[0];
+      expect(window).toBeTruthy();
+      expect(state.activateAccountWindow).toBeTypeOf("function");
+
+      (window as unknown as { minimized: boolean; visible: boolean }).minimized = true;
+      (window as unknown as { minimized: boolean; visible: boolean }).visible = false;
+
+      state.activateAccountWindow?.();
+
+      expect(window?.isVisible()).toBe(true);
+      expect(window?.isMinimized()).toBe(false);
+      expect(window?.alwaysOnTopCalls).toEqual([true]);
+      expect(window?.moveTopCalls).toBe(1);
+      expect(window?.focusCalls).toBe(1);
+
+      await vi.advanceTimersByTimeAsync(100);
+
+      expect(window?.alwaysOnTopCalls).toEqual([true, false]);
+      expect(window?.moveTopCalls).toBe(2);
+      expect(window?.focusCalls).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("does not initialize a window when the single-instance lock is unavailable", async () => {

@@ -12,6 +12,7 @@ import { stopDesktopAccountSessions as stopCodexDesktopAccountSessions } from ".
 
 let coordinator: AccountAuthorizationCoordinator | null = null;
 let mainWindowGetter: (() => BrowserWindow | null) | null = null;
+let activateMainWindow: (() => void) | null = null;
 
 function deviceName(): string {
   const hostname = os.hostname().replace(/[\u0000-\u001f\u007f]/g, " ").trim();
@@ -19,6 +20,10 @@ function deviceName(): string {
 }
 
 function bringAccountWindowToFront(): void {
+  if (activateMainWindow) {
+    activateMainWindow();
+    return;
+  }
   if (!mainWindowGetter) return;
   const win = mainWindowGetter();
   if (!win || win.isDestroyed()) return;
@@ -73,8 +78,12 @@ export function initialize(): void {
   coordinator.resumePendingConfirmation();
 }
 
-export function register(getMainWindow: () => BrowserWindow | null): void {
+export function register(
+  getMainWindow: () => BrowserWindow | null,
+  activateWindow?: () => void,
+): void {
   mainWindowGetter = getMainWindow;
+  activateMainWindow = activateWindow ?? null;
 
   ipcMain.handle("account-auth:get-status", (): AccountAuthSnapshot => {
     return getCoordinator().getSnapshot();

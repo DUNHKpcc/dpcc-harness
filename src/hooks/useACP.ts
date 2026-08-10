@@ -519,6 +519,23 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
       }
     });
 
+    // All listeners are now installed. This atomically releases any startup
+    // events buffered by main and unblocks the first prompt for this session.
+    void window.claude.acp.attachRenderer(sessionId)
+      .then((result) => {
+        if (result.error) {
+          acpLog("RENDERER_ATTACH_ERROR", { session: sessionId.slice(0, 8), error: result.error });
+        } else {
+          acpLog("RENDERER_ATTACHED", { session: sessionId.slice(0, 8), replayed: result.replayed ?? 0 });
+        }
+      })
+      .catch((err) => {
+        acpLog("RENDERER_ATTACH_ERROR", {
+          session: sessionId.slice(0, 8),
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+
     return () => {
       unsubEvent(); unsubPermission(); unsubTurnComplete(); unsubExit();
       cancelPendingFlush();
@@ -663,11 +680,29 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
   const setConfig = useCallback(async (configId: string, value: string) => {
     if (!sessionId) return;
     acpLog("CONFIG_SET", { session: sessionId.slice(0, 8), configId, value });
-    const result = await window.claude.acp.setConfig(sessionId, configId, value);
-    if (result.configOptions) {
-      setConfigOptions(result.configOptions);
+    setConfigOptionsLoading(true);
+    try {
+      const result = await window.claude.acp.setConfig(sessionId, configId, value);
+      if (result.error) {
+        acpLog("CONFIG_SET_ERROR", { session: sessionId.slice(0, 8), configId, error: result.error });
+        toast.error(toastText("session.reasoningUpdateFailed"), {
+          description: result.error,
+        });
+        return;
+      }
+      if (result.configOptions) {
+        setConfigOptions(result.configOptions);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      acpLog("CONFIG_SET_ERROR", { session: sessionId.slice(0, 8), configId, error: message });
+      captureException(err instanceof Error ? err : new Error(message), { label: "ACP_CONFIG_SET_ERR" });
+      toast.error(toastText("session.reasoningUpdateFailed"), {
+        description: message,
+      });
+    } finally {
+      setConfigOptionsLoading(false);
     }
-    setConfigOptionsLoading(false);
   }, [sessionId]);
 
   const compact = useCallback(async () => { /* no-op for ACP */ }, []);

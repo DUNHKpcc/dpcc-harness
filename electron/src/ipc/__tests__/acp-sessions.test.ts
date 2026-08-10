@@ -1,5 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { buildAcpMcpServers, selectAcpStartCleanupProcess, shouldUseWindowsShellForAcpBinary } from "../acp-sessions";
+import {
+  buildAcpMcpServers,
+  resolveAcpRuntimeSessionId,
+  selectAcpStartCleanupProcess,
+  shouldUseWindowsShellForAcpBinary,
+} from "../acp-sessions";
+
+describe("resolveAcpRuntimeSessionId", () => {
+  it("preserves the persisted dpcc session ID when reviving an ACP transport", () => {
+    expect(resolveAcpRuntimeSessionId(" persisted-session ", () => "generated-session"))
+      .toBe("persisted-session");
+  });
+
+  it("generates an ID for a brand-new ACP session", () => {
+    expect(resolveAcpRuntimeSessionId(undefined, () => "generated-session"))
+      .toBe("generated-session");
+  });
+});
 
 describe("shouldUseWindowsShellForAcpBinary", () => {
   it("uses the shell for Windows batch shims and bare commands", () => {

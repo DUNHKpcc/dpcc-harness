@@ -195,9 +195,8 @@ export function useSessionLifecycle({
 
           trackMessageSent(sessionId);
 
-          // The live session has committed. Always finish the explicit-ID send,
-          // even if the user switches panes while IPC is in flight.
-          await new Promise((resolve) => setTimeout(resolve, 50));
+          // The main process gates this first prompt on useACP's renderer-attach
+          // handshake, so no timing delay is needed during DRAFT materialization.
           try {
             const promptResult = await window.claude.acp.prompt(sessionId, text, images);
             if (promptResult?.error) {

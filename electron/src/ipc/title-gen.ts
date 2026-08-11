@@ -18,6 +18,15 @@ function firstNonEmptyLine(text: string): string | undefined {
   return undefined;
 }
 
+function lastNonEmptyLine(text: string): string | undefined {
+  const lines = text.split(/\r?\n/g);
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const trimmed = lines[index].trim();
+    if (trimmed.length > 0) return trimmed;
+  }
+  return undefined;
+}
+
 interface OneShotSdkQueryOptions {
   timeoutMs?: number;
   model?: string;
@@ -225,8 +234,10 @@ export function register(): void {
     if (engine === "acp" && sessionId) {
       try {
         const { acpUtilityPrompt } = await import("../lib/acp-utility-prompt");
-        const raw = await acpUtilityPrompt(sessionId, prompt);
-        const title = raw.split("\n")[0].trim();
+        const raw = await acpUtilityPrompt(sessionId, prompt, 15000, {
+          waitForFirstUserPrompt: true,
+        });
+        const title = lastNonEmptyLine(raw) ?? "";
         log("TITLE_GEN", `ACP generated: "${title}"`);
         return finish({ title: title || undefined, error: title ? undefined : "empty result" });
       } catch (err) {
@@ -325,7 +336,7 @@ export function register(): void {
         try {
           const { acpUtilityPrompt } = await import("../lib/acp-utility-prompt");
           const raw = await acpUtilityPrompt(sessionId, prompt);
-          const message = firstNonEmptyLine(raw) ?? "";
+          const message = lastNonEmptyLine(raw) ?? "";
           log("COMMIT_MSG_GEN", `ACP generated: "${message}"`);
           return finish({ message: message || undefined, error: message ? undefined : "empty result" });
         } catch (err) {

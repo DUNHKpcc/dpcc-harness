@@ -110,12 +110,13 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
 
   const flushStreamingToState = useCallback(() => {
     const buf = buffer.current;
-    if (!buf.messageId) return;
+    const messageId = buf.messageId;
+    if (!messageId) return;
     const text = buf.getText();
     const thinking = buf.getThinking();
     const thinkingComplete = buf.thinkingComplete;
     setMessages(prev => prev.map(m => {
-      if (m.id !== buf.messageId) return m;
+      if (m.id !== messageId) return m;
       return {
         ...m,
         content: text,
@@ -154,13 +155,25 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
     const buf = buffer.current;
     if (!buf.messageId) return;
     if (buf.getThinking()) buf.thinkingComplete = true;
-    flushStreamingToState();
-    acpLog("MSG_FINALIZE", { id: buf.messageId, textLen: buf.getText().length, thinkingLen: buf.getThinking().length });
-    setMessages(prev => prev.map(m =>
-      m.id === buf.messageId ? { ...m, isStreaming: false } : m
-    ));
+    cancelPendingFlush();
+    const snapshot = buf.snapshot();
+    acpLog("MSG_FINALIZE", {
+      id: snapshot.messageId,
+      textLen: snapshot.text.length,
+      thinkingLen: snapshot.thinking.length,
+    });
+    setMessages(prev => prev.map(m => {
+      if (m.id !== snapshot.messageId) return m;
+      return {
+        ...m,
+        content: snapshot.text,
+        thinking: snapshot.thinking || m.thinking,
+        ...(snapshot.thinkingComplete ? { thinkingComplete: true } : {}),
+        isStreaming: false,
+      };
+    }));
     buf.reset();
-  }, [flushStreamingToState]);
+  }, [cancelPendingFlush, setMessages]);
 
   // Mark any tool_call messages still missing a result as completed.
   // Some ACP agents (e.g. Codex) skip sending tool_call_update for fast tools.
@@ -381,6 +394,14 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
     } else if (kind === "current_mode_update") {
       const cm = update as Extract<typeof update, { sessionUpdate: "current_mode_update" }>;
       acpLog("MODE_UPDATE", { modeId: cm.currentModeId });
+      setConfigOptions(prev => prev.map((option) => (
+        option.id === "thought_level"
+        || option.id === "mode"
+        || option.category === "thought_level"
+        || option.category === "mode"
+          ? { ...option, currentValue: cm.currentModeId }
+          : option
+      )));
     } else if (kind === "available_commands_update") {
       const acu = update as ACPAvailableCommandsUpdate;
       acpLog("COMMANDS_UPDATE", { count: acu.availableCommands?.length });
@@ -518,6 +539,23 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
         ]);
       }
     });
+
+    // All listeners are now installed. This atomically releases any startup
+    // events buffered by main and unblocks the first prompt for this session.
+    void window.claude.acp.attachRenderer(sessionId)
+      .then((result) => {
+        if (result.error) {
+          acpLog("RENDERER_ATTACH_ERROR", { session: sessionId.slice(0, 8), error: result.error });
+        } else {
+          acpLog("RENDERER_ATTACHED", { session: sessionId.slice(0, 8), replayed: result.replayed ?? 0 });
+        }
+      })
+      .catch((err) => {
+        acpLog("RENDERER_ATTACH_ERROR", {
+          session: sessionId.slice(0, 8),
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
 
     return () => {
       unsubEvent(); unsubPermission(); unsubTurnComplete(); unsubExit();
@@ -663,11 +701,29 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
   const setConfig = useCallback(async (configId: string, value: string) => {
     if (!sessionId) return;
     acpLog("CONFIG_SET", { session: sessionId.slice(0, 8), configId, value });
-    const result = await window.claude.acp.setConfig(sessionId, configId, value);
-    if (result.configOptions) {
-      setConfigOptions(result.configOptions);
+    setConfigOptionsLoading(true);
+    try {
+      const result = await window.claude.acp.setConfig(sessionId, configId, value);
+      if (result.error) {
+        acpLog("CONFIG_SET_ERROR", { session: sessionId.slice(0, 8), configId, error: result.error });
+        toast.error(toastText("session.reasoningUpdateFailed"), {
+          description: result.error,
+        });
+        return;
+      }
+      if (result.configOptions) {
+        setConfigOptions(result.configOptions);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      acpLog("CONFIG_SET_ERROR", { session: sessionId.slice(0, 8), configId, error: message });
+      captureException(err instanceof Error ? err : new Error(message), { label: "ACP_CONFIG_SET_ERR" });
+      toast.error(toastText("session.reasoningUpdateFailed"), {
+        description: message,
+      });
+    } finally {
+      setConfigOptionsLoading(false);
     }
-    setConfigOptionsLoading(false);
   }, [sessionId]);
 
   const compact = useCallback(async () => { /* no-op for ACP */ }, []);

@@ -157,6 +157,7 @@ export function useSessionRevival({
         result = await window.claude.acp.reviveSession({
           agentId: session.agentId,
           cwd: getProjectCwd(project),
+          sessionId: oldId,
           agentSessionId: session.agentSessionId,
           mcpServers,
         });
@@ -184,6 +185,25 @@ export function useSessionRevival({
       if (!isCurrentRevival(oldId)) {
         discardRevivedSession("acp", newId);
         return;
+      }
+      if (newId === oldId) {
+        let attachError: string | undefined;
+        try {
+          const attachResult = await window.claude.acp.attachRenderer(newId);
+          attachError = attachResult.error;
+        } catch (err) {
+          attachError = err instanceof Error ? err.message : String(err);
+        }
+        if (attachError) {
+          discardRevivedSession("acp", newId);
+          if (isCurrentRevival(oldId)) {
+            acp.setMessages((prev) => [
+              ...prev,
+              createSystemMessage(`Failed to reconnect ACP session: ${attachError}`, true),
+            ]);
+          }
+          return;
+        }
       }
       const revivedMessages = [
         ...messagesRef.current,
@@ -236,7 +256,7 @@ export function useSessionRevival({
         status: toMcpStatusState(s.status),
       })));
       setInitialMessages(revivedMessages);
-      setInitialMeta({
+      const revivedMeta = {
         isProcessing: true,
         isConnected: true,
         sessionInfo: null,
@@ -244,8 +264,15 @@ export function useSessionRevival({
         upstreamRequestCount: upstreamRequestCountRef.current,
         requestLog: requestLogRef.current,
         contextUsage: contextUsageRef.current,
-      });
-      if (result.configOptions?.length) setInitialConfigOptions(result.configOptions);
+      };
+      setInitialMeta(revivedMeta);
+      if (result.configOptions) {
+        setInitialConfigOptions(result.configOptions);
+        acp.setConfigOptions(result.configOptions);
+      }
+      if (newId === oldId) {
+        acp.hydrate(revivedMessages, revivedMeta, null, null);
+      }
       setActiveSessionId(newId);
       let migrationCleanupError: string | undefined;
       if (copiedPersistedSession) {
@@ -256,9 +283,6 @@ export function useSessionRevival({
         }
       }
 
-      // Let the pane hook bind to the revived ID, but never cancel the accepted
-      // explicit-ID send merely because the user switches during this window.
-      await new Promise((resolve) => setTimeout(resolve, 50));
       if (migrationCleanupError) {
         publishSessionSendFailure(
           newId,

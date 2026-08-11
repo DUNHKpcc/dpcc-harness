@@ -388,11 +388,12 @@ declare global {
         prompt: (sessionId: string, text: string, images?: unknown[]) => Promise<IpcResult>;
         stop: (sessionId: string) => Promise<IpcResult>;
         reloadSession: (sessionId: string, mcpServers?: McpServerConfig[], cwd?: string) => Promise<IpcResult & { supportsLoad?: boolean }>;
-        reviveSession: (options: { agentId: string; cwd: string; agentSessionId?: string; mcpServers?: McpServerConfig[] }) => Promise<{ sessionId?: string; agentSessionId?: string; usedLoad?: boolean; configOptions?: ACPConfigOption[]; mcpStatuses?: ACPStatusInfo[]; error?: string }>;
+        reviveSession: (options: { agentId: string; cwd: string; sessionId?: string; agentSessionId?: string; mcpServers?: McpServerConfig[] }) => Promise<{ sessionId?: string; agentSessionId?: string; usedLoad?: boolean; configOptions?: ACPConfigOption[]; mcpStatuses?: ACPStatusInfo[]; error?: string }>;
         cancel: (sessionId: string) => Promise<IpcResult>;
         abortPendingStart: () => Promise<{ ok?: boolean }>;
         respondPermission: (sessionId: string, requestId: string, optionId: string) => Promise<IpcResult>;
         setConfig: (sessionId: string, configId: string, value: string) => Promise<{ configOptions?: ACPConfigOption[]; error?: string }>;
+        attachRenderer: (sessionId: string) => Promise<IpcResult & { replayed?: number }>;
         getConfigOptions: (sessionId: string) => Promise<{ configOptions?: ACPConfigOption[] }>;
         getAvailableCommands: (sessionId: string) => Promise<{ commands?: ACPAvailableCommand[] }>;
         onEvent: (callback: (data: ACPSessionEvent) => void) => () => void;

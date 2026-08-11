@@ -317,7 +317,7 @@ contextBridge.exposeInMainWorld("claude", {
     stop: (sessionId: string) => ipcRenderer.invoke("acp:stop", sessionId),
     reloadSession: (sessionId: string, mcpServers?: unknown[], cwd?: string) =>
       ipcRenderer.invoke("acp:reload-session", { sessionId, mcpServers, cwd }),
-    reviveSession: (options: { agentId: string; cwd: string; agentSessionId?: string; mcpServers?: unknown[] }) =>
+    reviveSession: (options: { agentId: string; cwd: string; sessionId?: string; agentSessionId?: string; mcpServers?: unknown[] }) =>
       ipcRenderer.invoke("acp:revive-session", options),
     cancel: (sessionId: string) => ipcRenderer.invoke("acp:cancel", sessionId),
     abortPendingStart: () => ipcRenderer.invoke("acp:abort-pending-start"),
@@ -325,6 +325,8 @@ contextBridge.exposeInMainWorld("claude", {
       ipcRenderer.invoke("acp:permission_response", { sessionId, requestId, optionId }),
     setConfig: (sessionId: string, configId: string, value: string) =>
       ipcRenderer.invoke("acp:set-config", { sessionId, configId, value }),
+    attachRenderer: (sessionId: string) =>
+      ipcRenderer.invoke("acp:attach-renderer", sessionId),
     getConfigOptions: (sessionId: string) =>
       ipcRenderer.invoke("acp:get-config-options", sessionId),
     getAvailableCommands: (sessionId: string) =>

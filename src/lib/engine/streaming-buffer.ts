@@ -49,6 +49,20 @@ export class SimpleStreamingBuffer {
   getText(): string { return this.text; }
   getThinking(): string { return this.thinking; }
 
+  snapshot(): {
+    messageId: string | null;
+    text: string;
+    thinking: string;
+    thinkingComplete: boolean;
+  } {
+    return {
+      messageId: this.messageId,
+      text: this.text,
+      thinking: this.thinking,
+      thinkingComplete: this.thinkingComplete,
+    };
+  }
+
   reset(): void {
     this.messageId = null;
     this.text = "";

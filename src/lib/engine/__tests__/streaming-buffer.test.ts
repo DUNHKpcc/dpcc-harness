@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { StreamingBuffer, mergeStreamingChunk } from "../streaming-buffer";
+import { SimpleStreamingBuffer, StreamingBuffer, mergeStreamingChunk } from "../streaming-buffer";
 
 describe("mergeStreamingChunk", () => {
   it("appends ordinary delta chunks", () => {
@@ -89,5 +89,31 @@ describe("StreamingBuffer", () => {
     buffer.appendDelta(0, { type: "text_delta", text: "|" });
 
     expect(buffer.getAllText()).toBe("||");
+  });
+});
+
+describe("SimpleStreamingBuffer", () => {
+  it("keeps a final snapshot stable after the live buffer resets", () => {
+    const buffer = new SimpleStreamingBuffer();
+    buffer.messageId = "assistant-1";
+    buffer.appendThinking("Working");
+    buffer.appendText("PCC_PI_OK");
+    buffer.thinkingComplete = true;
+
+    const snapshot = buffer.snapshot();
+    buffer.reset();
+
+    expect(snapshot).toEqual({
+      messageId: "assistant-1",
+      text: "PCC_PI_OK",
+      thinking: "Working",
+      thinkingComplete: true,
+    });
+    expect(buffer.snapshot()).toEqual({
+      messageId: null,
+      text: "",
+      thinking: "",
+      thinkingComplete: false,
+    });
   });
 });

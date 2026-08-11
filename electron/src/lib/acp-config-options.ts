@@ -94,3 +94,28 @@ export function updateAcpConfigCurrentValue(
     ? { ...option, currentValue: value }
     : option);
 }
+
+export function updateAcpModeCurrentValue(
+  options: ACPConfigOption[] | undefined,
+  value: string,
+): ACPConfigOption[] | undefined {
+  const modeOption = options?.find((option) => (
+    option.id === "thought_level"
+    || option.id === "mode"
+    || option.category === "thought_level"
+    || option.category === "mode"
+  ));
+  return modeOption
+    ? updateAcpConfigCurrentValue(options, modeOption.id, value)
+    : options;
+}
+
+/** Keep the successful requested value authoritative when an agent returns stale options. */
+export function reconcileSuccessfulAcpConfigUpdate(
+  returned: ACPConfigOption[] | undefined,
+  buffered: ACPConfigOption[] | undefined,
+  configId: string,
+  value: string,
+): ACPConfigOption[] | undefined {
+  return updateAcpConfigCurrentValue(returned ?? buffered, configId, value);
+}

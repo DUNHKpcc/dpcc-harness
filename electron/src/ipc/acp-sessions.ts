@@ -15,11 +15,14 @@ import { reclaimMacDockFocus } from "../lib/macos-dock-focus";
 import { normalizeSessionCwd } from "../lib/session-cwd";
 import {
   isLegacyModeConfig,
+  reconcileSuccessfulAcpConfigUpdate,
   synthesizeLegacyAcpConfigOptions,
   updateAcpConfigCurrentValue,
+  updateAcpModeCurrentValue,
   type LegacyAcpSessionConfiguration,
 } from "../lib/acp-config-options";
 import { AcpRendererBridge, type AcpRendererChannel } from "../lib/acp-renderer-bridge";
+import { AcpSessionOperationCoordinator } from "../lib/acp-session-operations";
 import {
   buildAuthRequiredError,
   extractAuthRequired,
@@ -93,9 +96,35 @@ interface ACPSessionEntry {
   utilityTextBuffers?: Map<string, string>;
   /** Last actionable stderr error line observed from the ACP agent process */
   lastStderrError?: string;
+  /** Prevents agents such as Pi from receiving concurrent prompts on one connection. */
+  operationCoordinator?: AcpSessionOperationCoordinator;
+  /** Latest legacy mode event, used to normalize a stale following config event. */
+  pendingModeValue?: string;
+  /** Startup chunks emitted before this flag are not part of a user turn. */
+  hasUserPromptStarted?: boolean;
 }
 
 export const acpSessions = new Map<string, ACPSessionEntry>();
+
+export function getAcpSessionOperationCoordinator(entry: ACPSessionEntry): AcpSessionOperationCoordinator {
+  entry.operationCoordinator ??= new AcpSessionOperationCoordinator();
+  return entry.operationCoordinator;
+}
+
+export function shouldSuppressAcpSessionUpdate(
+  activeAcpSessionId: string | undefined,
+  eventAcpSessionId: string,
+  eventKind: string,
+  hasUserPromptStarted = false,
+): boolean {
+  if (
+    !hasUserPromptStarted
+    && (eventKind === "agent_message_chunk" || eventKind === "agent_thought_chunk")
+  ) {
+    return true;
+  }
+  return !!activeAcpSessionId && eventAcpSessionId !== activeAcpSessionId;
+}
 
 // Buffer latest config options per session — survives the renderer's DRAFT→active transition
 // where events arrive before useACP's listener is subscribed
@@ -386,6 +415,7 @@ async function createAcpConnection(
       code: 1,
       error: `Failed to start agent: ${err.message}`,
     });
+    acpSessions.get(internalId)?.operationCoordinator?.close(`ACP process failed to start: ${err.message}`);
     acpSessions.delete(internalId);
     configBuffer.delete(internalId);
     commandsBuffer.delete(internalId);
@@ -416,6 +446,7 @@ async function createAcpConnection(
     acpSessions.delete(internalId);
     configBuffer.delete(internalId);
     commandsBuffer.delete(internalId);
+    entry.operationCoordinator?.close("ACP process exited.");
     rendererBridge.close(internalId, "ACP process exited.");
   });
 
@@ -428,6 +459,7 @@ async function createAcpConnection(
   const connection = new acp.ClientSideConnection((_agent) => ({
     async sessionUpdate(params: Record<string, unknown>) {
       const update = (params as { update: Record<string, unknown> }).update;
+      let forwardedUpdate = update;
       const acpSessionId = (params as { sessionId: string }).sessionId;
       const entry = acpSessions.get(internalId);
 
@@ -455,10 +487,40 @@ async function createAcpConnection(
         log("ACP_EVENT_FULL", update);
       }
 
+      // session/new may emit unsolicited welcome text before the ACP-side
+      // session ID is known. It is transport metadata, not a user turn.
+      if (shouldSuppressAcpSessionUpdate(
+        entry?.acpSessionId,
+        acpSessionId,
+        eventKind,
+        entry?.hasUserPromptStarted,
+      )) {
+        if (entry?.acpSessionId && acpSessionId !== entry.acpSessionId) {
+          log("ACP_EVENT", `session=${internalId.slice(0, 8)} suppressing update from untracked ACP session=${acpSessionId.slice(0, 12)}`);
+          return;
+        }
+        log("ACP_EVENT", `session=${internalId.slice(0, 8)} suppressing pre-session ${eventKind}`);
+        return;
+      }
+
       // Buffer config options for late-subscribing renderer listeners
       if (eventKind === "config_option_update") {
-        const configOptions = (update as { configOptions: unknown[] }).configOptions;
+        const rawConfigOptions = (update as { configOptions: ACPConfigOption[] }).configOptions;
+        const configOptions = entry?.pendingModeValue
+          ? (updateAcpModeCurrentValue(rawConfigOptions, entry.pendingModeValue) ?? rawConfigOptions)
+          : rawConfigOptions;
         configBuffer.set(internalId, configOptions);
+        forwardedUpdate = { ...update, configOptions };
+      }
+
+      if (eventKind === "current_mode_update") {
+        const currentModeId = (update as { currentModeId: string }).currentModeId;
+        if (entry) entry.pendingModeValue = currentModeId;
+        const updated = updateAcpModeCurrentValue(
+          configBuffer.get(internalId) as ACPConfigOption[] | undefined,
+          currentModeId,
+        );
+        if (updated) configBuffer.set(internalId, updated);
       }
 
       // Buffer available commands for late-subscribing renderer listeners
@@ -473,7 +535,7 @@ async function createAcpConnection(
       deliverToAcpRenderer(getMainWindow, internalId, "acp:event", {
         _sessionId: internalId,
         sessionId: acpSessionId,
-        update,
+        update: forwardedUpdate,
       });
     },
 
@@ -633,6 +695,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       // Kill the spawned process to avoid orphans
       killProcessTree(cleanupProcess);
       if (connResult?.internalId) {
+        acpSessions.get(connResult.internalId)?.operationCoordinator?.close("ACP session start failed.");
         acpSessions.delete(connResult.internalId);
         configBuffer.delete(connResult.internalId);
         commandsBuffer.delete(connResult.internalId);
@@ -783,6 +846,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       // Kill process and clean up any partial session entry
       killProcessTree(selectAcpStartCleanupProcess(connResult, spawnedProcess ? { process: spawnedProcess } : null));
       if (connResult?.internalId) {
+        acpSessions.get(connResult.internalId)?.operationCoordinator?.close("ACP session revival failed.");
         acpSessions.delete(connResult.internalId);
         configBuffer.delete(connResult.internalId);
         commandsBuffer.delete(connResult.internalId);
@@ -836,16 +900,19 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     let finishRequest: ReturnType<typeof startUtilityRequest>;
     try {
       session.lastStderrError = undefined;
+      session.hasUserPromptStarted = true;
       finishRequest = startUtilityRequest(
         (requestEvent) => safeSend(getMainWindow, "usage:upstream-request", requestEvent),
         sessionId,
         "acp",
         "prompt",
       );
-      const result = await session.connection.prompt({
-        sessionId: acpSessionId,
-        prompt,
-      });
+      const result = await getAcpSessionOperationCoordinator(session).runUserPrompt(() => (
+        session.connection.prompt({
+          sessionId: acpSessionId,
+          prompt,
+        })
+      ));
 
       log("ACP_TURN_COMPLETE", `session=${sessionId.slice(0, 8)} stopReason=${result.stopReason} usage=${JSON.stringify(result.usage ?? null)}`);
       finishRequest?.(true, {
@@ -902,6 +969,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       resolver.resolve({ outcome: { outcome: "cancelled" } });
     }
     session.pendingPermissions.clear();
+    session.operationCoordinator?.close("ACP session stopped.");
     killProcessTree(session.process);
     acpSessions.delete(sessionId);
     configBuffer.delete(sessionId);
@@ -1012,8 +1080,15 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
           value,
         });
         log("ACP_CONFIG", `session=${sessionId.slice(0, 8)} ${configId}=${value} OK (via setSessionConfigOption)`);
-        if (result.configOptions) configBuffer.set(sessionId, result.configOptions);
-        return { configOptions: result.configOptions };
+        const updated = reconcileSuccessfulAcpConfigUpdate(
+          result.configOptions as ACPConfigOption[] | undefined,
+          configBuffer.get(sessionId) as ACPConfigOption[] | undefined,
+          configId,
+          value,
+        );
+        if (updated) configBuffer.set(sessionId, updated);
+        if (isLegacyModeConfig(configId, updated)) session.pendingModeValue = undefined;
+        return { configOptions: updated };
       } catch (configErr) {
         const buffered = configBuffer.get(sessionId) as ACPConfigOption[] | undefined;
 
@@ -1045,6 +1120,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
           const updated = updateAcpConfigCurrentValue(buffered, configId, value);
           if (updated) {
             configBuffer.set(sessionId, updated);
+            session.pendingModeValue = undefined;
             return { configOptions: updated };
           }
           return {};
@@ -1092,6 +1168,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
 export function stopAll(): void {
   for (const [sessionId, entry] of acpSessions) {
     log("CLEANUP", `Stopping ACP session ${sessionId.slice(0, 8)}`);
+    entry.operationCoordinator?.close("ACP application shutdown.");
     killProcessTree(entry.process);
   }
   acpSessions.clear();

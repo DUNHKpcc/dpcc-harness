@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   isLegacyModeConfig,
+  reconcileSuccessfulAcpConfigUpdate,
   synthesizeLegacyAcpConfigOptions,
   updateAcpConfigCurrentValue,
+  updateAcpModeCurrentValue,
 } from "../acp-config-options";
 
 describe("ACP legacy config options", () => {
@@ -70,5 +72,35 @@ describe("ACP legacy config options", () => {
     const updated = updateAcpConfigCurrentValue(options, "thought_level", "high");
     expect(updated?.[0].currentValue).toBe("high");
     expect(options[0].currentValue).toBe("low");
+  });
+
+  it("corrects stale options returned after a successful Pi thinking update", () => {
+    const stale = synthesizeLegacyAcpConfigOptions({
+      modes: {
+        currentModeId: "off",
+        availableModes: [{ id: "off", name: "Off" }, { id: "low", name: "Low" }],
+      },
+    });
+
+    const reconciled = reconcileSuccessfulAcpConfigUpdate(
+      stale,
+      undefined,
+      "thought_level",
+      "low",
+    );
+
+    expect(reconciled?.[0].currentValue).toBe("low");
+    expect(stale[0].currentValue).toBe("off");
+  });
+
+  it("applies ACP current_mode updates to a thinking selector", () => {
+    const options = synthesizeLegacyAcpConfigOptions({
+      modes: {
+        currentModeId: "off",
+        availableModes: [{ id: "off", name: "Off" }, { id: "high", name: "High" }],
+      },
+    });
+
+    expect(updateAcpModeCurrentValue(options, "high")?.[0].currentValue).toBe("high");
   });
 });

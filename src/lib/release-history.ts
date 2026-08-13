@@ -20,6 +20,13 @@ function release(version: string, date: string, changeKeys: readonly string[]): 
 
 /** Bundled release history, newest first, so settings remain useful offline. */
 export const RELEASE_HISTORY: readonly ReleaseHistoryEntry[] = [
+  release("2.2.3", "2026-08-13", [
+    "balanceAlerts",
+    "piReliability",
+    "authorizationPolish",
+    "pluginSafety",
+    "runtimeUpdate",
+  ]),
   release("2.2.2", "2026-08-01", [
     "pluginCenter",
     "safeSkillManagement",

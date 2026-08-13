@@ -449,6 +449,14 @@
       "showOlder": "Show older releases",
       "showLess": "Hide older releases",
       "entries": {
+        "v2_2_3": {
+          "title": "Balance alerts and more reliable Pi sessions",
+          "balanceAlerts": "Added configurable DPCC API low-balance alerts in Notification settings, with in-app warnings and OS notifications when PccAgent is not focused.",
+          "piReliability": "Pi replies now appear reliably in chat, persist across restarts, keep reasoning settings synchronized, and resume without creating duplicate conversations.",
+          "authorizationPolish": "The browser authorization result is simpler and centered, and PccAgent returns to the foreground more reliably after authorization on Windows.",
+          "pluginSafety": "Plugin Center now protects Skill updates with rollback, shows only Skills relevant to the selected project, rejects unsafe MCP launch arguments, and prevents MCP changes during an active turn.",
+          "runtimeUpdate": "Updated the bundled Claude Agent SDK to 0.3.229 for the latest runtime fixes and platform support."
+        },
         "v2_2_2": {
           "title": "Plugin Center and DPCC reliability",
           "pluginCenter": "Added a first-class Plugin Center for discovering and installing Skills from skills.sh and MCP servers from the Official MCP Registry, with ACP Agents now available directly from the sidebar.",

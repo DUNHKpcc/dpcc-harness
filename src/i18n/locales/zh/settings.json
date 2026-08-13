@@ -449,6 +449,14 @@
       "showOlder": "显示更早版本",
       "showLess": "收起早期版本",
       "entries": {
+        "v2_2_3": {
+          "title": "余额预警与更可靠的 Pi Session",
+          "balanceAlerts": "通知设置新增可配置的 DPCC API 低余额预警；应用内会显示提醒，PccAgent 未聚焦时还会发送系统通知。",
+          "piReliability": "Pi 回复现在可稳定显示在对话中并持久化到本地，重启后仍可恢复；Reasoning 设置会保持同步，恢复 Session 时也不会创建重复对话。",
+          "authorizationPolish": "浏览器授权结果页更加简洁并完整居中，Windows 授权完成后也能更可靠地返回 PccAgent 前台。",
+          "pluginSafety": "Plugin Center 为 Skill 更新增加回滚保护，仅显示与当前项目相关的 Skill，拒绝不安全的 MCP 启动参数，并避免在任务进行中更改 MCP。",
+          "runtimeUpdate": "内置 Claude Agent SDK 更新至 0.3.229，获得最新 runtime 修复与平台支持。"
+        },
         "v2_2_2": {
           "title": "插件中心与 DPCC 稳定性",
           "pluginCenter": "新增一体化插件中心，可从 skills.sh 发现并安装 Skill、从 Official MCP Registry 安装 MCP Server；ACP Agents 也可直接从侧边栏进入。",

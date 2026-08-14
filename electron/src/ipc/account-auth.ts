@@ -116,3 +116,7 @@ export function dispose(): void {
 export function markTokenRejected(): void {
   getCoordinator().markTokenRejected();
 }
+
+export function getSnapshot(): AccountAuthSnapshot {
+  return getCoordinator().getSnapshot();
+}

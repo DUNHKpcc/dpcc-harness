@@ -21,10 +21,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  AccountSubscriptionDetails,
-  resolveAccountSubscription,
-} from "@/components/AccountSubscriptionDetails";
+import { AccountSubscriptionDetails } from "@/components/AccountSubscriptionDetails";
+import { resolveAccountSubscription } from "@shared/lib/account-display";
 import { useAccount } from "@/hooks/useAccount";
 import { useAccountAuth } from "@/hooks/useAccountAuth";
 

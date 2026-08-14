@@ -49,6 +49,7 @@ import { reclaimMacDockFocus } from "./lib/macos-dock-focus";
 import { killProcessTree } from "./lib/process-tree";
 import { openExternalUrl } from "./lib/open-external";
 import { formatTraySessionLabel } from "./lib/tray-menu";
+import { buildMacMenuBarTemplate, buildMacTrayTemplateBitmap } from "./lib/mac-menu-bar";
 import {
   buildQuitWarningCopy,
   hasInterruptibleWork,
@@ -62,6 +63,8 @@ import {
   shouldRegisterDevToolsShortcuts,
 } from "./lib/devtools-policy";
 import { terminals } from "./ipc/terminal";
+import type { AccountOverview } from "@shared/types/account";
+import type { SessionMeta } from "@shared/lib/session-persistence";
 import {
   isPackageSmokeCheckRequested,
   runPackageSmokeCheck,
@@ -146,7 +149,15 @@ let rendererWindowActivationReady = false;
 let pendingWindowShowReason: WindowActivationReason | null = null;
 let pendingTraySession: { projectId: string; sessionId: string } | null = null;
 let pendingNotificationSessionId: string | null = null;
+let pendingMenuBarAction: MenuBarMainAction | null = null;
 let windowStateSaveTimer: ReturnType<typeof setTimeout> | null = null;
+let macMenuBarRecentSessions: SessionMeta[] = [];
+let macMenuBarOverviewCache: { authorizationKey: string; overview: AccountOverview } | null = null;
+let macMenuBarRefreshPromise: Promise<void> | null = null;
+let macMenuBarRefreshAuthorizationKey: string | null = null;
+let macMenuBarOpenMenu: Menu | null = null;
+let macMenuBarReopenBlockedUntil = 0;
+const MAC_MENU_BAR_REOPEN_GUARD_MS = 200;
 
 import type {
   ThemeOption,
@@ -156,11 +167,13 @@ import type {
 
 /** In main process, "off" is never applied — it resolves to vibrancy or liquid-glass before use. */
 type MacBackgroundEffect = Exclude<SharedMacBackgroundEffect, "off">;
+type MenuBarMainAction = "new-chat" | "open-settings";
 type WindowActivationReason =
   | "account-authorization"
   | "dock-activate"
   | "notification"
   | "second-instance"
+  | "menu-bar"
   | "tray-double-click"
   | "tray-session";
 
@@ -405,6 +418,152 @@ function getTrayIconPath(): string | null {
   return candidates.find(existsSync) ?? null;
 }
 
+function getMacTrayIcon(): Electron.NativeImage {
+  const candidates = app.isPackaged
+    ? [
+        path.join(process.resourcesPath, "pcc-agent-tray-source.png"),
+      ]
+    : [
+        path.join(__dirname, "../../build/appx/Square44x44Logo.targetsize-256_altform-lightunplated.png"),
+      ];
+  const iconPath = candidates.find(existsSync);
+  if (!iconPath) return nativeImage.createEmpty();
+  const source = nativeImage.createFromPath(iconPath);
+  const size = source.getSize();
+  const templateBitmap = buildMacTrayTemplateBitmap(
+    source.toBitmap(),
+    size.width,
+    size.height,
+    32,
+    32,
+  );
+  if (!templateBitmap) {
+    source.setTemplateImage(true);
+    return source;
+  }
+  const image = nativeImage.createFromBitmap(templateBitmap, {
+    width: 32,
+    height: 32,
+    scaleFactor: 2,
+  });
+  image.setTemplateImage(true);
+  return image;
+}
+
+function queueMenuBarMainAction(action: MenuBarMainAction): void {
+  pendingMenuBarAction = action;
+  showMainWindow("menu-bar");
+  queueMicrotask(flushPendingWindowActivations);
+}
+
+function getMacMenuBarAuthorizationKey(
+  auth: ReturnType<typeof accountAuthIpc.getSnapshot>,
+): string | null {
+  const connected = auth.status === "connected" || auth.status === "expiring";
+  if (!connected) return null;
+  return JSON.stringify([
+    auth.issuer,
+    auth.expiresAt,
+    auth.account?.displayName ?? "",
+    auth.account?.maskedEmail ?? "",
+  ]);
+}
+
+function refreshMacMenuBarData(): Promise<void> {
+  const auth = accountAuthIpc.getSnapshot();
+  const authorizationKey = getMacMenuBarAuthorizationKey(auth);
+  if (
+    macMenuBarRefreshPromise
+    && macMenuBarRefreshAuthorizationKey === authorizationKey
+  ) return macMenuBarRefreshPromise;
+
+  const refreshPromise = Promise.all([
+    sessionsIpc.listRecentSessions(3),
+    authorizationKey ? accountIpc.getOverview() : Promise.resolve(null),
+  ]).then(([recentSessions, overview]) => {
+    if (macMenuBarRefreshPromise !== refreshPromise) return;
+    macMenuBarRecentSessions = recentSessions;
+    if (getMacMenuBarAuthorizationKey(accountAuthIpc.getSnapshot()) !== authorizationKey) return;
+    macMenuBarOverviewCache = authorizationKey && overview
+      ? { authorizationKey, overview }
+      : null;
+  }).catch((error) => {
+    reportError("MAC_MENU_BAR_REFRESH", error);
+  }).finally(() => {
+    if (macMenuBarRefreshPromise !== refreshPromise) return;
+    macMenuBarRefreshPromise = null;
+    macMenuBarRefreshAuthorizationKey = null;
+  });
+  macMenuBarRefreshPromise = refreshPromise;
+  macMenuBarRefreshAuthorizationKey = authorizationKey;
+  return refreshPromise;
+}
+
+function toggleMacMenuBarMenu(): void {
+  const activeTray = tray;
+  if (!activeTray || activeTray.isDestroyed()) return;
+
+  if (macMenuBarOpenMenu) {
+    const openMenu = macMenuBarOpenMenu;
+    macMenuBarOpenMenu = null;
+    macMenuBarReopenBlockedUntil = Date.now() + MAC_MENU_BAR_REOPEN_GUARD_MS;
+    openMenu.closePopup();
+    return;
+  }
+  // macOS may emit menu-will-close immediately before delivering the tray click
+  // that dismissed it. Ignore that same physical click instead of reopening and
+  // producing a visible close/open flash.
+  if (Date.now() < macMenuBarReopenBlockedUntil) return;
+
+  const loginItemSupported = app.isPackaged;
+  const locale = (app.getPreferredSystemLanguages?.() ?? [])[0]
+    || app.getSystemLocale()
+    || app.getLocale()
+    || "en";
+  const systemMajor = Number.parseInt(process.getSystemVersion(), 10);
+  const auth = accountAuthIpc.getSnapshot();
+  const authorizationKey = getMacMenuBarAuthorizationKey(auth);
+  const overview = authorizationKey === macMenuBarOverviewCache?.authorizationKey
+    ? macMenuBarOverviewCache.overview
+    : null;
+  const menu = Menu.buildFromTemplate(buildMacMenuBarTemplate({
+    auth,
+    overview,
+    recentSessions: macMenuBarRecentSessions,
+    activeAgentCount: claudeSessionsIpc.getActiveTurnCount()
+      + acpSessionsIpc.getActiveTurnCount()
+      + codexSessionsIpc.getActiveTurnCount(),
+    activeTerminalCount: Array.from(terminals.values()).filter((terminal) => !terminal.exited).length,
+    openAtLogin: loginItemSupported ? app.getLoginItemSettings().openAtLogin : false,
+    loginItemSupported,
+    locale,
+    supportsHeaders: Number.isFinite(systemMajor) && systemMajor >= 14,
+  }, {
+    newChat: () => setImmediate(() => queueMenuBarMainAction("new-chat")),
+    openSettings: () => setImmediate(() => queueMenuBarMainAction("open-settings")),
+    openSession: (projectId, sessionId) => setImmediate(() => openSessionFromTray(projectId, sessionId)),
+    recharge: () => {
+      void openExternalUrl("https://api.dpccgaming.xyz/wallet", {
+        logLabel: "MAC_MENU_BAR_RECHARGE_BLOCKED",
+      });
+    },
+    setOpenAtLogin: (openAtLogin) => {
+      if (!app.isPackaged) return;
+      app.setLoginItemSettings({ openAtLogin });
+    },
+    showApp: () => setImmediate(() => showMainWindow("menu-bar")),
+    quit: () => app.quit(),
+  }));
+  macMenuBarOpenMenu = menu;
+  menu.once("menu-will-close", () => {
+    if (macMenuBarOpenMenu !== menu) return;
+    macMenuBarOpenMenu = null;
+    macMenuBarReopenBlockedUntil = Date.now() + MAC_MENU_BAR_REOPEN_GUARD_MS;
+  });
+  activeTray.popUpContextMenu(menu);
+  void refreshMacMenuBarData();
+}
+
 function showMainWindow(reason: WindowActivationReason): void {
   const win = getMainWindow();
   if (!win || win.isDestroyed()) {
@@ -469,6 +628,12 @@ function flushPendingWindowActivations(): void {
     pendingNotificationSessionId = null;
     log("WINDOW_ACTIVATE", `Dispatching notification session ${sessionId}`);
     safeSend(getMainWindow, "notifications:activated", { sessionId });
+  }
+  if (pendingMenuBarAction) {
+    const action = pendingMenuBarAction;
+    pendingMenuBarAction = null;
+    log("WINDOW_ACTIVATE", `Dispatching menu bar action ${action}`);
+    safeSend(getMainWindow, `menu-bar:${action}`);
   }
 }
 
@@ -535,6 +700,9 @@ function isMainRendererPermissionRequest(webContents: Electron.WebContents | nul
 function createWindow(): void {
   rendererWindowActivationReady = false;
   const appSettings = getAppSettings();
+  const startHiddenAtLogin = process.platform === "darwin"
+    && app.isPackaged
+    && app.getLoginItemSettings().wasOpenedAtLogin;
   const restoredBounds = restoreWindowBounds(appSettings.windowBounds);
   const initialMacBackgroundEffect: MacBackgroundEffect = resolveMacBackgroundEffect(pendingMacBackgroundEffect);
   if (process.platform === "darwin") {
@@ -618,6 +786,10 @@ function createWindow(): void {
     if (packageSmokeCheck) return;
     if (pendingWindowShowReason) {
       showMainWindow(pendingWindowShowReason);
+      return;
+    }
+    if (startHiddenAtLogin) {
+      log("WINDOW_STATE", "macOS login item launch; keeping the main window hidden");
       return;
     }
     mainWindow?.show();
@@ -1036,6 +1208,16 @@ function initializeApp(): void {
     tray.on("double-click", () => {
       setImmediate(() => showMainWindow("tray-double-click"));
     });
+  } else if (process.platform === "darwin") {
+    tray = new Tray(getMacTrayIcon());
+    tray.setToolTip("PccAgent");
+    tray.on("click", () => {
+      toggleMacMenuBarMenu();
+    });
+    tray.on("right-click", () => {
+      toggleMacMenuBarMenu();
+    });
+    void refreshMacMenuBarData();
   }
 
   initAutoUpdater(getMainWindow, diagnosticBuild, prepareForUpdateInstall);

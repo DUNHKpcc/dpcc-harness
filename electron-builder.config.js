@@ -357,6 +357,12 @@ module.exports = {
     gatekeeperAssess: false,
     entitlements: "build/entitlements.mac.plist",
     entitlementsInherit: "build/entitlements.mac.plist",
+    extraResources: [
+      {
+        from: "build/appx/Square44x44Logo.targetsize-256_altform-lightunplated.png",
+        to: "pcc-agent-tray-source.png",
+      },
+    ],
     extendInfo: {
       NSMicrophoneUsageDescription: "PccAgent uses the microphone for voice dictation to transcribe speech into text.",
     },

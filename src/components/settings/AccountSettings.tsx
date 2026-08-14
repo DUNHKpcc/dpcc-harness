@@ -2,10 +2,8 @@ import { memo } from "react";
 import { useTranslation } from "react-i18next";
 import { CreditCard, ExternalLink, RefreshCw, Smartphone } from "lucide-react";
 import { AccountEntryScreen } from "@/components/AccountEntryScreen";
-import {
-  AccountSubscriptionDetails,
-  resolveAccountSubscription,
-} from "@/components/AccountSubscriptionDetails";
+import { AccountSubscriptionDetails } from "@/components/AccountSubscriptionDetails";
+import { resolveAccountSubscription } from "@shared/lib/account-display";
 import { UsageStatsCard } from "@/components/settings/UsageStatsCard";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";

@@ -1,30 +1,11 @@
 import { memo } from "react";
 import { useTranslation } from "react-i18next";
 import type { AccountSubscription } from "@shared/types/account";
-import type { DesktopAccountSummary } from "@shared/types/account-auth";
+import { formatAccountUsd } from "@shared/lib/account-display";
 
 interface AccountSubscriptionDetailsProps {
   subscription: AccountSubscription | null;
   variant: "popover" | "settings";
-}
-
-export function resolveAccountSubscription(
-  subscription: AccountSubscription | null,
-  account: DesktopAccountSummary | null | undefined,
-): AccountSubscription | null {
-  if (subscription) return subscription;
-  if (account?.subscription) return account.subscription;
-  return account?.subscriptionState
-    ? {
-        state: account.subscriptionState,
-        expiresAt: null,
-        items: [],
-      }
-    : null;
-}
-
-function formatUsd(value: number): string {
-  return `$${value.toFixed(value >= 100 ? 0 : 2)}`;
 }
 
 export const AccountSubscriptionDetails = memo(function AccountSubscriptionDetails({
@@ -100,7 +81,7 @@ export const AccountSubscriptionDetails = memo(function AccountSubscriptionDetai
               : null;
             const remainingLabel = item.unlimited
               ? t("accountSubscription.unlimited")
-              : formatUsd(item.remainingUsd);
+              : formatAccountUsd(item.remainingUsd);
 
             return (
               <div
@@ -153,7 +134,7 @@ export const AccountSubscriptionDetails = memo(function AccountSubscriptionDetai
 
                 <div className="mt-1.5 flex justify-between gap-3 text-[10px] tabular-nums text-muted-foreground">
                   <span>
-                    {t("accountSubscription.used")} {formatUsd(item.usedUsd)} · {usedPercent}%
+                    {t("accountSubscription.used")} {formatAccountUsd(item.usedUsd)} · {usedPercent}%
                   </span>
                   <span>
                     {t("accountSubscription.remaining")} {remainingLabel} · {remainingPercent}%

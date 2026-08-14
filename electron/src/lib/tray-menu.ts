@@ -7,6 +7,22 @@ const ENGINE_LABELS: Record<NonNullable<SessionMeta["engine"]>, string> = {
   acp: "ACP",
 };
 
+export function getSessionEngineLabel(engine: SessionMeta["engine"]): string {
+  return ENGINE_LABELS[engine ?? "claude"];
+}
+
+export function formatTraySessionTitle(
+  title: string,
+  fallback = "Untitled",
+  maxLength = 72,
+): string {
+  const normalized = title.replace(/\s+/g, " ").trim() || fallback;
+  const safeMaxLength = Math.max(1, Math.floor(maxLength));
+  return normalized.length > safeMaxLength
+    ? `${normalized.slice(0, Math.max(1, safeMaxLength - 1)).trimEnd()}…`
+    : normalized;
+}
+
 export function selectRecentTraySessions(
   sessions: SessionMeta[],
   limit = 3,
@@ -27,17 +43,14 @@ export function formatTraySessionLabel(
   session: Pick<SessionMeta, "engine" | "projectId" | "title">,
   maxLength = 72,
 ): string {
-  const engineLabel = ENGINE_LABELS[session.engine ?? "claude"];
+  const engineLabel = getSessionEngineLabel(session.engine);
   const scope = session.projectId === CHAT_MODULE_PROJECT_ID
     ? `Chat · ${engineLabel}`
     : engineLabel;
-  const title = session.title.replace(/\s+/g, " ").trim() || "Untitled";
   const prefix = `${scope} · `;
   const available = Math.max(1, maxLength - prefix.length);
-  const truncatedTitle = title.length > available
-    ? `${title.slice(0, Math.max(1, available - 1)).trimEnd()}…`
-    : title;
+  const title = formatTraySessionTitle(session.title, "Untitled", available);
 
   // Native Windows menus treat ampersands as mnemonic markers.
-  return `${prefix}${truncatedTitle}`.replace(/&/g, "&&");
+  return `${prefix}${title}`.replace(/&/g, "&&");
 }

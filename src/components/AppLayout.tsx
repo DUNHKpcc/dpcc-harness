@@ -455,8 +455,16 @@ export function AppLayout() {
     setPendingExternalSession(target);
   }), []);
 
+  useEffect(() => window.claude.menuBar.onNewChatRequested(() => {
+    void handleComposerClear();
+  }), [handleComposerClear]);
+
+  useEffect(() => window.claude.menuBar.onOpenSettingsRequested(() => {
+    handleOpenSettings();
+  }), [handleOpenSettings]);
+
   useEffect(() => {
-    if (isWindows) window.claude.windowActivationReady();
+    window.claude.windowActivationReady();
   }, []);
 
   useEffect(() => {

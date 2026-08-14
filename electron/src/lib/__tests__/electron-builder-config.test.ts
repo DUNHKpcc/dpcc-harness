@@ -206,6 +206,19 @@ describe("electron-builder config", () => {
     expect(fs.existsSync(path.join(repoRoot, "public", "icon.png"))).toBe(true);
   });
 
+  it("packages the native menu bar source image on macOS only", async () => {
+    const config = await import("../../../../electron-builder.config.js");
+    const traySource = {
+      from: "build/appx/Square44x44Logo.targetsize-256_altform-lightunplated.png",
+      to: "pcc-agent-tray-source.png",
+    };
+
+    expect(config.default.mac.extraResources).toContainEqual(traySource);
+    expect(config.default.extraResources).not.toContainEqual(traySource);
+    expect(config.default.win.extraResources).not.toContainEqual(traySource);
+    expect(fs.existsSync(path.join(repoRoot, traySource.from))).toBe(true);
+  });
+
   it("provides unplated AppList icons for every Windows target size and theme", () => {
     const appxDir = path.join(repoRoot, "build", "appx");
     const variants = ["", "_altform-unplated", "_altform-lightunplated"];

@@ -192,6 +192,18 @@ contextBridge.exposeInMainWorld("claude", {
   windowActivationReady: () => {
     ipcRenderer.send("app:window-activation-ready");
   },
+  menuBar: {
+    onNewChatRequested: (callback: () => void) => {
+      const listener = () => callback();
+      ipcRenderer.on("menu-bar:new-chat", listener);
+      return () => ipcRenderer.removeListener("menu-bar:new-chat", listener);
+    },
+    onOpenSettingsRequested: (callback: () => void) => {
+      const listener = () => callback();
+      ipcRenderer.on("menu-bar:open-settings", listener);
+      return () => ipcRenderer.removeListener("menu-bar:open-settings", listener);
+    },
+  },
   notifications: {
     show: (payload: AppNotificationPayload) =>
       ipcRenderer.invoke("notifications:show", payload) as Promise<AppNotificationShowResult>,

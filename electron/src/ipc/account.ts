@@ -864,6 +864,21 @@ async function computeAccountOverview(upstream: ResolvedUpstream): Promise<Accou
   return { balance, subscription };
 }
 
+export async function getOverview(): Promise<AccountOverview> {
+  const upstream = resolveUpstream();
+  const overview = await computeAccountOverview(upstream);
+  if (
+    upstream.desktopToken
+    && (
+      isRejectedDesktopToken(overview.balance)
+      || isRejectedDesktopToken(overview.subscription)
+    )
+  ) {
+    markTokenRejected();
+  }
+  return overview;
+}
+
 export function register(): void {
   ipcMain.handle("account:config", async (): Promise<AccountConfig> => {
     const upstream = resolveUpstream();
@@ -893,18 +908,7 @@ export function register(): void {
   });
 
   ipcMain.handle("account:overview", async (): Promise<AccountOverview> => {
-    const upstream = resolveUpstream();
-    const overview = await computeAccountOverview(upstream);
-    if (
-      upstream.desktopToken
-      && (
-        isRejectedDesktopToken(overview.balance)
-        || isRejectedDesktopToken(overview.subscription)
-      )
-    ) {
-      markTokenRejected();
-    }
-    return overview;
+    return getOverview();
   });
 
   ipcMain.handle("account:models", async (): Promise<AccountModelsResult> => {

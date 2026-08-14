@@ -96,6 +96,10 @@ declare global {
         callback: (target: { projectId: string; sessionId: string }) => void,
       ) => () => void;
       windowActivationReady: () => void;
+      menuBar: {
+        onNewChatRequested: (callback: () => void) => () => void;
+        onOpenSettingsRequested: (callback: () => void) => () => void;
+      };
       notifications: AppNotificationBridge;
       glass: {
         setTintColor: (tintColor: string | null) => void;

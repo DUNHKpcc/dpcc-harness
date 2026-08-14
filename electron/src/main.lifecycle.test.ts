@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { AccountOverview } from "@shared/types/account";
+import type { AccountAuthSnapshot } from "@shared/types/account-auth";
 
 interface MockEventMap {
   [event: string]: Array<(...args: unknown[]) => void>;
@@ -44,6 +46,51 @@ interface MainState {
   settingsPatches: Array<Record<string, unknown>>;
   screenWorkArea: TestWindowBounds;
   browserWindowOptions: Array<Record<string, unknown>>;
+  appIsPackaged: boolean;
+  loginItemOpenAtLogin: boolean;
+  wasOpenedAtLogin: boolean;
+  terminalRecords: Map<string, { exited: boolean; pty: unknown }>;
+  trayTemplateImage: boolean;
+  trayTemplateBitmapCreated: boolean;
+  accountAuthSnapshot: AccountAuthSnapshot;
+  accountOverview: AccountOverview;
+}
+
+function signedOutAccountSnapshot(): AccountAuthSnapshot {
+  return {
+    status: "signed_out",
+    issuer: "https://api.dpccgaming.xyz",
+    clientId: "pcc-agent",
+    deviceName: "Test Mac",
+    account: null,
+    expiresAt: null,
+    scopes: [],
+    legacyManual: false,
+  };
+}
+
+function connectedAccountSnapshot(
+  displayName = "DPCC User",
+  maskedEmail = "d***@example.com",
+  expiresAt = Date.now() + 86_400_000,
+): AccountAuthSnapshot {
+  return {
+    status: "connected",
+    issuer: "https://api.dpccgaming.xyz",
+    clientId: "pcc-agent",
+    deviceName: "Test Mac",
+    account: { displayName, maskedEmail },
+    expiresAt,
+    scopes: [],
+    legacyManual: false,
+  };
+}
+
+function unavailableAccountOverview(): AccountOverview {
+  return {
+    balance: { error: "not_configured" },
+    subscription: { error: "not_configured" },
+  };
 }
 
 const state = vi.hoisted<MainState>(() => ({
@@ -71,6 +118,14 @@ const state = vi.hoisted<MainState>(() => ({
   settingsPatches: [],
   screenWorkArea: { x: 0, y: 0, width: 2560, height: 1440 },
   browserWindowOptions: [],
+  appIsPackaged: false,
+  loginItemOpenAtLogin: false,
+  wasOpenedAtLogin: false,
+  terminalRecords: new Map(),
+  trayTemplateImage: false,
+  trayTemplateBitmapCreated: false,
+  accountAuthSnapshot: signedOutAccountSnapshot(),
+  accountOverview: unavailableAccountOverview(),
 }));
 
 function resetState(): void {
@@ -101,6 +156,14 @@ function resetState(): void {
   state.settingsPatches = [];
   state.screenWorkArea = { x: 0, y: 0, width: 2560, height: 1440 };
   state.browserWindowOptions = [];
+  state.appIsPackaged = false;
+  state.loginItemOpenAtLogin = false;
+  state.wasOpenedAtLogin = false;
+  state.terminalRecords.clear();
+  state.trayTemplateImage = false;
+  state.trayTemplateBitmapCreated = false;
+  state.accountAuthSnapshot = signedOutAccountSnapshot();
+  state.accountOverview = unavailableAccountOverview();
 }
 
 declare global {
@@ -310,9 +373,36 @@ class FakeBrowserWindow {
   }
 }
 
+class FakeMenu {
+  private readonly events: MockEventMap = {};
+  public closePopupCalls = 0;
+
+  constructor(public readonly template: unknown[]) {}
+
+  once(event: string, cb: (...args: unknown[]) => void): this {
+    this.events[event] = this.events[event] ?? [];
+    this.events[event].push(cb);
+    return this;
+  }
+
+  emit(event: string, ...args: unknown[]): void {
+    const listeners = this.events[event] ?? [];
+    delete this.events[event];
+    for (const cb of listeners) cb(...args);
+  }
+
+  closePopup(): void {
+    this.closePopupCalls += 1;
+    this.emit("menu-will-close", {});
+  }
+}
+
 class FakeTray {
+  public clickHandlers = 0;
   public doubleClickHandlers = 0;
   public rightClickHandlers = 0;
+  public popUpContextMenuCalls = 0;
+  private destroyed = false;
   private events: MockEventMap = {};
 
   constructor() {
@@ -324,19 +414,23 @@ class FakeTray {
   on(event: string, cb: (...args: unknown[]) => void): this {
     this.events[event] = this.events[event] ?? [];
     this.events[event].push(cb);
+    if (event === "click") this.clickHandlers += 1;
     if (event === "double-click") this.doubleClickHandlers += 1;
     if (event === "right-click") this.rightClickHandlers += 1;
     return this;
   }
 
   popUpContextMenu(menu: { template?: unknown }): void {
+    this.popUpContextMenuCalls += 1;
     state.menuTemplates.push(menu);
   }
 
-  destroy() {}
+  destroy(): void {
+    this.destroyed = true;
+  }
 
   isDestroyed() {
-    return false;
+    return this.destroyed;
   }
 
   emit(event: string, ...args: unknown[]): void {
@@ -360,7 +454,9 @@ vi.mock("electron", async () => {
       once: vi.fn(),
       commandLine,
       whenReady: vi.fn(() => state.appWhenReady),
-      isPackaged: false,
+      get isPackaged() {
+        return state.appIsPackaged;
+      },
       getPreferredSystemLanguages: vi.fn(() => ["en-US"]),
       getSystemLocale: vi.fn(() => "en-US"),
       getLocale: vi.fn(() => "en-US"),
@@ -372,6 +468,13 @@ vi.mock("electron", async () => {
       exit: vi.fn(),
       setAsDefaultProtocolClient: vi.fn(),
       getPath: vi.fn(),
+      getLoginItemSettings: vi.fn(() => ({
+        openAtLogin: state.loginItemOpenAtLogin,
+        wasOpenedAtLogin: state.wasOpenedAtLogin,
+      })),
+      setLoginItemSettings: vi.fn((settings: { openAtLogin?: boolean }) => {
+        state.loginItemOpenAtLogin = settings.openAtLogin === true;
+      }),
     },
     BrowserWindow: class extends FakeBrowserWindow {
       constructor(options?: Record<string, unknown>) {
@@ -393,12 +496,39 @@ vi.mock("electron", async () => {
       setApplicationMenu: vi.fn(),
       buildFromTemplate: vi.fn((template: unknown[]) => {
         state.menuTemplates.push(template);
-        return { template } as { template: unknown[] };
+        return new FakeMenu(template);
       }),
       sendActionToFirstResponder: vi.fn(),
     },
     nativeImage: {
       createEmpty: vi.fn(() => ({}) as unknown),
+      createFromPath: vi.fn(() => {
+        const bitmap = Buffer.alloc(32 * 32 * 4);
+        for (let pixel = 0; pixel < 32 * 32; pixel += 1) bitmap[pixel * 4 + 3] = 255;
+        for (let y = 10; y < 22; y += 1) {
+          for (let x = 12; x < 20; x += 1) {
+            const pixel = (y * 32 + x) * 4;
+            bitmap[pixel] = 255;
+            bitmap[pixel + 1] = 255;
+            bitmap[pixel + 2] = 255;
+          }
+        }
+        return {
+          getSize: () => ({ width: 32, height: 32 }),
+          toBitmap: () => bitmap,
+          setTemplateImage: (value: boolean) => {
+            state.trayTemplateImage = value;
+          },
+        } as unknown;
+      }),
+      createFromBitmap: vi.fn(() => {
+        state.trayTemplateBitmapCreated = true;
+        return {
+          setTemplateImage: (value: boolean) => {
+            state.trayTemplateImage = value;
+          },
+        } as unknown;
+      }),
     },
     nativeTheme: {
       shouldUseDarkColors: false,
@@ -425,7 +555,7 @@ vi.mock("electron", async () => {
       askForMediaAccess: vi.fn(),
     },
     Tray: class extends FakeTray {
-      constructor() {
+      constructor(_image?: unknown) {
         super();
       }
     },
@@ -570,7 +700,7 @@ vi.mock("./ipc/title-gen", () => ({
 
 vi.mock("./ipc/terminal", () => ({
   register: vi.fn(),
-  terminals: new Map(),
+  terminals: state.terminalRecords,
 }));
 
 vi.mock("./ipc/git", () => ({
@@ -603,6 +733,7 @@ vi.mock("./ipc/settings", () => ({
 
 vi.mock("./ipc/account", () => ({
   register: vi.fn(),
+  getOverview: vi.fn(async () => state.accountOverview),
 }));
 
 vi.mock("./ipc/account-auth", () => ({
@@ -611,6 +742,7 @@ vi.mock("./ipc/account-auth", () => ({
   }),
   initialize: vi.fn(),
   dispose: vi.fn(),
+  getSnapshot: vi.fn(() => state.accountAuthSnapshot),
 }));
 
 vi.mock("./ipc/jira", () => ({
@@ -638,6 +770,11 @@ async function loadMainModule(options: {
   windowBounds?: TestWindowBounds | null;
   windowMaximized?: boolean;
   screenWorkArea?: TestWindowBounds;
+  appIsPackaged?: boolean;
+  loginItemOpenAtLogin?: boolean;
+  wasOpenedAtLogin?: boolean;
+  accountAuthSnapshot?: AccountAuthSnapshot;
+  accountOverview?: AccountOverview;
 } = {}): Promise<void> {
   globalThis.__PCC_DIAGNOSTIC_BUILD__ = false;
   resetState();
@@ -646,9 +783,18 @@ async function loadMainModule(options: {
   state.appSettings.windowBounds = options.windowBounds ?? null;
   state.appSettings.windowMaximized = options.windowMaximized ?? false;
   state.screenWorkArea = options.screenWorkArea ?? state.screenWorkArea;
+  state.appIsPackaged = options.appIsPackaged ?? false;
+  state.loginItemOpenAtLogin = options.loginItemOpenAtLogin ?? false;
+  state.wasOpenedAtLogin = options.wasOpenedAtLogin ?? false;
+  state.accountAuthSnapshot = options.accountAuthSnapshot ?? signedOutAccountSnapshot();
+  state.accountOverview = options.accountOverview ?? unavailableAccountOverview();
   vi.clearAllMocks();
   vi.resetModules();
   Object.defineProperty(process, "platform", { value: options.platform ?? "win32" });
+  Object.defineProperty(process, "getSystemVersion", {
+    value: () => "15.0.0",
+    configurable: true,
+  });
   Object.defineProperty(process, "resourcesPath", { value: "/tmp/resources", configurable: true });
   await import("./main");
   await Promise.resolve();
@@ -662,7 +808,7 @@ async function flushImmediate(): Promise<void> {
 function markWindowActivationReady(): void {
   const handlers = state.ipcMainEventHandlers["app:window-activation-ready"] ?? [];
   expect(handlers).toHaveLength(1);
-  handlers[0]({ sender: { id: 123 } });
+  handlers[0]({ sender: { id: state.browserWindows[0]?.webContents.id } });
 }
 
 describe("main lifecycle / tray navigation", () => {
@@ -945,6 +1091,205 @@ describe("main lifecycle / tray navigation", () => {
     expect(acpSessions.stopAll).toHaveBeenCalled();
     expect(codexSessions.stopAll).toHaveBeenCalled();
     expect(wechat.stopBridge).toHaveBeenCalled();
+  });
+
+  it("uses a native macOS menu instead of creating a custom popover window", async () => {
+    await loadMainModule({ platform: "darwin" });
+    await Promise.resolve();
+
+    const tray = state.tray;
+    expect(tray).toBeTruthy();
+    expect(tray?.clickHandlers).toBe(1);
+    expect(tray?.rightClickHandlers).toBe(1);
+    expect(tray?.doubleClickHandlers).toBe(0);
+    expect(state.trayTemplateImage).toBe(true);
+    expect(state.trayTemplateBitmapCreated).toBe(true);
+    expect(state.browserWindows).toHaveLength(1);
+
+    tray?.emit("click");
+    await Promise.resolve();
+
+    const nativeMenu = state.menuTemplates[state.menuTemplates.length - 1] as {
+      template: Array<{ label?: string; type?: string }>;
+    };
+    expect(state.browserWindows).toHaveLength(1);
+    expect(nativeMenu.template).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "header", label: "Account" }),
+      expect.objectContaining({ type: "header", label: "Running" }),
+      expect.objectContaining({ type: "header", label: "Recent" }),
+      expect.objectContaining({ type: "checkbox", label: "Open at Login" }),
+      expect.objectContaining({ label: "Quit PccAgent" }),
+    ]));
+  });
+
+  it("closes the native macOS menu on a second tray click without reopening it", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-08-14T21:30:00+08:00"));
+      await loadMainModule({ platform: "darwin" });
+      const tray = state.tray;
+
+      tray?.emit("click");
+      const firstMenu = state.menuTemplates[state.menuTemplates.length - 1] as FakeMenu;
+      expect(tray?.popUpContextMenuCalls).toBe(1);
+
+      tray?.emit("click");
+      expect(firstMenu.closePopupCalls).toBe(1);
+      expect(tray?.popUpContextMenuCalls).toBe(1);
+
+      await vi.advanceTimersByTimeAsync(201);
+      tray?.emit("click");
+      expect(tray?.popUpContextMenuCalls).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not reopen when macOS closes the menu before delivering the tray click", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-08-14T21:30:00+08:00"));
+      await loadMainModule({ platform: "darwin" });
+      const tray = state.tray;
+
+      tray?.emit("click");
+      const firstMenu = state.menuTemplates[state.menuTemplates.length - 1] as FakeMenu;
+      firstMenu.emit("menu-will-close", {});
+      tray?.emit("click");
+
+      expect(tray?.popUpContextMenuCalls).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("renders account, subscription, quota, runtime and recent sessions as native menu rows", async () => {
+    await loadMainModule({
+      platform: "darwin",
+      sessionsForTray: [
+        {
+          id: "recent-1",
+          projectId: "project-1",
+          title: "Recent work",
+          engine: "codex",
+          lastMessageAt: 1234,
+        },
+      ],
+      accountAuthSnapshot: connectedAccountSnapshot(),
+      accountOverview: {
+        balance: { totalUsd: 100, usedUsd: 25, remainingUsd: 75, unlimited: false },
+        subscription: {
+          state: "active",
+          expiresAt: Date.now() + 86_400_000,
+          items: [{
+            id: 1,
+            planId: 2,
+            name: "Pro",
+            totalUsd: 100,
+            usedUsd: 25,
+            remainingUsd: 75,
+            unlimited: false,
+            expiresAt: Date.now() + 86_400_000,
+          }],
+        },
+      },
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    state.claudeActiveTurnCount = 1;
+    state.acpActiveTurnCount = 2;
+    state.codexActiveTurnCount = 3;
+    state.terminalRecords.set("terminal-1", { exited: false, pty: {} });
+    state.terminalRecords.set("terminal-2", { exited: true, pty: {} });
+    state.tray?.emit("click");
+
+    const nativeMenu = state.menuTemplates[state.menuTemplates.length - 1] as {
+      template: Array<{ label?: string; sublabel?: string }>;
+    };
+    expect(nativeMenu.template).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: "DPCC User", sublabel: "d***@example.com" }),
+      expect.objectContaining({ label: "6 Agent, 1 Terminal" }),
+      expect.objectContaining({ label: "Recent work" }),
+      expect.objectContaining({ label: "Subscription: Pro", sublabel: "Active" }),
+      expect.objectContaining({
+        label: "Quota: $75.00 available",
+        sublabel: "━━━━━━━━━───  75%",
+      }),
+    ]));
+  });
+
+  it("does not show an overview cached for a previous authorization", async () => {
+    await loadMainModule({
+      platform: "darwin",
+      accountAuthSnapshot: connectedAccountSnapshot("First User", "f***@example.com", 1000),
+      accountOverview: {
+        balance: { totalUsd: 100, usedUsd: 25, remainingUsd: 75, unlimited: false },
+        subscription: { state: "none", expiresAt: null, items: [] },
+      },
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    state.accountAuthSnapshot = connectedAccountSnapshot(
+      "Second User",
+      "s***@example.com",
+      2000,
+    );
+    state.tray?.emit("click");
+
+    const nativeMenu = state.menuTemplates[state.menuTemplates.length - 1] as {
+      template: Array<{ label?: string; sublabel?: string }>;
+    };
+    expect(nativeMenu.template).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: "Second User", sublabel: "s***@example.com" }),
+      expect.objectContaining({ label: "Quota: Unavailable" }),
+    ]));
+    expect(nativeMenu.template).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: "Quota: $75.00 available" }),
+    ]));
+  });
+
+  it("queues native menu actions until the main renderer listeners are ready", async () => {
+    await loadMainModule({ platform: "darwin" });
+    state.tray?.emit("click");
+    const nativeMenu = state.menuTemplates[state.menuTemplates.length - 1] as {
+      template: Array<{ label?: string; click?: () => void }>;
+    };
+    const newChat = nativeMenu.template.find((item) => item.label === "New Chat");
+    expect(newChat).toBeTruthy();
+    state.safeSendCalls = [];
+
+    newChat?.click?.();
+    await flushImmediate();
+    expect(state.safeSendCalls.some((call) => call.channel === "menu-bar:new-chat")).toBe(false);
+
+    markWindowActivationReady();
+    await Promise.resolve();
+    expect(state.safeSendCalls).toContainEqual({
+      channel: "menu-bar:new-chat",
+      payload: undefined,
+    });
+  });
+
+  it("updates the packaged macOS login item through the native checkbox", async () => {
+    await loadMainModule({
+      platform: "darwin",
+      appIsPackaged: true,
+      loginItemOpenAtLogin: false,
+    });
+    state.tray?.emit("click");
+    const nativeMenu = state.menuTemplates[state.menuTemplates.length - 1] as {
+      template: Array<{
+        label?: string;
+        type?: string;
+        checked?: boolean;
+        click?: (item: { checked: boolean }) => void;
+      }>;
+    };
+    const loginItem = nativeMenu.template.find((item) => item.type === "checkbox");
+    expect(loginItem).toMatchObject({ label: "Open at Login", checked: false });
+    loginItem?.click?.({ checked: true });
+    expect(state.loginItemOpenAtLogin).toBe(true);
   });
 
   it("defers tray session navigation until the main frame finishes loading", async () => {

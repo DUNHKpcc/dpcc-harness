@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain } from "electron";
+import { BrowserWindow, dialog, ipcMain } from "electron";
 import crypto from "crypto";
 import { log } from "../lib/logger";
 import { safeSend } from "../lib/safe-send";
@@ -6,7 +6,13 @@ import { reportError } from "../lib/error-utils";
 import { loadLocalClaudeEnv } from "../lib/local-cli-config";
 import { killProcessTree } from "../lib/process-tree";
 import { getAppSetting } from "../lib/app-settings";
-import { listTerminalShellOptions, resolveTerminalShell } from "../lib/terminal-shell";
+import {
+  listTerminalShellOptions,
+  getTerminalSpawnEnvironment,
+  resolveTerminalShell,
+  TerminalShellResolutionError,
+  validateCustomTerminalShellPath,
+} from "../lib/terminal-shell";
 import {
   appendTerminalHistory,
   EMPTY_TERMINAL_HISTORY,
@@ -55,6 +61,40 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     }
   });
 
+  ipcMain.handle("terminal:validate-shell-path", (_event, shellPath: string) => {
+    try {
+      return validateCustomTerminalShellPath(String(shellPath || ""));
+    } catch (err) {
+      return {
+        valid: false,
+        error: reportError("TERMINAL_SHELL_VALIDATE_ERR", err),
+      };
+    }
+  });
+
+  ipcMain.handle("terminal:select-shell", async () => {
+    try {
+      const mainWindow = getMainWindow();
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        return { error: "The PccAgent window is not available." };
+      }
+      const result = await dialog.showOpenDialog(mainWindow, {
+        title: "Select terminal shell executable",
+        properties: ["openFile"],
+        ...(process.platform === "win32" ? {
+          filters: [
+            { name: "Windows executables", extensions: ["exe"] },
+            { name: "All files", extensions: ["*"] },
+          ],
+        } : {}),
+      });
+      if (result.canceled || result.filePaths.length === 0) return { canceled: true };
+      return { path: result.filePaths[0] };
+    } catch (err) {
+      return { error: reportError("TERMINAL_SHELL_SELECT_ERR", err) };
+    }
+  });
+
   ipcMain.handle("terminal:create", (_event, { cwd, cols, rows, spaceId }: { cwd?: string; cols?: number; rows?: number; spaceId?: string } = {}) => {
     try {
       const pty = getPty();
@@ -70,13 +110,14 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       // Without this, running `claude` in the toolbar terminal would hit the official
       // API even when the user has a custom gateway configured locally.
       const localClaudeEnv = loadLocalClaudeEnv();
+      const terminalEnv = getTerminalSpawnEnvironment();
       const ptyProcess = pty.spawn(shellPath, args, {
         name: "xterm-256color",
         cols: cols || 80,
         rows: rows || 24,
         cwd: cwd || (isWin ? process.env.USERPROFILE : process.env.HOME),
         env: {
-          ...process.env,
+          ...terminalEnv,
           ...localClaudeEnv,
           TERM: "xterm-256color",
           COLORTERM: "truecolor",
@@ -123,7 +164,12 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       return { terminalId };
     } catch (err) {
       const errMsg = reportError("TERMINAL_CREATE_ERR", err);
-      return { error: errMsg };
+      return {
+        error: errMsg,
+        ...(err instanceof TerminalShellResolutionError && err.code
+          ? { errorCode: err.code }
+          : {}),
+      };
     }
   });
 

@@ -350,11 +350,19 @@ declare global {
         ) => Promise<{ message?: string; error?: string }>;
       };
       terminal: {
-        create: (options: { cwd?: string; cols?: number; rows?: number; spaceId?: string }) => Promise<{ terminalId?: string; error?: string }>;
+        create: (options: { cwd?: string; cols?: number; rows?: number; spaceId?: string }) => Promise<{
+          terminalId?: string;
+          error?: string;
+          errorCode?: import("@shared/types/settings").TerminalShellValidationErrorCode;
+        }>;
         shellOptions: () => Promise<{
           options?: import("@shared/types/settings").TerminalShellOption[];
           error?: string;
         }>;
+        validateShellPath: (shellPath: string) => Promise<
+          import("@shared/types/settings").TerminalShellValidationResult
+        >;
+        selectShell: () => Promise<{ path?: string; canceled?: boolean; error?: string }>;
         list: () => Promise<{
           terminals?: Array<{
             terminalId: string;

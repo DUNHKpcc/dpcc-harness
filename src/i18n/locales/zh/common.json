@@ -80,6 +80,15 @@
     "claude": {
       "modelsLoadFailed": "加载 Claude 模型失败"
     },
+    "terminal": {
+      "createFailed": "无法创建终端",
+      "unknownError": "终端进程未能启动。",
+      "empty": "请选择 shell 可执行文件。",
+      "not_absolute": "必须填写 shell 可执行文件的绝对路径。",
+      "not_found": "选择的 shell 文件不存在。",
+      "not_executable": "选择的文件没有执行权限。",
+      "windows_requires_exe": "Windows 自定义终端必须指向 .exe 文件。"
+    },
     "jira": {
       "noTransition": "没有可用的 Jira 流转可移动到 {{column}}",
       "moveFailed": "移动 Jira issue 失败",

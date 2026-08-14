@@ -80,6 +80,15 @@
     "claude": {
       "modelsLoadFailed": "Failed to load Claude models"
     },
+    "terminal": {
+      "createFailed": "Failed to create terminal",
+      "unknownError": "The terminal process could not be started.",
+      "empty": "Choose a shell executable.",
+      "not_absolute": "Enter the absolute path to the shell executable.",
+      "not_found": "The selected shell file does not exist.",
+      "not_executable": "The selected file is not executable.",
+      "windows_requires_exe": "A custom Windows terminal must point to an .exe file."
+    },
     "jira": {
       "noTransition": "No Jira transition available to {{column}}",
       "moveFailed": "Failed to move Jira issue",

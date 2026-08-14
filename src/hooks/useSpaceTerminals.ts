@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import {
   EMPTY_SPACE_TERMINAL_STATE,
   parseStoredTerminalState,
@@ -7,6 +8,7 @@ import {
   type SpaceTerminalsState,
   type TerminalTab,
 } from "@/lib/terminal-tabs";
+import { toastText } from "@/lib/toast-i18n";
 
 export type { TerminalTab, SpaceTerminalState };
 
@@ -75,7 +77,13 @@ export function useSpaceTerminals() {
       spaceId,
     });
     const terminalId = result.terminalId;
-    if (result.error || !terminalId) return;
+    if (result.error || !terminalId) {
+      const description = result.errorCode
+        ? toastText(`terminal.${result.errorCode}`)
+        : (result.error || toastText("terminal.unknownError"));
+      toast.error(toastText("terminal.createFailed"), { description });
+      return;
+    }
 
     setStateBySpace((prev) => {
       const curr = prev[spaceId] ?? EMPTY_SPACE_TERMINAL_STATE;

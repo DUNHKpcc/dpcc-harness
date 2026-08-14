@@ -21,10 +21,34 @@ export const TERMINAL_SHELLS = [
   "custom",
 ] as const;
 export type TerminalShell = (typeof TERMINAL_SHELLS)[number];
+export type TerminalShellDetectionSource =
+  | "system-default"
+  | "path"
+  | "known-location"
+  | "app-alias"
+  | "registry"
+  | "package-manager";
+export type TerminalShellDiagnosticCode = "not-found" | "launch-failed";
 export interface TerminalShellOption {
   shell: Exclude<TerminalShell, "custom">;
   available: boolean;
   path?: string;
+  source?: TerminalShellDetectionSource;
+  version?: string;
+  diagnosticCode?: TerminalShellDiagnosticCode;
+  diagnostic?: string;
+}
+export type TerminalShellValidationErrorCode =
+  | "empty"
+  | "not_absolute"
+  | "not_found"
+  | "not_executable"
+  | "windows_requires_exe";
+export interface TerminalShellValidationResult {
+  valid: boolean;
+  path?: string;
+  error?: string;
+  errorCode?: TerminalShellValidationErrorCode;
 }
 export interface WindowBounds {
   x: number;

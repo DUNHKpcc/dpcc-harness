@@ -4,9 +4,14 @@ import {
   reconcileTerminalState,
 } from "../../../../src/lib/terminal-tabs";
 import {
+  getTerminalSpawnEnvironment,
   listTerminalShellOptions,
   resolveTerminalShell,
 } from "../terminal-shell";
+import {
+  buildQuitWarningCopy,
+  hasInterruptibleWork,
+} from "../quit-protection";
 
 function terminalShellRuntime(
   platform: NodeJS.Platform,
@@ -18,7 +23,13 @@ function terminalShellRuntime(
     platform,
     env,
     fileExists: (filePath: string) => files.has(filePath),
+    fileIsExecutable: (filePath: string) => files.has(filePath),
     findExecutable: (_name: string) => null,
+    readWindowsPathEntries: () => [],
+    discoverWindowsPowerShellLocations: () => [],
+    probePowerShell: (filePath: string) => files.has(filePath)
+      ? { valid: true, version: "7.6.0" }
+      : { valid: false, error: "missing" },
   };
 }
 
@@ -94,7 +105,7 @@ describe("terminal shell resolution", () => {
       "custom",
       "relative/zsh",
       terminalShellRuntime("darwin", ["relative/zsh"]),
-    )).toThrow("existing absolute executable path");
+    )).toThrow("must be absolute");
     expect(resolveTerminalShell(
       "custom",
       "/opt/homebrew/bin/fish",
@@ -120,5 +131,96 @@ describe("terminal shell resolution", () => {
     expect(options.find((option) => option.shell === "fish")).toMatchObject({
       available: false,
     });
+  });
+
+  it("refreshes the Windows PATH before resolving PowerShell 7", () => {
+    const pwsh = "C:\\Tools\\PowerShell\\pwsh.exe";
+    const files = new Set([pwsh]);
+    const runtime = {
+      platform: "win32" as const,
+      env: { Path: "C:\\Old", SystemRoot: "C:\\Windows" },
+      fileExists: (filePath: string) => files.has(filePath),
+      fileIsExecutable: (filePath: string) => files.has(filePath),
+      readWindowsPathEntries: () => ["C:\\Tools\\PowerShell"],
+      discoverWindowsPowerShellLocations: () => [],
+      findExecutable: (_name: string, searchEnv?: NodeJS.ProcessEnv) =>
+        searchEnv?.Path?.includes("C:\\Tools\\PowerShell") ? pwsh : null,
+      probePowerShell: () => ({ valid: true, version: "7.6.1" }),
+    };
+
+    expect(resolveTerminalShell("pwsh", "", runtime)).toEqual({ shellPath: pwsh, args: [] });
+    expect(listTerminalShellOptions(runtime).find((option) => option.shell === "pwsh"))
+      .toMatchObject({ available: true, path: pwsh, source: "path", version: "7.6.1" });
+    expect(getTerminalSpawnEnvironment(runtime).Path).toBe("C:\\Old;C:\\Tools\\PowerShell");
+  });
+
+  it("resolves the Microsoft Store app execution alias", () => {
+    const pwsh = "C:\\Users\\dev\\AppData\\Local\\Microsoft\\WindowsApps\\pwsh.exe";
+    const options = listTerminalShellOptions(terminalShellRuntime("win32", [pwsh], {
+      LOCALAPPDATA: "C:\\Users\\dev\\AppData\\Local",
+    }));
+
+    expect(options.find((option) => option.shell === "pwsh")).toMatchObject({
+      available: true,
+      path: pwsh,
+      source: "app-alias",
+      version: "7.6.0",
+    });
+  });
+
+  it("uses registered custom PowerShell install locations", () => {
+    const pwsh = "D:\\Apps\\PowerShell\\pwsh.exe";
+    const files = new Set([pwsh]);
+    const runtime = {
+      ...terminalShellRuntime("win32", [pwsh]),
+      discoverWindowsPowerShellLocations: () => [{ path: pwsh, source: "registry" as const }],
+    };
+
+    expect(listTerminalShellOptions(runtime).find((option) => option.shell === "pwsh"))
+      .toMatchObject({ available: true, path: pwsh, source: "registry" });
+  });
+
+  it("rejects a PowerShell candidate that cannot actually launch", () => {
+    const pwsh = "C:\\Program Files\\PowerShell\\7\\pwsh.exe";
+    const runtime = {
+      ...terminalShellRuntime("win32", [pwsh], { ProgramFiles: "C:\\Program Files" }),
+      probePowerShell: () => ({ valid: false, error: "Access denied" }),
+    };
+
+    expect(listTerminalShellOptions(runtime).find((option) => option.shell === "pwsh"))
+      .toMatchObject({
+        available: false,
+        diagnosticCode: "launch-failed",
+        diagnostic: expect.stringContaining("Access denied"),
+      });
+    expect(() => resolveTerminalShell("pwsh", "", runtime)).toThrow("could not be started");
+  });
+
+  it("requires a Windows custom terminal path to point to an exe", () => {
+    const script = "C:\\Tools\\shell.cmd";
+    expect(() => resolveTerminalShell(
+      "custom",
+      script,
+      terminalShellRuntime("win32", [script]),
+    )).toThrow("must point to an .exe file");
+  });
+});
+
+describe("quit protection", () => {
+  it("only warns when quitting would stop an active task or terminal", () => {
+    expect(hasInterruptibleWork({ agentTasks: 0, terminals: 0 })).toBe(false);
+    expect(hasInterruptibleWork({ agentTasks: 1, terminals: 0 })).toBe(true);
+    expect(hasInterruptibleWork({ agentTasks: 0, terminals: 1 })).toBe(true);
+  });
+
+  it("describes every process type in the localized warning", () => {
+    const zh = buildQuitWarningCopy("zh-CN", { agentTasks: 2, terminals: 1 });
+    expect(zh.message).toContain("中断");
+    expect(zh.detail).toContain("2 个正在运行的 Agent 任务");
+    expect(zh.detail).toContain("1 个终端进程");
+
+    const en = buildQuitWarningCopy("en-US", { agentTasks: 1, terminals: 2 });
+    expect(en.detail).toContain("1 running Agent task");
+    expect(en.detail).toContain("2 terminal processes");
   });
 });

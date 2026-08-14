@@ -290,6 +290,8 @@ contextBridge.exposeInMainWorld("claude", {
   terminal: {
     create: (options: { cwd?: string; cols?: number; rows?: number; spaceId?: string }) => ipcRenderer.invoke("terminal:create", options),
     shellOptions: () => ipcRenderer.invoke("terminal:shell-options"),
+    validateShellPath: (shellPath: string) => ipcRenderer.invoke("terminal:validate-shell-path", shellPath),
+    selectShell: () => ipcRenderer.invoke("terminal:select-shell"),
     list: () => ipcRenderer.invoke("terminal:list"),
     snapshot: (terminalId: string) => ipcRenderer.invoke("terminal:snapshot", terminalId),
     write: (terminalId: string, data: string) => ipcRenderer.invoke("terminal:write", { terminalId, data }),

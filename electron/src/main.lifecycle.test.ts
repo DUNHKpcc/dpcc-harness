@@ -511,10 +511,6 @@ vi.mock("./lib/open-external", () => ({
   openExternalUrl: vi.fn(),
 }));
 
-vi.mock("../../src/lib/layout/constants", () => ({
-  getBootstrapMinWindowWidth: vi.fn(() => 960),
-}));
-
 vi.mock("./lib/devtools-policy", () => ({
   canOpenAppDevTools: vi.fn(() => false),
   shouldDisableApplicationMenu: vi.fn(() => false),
@@ -744,6 +740,21 @@ describe("main lifecycle / tray navigation", () => {
     expect(state.browserWindows[0]?.maximizeCalls).toBe(1);
   });
 
+  it("restores a saved compact window without applying the all-panels bootstrap width", async () => {
+    await loadMainModule({
+      platform: "darwin",
+      windowBounds: { x: 220, y: 140, width: 840, height: 700 },
+    });
+
+    expect(state.browserWindowOptions[0]).toMatchObject({
+      x: 220,
+      y: 140,
+      width: 840,
+      height: 700,
+      minWidth: 600,
+    });
+  });
+
   it("clamps restored bounds into the current display work area", async () => {
     await loadMainModule({
       windowBounds: { x: 5000, y: 3000, width: 1800, height: 1000 },
@@ -773,6 +784,27 @@ describe("main lifecycle / tray navigation", () => {
 
       expect(state.settingsPatches).toEqual([{
         windowBounds: { x: 240, y: 160, width: 1500, height: 920 },
+        windowMaximized: false,
+      }]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("flushes the latest macOS window bounds before quitting", async () => {
+    vi.useFakeTimers();
+    try {
+      await loadMainModule({ platform: "darwin" });
+      const window = state.browserWindows[0];
+      window?.setNormalBounds({ x: 260, y: 180, width: 980, height: 760 });
+      window?.emit("resize");
+
+      expect(state.settingsPatches).toHaveLength(0);
+      const quitEvent = { preventDefault: vi.fn() };
+      state.appEventHandlers["before-quit"]?.[0]?.(quitEvent);
+
+      expect(state.settingsPatches).toEqual([{
+        windowBounds: { x: 260, y: 180, width: 980, height: 760 },
         windowMaximized: false,
       }]);
     } finally {

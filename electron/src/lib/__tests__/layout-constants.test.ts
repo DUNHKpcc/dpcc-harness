@@ -13,7 +13,6 @@ import {
   RESIZE_HANDLE_WIDTH_ISLAND,
   TOOL_PICKER_WIDTH_ISLAND,
   WINDOWS_FRAME_BUFFER_WIDTH,
-  getBootstrapMinWindowWidth,
   getMinChatWidth,
 } from "../../../../src/lib/layout/constants";
 
@@ -29,7 +28,7 @@ describe("layout constants", () => {
     expect(CHAT_INPUT_MAX_WIDTH_CLASS).toBe(BOTTOM_CHAT_MAX_WIDTH_CLASS);
   });
 
-  it("computes the bootstrap window minimum width for each platform", () => {
+  it("keeps shared window chrome dimensions aligned", () => {
     expect(APP_SIDEBAR_WIDTH).toBe(280);
     expect(ISLAND_SHELL_GAP).toBe(6);
     expect(ISLAND_PANEL_GAP).toBe(4);
@@ -39,7 +38,5 @@ describe("layout constants", () => {
     expect(TOOL_PICKER_WIDTH_ISLAND).toBe(48);
     expect(RESIZE_HANDLE_WIDTH_ISLAND).toBe(4);
     expect(WINDOWS_FRAME_BUFFER_WIDTH).toBe(16);
-    expect(getBootstrapMinWindowWidth("darwin")).toBe(1532);
-    expect(getBootstrapMinWindowWidth("win32")).toBe(1548);
   });
 });

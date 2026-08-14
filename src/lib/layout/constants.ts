@@ -54,20 +54,6 @@ export function getResizeHandleWidth(isIsland: boolean): number {
   return isIsland ? RESIZE_HANDLE_WIDTH_ISLAND : RESIZE_HANDLE_WIDTH_FLAT;
 }
 
-export function getBootstrapMinWindowWidth(platform: string): number {
-  const width =
-    APP_SIDEBAR_WIDTH +
-    ISLAND_LAYOUT_MARGIN +
-    MIN_CHAT_WIDTH_ISLAND +
-    TOOL_PICKER_WIDTH_ISLAND +
-    MIN_RIGHT_PANEL_WIDTH +
-    RESIZE_HANDLE_WIDTH_ISLAND +
-    MIN_TOOLS_PANEL_WIDTH +
-    RESIZE_HANDLE_WIDTH_ISLAND;
-
-  return platform === "win32" ? width + WINDOWS_FRAME_BUFFER_WIDTH : width;
-}
-
 // ── Split view constants ──
 
 /** Maximum number of panes (including the primary pane). */

@@ -18,7 +18,6 @@ import {
 import { existsSync, writeFileSync } from "node:fs";
 import path from "path";
 import http from "http";
-import { getBootstrapMinWindowWidth } from "../../src/lib/layout/constants";
 
 // Packaged .app bundles launched from Finder get a minimal PATH (/usr/bin:/bin).
 // Inherit the user's shell PATH so child processes (SDK's `node`, git, etc.) resolve.
@@ -167,6 +166,7 @@ type WindowActivationReason =
 
 let pendingMacBackgroundEffect: MacBackgroundEffect = "liquid-glass";
 const DEFAULT_WINDOW_BOUNDS = { width: 1200, height: 800 };
+const MIN_WINDOW_WIDTH = 600;
 const MIN_WINDOW_HEIGHT = 600;
 const WINDOW_STATE_SAVE_DELAY_MS = 250;
 
@@ -176,11 +176,14 @@ function clamp(value: number, minimum: number, maximum: number): number {
 
 function restoreWindowBounds(
   savedBounds: WindowBounds | null,
-  minWidth: number,
 ): WindowBounds | null {
   if (!savedBounds) return null;
   const workArea = screen.getDisplayMatching(savedBounds).workArea;
-  const width = clamp(savedBounds.width, Math.min(minWidth, workArea.width), workArea.width);
+  const width = clamp(
+    savedBounds.width,
+    Math.min(MIN_WINDOW_WIDTH, workArea.width),
+    workArea.width,
+  );
   const height = clamp(
     savedBounds.height,
     Math.min(MIN_WINDOW_HEIGHT, workArea.height),
@@ -532,8 +535,7 @@ function isMainRendererPermissionRequest(webContents: Electron.WebContents | nul
 function createWindow(): void {
   rendererWindowActivationReady = false;
   const appSettings = getAppSettings();
-  const minWidth = getBootstrapMinWindowWidth(process.platform);
-  const restoredBounds = restoreWindowBounds(appSettings.windowBounds, minWidth);
+  const restoredBounds = restoreWindowBounds(appSettings.windowBounds);
   const initialMacBackgroundEffect: MacBackgroundEffect = resolveMacBackgroundEffect(pendingMacBackgroundEffect);
   if (process.platform === "darwin") {
     pendingMacBackgroundEffect = initialMacBackgroundEffect;
@@ -542,9 +544,10 @@ function createWindow(): void {
   const windowOptions: Electron.BrowserWindowConstructorOptions = {
     show: false,
     ...(restoredBounds ?? DEFAULT_WINDOW_BOUNDS),
-    // Matches the renderer's stricter island-layout minimum before first IPC sync,
-    // including the extra Windows frame buffer.
-    minWidth,
+    // Start with the universal floor so a persisted compact window is restored
+    // exactly. The renderer raises this after loading based on the actual open
+    // sidebar, panels, tools and split panes.
+    minWidth: MIN_WINDOW_WIDTH,
     minHeight: MIN_WINDOW_HEIGHT,
     // Packaged builds get the icon from the .app bundle / electron-builder config
     ...(!app.isPackaged && { icon: path.join(__dirname, "../../build/icon.png") }),

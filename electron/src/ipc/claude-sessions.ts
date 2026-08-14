@@ -87,6 +87,8 @@ interface SessionEntry {
   channel: AsyncChannel<SDKUserMessage>;
   queryHandle: QueryHandle | null;
   eventCounter: number;
+  /** User turns accepted by the channel that have not emitted a result yet. */
+  activeTurns: number;
   pendingPermissions: Map<string, PendingPermission>;
   startOptions?: StartOptions;
   /** Upstream identity used to build the current Claude subprocess. */
@@ -102,6 +104,11 @@ interface SessionEntry {
 }
 
 export const sessions = new Map<string, SessionEntry>();
+
+export function getActiveTurnCount(): number {
+  return [...sessions.values()].filter((session) => session.activeTurns > 0).length;
+}
+
 const restartQueues = new Map<string, Promise<{ ok?: boolean; error?: string; restarted?: boolean }>>();
 const restartCancellationGenerations = new Map<string, number>();
 
@@ -372,6 +379,9 @@ function startEventLoop(
         if (msgObj.type === "user" || msgObj.type === "result") {
           log("EVENT_FULL", message);
         }
+        if (msgObj.type === "result") {
+          session.activeTurns = Math.max(0, session.activeTurns - 1);
+        }
         safeSend(getMainWindow, "claude:event", { ...(message as object), _sessionId: sessionId });
 
         // Index tool names from assistant tool_use blocks for later lookup by tool_use_id
@@ -394,6 +404,7 @@ function startEventLoop(
       queryError = reportError("QUERY_ERROR", err, { engine: "claude", sessionId });
       log("QUERY_ERROR", `${logPrefix} stopping=${!!session.stopping} reason=${session.stopReason ?? "none"}`);
     } finally {
+      session.activeTurns = 0;
       if (!session.restarting) {
         // Requested stop: treat teardown errors as clean exit
         const stopRequested = session.stopping;
@@ -837,6 +848,7 @@ async function performRestartSession(
     channel: newChannel,
     queryHandle: null,
     eventCounter: session.eventCounter,
+    activeTurns: 0,
     pendingPermissions: new Map(),
     upstreamFingerprint: currentClaudeUpstreamFingerprint(),
     upstreamTier: resolveClaudeUpstream().tier,
@@ -1021,6 +1033,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         channel,
         queryHandle: null,
         eventCounter: 0,
+        activeTurns: 0,
         pendingPermissions: new Map(),
         startOptions: options,
         upstreamFingerprint: currentClaudeUpstreamFingerprint(),
@@ -1149,6 +1162,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       if (!session) return { error: "Claude session restart did not produce an active session" };
     }
     log("SEND", `session=${sessionId.slice(0, 8)} content=${JSON.stringify(message).slice(0, 500)}`);
+    session.activeTurns += 1;
     session.channel.push({
       type: "user",
       message: { role: "user", content: message.message.content },

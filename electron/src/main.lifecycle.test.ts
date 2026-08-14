@@ -20,6 +20,11 @@ interface MainState {
   requestSingleInstanceLockReturn: boolean;
   appWhenReady: Promise<void>;
   appQuitCalls: number;
+  dialogCalls: number;
+  dialogResponses: number[];
+  claudeActiveTurnCount: number;
+  acpActiveTurnCount: number;
+  codexActiveTurnCount: number;
   appEventHandlers: MockEventMap;
   ipcMainEventHandlers: MockEventMap;
   browserWindows: FakeBrowserWindow[];
@@ -29,6 +34,7 @@ interface MainState {
   sessionsForTray: unknown[];
   activateNotification?: (sessionId?: string) => void;
   activateAccountWindow?: () => void;
+  prepareForUpdateInstall?: () => Promise<boolean>;
   notificationsListened: boolean;
   appSettings: {
     macBackgroundEffect: string;
@@ -44,6 +50,11 @@ const state = vi.hoisted<MainState>(() => ({
   requestSingleInstanceLockReturn: true,
   appWhenReady: Promise.resolve(),
   appQuitCalls: 0,
+  dialogCalls: 0,
+  dialogResponses: [],
+  claudeActiveTurnCount: 0,
+  acpActiveTurnCount: 0,
+  codexActiveTurnCount: 0,
   appEventHandlers: {},
   ipcMainEventHandlers: {},
   browserWindows: [],
@@ -66,6 +77,11 @@ function resetState(): void {
   state.requestSingleInstanceLockReturn = true;
   state.appWhenReady = Promise.resolve();
   state.appQuitCalls = 0;
+  state.dialogCalls = 0;
+  state.dialogResponses = [];
+  state.claudeActiveTurnCount = 0;
+  state.acpActiveTurnCount = 0;
+  state.codexActiveTurnCount = 0;
   state.appEventHandlers = {};
   state.ipcMainEventHandlers = {};
   state.browserWindows = [];
@@ -75,6 +91,7 @@ function resetState(): void {
   state.sessionsForTray = [];
   state.activateNotification = undefined;
   state.activateAccountWindow = undefined;
+  state.prepareForUpdateInstall = undefined;
   state.notificationsListened = false;
   state.appSettings = {
     macBackgroundEffect: "liquid-glass",
@@ -332,14 +349,12 @@ class FakeTray {
 vi.mock("electron", async () => {
   const actual = await vi.importActual<Record<string, unknown>>("electron");
   const commandLine = { appendSwitch: vi.fn() };
-  const appEventMap: MockEventMap = {};
   const electronMock = {
     app: {
       requestSingleInstanceLock: vi.fn(() => state.requestSingleInstanceLockReturn),
       on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
-        appEventMap[event] = appEventMap[event] ?? [];
-        appEventMap[event].push(handler);
-        state.appEventHandlers[event] = appEventMap[event];
+        state.appEventHandlers[event] = state.appEventHandlers[event] ?? [];
+        state.appEventHandlers[event].push(handler);
       }),
       off: vi.fn(),
       once: vi.fn(),
@@ -364,6 +379,12 @@ vi.mock("electron", async () => {
       }
     },
     clipboard: { writeText: vi.fn() },
+    dialog: {
+      showMessageBox: vi.fn(async () => {
+        state.dialogCalls += 1;
+        return { response: state.dialogResponses.shift() ?? 1 };
+      }),
+    },
     globalShortcut: {
       register: vi.fn(() => true),
       unregisterAll: vi.fn(),
@@ -454,7 +475,13 @@ vi.mock("./lib/app-settings", () => ({
 }));
 
 vi.mock("./lib/updater", () => ({
-  initAutoUpdater: vi.fn(),
+  initAutoUpdater: vi.fn((
+    _getMainWindow: unknown,
+    _diagnosticBuild: boolean,
+    prepareForInstall: () => Promise<boolean>,
+  ) => {
+    state.prepareForUpdateInstall = prepareForInstall;
+  }),
   getIsInstallingUpdate: vi.fn(() => false),
 }));
 
@@ -538,6 +565,7 @@ vi.mock("./ipc/files", () => ({
 vi.mock("./ipc/claude-sessions", () => ({
   register: vi.fn(),
   stopAll: vi.fn(),
+  getActiveTurnCount: vi.fn(() => state.claudeActiveTurnCount),
 }));
 
 vi.mock("./ipc/title-gen", () => ({
@@ -560,11 +588,13 @@ vi.mock("./ipc/agent-registry", () => ({
 vi.mock("./ipc/acp-sessions", () => ({
   register: vi.fn(),
   stopAll: vi.fn(),
+  getActiveTurnCount: vi.fn(() => state.acpActiveTurnCount),
 }));
 
 vi.mock("./ipc/codex-sessions", () => ({
   register: vi.fn(),
   stopAll: vi.fn(),
+  getActiveTurnCount: vi.fn(() => state.codexActiveTurnCount),
 }));
 
 vi.mock("./ipc/mcp", () => ({
@@ -606,6 +636,7 @@ vi.mock("./ipc/notifications", () => ({
 }));
 
 async function loadMainModule(options: {
+  platform?: NodeJS.Platform;
   requestSingleInstanceLockReturn?: boolean;
   sessionsForTray?: unknown[];
   windowBounds?: TestWindowBounds | null;
@@ -621,7 +652,7 @@ async function loadMainModule(options: {
   state.screenWorkArea = options.screenWorkArea ?? state.screenWorkArea;
   vi.clearAllMocks();
   vi.resetModules();
-  Object.defineProperty(process, "platform", { value: "win32" });
+  Object.defineProperty(process, "platform", { value: options.platform ?? "win32" });
   Object.defineProperty(process, "resourcesPath", { value: "/tmp/resources", configurable: true });
   await import("./main");
   await Promise.resolve();
@@ -770,6 +801,118 @@ describe("main lifecycle / tray navigation", () => {
     expect(event.preventDefault).toHaveBeenCalled();
     expect(window?.hideCalls).toBeGreaterThan(0);
     expect(state.appQuitCalls).toBe(0);
+  });
+
+  it("keeps running work alive when the macOS close button hides the window", async () => {
+    await loadMainModule({ platform: "darwin" });
+    state.claudeActiveTurnCount = 1;
+    const window = state.browserWindows[0];
+    expect(window).toBeTruthy();
+    window?.emit("ready-to-show");
+
+    const event = { preventDefault: vi.fn() };
+    window?.emit("close", event);
+
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(window?.hideCalls).toBe(1);
+    expect(window?.isVisible()).toBe(false);
+    expect(state.dialogCalls).toBe(0);
+    expect(state.appQuitCalls).toBe(0);
+  });
+
+  it("restores the hidden macOS window when the Dock activates the app", async () => {
+    await loadMainModule({ platform: "darwin" });
+    const window = state.browserWindows[0];
+    window?.emit("ready-to-show");
+    window?.emit("close", { preventDefault: vi.fn() });
+    expect(window?.isVisible()).toBe(false);
+
+    const activate = state.appEventHandlers.activate?.[0];
+    expect(activate).toBeTypeOf("function");
+    activate?.();
+
+    expect(window?.isVisible()).toBe(true);
+    expect(window?.focusCalls).toBeGreaterThan(0);
+  });
+
+  it("recreates the macOS window from the Dock after it was destroyed", async () => {
+    await loadMainModule({ platform: "darwin" });
+    const window = state.browserWindows[0];
+    window?.emit("closed");
+
+    state.appEventHandlers.activate?.[0]?.();
+
+    expect(state.browserWindows).toHaveLength(2);
+  });
+
+  it("requires confirmation before quitting with an active Agent task", async () => {
+    await loadMainModule({ platform: "darwin" });
+    state.claudeActiveTurnCount = 1;
+    const beforeQuit = state.appEventHandlers["before-quit"]?.[0];
+    expect(beforeQuit).toBeTypeOf("function");
+
+    state.dialogResponses.push(1);
+    const cancelledEvent = { preventDefault: vi.fn() };
+    beforeQuit?.(cancelledEvent);
+    await flushImmediate();
+
+    expect(cancelledEvent.preventDefault).toHaveBeenCalled();
+    expect(state.dialogCalls).toBe(1);
+    expect(state.appQuitCalls).toBe(0);
+
+    state.dialogResponses.push(0);
+    const confirmedEvent = { preventDefault: vi.fn() };
+    beforeQuit?.(confirmedEvent);
+    await flushImmediate();
+
+    expect(confirmedEvent.preventDefault).toHaveBeenCalled();
+    expect(state.dialogCalls).toBe(2);
+    expect(state.appQuitCalls).toBe(1);
+  });
+
+  it("confirms and flushes persistence before a macOS update install", async () => {
+    await loadMainModule({ platform: "darwin" });
+    state.claudeActiveTurnCount = 1;
+    state.dialogResponses.push(0);
+    expect(state.prepareForUpdateInstall).toBeTypeOf("function");
+
+    const preparation = state.prepareForUpdateInstall!();
+    await flushImmediate();
+
+    const flushCall = state.safeSendCalls.find((call) => call.channel === "app:before-close");
+    expect(flushCall).toBeTruthy();
+    const flushHandler = state.ipcMainEventHandlers["app:persistence-flushed"]?.[0];
+    expect(flushHandler).toBeTypeOf("function");
+    flushHandler?.({ sender: { id: 123 } }, flushCall?.payload, true);
+
+    await expect(preparation).resolves.toBe(true);
+    expect(state.dialogCalls).toBe(1);
+  });
+
+  it("cancels a macOS update install before persistence shutdown", async () => {
+    await loadMainModule({ platform: "darwin" });
+    state.claudeActiveTurnCount = 1;
+    state.dialogResponses.push(1);
+
+    await expect(state.prepareForUpdateInstall?.()).resolves.toBe(false);
+
+    expect(state.dialogCalls).toBe(1);
+    expect(state.safeSendCalls.some((call) => call.channel === "app:before-close")).toBe(false);
+  });
+
+  it("cleans up Agent processes from the macOS will-quit path", async () => {
+    await loadMainModule({ platform: "darwin" });
+    const claudeSessions = await import("./ipc/claude-sessions");
+    const acpSessions = await import("./ipc/acp-sessions");
+    const codexSessions = await import("./ipc/codex-sessions");
+    const wechat = await import("./ipc/wechat");
+
+    state.appEventHandlers["will-quit"]?.[0]?.();
+
+    expect(claudeSessions.stopAll).toHaveBeenCalled();
+    expect(acpSessions.stopAll).toHaveBeenCalled();
+    expect(codexSessions.stopAll).toHaveBeenCalled();
+    expect(wechat.stopBridge).toHaveBeenCalled();
   });
 
   it("defers tray session navigation until the main frame finishes loading", async () => {

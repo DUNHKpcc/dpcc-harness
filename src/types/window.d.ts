@@ -582,7 +582,7 @@ declare global {
         onUpdateDownloaded: (cb: (info: { version: string }) => void) => () => void;
         onInstallError: (cb: (error: { code?: string; message: string }) => void) => () => void;
         download: () => Promise<unknown>;
-        install: () => Promise<void>;
+        install: () => Promise<{ ok: boolean; cancelled?: boolean }>;
         check: () => Promise<unknown>;
         currentVersion: () => Promise<string>;
         isPreRelease: () => Promise<PreReleaseInfo>;

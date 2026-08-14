@@ -59,6 +59,8 @@ interface CodexSession {
   threadId: string | null;
   /** Active turn id — needed for interrupt */
   activeTurnId: string | null;
+  /** True while turn/start (including lazy thread creation) is in flight. */
+  turnStartPending: boolean;
   eventCounter: number;
   cwd: string;
   model?: string;
@@ -78,6 +80,12 @@ type CodexImageInput = Extract<CodexUserInput, { type: "image" | "localImage" }>
 type CodexMentionInput = Extract<CodexUserInput, { type: "mention" }>;
 
 const codexSessions = new Map<string, CodexSession>();
+
+export function getActiveTurnCount(): number {
+  return [...codexSessions.values()].filter(
+    (session) => session.turnStartPending || session.activeTurnId !== null,
+  ).length;
+}
 
 function handleAccountCredentialRejection(
   internalId: string,
@@ -225,8 +233,10 @@ function setupCodexHandlers(
 
     // Track active turn from turn events
     if (notification.method === "turn/started") {
+      session.turnStartPending = false;
       session.activeTurnId = notification.params.turn.id;
     } else if (notification.method === "turn/completed") {
+      session.turnStartPending = false;
       session.activeTurnId = null;
       handleAccountCredentialRejection(
         internalId,
@@ -332,6 +342,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
           internalId,
           threadId: null,
           activeTurnId: null,
+          turnStartPending: false,
           eventCounter: 0,
           upstreamTier: initialUpstream.tier,
           cwd,
@@ -464,6 +475,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         log("codex", ` Send rejected: session not found id=${shortId(data.sessionId, 12)}`);
         return { error: "Session not found" };
       }
+      session.turnStartPending = true;
       if (!session.threadId) {
         try {
           const threadParams: Record<string, unknown> = {
@@ -484,6 +496,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
           );
           reclaimMacDockFocus(getMainWindow, "codex-thread-lazy-start");
         } catch (err) {
+          session.turnStartPending = false;
           const msg = reportError("CODEX_THREAD_START_ERR", err, { engine: "codex", sessionId: data.sessionId });
           return { error: msg };
         }
@@ -518,12 +531,14 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
 
         const result = await session.rpc.request<CodexTurnStartResponse>("turn/start", turnParams);
         session.activeTurnId = result.turn.id;
+        session.turnStartPending = false;
         log(
           "codex",
           ` Send accepted: session=${shortId(data.sessionId, 12)} turn=${shortId(result.turn.id, 12)}`,
         );
         return { turnId: result.turn.id };
       } catch (err) {
+        session.turnStartPending = false;
         const errMsg = reportError("CODEX_SEND_ERR", err, { engine: "codex", sessionId: data.sessionId });
         return { error: errMsg };
       }
@@ -811,6 +826,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
           internalId,
           threadId: null,
           activeTurnId: null,
+          turnStartPending: false,
           eventCounter: 0,
           upstreamTier: resumeUpstream.tier,
           cwd,

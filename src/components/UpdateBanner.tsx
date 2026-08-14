@@ -88,7 +88,11 @@ export const UpdateBanner = memo(function UpdateBanner() {
     installRequestedRef.current = true;
     setIsInstalling(true);
 
-    void window.claude.updater.install().catch((err: unknown) => {
+    void window.claude.updater.install().then((result) => {
+      if (!result.cancelled) return;
+      installRequestedRef.current = false;
+      setIsInstalling(false);
+    }).catch((err: unknown) => {
       captureException(err instanceof Error ? err : new Error(String(err)), { label: "UPDATE_INSTALL_ERR" });
       installRequestedRef.current = false;
       setIsInstalling(false);

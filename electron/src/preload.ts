@@ -532,7 +532,7 @@ contextBridge.exposeInMainWorld("claude", {
       return () => ipcRenderer.removeListener("updater:install-error", listener);
     },
     download: () => ipcRenderer.invoke("updater:download"),
-    install: () => ipcRenderer.invoke("updater:install"),
+    install: () => ipcRenderer.invoke("updater:install") as Promise<{ ok: boolean; cancelled?: boolean }>,
     check: () => ipcRenderer.invoke("updater:check"),
     currentVersion: () => ipcRenderer.invoke("updater:current-version") as Promise<string>,
     isPreRelease: () => ipcRenderer.invoke("updater:is-prerelease") as Promise<{

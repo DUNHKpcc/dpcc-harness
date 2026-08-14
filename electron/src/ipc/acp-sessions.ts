@@ -102,9 +102,18 @@ interface ACPSessionEntry {
   pendingModeValue?: string;
   /** Startup chunks emitted before this flag are not part of a user turn. */
   hasUserPromptStarted?: boolean;
+  /** User prompts currently running or queued on this ACP connection. */
+  activeUserPrompts?: number;
 }
 
 export const acpSessions = new Map<string, ACPSessionEntry>();
+
+export function getActiveTurnCount(): number {
+  const activeSessions = [...acpSessions.values()].filter(
+    (entry) => (entry.activeUserPrompts ?? 0) > 0,
+  ).length;
+  return activeSessions + (pendingStartProcess && !pendingStartProcess.aborted ? 1 : 0);
+}
 
 export function getAcpSessionOperationCoordinator(entry: ACPSessionEntry): AcpSessionOperationCoordinator {
   entry.operationCoordinator ??= new AcpSessionOperationCoordinator();
@@ -898,6 +907,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     prompt.push({ type: "text", text });
 
     let finishRequest: ReturnType<typeof startUtilityRequest>;
+    session.activeUserPrompts = (session.activeUserPrompts ?? 0) + 1;
     try {
       session.lastStderrError = undefined;
       session.hasUserPromptStarted = true;
@@ -933,6 +943,8 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       const surfacedError = msg === "Internal error" && session.lastStderrError ? session.lastStderrError : msg;
       reportError("ACP_PROMPT_ERR", err, { engine: "acp", sessionId, surfacedError });
       return { error: surfacedError };
+    } finally {
+      session.activeUserPrompts = Math.max(0, (session.activeUserPrompts ?? 1) - 1);
     }
   });
 

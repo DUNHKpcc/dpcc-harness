@@ -3,6 +3,7 @@ import {
   app,
   BrowserWindow,
   clipboard,
+  dialog,
   globalShortcut,
   ipcMain,
   Menu,
@@ -49,6 +50,11 @@ import { reclaimMacDockFocus } from "./lib/macos-dock-focus";
 import { killProcessTree } from "./lib/process-tree";
 import { openExternalUrl } from "./lib/open-external";
 import { formatTraySessionLabel } from "./lib/tray-menu";
+import {
+  buildQuitWarningCopy,
+  hasInterruptibleWork,
+  type InterruptibleWorkSummary,
+} from "./lib/quit-protection";
 import {
   canOpenAppDevTools,
   shouldDisableApplicationMenu,
@@ -107,6 +113,15 @@ if (!hasSingleInstanceLock) {
     log("SINGLE_INSTANCE", `Second instance requested activation (argumentCount=${Math.max(argv.length - 1, 0)})`);
     setImmediate(() => showMainWindow("second-instance"));
   });
+  if (process.platform === "darwin") {
+    app.on("activate", () => {
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        createWindow();
+        return;
+      }
+      showMainWindow("dock-activate");
+    });
+  }
 }
 
 app.commandLine.appendSwitch("enable-gpu-rasterization"); // force GPU raster for all content
@@ -123,6 +138,8 @@ if (shouldEnableRemoteDevTools({ isPackaged: app.isPackaged, glassEnabled, diagn
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
+let quitConfirmed = false;
+let quitConfirmationPromise: Promise<boolean> | null = null;
 let persistenceFlushComplete = false;
 let persistenceFlushInProgress = false;
 let persistenceFlushRequestId = 0;
@@ -142,6 +159,7 @@ import type {
 type MacBackgroundEffect = Exclude<SharedMacBackgroundEffect, "off">;
 type WindowActivationReason =
   | "account-authorization"
+  | "dock-activate"
   | "notification"
   | "second-instance"
   | "tray-double-click"
@@ -261,6 +279,70 @@ function requestRendererPersistenceFlush(timeoutMs = 2500): Promise<void> {
     ipcMain.on("app:persistence-flushed", onFlushed);
     safeSend(getMainWindow, "app:before-close", requestId);
   });
+}
+
+function getInterruptibleWorkSummary(): InterruptibleWorkSummary {
+  return {
+    agentTasks:
+      claudeSessionsIpc.getActiveTurnCount()
+      + acpSessionsIpc.getActiveTurnCount()
+      + codexSessionsIpc.getActiveTurnCount(),
+    terminals: [...terminals.values()].filter((terminal) => !terminal.exited).length,
+  };
+}
+
+function shouldConfirmQuit(): boolean {
+  return !quitConfirmed
+    && !getIsInstallingUpdate()
+    && hasInterruptibleWork(getInterruptibleWorkSummary());
+}
+
+function confirmQuitIfNeeded(): Promise<boolean> {
+  if (!shouldConfirmQuit()) return Promise.resolve(true);
+  if (quitConfirmationPromise) return quitConfirmationPromise;
+
+  const summary = getInterruptibleWorkSummary();
+  const copy = buildQuitWarningCopy(app.getLocale(), summary);
+  const options: Electron.MessageBoxOptions = {
+    type: "warning",
+    title: copy.title,
+    message: copy.message,
+    detail: copy.detail,
+    buttons: [copy.confirmLabel, copy.cancelLabel],
+    defaultId: 1,
+    cancelId: 1,
+    noLink: true,
+  };
+  const owner = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+  quitConfirmationPromise = (owner
+    ? dialog.showMessageBox(owner, options)
+    : dialog.showMessageBox(options))
+    .then((result) => result.response === 0)
+    .finally(() => {
+      quitConfirmationPromise = null;
+    });
+  return quitConfirmationPromise;
+}
+
+function requestQuitAfterConfirmation(): void {
+  void confirmQuitIfNeeded()
+    .then((confirmed) => {
+      if (!confirmed) return;
+      quitConfirmed = true;
+      isQuitting = true;
+      app.quit();
+    })
+    .catch((err) => {
+      reportError("QUIT_CONFIRMATION_ERR", err);
+    });
+}
+
+async function prepareForUpdateInstall(): Promise<boolean> {
+  const confirmed = await confirmQuitIfNeeded();
+  if (!confirmed) return false;
+  flushWindowStateSave();
+  await requestRendererPersistenceFlush();
+  return true;
 }
 
 function resolveMacBackgroundEffect(effect: MacBackgroundEffect): MacBackgroundEffect {
@@ -430,7 +512,6 @@ async function showTrayContextMenu(): Promise<void> {
     {
       label: "退出",
       click: () => {
-        isQuitting = true;
         app.quit();
       },
     },
@@ -521,6 +602,7 @@ function createWindow(): void {
   }
 
   mainWindow = new BrowserWindow(windowOptions);
+  const createdWindow = mainWindow;
   if (appSettings.windowMaximized) mainWindow.maximize();
   if (process.platform === "darwin") applyMacBackgroundEffect(initialMacBackgroundEffect);
 
@@ -550,8 +632,21 @@ function createWindow(): void {
       log("WINDOW_STATE", "Main window close requested; hiding to tray");
       mainWindow?.hide();
     });
+  } else if (process.platform === "darwin") {
+    mainWindow.on("close", (event) => {
+      if (isQuitting) return;
+      event.preventDefault();
+      flushWindowStateSave();
+      log("WINDOW_STATE", "macOS window close requested; keeping the app active in Dock");
+      createdWindow.hide();
+    });
   } else {
     mainWindow.on("close", (event) => {
+      if (shouldConfirmQuit()) {
+        event.preventDefault();
+        requestQuitAfterConfirmation();
+        return;
+      }
       if (persistenceFlushComplete) return;
       event.preventDefault();
       if (persistenceFlushInProgress) return;
@@ -579,6 +674,12 @@ function createWindow(): void {
   });
   mainWindow.on("responsive", () => {
     log("WINDOW_STATE", "Main window became responsive");
+  });
+  mainWindow.on("closed", () => {
+    if (mainWindow === createdWindow) {
+      mainWindow = null;
+      rendererWindowActivationReady = false;
+    }
   });
   mainWindow.webContents.on("did-start-loading", () => {
     rendererWindowActivationReady = false;
@@ -661,8 +762,12 @@ ipcMain.on("app:set-mac-background-effect", (_event, effect: unknown) => {
   applyMacBackgroundEffect(normalized);
 });
 
-ipcMain.handle("app:relaunch", () => {
+ipcMain.handle("app:relaunch", async () => {
   try {
+    const confirmed = await confirmQuitIfNeeded();
+    if (!confirmed) return { ok: false, error: "Restart cancelled." };
+    quitConfirmed = true;
+    isQuitting = true;
     app.relaunch();
     app.quit();
     return { ok: true };
@@ -886,7 +991,7 @@ function initializeApp(): void {
       normalizeMacBackgroundEffect(getAppSettings().macBackgroundEffect),
     );
   }
-  if (shouldDisableApplicationMenu(app.isPackaged)) {
+  if (process.platform !== "darwin" && shouldDisableApplicationMenu(app.isPackaged)) {
     Menu.setApplicationMenu(null);
   }
 
@@ -930,7 +1035,7 @@ function initializeApp(): void {
     });
   }
 
-  initAutoUpdater(getMainWindow, diagnosticBuild);
+  initAutoUpdater(getMainWindow, diagnosticBuild, prepareForUpdateInstall);
   initPreReleaseCheck(getMainWindow);
 
   // Start the Claude→Codex delegation bridge before any session can be created.
@@ -1016,6 +1121,11 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 }
 
 app.on("before-quit", (event) => {
+  if (shouldConfirmQuit()) {
+    event.preventDefault();
+    requestQuitAfterConfirmation();
+    return;
+  }
   isQuitting = true;
   flushWindowStateSave();
   if (
@@ -1038,6 +1148,8 @@ app.on("before-quit", (event) => {
 });
 
 app.on("will-quit", () => {
+  teardownSessionsAndTerminals("will-quit");
+  wechatIpc.stopBridge();
   globalShortcut.unregisterAll();
   isQuitting = true;
   notificationsIpc.dispose();
@@ -1051,6 +1163,12 @@ app.on("will-quit", () => {
 });
 
 app.on("window-all-closed", () => {
+  // Native macOS apps stay resident after their last window closes and create or
+  // restore a window from the Dock's activate event. A real quit still cleans up
+  // through will-quit; updater-driven destruction is allowed to continue below.
+  if (process.platform === "darwin" && !isQuitting && !getIsInstallingUpdate()) {
+    return;
+  }
   teardownSessionsAndTerminals("window-all-closed");
   wechatIpc.stopBridge();
 

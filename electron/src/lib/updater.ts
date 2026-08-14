@@ -88,6 +88,10 @@ function manualDownloadUrl(): string {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- accessing internal MacUpdater state for diagnostics
 type MacUpdaterInternal = { squirrelDownloadedUpdate?: boolean };
 type UpdateInstallErrorCode = "download-missing" | "manual-install-failed";
+export interface UpdateInstallResult {
+  ok: boolean;
+  cancelled?: boolean;
+}
 
 // Track the latest downloaded update version for manual macOS install
 let lastDownloadedVersion: string | null = null;
@@ -204,6 +208,7 @@ export function maybeCheckForUpdates(reason: string, minIntervalMs: number): voi
 export function initAutoUpdater(
   getMainWindow: () => BrowserWindow | null,
   diagnosticBuild = false,
+  prepareForInstall: () => Promise<boolean> = async () => true,
 ): void {
   if (!app.isPackaged) return;
 
@@ -298,7 +303,7 @@ export function initAutoUpdater(
 
   // IPC handlers for renderer
   ipcMain.handle("updater:download", () => autoUpdater.downloadUpdate());
-  ipcMain.handle("updater:install", async () => {
+  ipcMain.handle("updater:install", async (): Promise<UpdateInstallResult> => {
     if (process.platform === "darwin") {
       // squirrelDownloadedUpdate is a macOS-only property on MacUpdater — doesn't exist on
       // NsisUpdater (Windows) or AppImageUpdater (Linux), so only check it on macOS.
@@ -306,6 +311,10 @@ export function initAutoUpdater(
       log("UPDATER", `Install requested (macOS, squirrelReady=${squirrelReady})`);
 
       if (!squirrelReady) {
+        if (!await prepareForInstall()) {
+          log("UPDATER", "Install cancelled during shutdown confirmation");
+          return { ok: false, cancelled: true };
+        }
         // Squirrel.Mac requires code-signed apps — unsigned builds always fail verification.
         // Bypass Squirrel entirely: extract the downloaded ZIP and swap the .app bundle manually.
         log("UPDATER", "Squirrel.Mac unavailable (unsigned app), attempting manual install");
@@ -323,8 +332,9 @@ export function initAutoUpdater(
           // Drop the cached download — it failed to install, so free the disk and
           // force a clean re-download on the next attempt.
           deleteDownloadedUpdate();
+          return { ok: false };
         }
-        return;
+        return { ok: true };
       }
     } else {
       log("UPDATER", `Install requested (${process.platform})`);
@@ -338,8 +348,13 @@ export function initAutoUpdater(
           "download-missing",
           "Update failed to download. Try downloading the latest version manually.",
         );
-        return;
+        return { ok: false };
       }
+    }
+
+    if (!await prepareForInstall()) {
+      log("UPDATER", "Install cancelled during shutdown confirmation");
+      return { ok: false, cancelled: true };
     }
 
     installingUpdate = true;
@@ -352,6 +367,7 @@ export function initAutoUpdater(
       log("UPDATER", "Calling quitAndInstall()");
       autoUpdater.quitAndInstall();
     });
+    return { ok: true };
   });
   ipcMain.handle("updater:check", () => checkForUpdates("manual"));
 
@@ -522,7 +538,7 @@ async function manualMacInstall(): Promise<void> {
       win.destroy();
     }
     app.relaunch();
-    app.exit(0);
+    app.quit();
   } catch (err) {
     // Clean up temp dir on failure
     fs.rmSync(tmpDir, { recursive: true, force: true });

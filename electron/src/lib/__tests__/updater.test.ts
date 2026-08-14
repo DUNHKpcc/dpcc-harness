@@ -193,10 +193,14 @@ function setWindowsStore(windowsStore: boolean): void {
 }
 
 /** Call initAutoUpdater with a mock getMainWindow that returns our mock window. */
-function init(diagnosticBuild = false): void {
+function init(
+  diagnosticBuild = false,
+  prepareForInstall: () => Promise<boolean> = async () => true,
+): void {
   initAutoUpdater(
     () => mockWindow as unknown as import("electron").BrowserWindow,
     diagnosticBuild,
+    prepareForInstall,
   );
 }
 
@@ -226,6 +230,8 @@ beforeEach(() => {
   mockWindow.destroy.mockReset();
   mockWebContents.send.mockReset();
   mockApp.getVersion.mockReturnValue("0.12.0");
+  mockApp.quit.mockReset();
+  mockApp.exit.mockReset();
   (app.on as Mock).mockReset();
   (powerMonitor.on as Mock).mockReset();
   (shell.openExternal as Mock).mockReset();
@@ -682,6 +688,40 @@ describe("initAutoUpdater", () => {
     });
   });
 
+  describe("updater:install shutdown preparation", () => {
+    it("does not destroy windows when the user cancels the quit confirmation", async () => {
+      setPlatform("darwin");
+      const prepareForInstall = vi.fn(async () => false);
+      init(false, prepareForInstall);
+      mockAutoUpdater.squirrelDownloadedUpdate = true;
+
+      const result = await getHandler("updater:install")();
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(result).toEqual({ ok: false, cancelled: true });
+      expect(prepareForInstall).toHaveBeenCalledOnce();
+      expect(mockWindow.destroy).not.toHaveBeenCalled();
+      expect(mockAutoUpdater.quitAndInstall).not.toHaveBeenCalled();
+      expect(getIsInstallingUpdate()).toBe(false);
+    });
+
+    it("prepares shutdown before destroying windows", async () => {
+      setPlatform("darwin");
+      const prepareForInstall = vi.fn(async () => true);
+      init(false, prepareForInstall);
+      mockAutoUpdater.squirrelDownloadedUpdate = true;
+
+      const result = await getHandler("updater:install")();
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(result).toEqual({ ok: true });
+      expect(prepareForInstall).toHaveBeenCalledOnce();
+      expect(prepareForInstall.mock.invocationCallOrder[0]).toBeLessThan(
+        mockWindow.destroy.mock.invocationCallOrder[0],
+      );
+    });
+  });
+
   describe("updater:install handler — macOS", () => {
     beforeEach(() => {
       setPlatform("darwin");
@@ -718,7 +758,7 @@ describe("initAutoUpdater", () => {
 
       // manualMacInstall should relaunch the app
       expect(app.relaunch).toHaveBeenCalled();
-      expect(app.exit).toHaveBeenCalledWith(0);
+      expect(app.quit).toHaveBeenCalled();
     });
 
     it("opens GitHub release page when manualMacInstall fails", async () => {
@@ -790,7 +830,7 @@ describe("initAutoUpdater", () => {
 
       // Verify relaunch
       expect(app.relaunch).toHaveBeenCalled();
-      expect(app.exit).toHaveBeenCalledWith(0);
+      expect(app.quit).toHaveBeenCalled();
       expect(getIsInstallingUpdate()).toBe(true);
     });
 
@@ -875,7 +915,7 @@ describe("initAutoUpdater", () => {
 
       // Install should still succeed despite xattr failure
       expect(app.relaunch).toHaveBeenCalled();
-      expect(app.exit).toHaveBeenCalledWith(0);
+      expect(app.quit).toHaveBeenCalled();
     });
 
     it("throws when exe path does not match .app pattern", async () => {

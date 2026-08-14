@@ -1,7 +1,10 @@
 import { startTransition, useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import type { PersistedSession, Project } from "../../types";
-import { toChatSession } from "../../lib/session/records";
+import {
+  normalizePersistedSessionForDisplay,
+  toChatSession,
+} from "../../lib/session/records";
 import { withChatModuleProjectIds } from "../../lib/session/chat-module";
 import { toastText } from "../../lib/toast-i18n";
 import {
@@ -73,25 +76,26 @@ export function useSessionCache({
 
   /** Apply a loaded (or cached) session payload into React state. */
   const applyLoadedSession = useCallback((id: string, data: PersistedSession) => {
+    const restoredData = normalizePersistedSessionForDisplay(data);
     startTransition(() => {
       setStartOptions((prev) => ({
         ...prev,
-        engine: data.engine ?? "claude",
-        model: data.model,
-        effort: data.effort,
-        permissionMode: data.permissionMode,
-        planMode: !!data.planMode,
-        agentId: data.agentId,
+        engine: restoredData.engine ?? "claude",
+        model: restoredData.model,
+        effort: restoredData.effort,
+        permissionMode: restoredData.permissionMode,
+        planMode: !!restoredData.planMode,
+        agentId: restoredData.agentId,
       }));
-      setInitialMessages(data.messages);
+      setInitialMessages(restoredData.messages);
       setInitialMeta({
         isProcessing: false,
         isConnected: false,
         sessionInfo: null,
-        totalCost: data.totalCost,
-        upstreamRequestCount: data.upstreamRequestCount,
-        requestLog: data.requestLog ?? [],
-        contextUsage: data.contextUsage ?? null,
+        totalCost: restoredData.totalCost,
+        upstreamRequestCount: restoredData.upstreamRequestCount,
+        requestLog: restoredData.requestLog ?? [],
+        contextUsage: restoredData.contextUsage ?? null,
       });
       setInitialPermission(null);
       setInitialRawAcpPermission(null);
@@ -102,14 +106,14 @@ export function useSessionCache({
           ...s,
           isActive: s.id === id,
           ...(s.id === id ? {
-            ...(data.engine ? { engine: data.engine } : {}),
-            ...(data.agentId ? { agentId: data.agentId } : {}),
-            ...(data.agentSessionId ? { agentSessionId: data.agentSessionId } : {}),
-            ...(data.codexThreadId ? { codexThreadId: data.codexThreadId } : {}),
-            ...(data.codexRolloutPath ? { codexRolloutPath: data.codexRolloutPath } : {}),
-            ...(data.effort ? { effort: data.effort } : {}),
-            ...(data.permissionMode ? { permissionMode: data.permissionMode } : {}),
-            planMode: !!data.planMode,
+            ...(restoredData.engine ? { engine: restoredData.engine } : {}),
+            ...(restoredData.agentId ? { agentId: restoredData.agentId } : {}),
+            ...(restoredData.agentSessionId ? { agentSessionId: restoredData.agentSessionId } : {}),
+            ...(restoredData.codexThreadId ? { codexThreadId: restoredData.codexThreadId } : {}),
+            ...(restoredData.codexRolloutPath ? { codexRolloutPath: restoredData.codexRolloutPath } : {}),
+            ...(restoredData.effort ? { effort: restoredData.effort } : {}),
+            ...(restoredData.permissionMode ? { permissionMode: restoredData.permissionMode } : {}),
+            planMode: !!restoredData.planMode,
             hasPendingPermission: false,
             hasUnreadCompletion: false,
           } : {}),

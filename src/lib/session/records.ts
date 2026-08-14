@@ -1,6 +1,7 @@
 import type { SessionMeta as SessionListItem } from "@shared/lib/session-persistence";
 import type { ChatSession, ClaudeEffort, ContextUsage, PersistedSession, UIMessage, UpstreamRequestRecord } from "@/types";
 import { getUpstreamRequestCount, trimUpstreamRequestLog } from "@/lib/usage/upstream-requests";
+import { finalizeInterruptedMessages } from "@/lib/chat/in-flight-tools";
 
 const VALID_EFFORTS = new Set<string>(["low", "medium", "high", "max"]);
 function toClaudeEffort(value: string | undefined): ClaudeEffort | undefined {
@@ -76,4 +77,11 @@ export function buildPersistedSession(
     ...(session.source ? { source: session.source } : {}),
     ...(session.wechatUserId ? { wechatUserId: session.wechatUserId } : {}),
   };
+}
+
+export function normalizePersistedSessionForDisplay(
+  session: PersistedSession,
+): PersistedSession {
+  const messages = finalizeInterruptedMessages(session.messages ?? []);
+  return messages === session.messages ? session : { ...session, messages };
 }

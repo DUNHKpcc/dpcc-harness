@@ -1,7 +1,10 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { ChatSession, UIMessage, PermissionRequest, McpServerStatus, McpServerConfig, ModelInfo, AcpPermissionBehavior, EngineId, Project, ACPAuthenticateResult, ACPConfigOption, ACPPermissionEvent } from "@/types";
 import { toMcpStatusState } from "../lib/mcp-utils";
-import { toChatSession } from "../lib/session/records";
+import {
+  normalizePersistedSessionForDisplay,
+  toChatSession,
+} from "../lib/session/records";
 import {
   getChatModuleProject,
   isChatModuleProjectId,
@@ -620,18 +623,19 @@ export function useSessionManager(
     if (!persistedSession) {
       return null;
     }
+    const restoredSession = normalizePersistedSessionForDisplay(persistedSession);
 
     return {
       session,
-      initialMessages: persistedSession.messages ?? [],
+      initialMessages: restoredSession.messages,
       initialMeta: {
         isProcessing: false,
         isConnected: false,
         sessionInfo: null,
-        totalCost: persistedSession.totalCost ?? 0,
-        upstreamRequestCount: persistedSession.upstreamRequestCount,
-        requestLog: persistedSession.requestLog ?? [],
-        contextUsage: persistedSession.contextUsage ?? null,
+        totalCost: restoredSession.totalCost ?? 0,
+        upstreamRequestCount: restoredSession.upstreamRequestCount,
+        requestLog: restoredSession.requestLog ?? [],
+        contextUsage: restoredSession.contextUsage ?? null,
       },
       initialPermission: null,
       initialConfigOptions: [],

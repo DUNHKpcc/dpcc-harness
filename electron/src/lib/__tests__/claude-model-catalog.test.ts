@@ -89,6 +89,8 @@ describe("Claude model catalog", () => {
           value: "claude-opus-4-6",
           displayName: "claude-opus-4-6",
           description: "",
+          supportsEffort: true,
+          supportedEffortLevels: ["low", "medium", "high", "max"],
         },
         {
           value: "claude-dpcc-only",
@@ -100,7 +102,7 @@ describe("Claude model catalog", () => {
     });
   });
 
-  it("does not borrow exact, alias, description, or capability metadata from SDK models", async () => {
+  it("does not borrow SDK metadata while adding app-owned effort capabilities", async () => {
     mocks.fetchUpstreamModels.mockResolvedValue({
       models: ["sonnet", "claude-opus-4-6"],
       error: null,
@@ -108,8 +110,28 @@ describe("Claude model catalog", () => {
 
     await expect(resolveEffectiveClaudeModels(sdkModels)).resolves.toEqual([
       { value: "sonnet", displayName: "sonnet", description: "" },
-      { value: "claude-opus-4-6", displayName: "claude-opus-4-6", description: "" },
+      {
+        value: "claude-opus-4-6",
+        displayName: "claude-opus-4-6",
+        description: "",
+        supportsEffort: true,
+        supportedEffortLevels: ["low", "medium", "high", "max"],
+      },
     ]);
+  });
+
+  it("applies per-model DPCC effort profiles without treating thinking toggles as effort", async () => {
+    mocks.fetchUpstreamModels.mockResolvedValue({
+      models: ["deepseek-v4-pro", "claude-sonnet-5", "glm-5.1", "kimi-k2.7-code"],
+      error: null,
+    });
+
+    const models = await resolveEffectiveClaudeModels([]);
+
+    expect(models[0].supportedEffortLevels).toEqual(["high", "max"]);
+    expect(models[1].supportedEffortLevels).toEqual(["low", "medium", "high", "xhigh", "max"]);
+    expect(models[2]).not.toHaveProperty("supportsEffort");
+    expect(models[3]).not.toHaveProperty("supportsEffort");
   });
 
   it("uses only DPCC-authoritative model ids for default-upstream requests", async () => {

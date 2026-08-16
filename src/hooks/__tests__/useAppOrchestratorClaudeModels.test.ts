@@ -17,6 +17,16 @@ describe("getCanonicalClaudeModelForCatalog", () => {
     expect(getCanonicalClaudeModelForCatalog("claude-opus-4-6", [])).toBeUndefined();
   });
 
+  it("replaces an unavailable default alias with the authoritative catalog default", () => {
+    expect(getCanonicalClaudeModelForCatalog("default", [{
+      value: "claude-sonnet-5",
+      displayName: "claude-sonnet-5",
+      description: "",
+      supportsEffort: true,
+      supportedEffortLevels: ["low", "medium", "high", "xhigh", "max"],
+    }])).toBe("claude-sonnet-5");
+  });
+
   it("falls back to the authorized Codex model when the saved model is unavailable", () => {
     expect(getValidCodexModelForCatalog("stale-native-model", [{
       id: "pcc-local-test",

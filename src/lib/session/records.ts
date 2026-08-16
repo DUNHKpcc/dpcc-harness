@@ -3,7 +3,7 @@ import type { ChatSession, ClaudeEffort, ContextUsage, PersistedSession, UIMessa
 import { getUpstreamRequestCount, trimUpstreamRequestLog } from "@/lib/usage/upstream-requests";
 import { finalizeInterruptedMessages } from "@/lib/chat/in-flight-tools";
 
-const VALID_EFFORTS = new Set<string>(["low", "medium", "high", "max"]);
+const VALID_EFFORTS = new Set<string>(["low", "medium", "high", "xhigh", "max"]);
 function toClaudeEffort(value: string | undefined): ClaudeEffort | undefined {
   return value && VALID_EFFORTS.has(value) ? (value as ClaudeEffort) : undefined;
 }

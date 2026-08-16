@@ -4,6 +4,7 @@ import {
   areModelsEquivalent,
   canonicalizeModelValue,
   findEquivalentModel,
+  resolveClaudePickerValue,
   resolveModelValue,
 } from "../model-utils";
 
@@ -114,6 +115,22 @@ describe("canonicalizeModelValue", () => {
         supportedEffortLevels: ["low", "medium", "high", "max"],
       },
     ])).toBe("claude-opus-4-6[1m]");
+  });
+});
+
+describe("resolveClaudePickerValue", () => {
+  it("keeps the SDK default alias when the active catalog exposes it", () => {
+    expect(resolveClaudePickerValue("default", cachedModels)).toBe("default");
+  });
+
+  it("replaces the SDK default alias with a concrete DPCC catalog model", () => {
+    const dpccModels = cachedModels.filter((entry) => entry.value !== "default");
+
+    expect(resolveClaudePickerValue("default", dpccModels)).toBe("sonnet");
+  });
+
+  it("does not invent a model before the active catalog is loaded", () => {
+    expect(resolveClaudePickerValue("default", [])).toBeUndefined();
   });
 });
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import type { PersistedSession, ClaudeEvent, SystemInitEvent, EngineId, ACPSessionEvent, ACPPermissionEvent, ACPTurnCompleteEvent } from "@/types";
-import { canonicalizeModelValue } from "@/lib/model-utils";
+import { resolveClaudePickerValue } from "@/lib/model-utils";
 import { getSessionNotificationActor } from "@/lib/session-notifications";
 import { toastText } from "@/lib/toast-i18n";
 import { toMcpStatusState } from "../../lib/mcp-utils";
@@ -783,7 +783,7 @@ export function useSessionPersistence({
         // Model sync
         const nextModel = (s.engine ?? "claude") === "claude"
           ? (activeClaudeModels.length > 0
-            ? (canonicalizeModelValue(sessionInfo?.model, activeClaudeModels) ?? sessionInfo?.model)
+            ? (resolveClaudePickerValue(sessionInfo?.model, activeClaudeModels) ?? sessionInfo?.model)
             : s.model)
           : sessionInfo?.model;
         if (nextModel && s.model !== nextModel) {

@@ -5,7 +5,7 @@ import type { ContextUsage } from "./mcp";
 
 // ── Effort ──
 
-export type ClaudeEffort = "low" | "medium" | "high" | "max";
+export type ClaudeEffort = "low" | "medium" | "high" | "xhigh" | "max";
 
 // ── Session message types ──
 

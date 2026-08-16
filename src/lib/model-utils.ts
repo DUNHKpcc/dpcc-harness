@@ -166,6 +166,22 @@ export function canonicalizeModelValue(
 }
 
 /**
+ * Resolve Claude's persisted picker value against the active catalog.
+ *
+ * `default` is a real Claude SDK alias for local config, but DPCC exposes only
+ * concrete model IDs. When an alias or stale value is absent from that
+ * authoritative catalog, use its first model instead of rendering a value
+ * whose capability metadata cannot be found.
+ */
+export function resolveClaudePickerValue(
+  model: string | null | undefined,
+  supportedModels: ModelInfo[],
+): string | undefined {
+  if (supportedModels.length === 0) return undefined;
+  return canonicalizeModelValue(model, supportedModels) ?? supportedModels[0]?.value;
+}
+
+/**
  * Format a Claude model into a friendly versioned label.
  *
  * The SDK returns models keyed by short aliases (e.g. `value: "sonnet"`,

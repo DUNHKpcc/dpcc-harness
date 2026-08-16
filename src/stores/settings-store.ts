@@ -349,7 +349,11 @@ function readLegacyGlobalSettings(): GlobalSettingsState {
   // Claude effort
   const storedEffort = localStorage.getItem("pcc-agent-claude-effort");
   const claudeEffort: ClaudeEffort =
-    (storedEffort === "low" || storedEffort === "medium" || storedEffort === "high" || storedEffort === "max")
+    (storedEffort === "low"
+      || storedEffort === "medium"
+      || storedEffort === "high"
+      || storedEffort === "xhigh"
+      || storedEffort === "max")
       ? storedEffort
       : DEFAULT_CLAUDE_EFFORT;
 

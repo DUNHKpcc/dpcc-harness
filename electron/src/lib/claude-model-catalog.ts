@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { getModelEffortProfile } from "@shared/lib/model-effort-capabilities";
 import type { CachedModelInfo } from "./claude-model-cache";
 import type { ClaudeUpstream } from "./upstream-resolver";
 import { resolveClaudeUpstream } from "./upstream-resolver";
@@ -65,10 +66,20 @@ async function loadDpccModelIds(baseUrl: string, token: string): Promise<string[
 }
 
 function dpccClaudeModel(id: string): CachedModelInfo {
+  const effort = getModelEffortProfile(id);
   return {
     value: id,
     displayName: id,
     description: "",
+    ...(effort
+      ? {
+          supportsEffort: true,
+          supportedEffortLevels: effort.levels.filter(
+            (level): level is NonNullable<CachedModelInfo["supportedEffortLevels"]>[number] =>
+              level !== "none" && level !== "minimal",
+          ),
+        }
+      : {}),
   };
 }
 

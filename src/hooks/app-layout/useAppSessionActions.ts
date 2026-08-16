@@ -5,6 +5,7 @@ import { useSettingsCompat } from "@/hooks/useSettingsCompat";
 import type { FileReference, ImageAttachment, InstalledAgent, ClaudeEffort, EngineId } from "@/types";
 import type { SettingsSection } from "@/components/SettingsView";
 import { selectProjectModelForEngine, useSettingsStore } from "@/stores/settings-store";
+import { resolveClaudeEffort } from "@/lib/engine/claude-effort";
 import { buildSessionOptions } from "./session-utils";
 
 type SessionManagerState = ReturnType<typeof useSessionManager>;
@@ -24,13 +25,11 @@ interface UseAppSessionActionsInput {
 
 export function useAppSessionActions(input: UseAppSessionActionsInput) {
   const getClaudeEffortForModel = useCallback((model: string | undefined): ClaudeEffort | undefined => {
-    if (!model) return undefined;
-    const meta = input.manager.supportedModels.find((entry) => entry.value === model);
-    if (!meta?.supportsEffort) return undefined;
-    const levels = meta.supportedEffortLevels ?? [];
-    if (levels.includes(input.settings.claudeEffort)) return input.settings.claudeEffort;
-    if (levels.includes("high")) return "high";
-    return levels[0];
+    return resolveClaudeEffort(
+      model,
+      input.manager.supportedModels,
+      input.settings.claudeEffort,
+    );
   }, [input.manager.supportedModels, input.settings.claudeEffort]);
 
   const handleAgentWorktreeChange = useCallback((nextPath: string | null) => {

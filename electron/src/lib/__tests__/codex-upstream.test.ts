@@ -187,6 +187,45 @@ describe("DPCC Codex model catalog", () => {
     expect(resolveCodexReasoningEffort(spark, "xhigh")).toBe("xhigh");
   });
 
+  it("fills documented effort metadata for current DPCC GPT models", async () => {
+    const { mergeCodexModelsForUpstream, resolveCodexReasoningEffort } = await loadCodexHelpers();
+    const models = mergeCodexModelsForUpstream([], [
+      "gpt-5.4",
+      "gpt-5.5",
+      "gpt-5.6-sol",
+      "gpt-image-2",
+    ]);
+
+    expect(models[0].supportedReasoningEfforts.map((entry) => entry.reasoningEffort))
+      .toEqual(["none", "low", "medium", "high", "xhigh"]);
+    expect(models[0].defaultReasoningEffort).toBe("none");
+    expect(models[1].defaultReasoningEffort).toBe("medium");
+    expect(models[2].supportedReasoningEfforts.map((entry) => entry.reasoningEffort))
+      .toEqual(["none", "low", "medium", "high", "xhigh", "max"]);
+    expect(models[2].defaultReasoningEffort).toBe("medium");
+    expect(models[3].supportedReasoningEfforts).toEqual([]);
+    expect(resolveCodexReasoningEffort(models[2], "ultra")).toBe("medium");
+  });
+
+  it("builds model-specific Pi thinking maps without fake intermediate tiers", async () => {
+    const {
+      buildPiThinkingLevelMap,
+      getPiThinkingDisplayLevel,
+      getPiThinkingProfile,
+    } = await import("@shared/lib/model-effort-capabilities");
+
+    expect(buildPiThinkingLevelMap("deepseek-v4-pro")).toEqual({
+      minimal: null,
+      low: null,
+      medium: null,
+      xhigh: "max",
+      max: null,
+    });
+    expect(getPiThinkingDisplayLevel("deepseek-v4-pro", "xhigh")).toBe("max");
+    expect(getPiThinkingProfile("kimi-k2.7-code")?.levels).toEqual(["high"]);
+    expect(getPiThinkingProfile("gpt-image-2")).toBeNull();
+  });
+
   it("preserves native Spark efforts", async () => {
     const nativeSpark = createCodexModel({
       id: SPARK_MODEL_ID,

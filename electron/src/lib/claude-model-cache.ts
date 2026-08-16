@@ -7,7 +7,7 @@ export interface CachedModelInfo {
   displayName: string;
   description: string;
   supportsEffort?: boolean;
-  supportedEffortLevels?: Array<"low" | "medium" | "high" | "max">;
+  supportedEffortLevels?: Array<"low" | "medium" | "high" | "xhigh" | "max">;
   supportsAdaptiveThinking?: boolean;
   supportsFastMode?: boolean;
 }
@@ -31,8 +31,12 @@ function normalizeModelInfo(value: unknown): CachedModelInfo | null {
   const description = typeof model.description === "string" ? model.description : "";
   const supportedEffortLevels = Array.isArray(model.supportedEffortLevels)
     ? model.supportedEffortLevels.filter(
-      (level): level is "low" | "medium" | "high" | "max" =>
-        level === "low" || level === "medium" || level === "high" || level === "max",
+      (level): level is "low" | "medium" | "high" | "xhigh" | "max" =>
+        level === "low"
+        || level === "medium"
+        || level === "high"
+        || level === "xhigh"
+        || level === "max",
     )
     : undefined;
   return {

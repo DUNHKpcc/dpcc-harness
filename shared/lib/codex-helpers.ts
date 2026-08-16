@@ -3,6 +3,7 @@
  */
 
 import type { CodexModel } from "../types/codex";
+import { getModelEffortProfile } from "./model-effort-capabilities";
 
 export const SUPPORTED_SERVER_REQUESTS = new Set([
   "item/commandExecution/requestApproval",
@@ -39,17 +40,15 @@ const REASONING_EFFORT_DESCRIPTIONS = {
   medium: "Medium",
   high: "High",
   xhigh: "Extra High",
+  max: "Maximum",
 } as const;
 
-const CODEX_SPARK_MODEL_ID = "gpt-5.3-codex-spark";
-
 function createUpstreamCodexModel(id: string): CodexModel {
-  const supportedReasoningEfforts = id === CODEX_SPARK_MODEL_ID
-    ? (["low", "medium", "high", "xhigh"] as const).map((reasoningEffort) => ({
-        reasoningEffort,
-        description: REASONING_EFFORT_DESCRIPTIONS[reasoningEffort],
-      }))
-    : [];
+  const effort = getModelEffortProfile(id);
+  const supportedReasoningEfforts = (effort?.levels ?? []).map((reasoningEffort) => ({
+    reasoningEffort,
+    description: REASONING_EFFORT_DESCRIPTIONS[reasoningEffort],
+  })) as unknown as CodexModel["supportedReasoningEfforts"];
 
   return {
     id,
@@ -59,7 +58,7 @@ function createUpstreamCodexModel(id: string): CodexModel {
     description: "",
     hidden: false,
     supportedReasoningEfforts,
-    defaultReasoningEffort: id === CODEX_SPARK_MODEL_ID ? "high" : "none",
+    defaultReasoningEffort: (effort?.defaultLevel ?? "none") as CodexModel["defaultReasoningEffort"],
     inputModalities: ["text"],
     supportsPersonality: false,
     isDefault: false,

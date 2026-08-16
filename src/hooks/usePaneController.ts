@@ -13,7 +13,7 @@ import type { ACPConfigOption, ChatSession, ClaudeEffort, EngineId, FileReferenc
 import type { SessionPaneState } from "@/hooks/session/useSessionPane";
 import type { CodexModelSummary } from "@/hooks/session/types";
 import { buildCodexCollabMode, DEFAULT_PERMISSION_MODE } from "@/hooks/session/types";
-import { canonicalizeModelValue } from "@/lib/model-utils";
+import { resolveClaudePickerValue } from "@/lib/model-utils";
 import { toastText } from "@/lib/toast-i18n";
 import { continueWeChatSession } from "@/lib/session/wechat-continue";
 import type { PaneController } from "@/types";
@@ -124,7 +124,7 @@ export function usePaneController(
             ? ctx.manager.cachedClaudeModels
             : buildPaneModelFallback(rawPaneModel);
     const paneModel = paneEngine === "claude"
-      ? (canonicalizeModelValue(rawPaneModel, paneSupportedModels) ?? rawPaneModel)
+      ? (resolveClaudePickerValue(rawPaneModel, paneSupportedModels) ?? rawPaneModel)
       : rawPaneModel;
     const paneAcpConfigOptions = paneEngine === "acp"
       ? (isActiveSessionPane ? ctx.manager.acpConfigOptions : paneState.acp.configOptions)

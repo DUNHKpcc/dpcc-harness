@@ -450,7 +450,7 @@ interface StartOptions {
   model?: string;
   permissionMode?: PermissionMode;
   thinkingEnabled?: boolean;
-  effort?: "low" | "medium" | "high" | "max";
+  effort?: "low" | "medium" | "high" | "xhigh" | "max";
   resume?: string;
   /** Fork to a new session ID when resuming (model forgets messages after resumeSessionAt) */
   forkSession?: boolean;

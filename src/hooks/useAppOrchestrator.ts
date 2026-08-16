@@ -11,7 +11,7 @@ import { useAcpAgentAutoUpdate } from "@/hooks/useAcpAgentAutoUpdate";
 import { useSplitView } from "@/hooks/useSplitView";
 import { useFolderManager } from "@/hooks/useFolderManager";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
-import { canonicalizeModelValue, resolveModelValue } from "@/lib/model-utils";
+import { resolveClaudePickerValue, resolveModelValue } from "@/lib/model-utils";
 import type { ToolId } from "@/types/tools";
 import type { AcpPermissionBehavior, EngineId, InstalledAgent, ModelInfo } from "@/types";
 import { getSyncedPlanMode } from "@/hooks/app-layout/session-utils";
@@ -58,8 +58,7 @@ export function getCanonicalClaudeModelForCatalog(
   currentModel: string | null | undefined,
   supportedModels: ModelInfo[],
 ): string | undefined {
-  if (supportedModels.length === 0) return undefined;
-  return canonicalizeModelValue(currentModel, supportedModels);
+  return resolveClaudePickerValue(currentModel, supportedModels);
 }
 
 export function getValidCodexModelForCatalog(
@@ -213,7 +212,7 @@ export function useAppOrchestrator(input: UseAppOrchestratorInput = {}) {
 
     const sessionEngine = session.engine ?? "claude";
     const syncedModel = sessionEngine === "claude"
-      ? (canonicalizeModelValue(session.model, manager.supportedModels) ?? session.model)
+      ? (resolveClaudePickerValue(session.model, manager.supportedModels) ?? session.model)
       : (resolveModelValue(session.model, manager.supportedModels) ?? session.model);
     if (syncedModel !== settings.getModelForEngine(sessionEngine)) {
       settings.setModelForEngine(sessionEngine, syncedModel);

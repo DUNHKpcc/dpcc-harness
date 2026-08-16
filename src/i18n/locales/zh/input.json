@@ -32,11 +32,14 @@
     "andMore": "……以及另外 {{count}} 个"
   },
   "engine": {
+    "model": "模型",
+    "thinking": "思考",
     "effort": "推理强度",
     "current": "当前",
     "customReasoningEffort": "自定义推理强度",
     "loadingOptions": "正在加载选项…",
     "noOptions": "无法加载此 agent 的选项",
+    "noThinkingOptions": "当前模型不支持可调推理强度",
     "opensNewChat": "将打开新会话",
     "engines": "引擎",
     "acpAgents": "ACP Agents",
@@ -45,6 +48,7 @@
       "low": "最少思考，响应最快",
       "medium": "适度思考",
       "high": "深度推理",
+      "xhigh": "超高强度推理",
       "max": "最大强度"
     }
   },

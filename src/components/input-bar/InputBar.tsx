@@ -40,7 +40,8 @@ import type {
 } from "@/types";
 import { BOTTOM_CHAT_MAX_WIDTH_CLASS } from "@/lib/layout/constants";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
-import { resolveModelValue, formatClaudeModelLabel } from "@/lib/model-utils";
+import { resolveClaudePickerValue, resolveModelValue, formatClaudeModelLabel } from "@/lib/model-utils";
+import { getClaudeEffortOptions, resolveClaudeEffort } from "@/lib/engine/claude-effort";
 import { isImeComposing } from "@/lib/utils";
 // Lazy-loaded: the annotation editor pulls in konva/react-konva (~10MB) and is
 // only needed when the user edits an attached screenshot. Keep it out of the
@@ -67,6 +68,7 @@ import {
 import { ContextGauge } from "./ContextGauge";
 import { AttachmentPreview } from "./AttachmentPreview";
 import { EnginePickerDropdown } from "./EnginePickerDropdown";
+import { ModelThinkingDropdown } from "./ModelThinkingDropdown";
 import { EngineControls, PermissionDropdown, AcpBehaviorDropdown } from "./EngineControls";
 import { MentionPicker } from "./MentionPicker";
 import { useMentionAutocomplete } from "./useMentionAutocomplete";
@@ -206,7 +208,6 @@ export const InputBar = memo(function InputBar({
   // ── Derived engine state ──
   const isACPAgent = selectedAgent != null && selectedAgent.engine === "acp";
   const isCodexAgent = selectedAgent != null && selectedAgent.engine === "codex";
-  const showACPConfigOptions = isACPAgent && (acpConfigOptions?.length ?? 0) > 0;
   const isAwaitingAcpOptions = isACPAgent && !!acpConfigOptionsLoading;
 
   const availableSlashCommands = useMemo(
@@ -226,7 +227,9 @@ export const InputBar = memo(function InputBar({
   const modelsLoadingText = isCodexAgent
     ? (codexModelsLoadingMessage?.trim() || t("model.loadingCodex"))
     : t("model.loading");
-  const resolvedModelId = resolveModelValue(model, supportedModels ?? []);
+  const resolvedModelId = !isACPAgent && !isCodexAgent
+    ? resolveClaudePickerValue(model, supportedModels ?? [])
+    : resolveModelValue(model, supportedModels ?? []);
   const preferredModelId = resolvedModelId ?? model;
   const selectedModel = modelList.find((m) => m.id === preferredModelId) ?? (
     preferredModelId
@@ -242,12 +245,33 @@ export const InputBar = memo(function InputBar({
   const selectedModelDisplayLabel = !isACPAgent && !isCodexAgent && claudeCurrentModel
     ? formatClaudeModelLabel(claudeCurrentModel)
     : (selectedModel?.label ?? "");
-  const claudeEffortOptions = claudeCurrentModel?.supportsEffort
-    ? (claudeCurrentModel.supportedEffortLevels ?? [])
-    : [];
+  const claudeEffortOptions = getClaudeEffortOptions(
+    claudeCurrentModel,
+    supportedModels ?? [],
+  );
   const claudeActiveEffort = claudeEffortOptions.includes(claudeEffort)
     ? claudeEffort
     : (claudeEffortOptions.includes("high") ? "high" : (claudeEffortOptions[0] ?? "high"));
+  const handleModelSelect = useCallback((nextModel: string) => {
+    if (isACPAgent || isCodexAgent) {
+      onModelChange(nextModel);
+      return;
+    }
+
+    const nextEffort = resolveClaudeEffort(nextModel, supportedModels ?? [], claudeEffort);
+    if (!nextEffort) {
+      onModelChange(nextModel);
+      return;
+    }
+    onClaudeModelEffortChange(nextModel, nextEffort);
+  }, [
+    claudeEffort,
+    isACPAgent,
+    isCodexAgent,
+    onClaudeModelEffortChange,
+    onModelChange,
+    supportedModels,
+  ]);
 
   // Codex effort
   const codexCurrentModel = codexModelData?.find((m) => m.id === selectedModelId)
@@ -998,27 +1022,9 @@ export const InputBar = memo(function InputBar({
             {/* Engine picker */}
             <EnginePickerDropdown
               isProcessing={isProcessing}
-              isACPAgent={isACPAgent}
-              isCodexAgent={isCodexAgent}
               selectedAgent={selectedAgent ?? null}
               agents={agents ?? []}
               onAgentChange={onAgentChange ?? (() => {})}
-              selectedModelId={selectedModelId}
-              selectedModelLabel={selectedModelDisplayLabel}
-              modelList={modelList}
-              modelsLoading={modelsLoading}
-              modelsLoadingText={modelsLoadingText}
-              onModelChange={onModelChange}
-              claudeEffortOptions={claudeEffortOptions}
-              claudeActiveEffort={claudeActiveEffort as ClaudeEffort}
-              onClaudeModelEffortChange={onClaudeModelEffortChange}
-              codexEffortOptions={codexEffortOptions}
-              codexActiveEffort={codexActiveEffort ?? "medium"}
-              onCodexEffortChange={onCodexEffortChange}
-              showACPConfigOptions={showACPConfigOptions}
-              acpConfigOptions={acpConfigOptions}
-              acpConfigOptionsLoading={acpConfigOptionsLoading}
-              onACPConfigChange={onACPConfigChange}
               lockedEngine={lockedEngine}
               lockedAgentId={lockedAgentId}
               onManageACPs={onManageACPs}
@@ -1071,35 +1077,27 @@ export const InputBar = memo(function InputBar({
         </div>
       </div>
 
-      {/* Sunken meta row -- model · effort, permission, context usage */}
+      {/* Sunken meta row -- model + thinking, permission, context usage */}
       <div className="pointer-events-auto mt-1.5 flex items-center gap-1 px-1 text-xs text-muted-foreground/80">
-        <EnginePickerDropdown
-          triggerMode="label"
+        <ModelThinkingDropdown
           isProcessing={isProcessing}
           isACPAgent={isACPAgent}
           isCodexAgent={isCodexAgent}
-          selectedAgent={selectedAgent ?? null}
-          agents={agents ?? []}
-          onAgentChange={onAgentChange ?? (() => {})}
           selectedModelId={selectedModelId}
           selectedModelLabel={selectedModelDisplayLabel}
           modelList={modelList}
           modelsLoading={modelsLoading}
           modelsLoadingText={modelsLoadingText}
-          onModelChange={onModelChange}
+          onModelChange={handleModelSelect}
           claudeEffortOptions={claudeEffortOptions}
           claudeActiveEffort={claudeActiveEffort as ClaudeEffort}
           onClaudeModelEffortChange={onClaudeModelEffortChange}
           codexEffortOptions={codexEffortOptions}
           codexActiveEffort={codexActiveEffort ?? "medium"}
           onCodexEffortChange={onCodexEffortChange}
-          showACPConfigOptions={showACPConfigOptions}
           acpConfigOptions={acpConfigOptions}
           acpConfigOptionsLoading={acpConfigOptionsLoading}
           onACPConfigChange={onACPConfigChange}
-          lockedEngine={lockedEngine}
-          lockedAgentId={lockedAgentId}
-          onManageACPs={onManageACPs}
         />
         {isACPAgent ? (
           onAcpPermissionBehaviorChange && (

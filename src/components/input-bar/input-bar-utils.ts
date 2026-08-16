@@ -3,7 +3,6 @@ import type { AcceptedMediaType } from "./constants";
 import { ACCEPTED_IMAGE_TYPES } from "./constants";
 
 const BLANK_AUDIO_PLACEHOLDER_RE = /\[BLANK_AUDIO\]/gi;
-
 /** Read a file as base64 data with its media type. */
 export function readFileAsBase64(
   file: globalThis.File,

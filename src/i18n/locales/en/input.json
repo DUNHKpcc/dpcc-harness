@@ -32,11 +32,14 @@
     "andMore": "... and {{count}} more"
   },
   "engine": {
+    "model": "Model",
+    "thinking": "Thinking",
     "effort": "Effort",
     "current": "Current",
     "customReasoningEffort": "Custom reasoning effort",
     "loadingOptions": "Loading options...",
     "noOptions": "Could not load options for this agent",
+    "noThinkingOptions": "This model has no adjustable reasoning effort",
     "opensNewChat": "Opens new chat",
     "engines": "Engines",
     "acpAgents": "ACP Agents",
@@ -45,6 +48,7 @@
       "low": "Minimal thinking, fastest responses",
       "medium": "Moderate thinking",
       "high": "Deep reasoning",
+      "xhigh": "Extended reasoning",
       "max": "Maximum effort"
     }
   },

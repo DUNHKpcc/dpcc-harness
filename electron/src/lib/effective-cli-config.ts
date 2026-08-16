@@ -4,7 +4,7 @@
  *
  * Source options mirror the session spawn logic (see upstream-resolver):
  *  - default: the DPCC official upstream (origin-api.dpccgaming.xyz) + the DPCC account key
- *  - local: the user's current Claude Code / Codex CLI configuration
+ *  - local: the user's current Claude Code / Codex / Pi CLI configuration
  *  - gateway: the in-app custom third-party gateway
  *
  * The "default" tier routes to the DPCC upstream, so it carries a real base URL
@@ -14,6 +14,7 @@
 import {
   resolveClaudeUpstream,
   resolveCodexUpstream,
+  resolvePiUpstream,
 } from "./upstream-resolver";
 import type {
   EffectiveCliConfig,
@@ -50,6 +51,27 @@ function resolveCodex(): EffectiveEngineConfig {
   };
 }
 
+function resolvePi(): EffectiveEngineConfig {
+  const upstream = resolvePiUpstream();
+  const providers = upstream.providers;
+  const primary = providers[0];
+  return {
+    source: upstream.tier,
+    providerName: providers.map((provider) => provider.name).join(" + ") || "Local Pi",
+    baseUrl: providers.map((provider) => provider.baseUrl).filter(Boolean).join(" | ") || null,
+    maskedToken: providers.length === 1 ? maskSecret(primary?.apiKey) : null,
+    ...(providers.length > 1
+      ? {
+          credentials: providers.map((provider) => ({
+            label: provider.api === "anthropic-messages" ? "Claude" : "Codex",
+            maskedToken: maskSecret(provider.apiKey),
+          })),
+        }
+      : {}),
+    model: upstream.model || null,
+  };
+}
+
 export function resolveEffectiveCliConfig(): EffectiveCliConfig {
-  return { claude: resolveClaude(), codex: resolveCodex() };
+  return { claude: resolveClaude(), codex: resolveCodex(), pi: resolvePi() };
 }

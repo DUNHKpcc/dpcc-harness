@@ -187,7 +187,7 @@ export function useDraftMaterialization({
     const isCurrentEagerStart = () => (
       eagerStartGeneration === acpEagerStartGenerationRef.current
     );
-    const project = refs.projectsRef.current.find((p) => p.id === projectId);
+    const project = findProject(projectId);
     const agentId = options?.agentId?.trim();
     if (!project || !agentId) return;
 
@@ -300,7 +300,7 @@ export function useDraftMaterialization({
       })));
     }
     setAcpConfigOptionsLoading(false);
-  }, [acp, getProjectCwd, setAcpConfigOptionsLoading, setDraftAcpSessionId, setDraftMcpStatuses, setInitialConfigOptions, setInitialSlashCommands]);
+  }, [acp, findProject, getProjectCwd, setAcpConfigOptionsLoading, setDraftAcpSessionId, setDraftMcpStatuses, setInitialConfigOptions, setInitialSlashCommands]);
 
   // Load Codex models ahead of first message so the model picker is usable in draft mode.
   const prefetchCodexModels = useCallback(async (

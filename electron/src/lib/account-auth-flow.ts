@@ -746,6 +746,9 @@ export class AccountAuthorizationCoordinator {
       ...(settings.codexCliConfigSource === "default"
         ? { codexCliConfigSource: "local" as const }
         : {}),
+      ...(settings.piCliConfigSource === "default"
+        ? { piCliConfigSource: "local" as const }
+        : {}),
     });
     this.publish({
       ...this.emptySnapshot(),
@@ -1015,6 +1018,7 @@ export class AccountAuthorizationCoordinator {
         ? {
             claudeCliConfigSource: "default" as const,
             codexCliConfigSource: "default" as const,
+            piCliConfigSource: "default" as const,
           }
         : {}),
     });

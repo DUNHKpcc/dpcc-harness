@@ -16,6 +16,7 @@ const testState = vi.hoisted(() => ({
     accountMode: "unset",
     claudeCliConfigSource: "default",
     codexCliConfigSource: "default",
+    piCliConfigSource: "default",
   } as Record<string, unknown>,
 }));
 
@@ -117,6 +118,7 @@ describe("desktop account authorization workflow", () => {
       accountMode: "unset",
       claudeCliConfigSource: "default",
       codexCliConfigSource: "default",
+      piCliConfigSource: "default",
     };
   });
 
@@ -228,6 +230,7 @@ describe("desktop account authorization workflow", () => {
       accountMode: "guest",
       claudeCliConfigSource: "local",
       codexCliConfigSource: "local",
+      piCliConfigSource: "local",
     });
 
     const startedAt = Date.now();
@@ -298,6 +301,7 @@ describe("desktop account authorization workflow", () => {
       accountMode: "unset",
       claudeCliConfigSource: "default",
       codexCliConfigSource: "default",
+      piCliConfigSource: "default",
     });
     expect(snapshots.some((snapshot) => snapshot.status === "authorizing")).toBe(true);
     expect(coordinator.getSnapshot()).toMatchObject({

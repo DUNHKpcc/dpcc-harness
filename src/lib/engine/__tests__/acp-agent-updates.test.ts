@@ -5,6 +5,7 @@ import {
   mergeRegistryAgentUpdate,
   planAcpAgentUpdates,
 } from "@/lib/engine/acp-agent-updates";
+import { registryAgentToDefinition } from "@/lib/background/agent-store-utils";
 
 function makeRegistryAgent(overrides: Partial<RegistryAgent> = {}): RegistryAgent {
   return {
@@ -132,5 +133,26 @@ describe("planAcpAgentUpdates", () => {
     expect(updates).toHaveLength(1);
     expect(updates[0]?.next.binary).toBe("/opt/homebrew/bin/binary-agent");
     expect(updates[0]?.next.args).toEqual(["serve"]);
+  });
+});
+
+describe("registryAgentToDefinition", () => {
+  it("registers Pi ACP as a user-installed PATH command instead of npx", () => {
+    const definition = registryAgentToDefinition(makeRegistryAgent({
+      id: "pi-acp",
+      distribution: {
+        npx: {
+          package: "pi-acp@0.0.33",
+          args: ["--adapter-flag"],
+        },
+      },
+    }));
+
+    expect(definition).toMatchObject({
+      id: "pi-acp",
+      binary: "pi-acp",
+      args: ["--adapter-flag"],
+      registryId: "pi-acp",
+    });
   });
 });

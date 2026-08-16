@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DRAFT_ID } from "../types";
+import { DRAFT_ID, type StartOptions } from "../types";
 
 vi.mock("react", () => ({
   useCallback: <T extends (...args: never[]) => unknown>(fn: T) => fn,
@@ -28,7 +28,7 @@ function makeParams() {
       activeSessionIdRef: { current: DRAFT_ID },
       draftProjectIdRef: { current: "project-1" },
       projectsRef: { current: [{ id: "project-1", path: "/tmp/project" }] },
-      startOptionsRef: { current: { engine: "claude" as const } },
+      startOptionsRef: { current: { engine: "claude" } as StartOptions },
       liveSessionIdsRef: { current: new Set<string>() },
       backgroundStoreRef: { current: new Map() },
       preStartedSessionIdRef: { current: null as string | null },
@@ -45,12 +45,21 @@ function makeParams() {
     },
     setters: {
       setPreStartedSessionId: setter(),
+      setDraftAcpSessionId: setter(),
       setDraftMcpStatuses: setter(),
+      setInitialConfigOptions: setter(),
+      setInitialSlashCommands: setter(),
+      setAcpConfigOptionsLoading: setter(),
       setCachedModels: setter(),
     },
     engines: {
       claude: {},
-      acp: {},
+      acp: {
+        setConfigOptions: vi.fn(),
+        setAuthMethods: vi.fn(),
+        setAuthRequired: vi.fn(),
+        clearAuthRequired: vi.fn(),
+      },
       codex: {},
     },
     findProject: vi.fn(),
@@ -70,6 +79,12 @@ describe("useDraftMaterialization", () => {
     vi.stubGlobal("window", {
       claude: {
         mcp: { list: vi.fn(async () => []) },
+        acp: {
+          start: vi.fn(),
+          stop: vi.fn(),
+          getConfigOptions: vi.fn(async () => ({ configOptions: [] })),
+          getAvailableCommands: vi.fn(async () => ({ commands: [] })),
+        },
         start: vi.fn(),
         stop: vi.fn(),
         mcpStatus: vi.fn(async () => ({ servers: [] })),
@@ -151,6 +166,48 @@ describe("useDraftMaterialization", () => {
     expect(params.refs.preStartedSessionIdRef.current).toBe("newer-session");
     expect(params.refs.liveSessionIdsRef.current).toEqual(new Set(["newer-session"]));
     expect(window.claude.stop).toHaveBeenCalledWith("older-session", "draft_abandoned");
+  });
+
+  it("eager-starts ACP drafts for the virtual Chat module project", async () => {
+    const { useDraftMaterialization } = await import("../useDraftMaterialization");
+    const params = makeParams();
+    const chatProject = { id: "__harnss_chat__", path: "/tmp/chat-project" };
+    params.refs.projectsRef.current = [];
+    params.refs.draftProjectIdRef.current = chatProject.id;
+    params.refs.startOptionsRef.current = {
+      engine: "acp" as const,
+      agentId: "pi-acp",
+    };
+    params.findProject.mockReturnValue(chatProject);
+    vi.mocked(window.claude.acp.start).mockResolvedValue({
+      sessionId: "pi-session",
+      agentSessionId: "pi-agent-session",
+      configOptions: [{
+        id: "model",
+        name: "Model",
+        type: "select",
+        currentValue: "model-a",
+        options: [],
+      }],
+      mcpStatuses: [],
+    });
+
+    const materialization = useDraftMaterialization(
+      params as unknown as Parameters<typeof useDraftMaterialization>[0],
+    );
+    await materialization.eagerStartAcpSession(chatProject.id, {
+      engine: "acp",
+      agentId: "pi-acp",
+    });
+
+    expect(params.findProject).toHaveBeenCalledWith(chatProject.id);
+    expect(window.claude.acp.start).toHaveBeenCalledWith({
+      agentId: "pi-acp",
+      cwd: "/tmp/project",
+      mcpServers: [],
+    });
+    expect(params.refs.draftAcpSessionIdRef.current).toBe("pi-session");
+    expect(params.setters.setAcpConfigOptionsLoading).toHaveBeenLastCalledWith(false);
   });
 
   it("releases the materialization guard when MCP loading rejects", async () => {

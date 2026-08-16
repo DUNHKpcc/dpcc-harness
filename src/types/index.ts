@@ -154,7 +154,9 @@ export type {
   AccountBalanceAlertSettings,
   AppSettings,
   ClaudeGatewaySettings,
+  OpenAiCompatibleGatewaySettings,
   CodexGatewaySettings,
+  PiGatewaySettings,
   GatewayModelMapping,
 } from "@shared/types/settings";
 

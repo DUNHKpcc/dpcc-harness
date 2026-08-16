@@ -3,7 +3,7 @@
  *
  * Each source is selected in Settings → Current Config:
  *   - default — the DPCC official upstream (origin-api.dpccgaming.xyz) + the DPCC account key
- *   - local — the user's current Claude Code / Codex CLI configuration
+ *   - local — the user's current Claude Code / Codex / Pi CLI configuration
  *   - gateway — the in-app custom third-party gateway (Settings → Engines)
  *
  * The DPCC default replaces the engine's own login / cloud auth entirely. New
@@ -48,6 +48,31 @@ export interface CodexUpstream {
   model: string;
 }
 
+export type PiProviderApi = "anthropic-messages" | "openai-completions";
+
+export interface PiProviderUpstream {
+  id: string;
+  name: string;
+  baseUrl: string;
+  apiKey: string;
+  api: PiProviderApi;
+  /** Pi adds Authorization: Bearer for Anthropic-compatible DPCC traffic. */
+  authHeader?: boolean;
+  /** Static gateway candidates. DPCC candidates are fetched authoritatively at launch. */
+  models: string[];
+}
+
+export interface PiUpstream {
+  tier: UpstreamTier;
+  providers: PiProviderUpstream[];
+  /** Fully-qualified provider/model when known, otherwise an unqualified gateway model id. */
+  model: string;
+}
+
+export const PI_DPCC_CLAUDE_PROVIDER_ID = "pcc-agent-dpcc-claude";
+export const PI_DPCC_CODEX_PROVIDER_ID = "pcc-agent-dpcc-codex";
+export const PI_GATEWAY_PROVIDER_ID = "pcc-agent-gateway";
+
 function activeAccountCredential() {
   return getAppSetting("accountMode") === "guest"
     ? null
@@ -87,6 +112,10 @@ function selectedCodexSource(): UpstreamTier {
   return normalizeSource(getAppSetting("codexCliConfigSource"))
     ?? normalizeSource(getAppSetting("cliConfigSource"))
     ?? "default";
+}
+
+function selectedPiSource(): UpstreamTier {
+  return normalizeSource(getAppSetting("piCliConfigSource")) ?? "default";
 }
 
 function resolveLocalClaudeUpstream(): ClaudeUpstream {
@@ -198,4 +227,61 @@ export function resolveCodexUpstream(): CodexUpstream {
     default:
       return resolveDefaultCodexUpstream();
   }
+}
+
+/** Resolve the official Pi ACP agent's independent upstream configuration. */
+export function resolvePiUpstream(): PiUpstream {
+  const source = selectedPiSource();
+  if (source === "local") {
+    return { tier: "local", providers: [], model: "" };
+  }
+
+  if (source === "gateway") {
+    const gateway = getAppSetting("piGateway");
+    const models = Array.from(new Set([
+      gateway.model.trim(),
+      ...(gateway.modelMappings ?? []).map((mapping) => mapping.modelId.trim()),
+    ].filter(Boolean)));
+    return {
+      tier: "gateway",
+      providers: [{
+        id: PI_GATEWAY_PROVIDER_ID,
+        name: gateway.name.trim() || "PccAgent Pi Gateway",
+        baseUrl: gateway.baseUrl.trim(),
+        apiKey: gateway.apiKey.trim(),
+        api: "openai-completions",
+        models,
+      }],
+      model: gateway.model.trim()
+        ? (gateway.model.includes("/") ? gateway.model.trim() : `${PI_GATEWAY_PROVIDER_ID}/${gateway.model.trim()}`)
+        : "",
+    };
+  }
+
+  const dpcc = getAppSetting("dpccUpstream");
+  const credential = activeAccountCredential();
+  const host = dpccHost();
+  return {
+    tier: "default",
+    providers: [
+      {
+        id: PI_DPCC_CLAUDE_PROVIDER_ID,
+        name: "DPCC API (Claude)",
+        baseUrl: host,
+        apiKey: credentialTokenForEngine(credential, "claude"),
+        api: "anthropic-messages",
+        authHeader: true,
+        models: [],
+      },
+      {
+        id: PI_DPCC_CODEX_PROVIDER_ID,
+        name: "DPCC API (Codex)",
+        baseUrl: `${host}/v1`,
+        apiKey: credentialTokenForEngine(credential, "codex"),
+        api: "openai-completions",
+        models: [],
+      },
+    ],
+    model: dpcc.piModel?.trim() ?? "",
+  };
 }

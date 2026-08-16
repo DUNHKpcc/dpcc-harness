@@ -38,17 +38,28 @@ function mockSettings({
   cliConfigSource = "default",
   claudeCliConfigSource,
   codexCliConfigSource,
+  piCliConfigSource,
   dpccBaseUrl = "https://api.dpcc.example",
   claudeGateway = { enabled: false, baseUrl: "", authToken: "", model: "" },
   codexGateway = { enabled: false, name: "", baseUrl: "", apiKey: "", model: "" },
+  piGateway = { enabled: false, name: "", baseUrl: "", apiKey: "", model: "", modelMappings: [] },
 }: {
   accountMode?: "unset" | "guest";
   cliConfigSource?: "default" | "local" | "gateway";
   claudeCliConfigSource?: "default" | "local" | "gateway";
   codexCliConfigSource?: "default" | "local" | "gateway";
+  piCliConfigSource?: "default" | "local" | "gateway";
   dpccBaseUrl?: string;
   claudeGateway?: { enabled: boolean; baseUrl: string; authToken: string; model: string };
   codexGateway?: { enabled: boolean; name: string; baseUrl: string; apiKey: string; model: string };
+  piGateway?: {
+    enabled: boolean;
+    name: string;
+    baseUrl: string;
+    apiKey: string;
+    model: string;
+    modelMappings: Array<{ displayName: string; modelId: string }>;
+  };
 } = {}) {
   const dpccUpstream = {
     baseUrl: dpccBaseUrl,
@@ -56,6 +67,7 @@ function mockSettings({
     codexToken: "sk-dpcc-codex",
     claudeModel: "dpcc-claude-model",
     codexModel: "dpcc-codex-model",
+    piModel: "pcc-agent-dpcc-claude/dpcc-pi-model",
   };
 
   mockGetAppSetting.mockImplementation((key: string) => {
@@ -63,8 +75,10 @@ function mockSettings({
     if (key === "cliConfigSource") return cliConfigSource;
     if (key === "claudeCliConfigSource") return claudeCliConfigSource ?? cliConfigSource;
     if (key === "codexCliConfigSource") return codexCliConfigSource ?? cliConfigSource;
+    if (key === "piCliConfigSource") return piCliConfigSource ?? "default";
     if (key === "claudeGateway") return claudeGateway;
     if (key === "codexGateway") return codexGateway;
+    if (key === "piGateway") return piGateway;
     if (key === "dpccUpstream") return dpccUpstream;
     throw new Error(`unexpected setting key: ${key}`);
   });
@@ -106,7 +120,7 @@ describe("upstream resolver", () => {
   });
 
   it("uses the DPCC upstream by default over local Claude and Codex CLI configs", async () => {
-    const { resolveClaudeUpstream, resolveCodexUpstream } = await loadModule();
+    const { resolveClaudeUpstream, resolveCodexUpstream, resolvePiUpstream } = await loadModule();
 
     expect(resolveClaudeUpstream()).toEqual({
       tier: "default",
@@ -120,6 +134,29 @@ describe("upstream resolver", () => {
       baseUrl: "https://api.dpcc.example/v1",
       apiKey: "sk-dpcc-codex",
       model: "dpcc-codex-model",
+    });
+    expect(resolvePiUpstream()).toEqual({
+      tier: "default",
+      providers: [
+        {
+          id: "pcc-agent-dpcc-claude",
+          name: "DPCC API (Claude)",
+          baseUrl: "https://api.dpcc.example",
+          apiKey: "sk-dpcc-claude",
+          api: "anthropic-messages",
+          authHeader: true,
+          models: [],
+        },
+        {
+          id: "pcc-agent-dpcc-codex",
+          name: "DPCC API (Codex)",
+          baseUrl: "https://api.dpcc.example/v1",
+          apiKey: "sk-dpcc-codex",
+          api: "openai-completions",
+          models: [],
+        },
+      ],
+      model: "pcc-agent-dpcc-claude/dpcc-pi-model",
     });
   });
 
@@ -222,6 +259,52 @@ describe("upstream resolver", () => {
       baseUrl: "https://responses-gateway.example/v1",
       apiKey: "sk-gateway-codex",
       model: "gateway-codex-model",
+    });
+  });
+
+  it("keeps the Pi config source independent from Claude and Codex", async () => {
+    mockSettings({
+      claudeCliConfigSource: "local",
+      codexCliConfigSource: "default",
+      piCliConfigSource: "gateway",
+      piGateway: {
+        enabled: true,
+        name: "Pi Gateway",
+        baseUrl: "https://pi-gateway.example/v1",
+        apiKey: "sk-pi-gateway",
+        model: "pi-model",
+        modelMappings: [
+          { displayName: "Pi Model", modelId: "pi-model" },
+          { displayName: "Pi Alt", modelId: "pi-alt" },
+        ],
+      },
+    });
+    const { resolveClaudeUpstream, resolveCodexUpstream, resolvePiUpstream } = await loadModule();
+
+    expect(resolveClaudeUpstream().tier).toBe("local");
+    expect(resolveCodexUpstream().tier).toBe("default");
+    expect(resolvePiUpstream()).toEqual({
+      tier: "gateway",
+      providers: [{
+        id: "pcc-agent-gateway",
+        name: "Pi Gateway",
+        baseUrl: "https://pi-gateway.example/v1",
+        apiKey: "sk-pi-gateway",
+        api: "openai-completions",
+        models: ["pi-model", "pi-alt"],
+      }],
+      model: "pcc-agent-gateway/pi-model",
+    });
+  });
+
+  it("uses the user's Pi configuration unchanged in local mode", async () => {
+    mockSettings({ piCliConfigSource: "local" });
+    const { resolvePiUpstream } = await loadModule();
+
+    expect(resolvePiUpstream()).toEqual({
+      tier: "local",
+      providers: [],
+      model: "",
     });
   });
 

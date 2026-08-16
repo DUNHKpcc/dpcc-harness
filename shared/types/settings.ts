@@ -64,7 +64,7 @@ export type CodexBinarySource = "builtin" | "auto" | "managed" | "custom";
 export type ClaudeBinarySource = "builtin" | "auto" | "managed" | "custom";
 /** Where the auto-updater fetches releases from. "github" = official source, "mirror" = self-hosted domestic mirror. */
 export type UpdateSource = "github" | "mirror";
-/** Which upstream source a built-in Claude Code or Codex session should use. */
+/** Which upstream source a Claude, Codex, or official Pi ACP session should use. */
 export type CliConfigSource = "default" | "local" | "gateway";
 /** Explicit local account choice. "unset" means onboarding has not chosen yet. */
 export type AccountMode = "unset" | "guest";
@@ -122,21 +122,27 @@ export interface ClaudeGatewaySettings {
   modelMappings: GatewayModelMapping[];
 }
 
-/** Third-party gateway config for the Codex engine (model_providers override). */
-export interface CodexGatewaySettings {
-  /** Engine settings toggle for this saved provider; routing is selected by the Codex config source. */
+/** Shared config shape for OpenAI-compatible model providers. */
+export interface OpenAiCompatibleGatewaySettings {
+  /** Engine settings toggle for this saved provider. */
   enabled: boolean;
   /** Human-readable provider display name */
   name: string;
-  /** Provider endpoint → model_providers.<id>.base_url */
+  /** OpenAI-compatible provider endpoint. */
   baseUrl: string;
-  /** API key injected into the app-server process under the provider's env_key */
+  /** API key injected into the selected engine process. */
   apiKey: string;
-  /** Custom model id used as the session default when the Codex config source is "gateway". */
+  /** Custom model id used as the session default. */
   model: string;
   /** Editable display-name → upstream-model mappings for gateway model pickers. */
   modelMappings: GatewayModelMapping[];
 }
+
+/** Third-party gateway config for the Codex engine (model_providers override). */
+export type CodexGatewaySettings = OpenAiCompatibleGatewaySettings;
+
+/** Third-party OpenAI-compatible gateway config used only by the official Pi ACP agent. */
+export type PiGatewaySettings = OpenAiCompatibleGatewaySettings;
 
 /**
  * DPCC official default upstream (origin-api.dpccgaming.xyz). Applied when Current
@@ -156,6 +162,8 @@ export interface DpccUpstreamSettings {
   claudeModel: string;
   /** Optional Codex default model id (empty = keep the picker) */
   codexModel: string;
+  /** Optional fully-qualified Pi model (`provider/model`) for the DPCC upstream. */
+  piModel?: string;
 }
 
 // ── Main AppSettings interface ──
@@ -210,12 +218,16 @@ export interface AppSettings {
   claudeGateway: ClaudeGatewaySettings;
   /** Saved third-party gateway config for the Codex engine */
   codexGateway: CodexGatewaySettings;
+  /** Saved third-party gateway config for the official Pi ACP agent */
+  piGateway: PiGatewaySettings;
   /** Legacy shared upstream source. Kept for migration/backward compatibility. */
   cliConfigSource: CliConfigSource;
   /** Selected upstream source for built-in Claude Code sessions. */
   claudeCliConfigSource: CliConfigSource;
   /** Selected upstream source for built-in Codex sessions. */
   codexCliConfigSource: CliConfigSource;
+  /** Selected upstream source for the official Pi ACP agent. */
+  piCliConfigSource: CliConfigSource;
   /** Non-sensitive DPCC account choice used to distinguish Guest from dismissal. */
   accountMode: AccountMode;
   /**

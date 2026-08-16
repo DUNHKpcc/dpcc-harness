@@ -1,8 +1,9 @@
 import { ipcMain } from "electron";
 import { reportError } from "../lib/error-utils";
 import { resolveEffectiveCliConfig } from "../lib/effective-cli-config";
-import { resolveClaudeUpstream, resolveCodexUpstream } from "../lib/upstream-resolver";
+import { resolveClaudeUpstream, resolveCodexUpstream, resolvePiUpstream } from "../lib/upstream-resolver";
 import { fetchUpstreamModels } from "../lib/upstream-models";
+import { listPiUpstreamModels } from "../lib/pi-acp-config";
 import type {
   EffectiveCliConfig,
   EffectiveEngineConfig,
@@ -38,7 +39,7 @@ export function register(): void {
       return resolveEffectiveCliConfig();
     } catch (err) {
       reportError("CC_CONFIG:EFFECTIVE_ERR", err);
-      return { claude: { ...EMPTY_ENGINE }, codex: { ...EMPTY_ENGINE } };
+      return { claude: { ...EMPTY_ENGINE }, codex: { ...EMPTY_ENGINE }, pi: { ...EMPTY_ENGINE } };
     }
   });
 
@@ -48,15 +49,22 @@ export function register(): void {
     try {
       const claudeU = resolveClaudeUpstream();
       const codexU = resolveCodexUpstream();
-      const [claude, codex] = await Promise.all([
+      const piU = resolvePiUpstream();
+      const [claude, codex, piResult] = await Promise.all([
         listEngineModels(claudeU.tier, claudeU.baseUrl, claudeU.token),
         listEngineModels(codexU.tier, codexU.baseUrl, codexU.apiKey),
+        listPiUpstreamModels(piU),
       ]);
-      return { claude, codex };
+      const pi: EffectiveModelList = {
+        source: piU.tier,
+        models: piResult.models,
+        error: piResult.error,
+      };
+      return { claude, codex, pi };
     } catch (err) {
       reportError("CC_CONFIG:MODELS_ERR", err);
       const empty: EffectiveModelList = { source: "default", models: [], error: "internal_error" };
-      return { claude: { ...empty }, codex: { ...empty } };
+      return { claude: { ...empty }, codex: { ...empty }, pi: { ...empty } };
     }
   });
 

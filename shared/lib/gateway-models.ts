@@ -1,6 +1,6 @@
 import type { GatewayModelMapping } from "../types/settings";
 
-export type GatewayEngine = "claude" | "codex";
+export type GatewayEngine = "claude" | "codex" | "pi";
 
 export const CLAUDE_GATEWAY_MODEL_PRESETS: GatewayModelMapping[] = [
   { displayName: "Claude Fable 5", modelId: "claude-fable-5" },
@@ -19,6 +19,7 @@ export const CODEX_GATEWAY_MODEL_PRESETS: GatewayModelMapping[] = [
 const PRESETS: Record<GatewayEngine, GatewayModelMapping[]> = {
   claude: CLAUDE_GATEWAY_MODEL_PRESETS,
   codex: CODEX_GATEWAY_MODEL_PRESETS,
+  pi: CODEX_GATEWAY_MODEL_PRESETS,
 };
 
 export function buildGatewayModelMappings(

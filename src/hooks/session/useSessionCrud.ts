@@ -150,7 +150,9 @@ export function useSessionCrud({
       setDraftProjectId(projectId);
       setInitialMessages([]);
       setInitialMeta(null);
-      setInitialConfigOptions([]);
+      setInitialConfigOptions(
+        draftEngine === "acp" ? (options?.cachedConfigOptions ?? []) : [],
+      );
       setInitialSlashCommands([]);
       setAcpConfigOptionsLoading(draftEngine === "acp");
       setInitialPermission(null);
@@ -471,7 +473,7 @@ export function useSessionCrud({
 
   // ── Switch draft engine/agent ──
 
-  const setDraftAgent = useCallback((draftEngine: string, agentId: string, _cachedConfigOptions?: ACPConfigOption[], model?: string) => {
+  const setDraftAgent = useCallback((draftEngine: string, agentId: string, cachedConfigOptions?: ACPConfigOption[], model?: string) => {
     const prevEngine = startOptionsRef.current.engine ?? "claude";
     const prevAgentId = startOptionsRef.current.agentId;
     const normalizedModel = typeof model === "string" ? model.trim() : "";
@@ -501,7 +503,7 @@ export function useSessionCrud({
       model: normalizedModel || undefined,
     }));
     if (draftEngine === "acp" && draftProjectIdRef.current) {
-      setInitialConfigOptions([]);
+      setInitialConfigOptions(cachedConfigOptions ?? []);
       setInitialSlashCommands([]);
       eagerStartAcpSession(draftProjectIdRef.current, {
         ...startOptionsRef.current,

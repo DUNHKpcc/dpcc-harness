@@ -244,6 +244,13 @@ describe("app settings", () => {
       "gpt-5.4-mini",
       "gpt-5.3-codex-spark",
     ]);
+    expect(settings.piGateway.modelMappings.map((m) => m.modelId)).toEqual([
+      "gpt-5.5",
+      "gpt-5.4",
+      "gpt-5.4-mini",
+      "gpt-5.3-codex-spark",
+    ]);
+    expect(settings.piCliConfigSource).toBe("default");
   });
 
   it("preserves legacy third-party gateway routing by selecting the gateway source", async () => {

@@ -11,8 +11,7 @@
  *  - "gateway": the in-app custom third-party gateway (Settings → Engines) is enabled and winning
  *  - "default": the DPCC official upstream (origin-api.dpccgaming.xyz) + the DPCC account key
  *
- * "local" is retained for older diagnostics/model-list responses, but current
- * session routing does not let local CLI config override the DPCC upstream.
+ * "local" delegates to the corresponding user-managed CLI configuration.
  */
 export type EffectiveConfigSource = "gateway" | "local" | "default";
 
@@ -25,6 +24,8 @@ export interface EffectiveEngineConfig {
   baseUrl: string | null;
   /** Masked auth token / API key. null when none is in effect. */
   maskedToken: string | null;
+  /** Multiple engine credentials when one logical engine has distinct upstream routes (Pi DPCC). */
+  credentials?: Array<{ label: string; maskedToken: string | null }>;
   /** Effective default model id. null = use the in-app model picker / engine default. */
   model: string | null;
 }
@@ -33,6 +34,7 @@ export interface EffectiveEngineConfig {
 export interface EffectiveCliConfig {
   claude: EffectiveEngineConfig;
   codex: EffectiveEngineConfig;
+  pi: EffectiveEngineConfig;
 }
 
 // ── Upstream model lists (pulled live from /v1/models) ──
@@ -47,8 +49,9 @@ export interface EffectiveModelList {
   error: string | null;
 }
 
-/** Live upstream model lists for both engines, used by the Current Config panel. */
+/** Live upstream model lists for all supported engines, used by the Current Config panel. */
 export interface EffectiveCliModels {
   claude: EffectiveModelList;
   codex: EffectiveModelList;
+  pi: EffectiveModelList;
 }

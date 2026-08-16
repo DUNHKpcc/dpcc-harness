@@ -30,6 +30,7 @@ const PI_THINKING_LEVELS = new Set([
   "medium",
   "high",
   "xhigh",
+  "max",
 ]);
 
 /** Convert legacy unstable ACP model/mode state into stable config options. */

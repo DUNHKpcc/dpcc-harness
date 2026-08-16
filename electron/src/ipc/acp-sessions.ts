@@ -14,6 +14,10 @@ import { extractErrorMessage, reportError } from "../lib/error-utils";
 import { reclaimMacDockFocus } from "../lib/macos-dock-focus";
 import { normalizeSessionCwd } from "../lib/session-cwd";
 import {
+  isOfficialPiAcpAgent,
+  preparePiAcpLaunch,
+} from "../lib/pi-acp-config";
+import {
   isLegacyModeConfig,
   reconcileSuccessfulAcpConfigUpdate,
   synthesizeLegacyAcpConfigOptions,
@@ -396,8 +400,16 @@ async function finalizePendingAcpSession(
  * Spawn an ACP agent process, create the ClientSideConnection, and initialize the protocol.
  * Shared by acp:start and acp:revive-session to avoid duplicating ~120 lines of boilerplate.
  */
+interface AcpLaunchDefinition {
+  binary: string;
+  args?: string[];
+  env?: NodeJS.ProcessEnv;
+  name: string;
+  replaceEnvironment?: boolean;
+}
+
 async function createAcpConnection(
-  agentDef: { binary: string; args?: string[]; env?: Record<string, string>; name: string },
+  agentDef: AcpLaunchDefinition,
   getMainWindow: () => BrowserWindow | null,
   logLabel: string,
   onSpawn?: (internalId: string, proc: ChildProcess) => void,
@@ -409,7 +421,7 @@ async function createAcpConnection(
 
   const proc = spawn(agentDef.binary, agentDef.args ?? [], {
     stdio: ["pipe", "pipe", "pipe"],
-    env: { ...process.env, ...agentDef.env },
+    env: agentDef.replaceEnvironment ? agentDef.env : { ...process.env, ...agentDef.env },
     shell: shouldUseWindowsShellForAcpBinary(agentDef.binary),
     windowsHide: true,
   });
@@ -611,6 +623,16 @@ async function createAcpConnection(
   return { proc, connection, pendingPermissions, internalId, supportsLoadSession, authMethods };
 }
 
+async function resolveAcpLaunchDefinition(agent: InstalledAgent): Promise<AcpLaunchDefinition> {
+  if (isOfficialPiAcpAgent(agent)) return preparePiAcpLaunch(agent);
+  return {
+    binary: agent.binary?.trim() ?? "",
+    args: agent.args,
+    env: agent.env,
+    name: agent.name,
+  };
+}
+
 export function register(getMainWindow: () => BrowserWindow | null): void {
 
   // Forward renderer-side ACP logs to main process log file
@@ -637,8 +659,9 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     let connResult: AcpConnectionResult | null = null;
     const analyticsProperties = buildAcpAnalyticsProperties(agentDef);
     try {
+      const launchDef = await resolveAcpLaunchDefinition(agentDef);
       connResult = await createAcpConnection(
-        agentDef as { binary: string; args?: string[]; env?: Record<string, string>; name: string },
+        launchDef,
         getMainWindow,
         "ACP_SPAWN",
         (internalId, proc) => {
@@ -811,8 +834,9 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     let spawnedProcess: ChildProcess | null = null;
     const analyticsProperties = buildAcpAnalyticsProperties(agentDef);
     try {
+      const launchDef = await resolveAcpLaunchDefinition(agentDef);
       connResult = await createAcpConnection(
-        agentDef as { binary: string; args?: string[]; env?: Record<string, string>; name: string },
+        launchDef,
         getMainWindow,
         "ACP_REVIVE",
         (_internalId, proc) => {

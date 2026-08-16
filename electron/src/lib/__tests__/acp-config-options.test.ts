@@ -22,6 +22,7 @@ describe("ACP legacy config options", () => {
           { id: "off", name: "Off" },
           { id: "high", name: "High" },
           { id: "xhigh", name: "Extra High" },
+          { id: "max", name: "Max" },
         ],
       },
     });

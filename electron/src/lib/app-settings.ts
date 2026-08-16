@@ -17,6 +17,7 @@ import type {
   NotificationSettings,
   ClaudeGatewaySettings,
   CodexGatewaySettings,
+  PiGatewaySettings,
   DpccUpstreamSettings,
   CliConfigSource,
   TerminalShell,
@@ -35,7 +36,7 @@ import { DEFAULT_NEWAPI_BASE_URL } from "@shared/types/account";
 import { isActiveThirdPartyGateway, isDpccUpstreamUrl } from "@shared/lib/upstream-routing";
 
 // Re-export shared types so existing `import from "./app-settings"` consumers still work
-export type { AppSettings, MacBackgroundEffect, PreferredEditor, VoiceDictationMode, TerminalShell, TerminalShellOption, WindowBounds, NotificationTrigger, NotificationEventSettings, NotificationSettings, AccountBalanceAlertSettings, CodexBinarySource, ClaudeBinarySource, ClaudeGatewaySettings, CodexGatewaySettings, DpccUpstreamSettings, UpdateSource, CliConfigSource, AccountMode } from "@shared/types/settings";
+export type { AppSettings, MacBackgroundEffect, PreferredEditor, VoiceDictationMode, TerminalShell, TerminalShellOption, WindowBounds, NotificationTrigger, NotificationEventSettings, NotificationSettings, AccountBalanceAlertSettings, CodexBinarySource, ClaudeBinarySource, ClaudeGatewaySettings, CodexGatewaySettings, PiGatewaySettings, DpccUpstreamSettings, UpdateSource, CliConfigSource, AccountMode } from "@shared/types/settings";
 
 const NOTIFICATION_DEFAULTS: NotificationSettings = {
   exitPlanMode: { osNotification: "unfocused", sound: "always" },
@@ -67,11 +68,13 @@ const DEFAULTS: AppSettings = {
   macBackgroundEffect: "liquid-glass",
   claudeGateway: { enabled: false, baseUrl: "", authToken: "", model: "", modelMappings: CLAUDE_GATEWAY_MODEL_PRESETS },
   codexGateway: { enabled: false, name: "", baseUrl: "", apiKey: "", model: "", modelMappings: CODEX_GATEWAY_MODEL_PRESETS },
+  piGateway: { enabled: false, name: "", baseUrl: "", apiKey: "", model: "", modelMappings: CODEX_GATEWAY_MODEL_PRESETS },
   cliConfigSource: "default",
   claudeCliConfigSource: "default",
   codexCliConfigSource: "default",
+  piCliConfigSource: "default",
   accountMode: "unset",
-  dpccUpstream: { baseUrl: "", claudeToken: "", codexToken: "", claudeModel: "", codexModel: "" },
+  dpccUpstream: { baseUrl: "", claudeToken: "", codexToken: "", claudeModel: "", codexModel: "", piModel: "" },
   accountAccessToken: "",
   accountUserId: "",
 };
@@ -116,6 +119,7 @@ function migrateDpccGatewaySettings(parsed: Partial<AppSettings>): {
       codexToken: dpcc.codexToken.trim() || (codexGatewayWasDpcc ? xg.apiKey.trim() : ""),
       claudeModel: dpcc.claudeModel.trim() || (claudeGatewayWasDpcc ? cg.model.trim() : ""),
       codexModel: dpcc.codexModel.trim() || (codexGatewayWasDpcc ? xg.model.trim() : ""),
+      piModel: dpcc.piModel?.trim() ?? "",
     },
     claudeGateway: claudeGatewayWasDpcc ? { ...DEFAULTS.claudeGateway } : cg,
     codexGateway: codexGatewayWasDpcc ? { ...DEFAULTS.codexGateway } : xg,
@@ -211,23 +215,30 @@ function legacyCliConfigSource(parsed: Partial<AppSettings>): CliConfigSource {
   return hasLegacyThirdPartyGatewaySelection(parsed) ? "gateway" : "default";
 }
 
-function resolveCliConfigSources(parsed: Partial<AppSettings>): Pick<AppSettings, "cliConfigSource" | "claudeCliConfigSource" | "codexCliConfigSource"> {
+type CliConfigSources = Pick<
+  AppSettings,
+  "cliConfigSource" | "claudeCliConfigSource" | "codexCliConfigSource" | "piCliConfigSource"
+>;
+
+function resolveCliConfigSources(parsed: Partial<AppSettings>): CliConfigSources {
   const legacy = legacyCliConfigSource(parsed);
   return {
     cliConfigSource: legacy,
     claudeCliConfigSource: normalizeCliConfigSource(parsed.claudeCliConfigSource) ?? legacy,
     codexCliConfigSource: normalizeCliConfigSource(parsed.codexCliConfigSource) ?? legacy,
+    piCliConfigSource: normalizeCliConfigSource(parsed.piCliConfigSource) ?? "default",
   };
 }
 
 function migrateCliConfigSources(
   parsed: Partial<AppSettings>,
-  sources: Pick<AppSettings, "cliConfigSource" | "claudeCliConfigSource" | "codexCliConfigSource">,
-): Partial<Pick<AppSettings, "cliConfigSource" | "claudeCliConfigSource" | "codexCliConfigSource">> | null {
-  const patch: Partial<Pick<AppSettings, "cliConfigSource" | "claudeCliConfigSource" | "codexCliConfigSource">> = {};
+  sources: CliConfigSources,
+): Partial<CliConfigSources> | null {
+  const patch: Partial<CliConfigSources> = {};
   if (normalizeCliConfigSource(parsed.cliConfigSource) !== sources.cliConfigSource) patch.cliConfigSource = sources.cliConfigSource;
   if (normalizeCliConfigSource(parsed.claudeCliConfigSource) !== sources.claudeCliConfigSource) patch.claudeCliConfigSource = sources.claudeCliConfigSource;
   if (normalizeCliConfigSource(parsed.codexCliConfigSource) !== sources.codexCliConfigSource) patch.codexCliConfigSource = sources.codexCliConfigSource;
+  if (normalizeCliConfigSource(parsed.piCliConfigSource) !== sources.piCliConfigSource) patch.piCliConfigSource = sources.piCliConfigSource;
   return Object.keys(patch).length > 0 ? patch : null;
 }
 
@@ -244,6 +255,14 @@ function normalizeCodexGateway(gateway: Partial<CodexGatewaySettings> | undefine
   return {
     ...merged,
     modelMappings: buildGatewayModelMappings("codex", merged.modelMappings),
+  };
+}
+
+function normalizePiGateway(gateway: Partial<PiGatewaySettings> | undefined): PiGatewaySettings {
+  const merged = { ...DEFAULTS.piGateway, ...gateway };
+  return {
+    ...merged,
+    modelMappings: buildGatewayModelMappings("pi", merged.modelMappings),
   };
 }
 
@@ -346,6 +365,7 @@ export function getAppSettings(): AppSettings {
       codexGateway: hasDpccGatewayMigration
         ? normalizeCodexGateway(dpccGatewayMigration.codexGateway)
         : normalizeCodexGateway(parsed.codexGateway),
+      piGateway: normalizePiGateway(parsed.piGateway),
       ...cliConfigSources,
       ...(binarySourceMigration ?? {}),
       ...(cliConfigSourceMigration ?? {}),
@@ -400,6 +420,9 @@ export function setAppSettings(patch: Partial<AppSettings>): AppSettings {
       : {}),
     ...(patch.dpccUpstream
       ? { dpccUpstream: migrateDpccOriginBaseUrl(patch.dpccUpstream).upstream }
+      : {}),
+    ...(patch.piGateway
+      ? { piGateway: normalizePiGateway(patch.piGateway) }
       : {}),
   };
   const next = { ...current, ...normalizedPatch };

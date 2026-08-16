@@ -5,12 +5,16 @@ const {
   mockResolveEffectiveCliConfig,
   mockResolveClaudeUpstream,
   mockResolveCodexUpstream,
+  mockResolvePiUpstream,
+  mockListPiUpstreamModels,
   mockFetchUpstreamModels,
 } = vi.hoisted(() => ({
   mockIpcMainHandle: vi.fn(),
   mockResolveEffectiveCliConfig: vi.fn(),
   mockResolveClaudeUpstream: vi.fn(),
   mockResolveCodexUpstream: vi.fn(),
+  mockResolvePiUpstream: vi.fn(),
+  mockListPiUpstreamModels: vi.fn(),
   mockFetchUpstreamModels: vi.fn(),
 }));
 
@@ -27,6 +31,11 @@ vi.mock("../../lib/effective-cli-config", () => ({
 vi.mock("../../lib/upstream-resolver", () => ({
   resolveClaudeUpstream: mockResolveClaudeUpstream,
   resolveCodexUpstream: mockResolveCodexUpstream,
+  resolvePiUpstream: mockResolvePiUpstream,
+}));
+
+vi.mock("../../lib/pi-acp-config", () => ({
+  listPiUpstreamModels: mockListPiUpstreamModels,
 }));
 
 vi.mock("../../lib/upstream-models", () => ({
@@ -53,6 +62,8 @@ describe("cc-config IPC", () => {
     mockResolveEffectiveCliConfig.mockReset();
     mockResolveClaudeUpstream.mockReset();
     mockResolveCodexUpstream.mockReset();
+    mockResolvePiUpstream.mockReset();
+    mockListPiUpstreamModels.mockReset();
     mockFetchUpstreamModels.mockReset();
 
     mockResolveClaudeUpstream.mockReturnValue({
@@ -68,6 +79,12 @@ describe("cc-config IPC", () => {
       apiKey: "",
       model: "local-model",
     });
+    mockResolvePiUpstream.mockReturnValue({
+      tier: "local",
+      providers: [],
+      model: "",
+    });
+    mockListPiUpstreamModels.mockResolvedValue({ models: [], error: "local_provider_unreadable" });
     mockFetchUpstreamModels.mockResolvedValue({ models: ["claude-model"], error: null });
   });
 
@@ -84,6 +101,7 @@ describe("cc-config IPC", () => {
     expect(result).toEqual({
       claude: { source: "default", models: ["claude-model"], error: null },
       codex: { source: "local", models: [], error: "local_provider_unreadable" },
+      pi: { source: "local", models: [], error: "local_provider_unreadable" },
     });
   });
 

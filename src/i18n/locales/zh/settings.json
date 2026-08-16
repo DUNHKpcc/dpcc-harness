@@ -90,7 +90,7 @@
   },
   "engines": {
     "title": "SDK",
-    "description": "配置 SDK 的运行行为与二进制选择",
+    "description": "配置 SDK 运行方式、二进制来源与独立第三方网关",
     "claude": {
       "section": "Claude Code",
       "sourceLabel": "Claude SDK来源",
@@ -162,6 +162,29 @@
         "env": "环境变量覆盖",
         "custom": "自定义路径",
         "none": "未找到"
+      }
+    },
+    "pi": {
+      "section": "Pi ACP",
+      "runtimeLabel": "Pi 运行环境",
+      "runtimeDesc": "Pi 与 pi-acp 由用户自行安装并确保应用可在 PATH 中找到；PccAgent 不负责安装或更新。",
+      "runtimeValue": "pi + pi-acp",
+      "gateway": {
+        "toggleLabel": "自定义网关",
+        "toggleDesc": "保存仅供 Pi 使用的 OpenAI 兼容提供方；可在「当前配置」中单独启用，不影响 Claude 与 Codex。",
+        "editLabel": "编辑 Pi 网关配置",
+        "nameLabel": "提供方名称",
+        "nameDesc": "Pi 提供方的显示名称。",
+        "namePlaceholder": "我的 Pi 网关",
+        "baseUrlLabel": "Base URL",
+        "baseUrlDesc": "OpenAI 兼容 Completions API 地址。",
+        "baseUrlPlaceholder": "https://api.example.com/v1",
+        "apiKeyLabel": "API Key",
+        "apiKeyDesc": "仅在运行时注入隔离的 Pi 子进程。",
+        "apiKeyPlaceholder": "sk-...",
+        "modelLabel": "默认模型 ID",
+        "modelDesc": "Pi 选择此第三方网关时使用的默认模型。",
+        "modelPlaceholder": "例如 gpt-5.3-codex-spark"
       }
     },
     "source": {
@@ -377,12 +400,13 @@
   },
   "currentConfig": {
     "title": "当前配置",
-    "description": "PccAgent 实际用于运行会话的上游与模型配置。可在此分别切换 Claude Code 与 Codex 的配置来源；具体密钥和网关参数仍在「设置 → 账户 / SDK」中维护。",
+    "description": "PccAgent 实际用于运行会话的上游与模型配置。可在此分别切换 Claude Code、Codex 与 Pi ACP 的配置来源；具体密钥和网关参数仍在「设置 → 账户 / SDK」中维护。",
     "refresh": "刷新",
     "refreshing": "刷新中…",
     "saveFailed": "无法保存配置来源。",
     "claude": "Claude",
     "codex": "Codex",
+    "pi": "Pi ACP",
     "source": {
       "gateway": "第三方网关",
       "local": "本机 CLI 配置",
@@ -405,7 +429,7 @@
       "loading": "正在拉取模型…",
       "empty": "上游未返回模型列表。",
       "noToken": "未配置密钥 —— 在「设置 → 账户」填入 DPCC 密钥后即可拉取模型。",
-      "localProviderUnreadable": "模型列表由你的本机 Codex CLI 配置管理。",
+      "localProviderUnreadable": "模型列表由对应的本机 CLI 配置管理。",
       "error": "无法拉取模型，请检查上游地址与密钥是否正确。",
       "default": "默认",
       "showMore": "展开剩余 {{count}} 个",

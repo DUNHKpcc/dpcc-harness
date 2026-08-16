@@ -23,6 +23,12 @@ describe("current config settings utilities", () => {
     });
   });
 
+  it("builds an engine-scoped settings patch for Pi config source changes", () => {
+    expect(buildConfigSourcePatch("pi", "gateway")).toEqual({
+      piCliConfigSource: "gateway",
+    });
+  });
+
   it("routes only enabled, credentialed third-party gateways through the gateway source", () => {
     expect(resolveGatewayConfigSource({
       enabled: true,

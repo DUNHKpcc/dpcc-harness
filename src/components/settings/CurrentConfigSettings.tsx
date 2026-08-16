@@ -134,7 +134,7 @@ function ModelList({ models, activeModel }: { models: EffectiveModelList | undef
 function EngineCard({
   label,
   engine,
-  isCodex,
+  showProvider,
   models,
   selectedSource,
   savingSource,
@@ -143,7 +143,7 @@ function EngineCard({
 }: {
   label: string;
   engine: EffectiveEngineConfig;
-  isCodex: boolean;
+  showProvider: boolean;
   models: EffectiveModelList | undefined;
   selectedSource: CliConfigSource;
   savingSource: boolean;
@@ -176,9 +176,17 @@ function EngineCard({
       </div>
 
       <div className="space-y-1.5">
-        {isCodex && <ConfigRow label={t("currentConfig.fields.provider")} value={engine.providerName} mono={false} />}
+        {showProvider && <ConfigRow label={t("currentConfig.fields.provider")} value={engine.providerName} mono={false} />}
         <ConfigRow label={t("currentConfig.fields.baseUrl")} value={engine.baseUrl} />
-        <ConfigRow label={t("currentConfig.fields.token")} value={engine.maskedToken} />
+        {engine.credentials?.length
+          ? engine.credentials.map((credential) => (
+              <ConfigRow
+                key={credential.label}
+                label={`${t("currentConfig.fields.token")} (${credential.label})`}
+                value={credential.maskedToken}
+              />
+            ))
+          : <ConfigRow label={t("currentConfig.fields.token")} value={engine.maskedToken} />}
         <ModelList models={models} activeModel={engine.model} />
       </div>
     </SettingsSection>
@@ -191,6 +199,7 @@ export const CurrentConfigSettings = memo(function CurrentConfigSettings() {
   const [models, setModels] = useState<EffectiveCliModels | null>(null);
   const [claudeConfigSource, setClaudeConfigSource] = useState<CliConfigSource>("default");
   const [codexConfigSource, setCodexConfigSource] = useState<CliConfigSource>("default");
+  const [piConfigSource, setPiConfigSource] = useState<CliConfigSource>("default");
   const [refreshing, setRefreshing] = useState(false);
   const [savingSource, setSavingSource] = useState<ConfigSourceEngine | null>(null);
   const refreshRequestIdRef = useRef(0);
@@ -211,6 +220,7 @@ export const CurrentConfigSettings = memo(function CurrentConfigSettings() {
       setModels(mdl);
       setClaudeConfigSource(settings?.claudeCliConfigSource ?? settings?.cliConfigSource ?? "default");
       setCodexConfigSource(settings?.codexCliConfigSource ?? settings?.cliConfigSource ?? "default");
+      setPiConfigSource(settings?.piCliConfigSource ?? "default");
     } finally {
       if (shouldApplyConfigSourceRefresh(requestId, refreshRequestIdRef.current)) {
         setRefreshing(false);
@@ -219,8 +229,13 @@ export const CurrentConfigSettings = memo(function CurrentConfigSettings() {
   }, []);
 
   const updateConfigSource = useCallback(async (engine: ConfigSourceEngine, source: CliConfigSource) => {
-    const previousSource = engine === "claude" ? claudeConfigSource : codexConfigSource;
-    const setSource = engine === "claude" ? setClaudeConfigSource : setCodexConfigSource;
+    const sourceState = {
+      claude: { value: claudeConfigSource, set: setClaudeConfigSource },
+      codex: { value: codexConfigSource, set: setCodexConfigSource },
+      pi: { value: piConfigSource, set: setPiConfigSource },
+    }[engine];
+    const previousSource = sourceState.value;
+    const setSource = sourceState.set;
     setSource(source);
     setSavingSource(engine);
     try {
@@ -233,7 +248,7 @@ export const CurrentConfigSettings = memo(function CurrentConfigSettings() {
     } finally {
       setSavingSource(null);
     }
-  }, [claudeConfigSource, codexConfigSource, refresh, t]);
+  }, [claudeConfigSource, codexConfigSource, piConfigSource, refresh, t]);
 
   useEffect(() => {
     void refresh();
@@ -281,7 +296,7 @@ export const CurrentConfigSettings = memo(function CurrentConfigSettings() {
               <EngineCard
                 label={t("currentConfig.claude")}
                 engine={data.claude}
-                isCodex={false}
+                showProvider={false}
                 models={models?.claude}
                 selectedSource={claudeConfigSource}
                 savingSource={savingSource === "claude"}
@@ -290,11 +305,20 @@ export const CurrentConfigSettings = memo(function CurrentConfigSettings() {
               <EngineCard
                 label={t("currentConfig.codex")}
                 engine={data.codex}
-                isCodex={true}
+                showProvider
                 models={models?.codex}
                 selectedSource={codexConfigSource}
                 savingSource={savingSource === "codex"}
                 onSourceChange={(source) => void updateConfigSource("codex", source)}
+              />
+              <EngineCard
+                label={t("currentConfig.pi")}
+                engine={data.pi}
+                showProvider
+                models={models?.pi}
+                selectedSource={piConfigSource}
+                savingSource={savingSource === "pi"}
+                onSourceChange={(source) => void updateConfigSource("pi", source)}
               />
             </>
           )}

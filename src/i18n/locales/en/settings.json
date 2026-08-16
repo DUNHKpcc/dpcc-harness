@@ -90,7 +90,7 @@
   },
   "engines": {
     "title": "Engines",
-    "description": "Configure engine-level runtime behavior and binary selection",
+    "description": "Configure engine runtimes, binary selection, and independent gateways",
     "claude": {
       "section": "Claude Code",
       "sourceLabel": "Claude binary source",
@@ -162,6 +162,29 @@
         "env": "Env override",
         "custom": "Custom path",
         "none": "Not found"
+      }
+    },
+    "pi": {
+      "section": "Pi ACP",
+      "runtimeLabel": "Pi runtime",
+      "runtimeDesc": "Pi and pi-acp are user-managed and must be available on the app PATH. PccAgent never installs or updates them.",
+      "runtimeValue": "pi + pi-acp",
+      "gateway": {
+        "toggleLabel": "Custom gateway",
+        "toggleDesc": "Store a Pi-only OpenAI-compatible provider. Use Current Config to select it without changing Claude or Codex.",
+        "editLabel": "Edit Pi gateway config",
+        "nameLabel": "Provider name",
+        "nameDesc": "Human-readable display name for the Pi provider.",
+        "namePlaceholder": "My Pi Gateway",
+        "baseUrlLabel": "Base URL",
+        "baseUrlDesc": "OpenAI-compatible Completions API endpoint.",
+        "baseUrlPlaceholder": "https://api.example.com/v1",
+        "apiKeyLabel": "API key",
+        "apiKeyDesc": "Injected only into the isolated Pi process at runtime.",
+        "apiKeyPlaceholder": "sk-...",
+        "modelLabel": "Default model ID",
+        "modelDesc": "Default model used when Pi selects this third-party gateway.",
+        "modelPlaceholder": "e.g. gpt-5.3-codex-spark"
       }
     },
     "source": {
@@ -377,12 +400,13 @@
   },
   "currentConfig": {
     "title": "Current Config",
-    "description": "The upstream and model configuration PccAgent is actually using to run sessions. Switch Claude Code and Codex config sources separately here; maintain keys and gateway details in Settings → Account / Engines.",
+    "description": "The upstream and model configuration PccAgent is actually using to run sessions. Switch Claude Code, Codex, and Pi ACP sources independently here; maintain keys and gateway details in Settings → Account / Engines.",
     "refresh": "Refresh",
     "refreshing": "Refreshing…",
     "saveFailed": "Couldn't save the config source.",
     "claude": "Claude",
     "codex": "Codex",
+    "pi": "Pi ACP",
     "source": {
       "gateway": "Third-party gateway",
       "local": "Local CLI config",
@@ -405,7 +429,7 @@
       "loading": "Fetching models…",
       "empty": "The upstream returned no models.",
       "noToken": "No key configured — add your DPCC key in Settings → Account to list models.",
-      "localProviderUnreadable": "Model listing is managed by your local Codex CLI config.",
+      "localProviderUnreadable": "Model listing is managed by the corresponding local CLI config.",
       "error": "Couldn't fetch models. Check the upstream URL and key.",
       "default": "Default",
       "showMore": "Show {{count}} more",

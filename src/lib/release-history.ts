@@ -20,6 +20,14 @@ function release(version: string, date: string, changeKeys: readonly string[]): 
 
 /** Bundled release history, newest first, so settings remain useful offline. */
 export const RELEASE_HISTORY: readonly ReleaseHistoryEntry[] = [
+  release("2.2.4", "2026-08-18", [
+    "piConfiguration",
+    "modelThinkingControls",
+    "macExperience",
+    "terminalReliability",
+    "sessionRecovery",
+    "runtimeUpdate",
+  ]),
   release("2.2.3", "2026-08-13", [
     "balanceAlerts",
     "piReliability",

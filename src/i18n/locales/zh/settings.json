@@ -488,6 +488,15 @@
       "showOlder": "显示更早版本",
       "showLess": "收起早期版本",
       "entries": {
+        "v2_2_4": {
+          "title": "独立 Pi 路由与原生 macOS 控制",
+          "piConfiguration": "Pi ACP 现可独立选择 DPCC、本机 Pi 配置或专属第三方网关，不再跟随 Claude 与 Codex；托管模式的凭证仅注入隔离的 Pi 进程。",
+          "modelThinkingControls": "Agent 选择与 Model、Thinking 配置现已分离；Claude、Codex 与 ACP agent 共用分组滚动列表，并按具体模型显示准确的推理选项。",
+          "macExperience": "macOS 新增原生菜单栏，可查看账户状态、额度、运行中任务和最近对话，并支持快捷操作与登录时启动；关闭窗口会保留 PccAgent，退出运行中任务前会要求确认。",
+          "terminalReliability": "终端设置可检测更多 PowerShell 安装位置，显示路径与版本，校验自定义可执行文件，并在启动失败时给出明确提示。",
+          "sessionRecovery": "中断的 Session 不再以无限 Streaming 或运行中工具状态恢复；ACP 草稿会更早准备配置控件，紧凑窗口尺寸也能正确还原。",
+          "runtimeUpdate": "内置 Claude Agent SDK 更新至 0.3.234，获得最新 runtime 修复与平台支持。"
+        },
         "v2_2_3": {
           "title": "余额预警与更可靠的 Pi Session",
           "balanceAlerts": "通知设置新增可配置的 DPCC API 低余额预警；应用内会显示提醒，PccAgent 未聚焦时还会发送系统通知。",

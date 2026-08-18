@@ -488,6 +488,15 @@
       "showOlder": "Show older releases",
       "showLess": "Hide older releases",
       "entries": {
+        "v2_2_4": {
+          "title": "Independent Pi routing and native macOS controls",
+          "piConfiguration": "Pi ACP can now use DPCC, the local Pi configuration, or its own third-party gateway independently from Claude and Codex, with managed credentials isolated to the Pi process.",
+          "modelThinkingControls": "Agent selection is now separate from a unified Model and Thinking menu across Claude, Codex, and ACP agents, with grouped scrolling lists and model-specific reasoning choices.",
+          "macExperience": "macOS adds a native menu bar with account status, quota, running work, recent chats, quick actions, and launch-at-login; closing keeps PccAgent available, while quitting active work asks for confirmation.",
+          "terminalReliability": "Terminal setup now detects more PowerShell installations, shows detected paths and versions, validates custom executables, and reports clear launch errors.",
+          "sessionRecovery": "Interrupted sessions no longer reopen with endless streaming or running tool indicators, ACP drafts prepare their controls earlier, and compact window bounds restore correctly.",
+          "runtimeUpdate": "Updated the bundled Claude Agent SDK to 0.3.234 for the latest runtime fixes and platform support."
+        },
         "v2_2_3": {
           "title": "Balance alerts and more reliable Pi sessions",
           "balanceAlerts": "Added configurable DPCC API low-balance alerts in Notification settings, with in-app warnings and OS notifications when PccAgent is not focused.",

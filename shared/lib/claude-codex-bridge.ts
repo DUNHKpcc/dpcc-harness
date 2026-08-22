@@ -19,7 +19,7 @@ export interface ClaudeCodexBridgeServerConfig {
 /**
  * Append the built-in `harnss-codex` MCP server to the existing server list
  * when the per-session toggle is enabled. No-op when disabled, and never
- * overwrites a user-configured server that already uses the reserved name.
+ * 对用户已有配置文件进行重写
  */
 export function appendClaudeCodexBridgeServer(
   servers: McpServerInput[],

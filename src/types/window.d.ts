@@ -452,6 +452,15 @@ declare global {
           apps: AppInfo[];
           error?: string;
         }>;
+        listCommands: (cwd: string) => Promise<{
+          skills: SkillsListEntry[];
+          apps: AppInfo[];
+          error?: string;
+        }>;
+        listCommandApps: (cwd: string) => Promise<{
+          apps: AppInfo[];
+          error?: string;
+        }>;
         listModels: () => Promise<{ models: CodexModel[]; error?: string }>;
         authStatus: () => Promise<{ account: unknown; requiresOpenaiAuth: boolean }>;
         login: (sessionId: string, type: "apiKey" | "chatgpt", apiKey?: string) => Promise<unknown>;

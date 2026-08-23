@@ -227,6 +227,12 @@ export class BackgroundSessionStore {
     this.onProcessingChange?.(sessionId, isProcessing);
   }
 
+  /** Seed slash commands fetched before the draft session has an active renderer. */
+  setSlashCommands(sessionId: string, slashCommands: SlashCommand[]): void {
+    const state = this.getOrCreate(sessionId);
+    state.slashCommands = cloneValue(slashCommands);
+  }
+
   /** Seed store with the current session state when switching away. */
   initFromState(sessionId: string, state: BackgroundSessionState): void {
     const parentToolMap = new Map<string, string>();

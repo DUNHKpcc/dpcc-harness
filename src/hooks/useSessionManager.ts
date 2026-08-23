@@ -101,6 +101,7 @@ export function useSessionManager(
     : (sessions.find(s => s.id === activeSessionId)?.engine ?? "claude");
   const isACP = activeEngine === "acp";
   const isCodex = activeEngine === "codex";
+  const isDraft = activeSessionId === DRAFT_ID;
 
   const claudeSessionId = (activeEngine === "claude" && activeSessionId !== DRAFT_ID) ? activeSessionId : null;
   const acpSessionId = activeEngine === "acp"
@@ -330,7 +331,9 @@ export function useSessionManager(
     eagerStartSession,
     eagerStartAcpSession,
     prefetchCodexModels,
+    prefetchCodexCommands,
     probeMcpServers,
+    prewarmDraftSession,
     abandonEagerSession,
     abandonDraftAcpSession,
     materializeDraft,
@@ -350,12 +353,20 @@ export function useSessionManager(
     codex.setCodexModels([]);
   }, [codex.setCodexModels]);
 
+  const draftProject = isDraft && draftProjectId ? findProject(draftProjectId) : null;
+  const draftCwd = draftProject
+    ? (startOptions.cwd ?? getProjectCwd(draftProject))
+    : undefined;
+
   useCodexModelCatalogSync({
     isCodex,
+    isDraft,
+    draftCwd,
     rawModelCount: codexRawModels.length,
     activeSessionId,
     preferredModel: codexSessionModel ?? startOptions.model,
     prefetchCodexModels,
+    prefetchCodexCommands,
     clearModels: clearCodexModelCatalog,
   });
 
@@ -400,8 +411,7 @@ export function useSessionManager(
     saveCurrentSession,
     seedBackgroundStore,
     eagerStartSession,
-    eagerStartAcpSession,
-    probeMcpServers,
+    prewarmDraftSession,
     abandonEagerSession,
     abandonDraftAcpSession,
     materializeDraft,
@@ -465,7 +475,6 @@ export function useSessionManager(
   }, [setSessions]);
 
   // ── Derived state ──
-  const isDraft = activeSessionId === DRAFT_ID;
   const activeSession = sessions.find((s) => s.id === activeSessionId) ?? null;
 
   const setCurrentBranch = useCallback((branch: string | undefined) => {

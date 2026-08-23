@@ -51,6 +51,7 @@ import { capture } from "../lib/analytics/analytics";
 import { toastText } from "../lib/toast-i18n";
 import { clearClaudeObservedRequests, createClaudeRequestRecord, consumeClaudeObservedRequestCount, trackClaudeApiRetry, trackClaudeAssistantRequest } from "../lib/usage/upstream-requests";
 import { useEngineBase } from "./useEngineBase";
+import { normalizeClaudeCommands } from "../lib/engine/command-prewarm";
 
 function uiLog(label: string, data: unknown) {
   window.claude.log(label, typeof data === "string" ? data : JSON.stringify(data));
@@ -131,6 +132,12 @@ export function useClaude({
   const thinkingThrottleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Tracks user-initiated interrupts so the result event's ede_diagnostic error is suppressed
   const interruptedRef = useRef(false);
+
+  // Draft prewarm can populate the catalog before a real session ID exists.
+  useEffect(() => {
+    if (initialSlashCommands === undefined) return;
+    setSlashCommands(initialSlashCommands);
+  }, [initialSlashCommands]);
 
   // Engine-specific reset — runs after base reset via the same sessionId dependency
   useEffect(() => {
@@ -512,12 +519,7 @@ export function useClaude({
             if (cmdSid) {
               window.claude.slashCommands(cmdSid).then((result) => {
                 if (sessionIdRef.current === cmdSid) {
-                  setSlashCommands((result.commands ?? []).map(cmd => ({
-                    name: cmd.name,
-                    description: cmd.description ?? "",
-                    argumentHint: cmd.argumentHint,
-                    source: "claude" as const,
-                  })));
+                  setSlashCommands(normalizeClaudeCommands(result));
                 }
               }).catch(() => { /* session may have been stopped */ });
             }

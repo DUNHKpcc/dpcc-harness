@@ -1462,8 +1462,19 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     const session = sessions.get(sessionId);
     if (!session?.queryHandle?.supportedCommands) return { commands: [] };
     try {
-      const commands = await session.queryHandle.supportedCommands();
-      return { commands: commands ?? [] };
+      // supportedCommands() can answer before the CLI has completed its initial
+      // control handshake. initializationResult() is the SDK's readiness barrier
+      // and already contains the first complete command catalog.
+      const initialization = await session.queryHandle.initializationResult();
+      const refreshedCommands = await session.queryHandle.supportedCommands();
+      const commands = refreshedCommands.length > 0
+        ? refreshedCommands
+        : initialization.commands;
+      log("SLASH_COMMANDS", {
+        session: sessionId.slice(0, 8),
+        count: commands.length,
+      });
+      return { commands };
     } catch (err) {
       const errMsg = reportError("SLASH_COMMANDS_ERR", err, { engine: "claude", sessionId });
       return { commands: [], error: errMsg };

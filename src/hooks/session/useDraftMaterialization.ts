@@ -1,6 +1,6 @@
 import { useCallback, useRef } from "react";
 import { toast } from "sonner";
-import type { UIMessage, ChatSession, McpServerConfig, Project, ImageAttachment, EngineId } from "../../types";
+import type { UIMessage, ChatSession, McpServerConfig, Project, ImageAttachment, EngineId, SlashCommand } from "../../types";
 import { toMcpStatusState } from "../../lib/mcp-utils";
 import { suppressNextSessionCompletion } from "../../lib/notification-utils";
 import { captureException } from "../../lib/analytics/analytics";
@@ -15,6 +15,12 @@ import {
   normalizeCodexModels,
   pickCodexModel,
 } from "./types";
+import {
+  normalizeAcpCommands,
+  normalizeClaudeCommands,
+  normalizeCodexCommands,
+  prewarmSessionCommands,
+} from "../../lib/engine/command-prewarm";
 import type {
   EngineHooks,
   MaterializedDraftSession,
@@ -31,6 +37,11 @@ interface UseDraftMaterializationParams {
   getProjectCwd: (project: Project) => string;
   generateSessionTitle: (sessionId: string, message: string, projectPath: string, engine?: EngineId) => Promise<void>;
   applyCodexModelDefaultEffort: (effort: string | undefined) => void;
+}
+
+interface CodexDraftCommandPrewarm {
+  initial: Promise<SlashCommand[]>;
+  complete: Promise<SlashCommand[]>;
 }
 
 export function useDraftMaterialization({
@@ -83,6 +94,19 @@ export function useDraftMaterialization({
   } = refs;
   const materializingGenerationRef = useRef<number | null>(null);
   const acpEagerStartGenerationRef = useRef(0);
+  const commandPrewarmBySessionRef = useRef(new Map<string, Promise<void>>());
+  const codexCommandCatalogByCwdRef = useRef(new Map<string, CodexDraftCommandPrewarm>());
+
+  const isCurrentDraftTarget = useCallback((
+    projectId: string,
+    engine: EngineId,
+    agentId?: string,
+  ) => (
+    activeSessionIdRef.current === DRAFT_ID
+    && draftProjectIdRef.current === projectId
+    && (startOptionsRef.current.engine ?? "claude") === engine
+    && (agentId === undefined || startOptionsRef.current.agentId === agentId)
+  ), []);
 
   // Eagerly start a Claude SDK session for immediate MCP status display
   const eagerStartSession = useCallback(async (projectId: string, options?: StartOptions) => {
@@ -93,13 +117,15 @@ export function useDraftMaterialization({
       window.claude.stop(sessionId, "draft_abandoned");
       liveSessionIdsRef.current.delete(sessionId);
       backgroundStoreRef.current.delete(sessionId);
+      commandPrewarmBySessionRef.current.delete(sessionId);
       if (preStartedSessionIdRef.current === sessionId) {
         preStartedSessionIdRef.current = null;
         setPreStartedSessionId(null);
         setDraftMcpStatuses([]);
       }
     };
-    const project = refs.projectsRef.current.find((p) => p.id === projectId);
+    // The global Chat module is a virtual project, resolved by findProject().
+    const project = findProject(projectId) ?? refs.projectsRef.current.find((p) => p.id === projectId);
     if (!project) return;
     let mcpServers: McpServerConfig[];
     try {
@@ -133,9 +159,7 @@ export function useDraftMaterialization({
       console.warn("[eagerStartSession] start() returned error:", result.error);
       return;
     }
-    const isCurrentDraft = activeSessionIdRef.current === DRAFT_ID
-      && draftProjectIdRef.current === projectId;
-    if (!isCurrentEagerStart() || !isCurrentDraft) {
+    if (!isCurrentEagerStart() || !isCurrentDraftTarget(projectId, "claude", options?.agentId)) {
       // The draft was abandoned or superseded before eager start completed.
       discardStartedSession(result.sessionId);
       return;
@@ -145,11 +169,29 @@ export function useDraftMaterialization({
     preStartedSessionIdRef.current = result.sessionId;
     setPreStartedSessionId(result.sessionId);
 
+    // The init event can arrive before the renderer claims the draft session.
+    // Fetch the full command catalog directly and keep the promise so the first
+    // send can wait for it before consuming the pre-started session state.
+    const commandPrewarm = prewarmSessionCommands(
+      () => window.claude.slashCommands(result.sessionId),
+      normalizeClaudeCommands,
+    ).then((commands) => {
+      if (
+        !isCurrentEagerStart()
+        || !isCurrentDraftTarget(projectId, "claude", options?.agentId)
+        || preStartedSessionIdRef.current !== result.sessionId
+      ) return;
+      backgroundStoreRef.current.setSlashCommands?.(result.sessionId, commands);
+      setInitialSlashCommands(commands);
+    });
+    commandPrewarmBySessionRef.current.set(result.sessionId, commandPrewarm);
+    void commandPrewarm;
+
     // The system init event fires BEFORE start() returns, so the event router
     // couldn't match it (preStartedSessionIdRef was still null). Query MCP
     // status directly now that the session is initialized.
     const statusResult = await window.claude.mcpStatus(result.sessionId);
-    if (!isCurrentEagerStart()) {
+    if (!isCurrentEagerStart() || !isCurrentDraftTarget(projectId, "claude", options?.agentId)) {
       discardStartedSession(result.sessionId);
       return;
     }
@@ -163,12 +205,17 @@ export function useDraftMaterialization({
 
     // Same pattern for models — fetch directly since system/init already fired.
     // Catalog ordering remains independent from eager start transaction ordering.
-    if (!isCurrentEagerStart() || preStartedSessionIdRef.current !== result.sessionId) return;
+    if (
+      !isCurrentEagerStart()
+      || !isCurrentDraftTarget(projectId, "claude", options?.agentId)
+      || preStartedSessionIdRef.current !== result.sessionId
+    ) return;
     const modelsGeneration = ++claudeModelCatalogRequestGenerationRef.current;
     const modelsResult = await window.claude.supportedModels(result.sessionId);
     if (!modelsResult.error
       && !modelsResult.stale
       && isCurrentEagerStart()
+      && isCurrentDraftTarget(projectId, "claude", options?.agentId)
       && preStartedSessionIdRef.current === result.sessionId
       && isClaudeModelCacheRequestCurrent(
         modelsGeneration,
@@ -176,7 +223,7 @@ export function useDraftMaterialization({
       )) {
       setCachedModels(modelsResult.models, modelsResult.authoritative);
     }
-  }, []);
+  }, [isCurrentDraftTarget]);
 
   const eagerStartAcpSession = useCallback(async (
     projectId: string,
@@ -235,12 +282,8 @@ export function useDraftMaterialization({
     }
 
     const sessionId = result.sessionId;
-    const isStillDraft =
-      activeSessionIdRef.current === DRAFT_ID
-      && draftProjectIdRef.current === projectId
-      && (startOptionsRef.current.engine ?? "claude") === "acp"
-      && startOptionsRef.current.agentId === agentId
-      && isCurrentEagerStart();
+    const isStillDraft = isCurrentEagerStart()
+      && isCurrentDraftTarget(projectId, "acp", agentId);
 
     if (!isStillDraft) {
       suppressNextSessionCompletion(sessionId);
@@ -262,10 +305,26 @@ export function useDraftMaterialization({
     acpAgentIdRef.current = agentId;
     acpAgentSessionIdRef.current = ("agentSessionId" in result && result.agentSessionId) ? result.agentSessionId : null;
     liveSessionIdsRef.current.add(sessionId);
+    const commandPrewarm = prewarmSessionCommands(
+      async () => (await window.claude.acp.getAvailableCommands(sessionId)).commands ?? [],
+      normalizeAcpCommands,
+    ).then((commands) => {
+      if (
+        !isCurrentEagerStart()
+        || !isCurrentDraftTarget(projectId, "acp", agentId)
+        || draftAcpSessionIdRef.current !== sessionId
+      ) return;
+      setInitialSlashCommands(commands);
+    });
+    commandPrewarmBySessionRef.current.set(sessionId, commandPrewarm);
     let resolvedConfigOptions = ("configOptions" in result && result.configOptions) ? result.configOptions : [];
     try {
       const bufferedConfig = await window.claude.acp.getConfigOptions(sessionId);
-      if (!isCurrentEagerStart() || draftAcpSessionIdRef.current !== sessionId) return;
+      if (
+        !isCurrentEagerStart()
+        || !isCurrentDraftTarget(projectId, "acp", agentId)
+        || draftAcpSessionIdRef.current !== sessionId
+      ) return;
       if ((bufferedConfig.configOptions?.length ?? 0) > 0) {
         resolvedConfigOptions = bufferedConfig.configOptions ?? [];
       }
@@ -275,21 +334,16 @@ export function useDraftMaterialization({
     acp.setConfigOptions(resolvedConfigOptions);
     setInitialConfigOptions(resolvedConfigOptions);
 
-    try {
-      const bufferedCommands = await window.claude.acp.getAvailableCommands(sessionId);
-      if (!isCurrentEagerStart() || draftAcpSessionIdRef.current !== sessionId) return;
-      setInitialSlashCommands((bufferedCommands.commands ?? []).map((cmd) => ({
-        name: cmd.name,
-        description: cmd.description ?? "",
-        argumentHint: cmd.input?.hint,
-        source: "acp" as const,
-      })));
-    } catch {
-      // Best-effort fetch only — command updates will still stream through once mounted.
-    }
+    await commandPrewarm;
+    if (
+      !isCurrentEagerStart()
+      || !isCurrentDraftTarget(projectId, "acp", agentId)
+      || draftAcpSessionIdRef.current !== sessionId
+    ) return;
 
     if (
       isCurrentEagerStart()
+      && isCurrentDraftTarget(projectId, "acp", agentId)
       && draftAcpSessionIdRef.current === sessionId
       && "mcpStatuses" in result
       && result.mcpStatuses?.length
@@ -300,7 +354,7 @@ export function useDraftMaterialization({
       })));
     }
     setAcpConfigOptionsLoading(false);
-  }, [acp, findProject, getProjectCwd, setAcpConfigOptionsLoading, setDraftAcpSessionId, setDraftMcpStatuses, setInitialConfigOptions, setInitialSlashCommands]);
+  }, [acp, findProject, getProjectCwd, isCurrentDraftTarget, setAcpConfigOptionsLoading, setDraftAcpSessionId, setDraftMcpStatuses, setInitialConfigOptions, setInitialSlashCommands]);
 
   // Load Codex models ahead of first message so the model picker is usable in draft mode.
   const prefetchCodexModels = useCallback(async (
@@ -363,16 +417,76 @@ export function useDraftMaterialization({
     }
   }, [applyCodexModelDefaultEffort, codex.setCodexModels, setCodexModelsLoadingMessage, setCodexRawModels, setStartOptions]);
 
+  // Codex intentionally does not start a long-lived session for a draft on macOS.
+  // Use its short-lived catalog endpoint instead so slash commands are available
+  // without creating a Dock-visible CLI session.
+  const prefetchCodexCommands = useCallback(async (
+    cwd: string,
+    isCurrent: () => boolean = () => true,
+  ) => {
+    let catalog = codexCommandCatalogByCwdRef.current.get(cwd);
+    if (!catalog) {
+      const initial = prewarmSessionCommands(
+        async () => {
+          const result = await window.claude.codex.listCommands(cwd);
+          if (result.error) throw new Error(result.error);
+          return result;
+        },
+        normalizeCodexCommands,
+      );
+      const apps = prewarmSessionCommands(
+        async () => {
+          const result = await window.claude.codex.listCommandApps(cwd);
+          if (result.error) throw new Error(result.error);
+          return result;
+        },
+        normalizeCodexCommands,
+      );
+      const complete = Promise.all([initial, apps]).then(([skillCommands, appCommands]) => {
+        const commands = [...skillCommands, ...appCommands];
+        if (commands.length === 0) {
+          codexCommandCatalogByCwdRef.current.delete(cwd);
+        }
+        return commands;
+      });
+      catalog = { initial, complete };
+      codexCommandCatalogByCwdRef.current.set(cwd, catalog);
+    }
+    const commands = await catalog.initial;
+    if (!isCurrent()) return false;
+    window.claude.codex.log("DRAFT_COMMANDS_PREWARMED", {
+      cwd,
+      count: commands.length,
+    });
+    setInitialSlashCommands(commands);
+    void catalog.complete.then((completeCommands) => {
+      if (!isCurrent()) return;
+      window.claude.codex.log("DRAFT_COMMAND_APPS_PREWARMED", {
+        cwd,
+        count: completeCommands.length,
+      });
+      setInitialSlashCommands(completeCommands);
+    });
+    return true;
+  }, [setInitialSlashCommands]);
+
   // Probe MCP servers ourselves (for engines that don't report status, e.g. ACP)
-  const probeMcpServers = useCallback(async (projectId: string, overrideServers?: McpServerConfig[]) => {
+  const probeMcpServers = useCallback(async (
+    projectId: string,
+    overrideServers?: McpServerConfig[],
+    draftOptions?: StartOptions,
+  ) => {
+    const isCurrentDraft = () => draftOptions?.engine
+      ? isCurrentDraftTarget(projectId, draftOptions.engine, draftOptions.agentId)
+      : activeSessionIdRef.current === DRAFT_ID && draftProjectIdRef.current === projectId;
     try {
       const servers = overrideServers ?? await window.claude.mcp.list(projectId);
       if (servers.length === 0) {
-        setDraftMcpStatuses([]);
+        if (isCurrentDraft()) setDraftMcpStatuses([]);
         return;
       }
       // Show pending while probing
-      if (activeSessionIdRef.current === DRAFT_ID && draftProjectIdRef.current === projectId) {
+      if (isCurrentDraft()) {
         setDraftMcpStatuses(servers.map(s => ({
           name: s.name,
           status: "pending" as const,
@@ -380,7 +494,7 @@ export function useDraftMaterialization({
       }
       // Probe each server for real connectivity
       const results = await window.claude.mcp.probe(servers);
-      if (activeSessionIdRef.current === DRAFT_ID && draftProjectIdRef.current === projectId) {
+      if (isCurrentDraft()) {
         setDraftMcpStatuses(results.map(r => ({
           name: r.name,
           status: toMcpStatusState(r.status),
@@ -392,7 +506,34 @@ export function useDraftMaterialization({
         label: "MCP_PROBE_ERR",
       });
     }
-  }, []);
+  }, [isCurrentDraftTarget]);
+
+  // One dispatch point for draft prewarming. It is used both for a new chat
+  // and for an engine/agent switch so their lifecycle and command behavior
+  // cannot drift apart.
+  const prewarmDraftSession = useCallback((projectId: string, options?: StartOptions) => {
+    const engine = options?.engine ?? "claude";
+    if (engine === "claude") {
+      void eagerStartSession(projectId, options);
+      void window.claude.mcp.list(projectId).then((servers) => {
+        if (!isCurrentDraftTarget(projectId, "claude", options?.agentId)) return;
+        setDraftMcpStatuses(servers.map((server) => ({
+          name: server.name,
+          status: "pending" as const,
+        })));
+      }).catch(() => { /* MCP status is best-effort during draft prewarm */ });
+      return;
+    }
+
+    if (engine === "acp") {
+      void eagerStartAcpSession(projectId, options);
+      void probeMcpServers(projectId, undefined, options);
+      return;
+    }
+
+    // Codex uses the short-lived catalog prefetch above instead of a session.
+    setDraftMcpStatuses([]);
+  }, [eagerStartAcpSession, eagerStartSession, isCurrentDraftTarget, probeMcpServers, setDraftMcpStatuses]);
 
   // Clean up a pre-started eager session
   const abandonEagerSession = useCallback((reason = "cleanup") => {
@@ -404,6 +545,7 @@ export function useDraftMaterialization({
     window.claude.stop(id, reason);
     liveSessionIdsRef.current.delete(id);
     backgroundStoreRef.current.delete(id);
+    commandPrewarmBySessionRef.current.delete(id);
     preStartedSessionIdRef.current = null;
     setPreStartedSessionId(null);
     setDraftMcpStatuses([]);
@@ -418,6 +560,7 @@ export function useDraftMaterialization({
       void window.claude.acp.stop(id);
       liveSessionIdsRef.current.delete(id);
       backgroundStoreRef.current.delete(id);
+      commandPrewarmBySessionRef.current.delete(id);
     }
     draftAcpSessionIdRef.current = null;
     setDraftAcpSessionId(null);
@@ -527,6 +670,15 @@ export function useDraftMaterialization({
         }, ...prev.map(s => ({ ...s, isActive: false }))]);
         const eagerSessionId = draftAcpSessionIdRef.current;
         if (eagerSessionId && liveSessionIdsRef.current.has(eagerSessionId) && !acp.authRequired) {
+          const commandPrewarm = commandPrewarmBySessionRef.current.get(eagerSessionId);
+          if (commandPrewarm) {
+            await commandPrewarm;
+            commandPrewarmBySessionRef.current.delete(eagerSessionId);
+            if (!isCurrentMaterialization()) {
+              releaseMaterialization();
+              return null;
+            }
+          }
           sessionId = eagerSessionId;
           draftAcpSessionIdRef.current = null;
           setDraftAcpSessionId(null);
@@ -635,6 +787,11 @@ export function useDraftMaterialization({
         );
       } else if (draftEngine === "codex") {
         // Codex app-server path
+        await prefetchCodexCommands(draftCwd, isCurrentMaterialization);
+        if (!isCurrentMaterialization()) {
+          releaseMaterialization();
+          return null;
+        }
         setSessions(prev => [{
           id: DRAFT_ID,
           projectId: project.id,
@@ -758,6 +915,15 @@ export function useDraftMaterialization({
         // Claude SDK path — reuse pre-started session if available
         const preStarted = preStartedSessionIdRef.current;
         if (preStarted && liveSessionIdsRef.current.has(preStarted)) {
+          const commandPrewarm = commandPrewarmBySessionRef.current.get(preStarted);
+          if (commandPrewarm) {
+            await commandPrewarm;
+            commandPrewarmBySessionRef.current.delete(preStarted);
+            if (!isCurrentMaterialization()) {
+              releaseMaterialization();
+              return null;
+            }
+          }
           sessionId = preStarted;
           preStartedSessionIdRef.current = null;
           setPreStartedSessionId(null);
@@ -897,14 +1063,16 @@ export function useDraftMaterialization({
         planMode: !!options.planMode,
       };
     },
-    [acp, applyCodexModelDefaultEffort, findProject, generateSessionTitle, codex.setCodexModels, setDraftAcpSessionId],
+    [acp, applyCodexModelDefaultEffort, findProject, generateSessionTitle, codex.setCodexModels, prefetchCodexCommands, setDraftAcpSessionId],
   );
 
   return {
     eagerStartSession,
     eagerStartAcpSession,
     prefetchCodexModels,
+    prefetchCodexCommands,
     probeMcpServers,
+    prewarmDraftSession,
     abandonEagerSession,
     abandonDraftAcpSession,
     materializeDraft,

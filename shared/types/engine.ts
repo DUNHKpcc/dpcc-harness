@@ -9,13 +9,15 @@ export interface SlashCommand {
   /** Placeholder hint for arguments (e.g., "<query>"), shown grayed after the command name. */
   argumentHint?: string;
   /** Engine-specific source type — used for execution routing. */
-  source: "claude" | "acp" | "codex-skill" | "codex-app" | "local";
+  source: "claude" | "acp" | "codex-native" | "codex-skill" | "codex-app" | "local";
   /** For Codex skills: auto-fill text after the prefix. */
   defaultPrompt?: string;
   /** For Codex apps: the app slug for $app-slug prefix. */
   appSlug?: string;
   /** Icon URL for the autocomplete popup (Codex skills/apps may have icons). */
   iconUrl?: string;
+  /** Present but unavailable in the current session (for example, /compact before a Codex thread exists). */
+  disabled?: boolean;
 }
 
 /** All supported engine identifiers. */

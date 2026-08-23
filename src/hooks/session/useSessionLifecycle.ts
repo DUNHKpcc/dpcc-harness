@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import type { FileReference, ImageAttachment, McpServerConfig, Project } from "@/types";
+import type { FileReference, ImageAttachment, Project } from "@/types";
 import type { CollaborationMode } from "../../types/codex-protocol/CollaborationMode";
 import { fileReferencesToCodexMentions, imageAttachmentsToCodexInputs } from "../../lib/engine/codex-adapter";
 import { createSystemMessage, createUserMessage } from "../../lib/message-factory";
@@ -33,8 +33,7 @@ interface UseSessionLifecycleParams {
   seedBackgroundStore: () => void;
   // From draft materialization
   eagerStartSession: (projectId: string, options?: StartOptions) => Promise<void>;
-  eagerStartAcpSession: (projectId: string, options?: StartOptions, overrideServers?: McpServerConfig[]) => Promise<void>;
-  probeMcpServers: (projectId: string, overrideServers?: McpServerConfig[]) => Promise<void>;
+  prewarmDraftSession: (projectId: string, options?: StartOptions) => void;
   abandonEagerSession: (reason?: string) => void;
   abandonDraftAcpSession: (reason?: string) => void;
   materializeDraft: (
@@ -64,8 +63,7 @@ export function useSessionLifecycle({
   saveCurrentSession,
   seedBackgroundStore,
   eagerStartSession,
-  eagerStartAcpSession,
-  probeMcpServers,
+  prewarmDraftSession,
   abandonEagerSession,
   abandonDraftAcpSession,
   materializeDraft,
@@ -109,9 +107,7 @@ export function useSessionLifecycle({
     getProjectCwd,
     saveCurrentSession,
     seedBackgroundStore,
-    eagerStartSession,
-    eagerStartAcpSession,
-    probeMcpServers,
+    prewarmDraftSession,
     abandonEagerSession,
     abandonDraftAcpSession,
     cacheSessionPayload,

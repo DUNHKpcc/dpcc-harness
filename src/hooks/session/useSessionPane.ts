@@ -91,7 +91,7 @@ export function useSessionPane({
   const claude = useClaude({
     sessionId: claudeSessionId,
     initialMessages: isClaude ? initialMessages : [],
-    initialSlashCommands: isClaude ? initialSlashCommands : [],
+    initialSlashCommands: isClaude ? initialSlashCommands : undefined,
     initialMeta: isClaude ? initialMeta : null,
     initialPermission: isClaude ? initialPermission : null,
   });

@@ -24,6 +24,7 @@ import { publishSessionSendFailure } from "@/lib/session-send-failure";
 import { toastText } from "@/lib/toast-i18n";
 import { markInFlightToolCallsFailed } from "@/lib/chat/in-flight-tools";
 import { useEngineBase } from "./useEngineBase";
+import { normalizeAcpCommands } from "../lib/engine/command-prewarm";
 
 interface UseACPOptions {
   sessionId: string | null;
@@ -405,12 +406,7 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
     } else if (kind === "available_commands_update") {
       const acu = update as ACPAvailableCommandsUpdate;
       acpLog("COMMANDS_UPDATE", { count: acu.availableCommands?.length });
-      setSlashCommands((acu.availableCommands ?? []).map(cmd => ({
-        name: cmd.name,
-        description: cmd.description ?? "",
-        argumentHint: cmd.input?.hint,
-        source: "acp" as const,
-      })));
+      setSlashCommands(normalizeAcpCommands(acu.availableCommands ?? []));
     } else if (kind === "plan") {
       const p = update as Extract<typeof update, { sessionUpdate: "plan" }>;
       acpLog("PLAN", { entryCount: p.entries?.length });
@@ -443,12 +439,7 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
     window.claude.acp.getAvailableCommands(sessionId).then(result => {
       if (sessionIdRef.current === sessionId) {
         acpLog("COMMANDS_FETCHED", { count: result?.commands?.length ?? 0 });
-        setSlashCommands((result?.commands ?? []).map(cmd => ({
-          name: cmd.name,
-          description: cmd.description ?? "",
-          argumentHint: cmd.input?.hint,
-          source: "acp" as const,
-        })));
+        setSlashCommands(normalizeAcpCommands(result?.commands ?? []));
       }
     }).catch(() => { /* session may have been stopped */ });
 

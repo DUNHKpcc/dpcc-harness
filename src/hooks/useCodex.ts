@@ -39,6 +39,7 @@ import { markInFlightToolCallsFailed } from "@/lib/chat/in-flight-tools";
 import { hasCodexRequestRecord, upsertCodexRequestRecord } from "@/lib/usage/upstream-requests";
 import { normalizeAppPermissionMode } from "@shared/lib/codex-permissions";
 import { useEngineBase } from "./useEngineBase";
+import { normalizeCodexCommands } from "../lib/engine/command-prewarm";
 
 interface UseCodexOptions {
   sessionId: string | null;
@@ -142,6 +143,12 @@ export function useCodex({
   // Per-turn counter for unique plan card message IDs
   const planTurnCounterRef = useRef(0);
   const planModeEnabledRef = useRef(!!planModeEnabled);
+
+  // Draft command prewarm completes before Codex has a real session ID.
+  useEffect(() => {
+    if (initialSlashCommands === undefined) return;
+    setSlashCommands(initialSlashCommands);
+  }, [initialSlashCommands]);
 
   useEffect(() => {
     sessionModelRef.current = sessionModel;
@@ -986,36 +993,26 @@ export function useCodex({
     const unsubApproval = window.claude.codex.onApprovalRequest(handleApproval);
     const unsubExit = window.claude.codex.onExit(handleExit);
 
-    // Fetch available skills and apps for slash command autocomplete
-    Promise.all([
-      window.claude.codex.listSkills(sessionId).catch(() => ({ skills: [] as never[] })),
-      window.claude.codex.listApps(sessionId).catch(() => ({ apps: [] as never[] })),
-    ]).then(([skillsResult, appsResult]) => {
+    // Skills are local and ready immediately. app/list can take much longer,
+    // so do not hold the command picker hostage while it resolves.
+    const skillsRequest = window.claude.codex.listSkills(sessionId)
+      .catch(() => ({ skills: [] as never[] }));
+    const appsRequest = window.claude.codex.listApps(sessionId)
+      .catch(() => ({ apps: [] as never[] }));
+
+    void skillsRequest.then((skillsResult) => {
       if (sessionIdRef.current !== sessionId) return;
-      const commands: SlashCommand[] = [];
-      for (const entry of skillsResult.skills ?? []) {
-        for (const skill of entry.skills) {
-          if (!skill.enabled) continue;
-          commands.push({
-            name: skill.name,
-            description: skill.interface?.shortDescription ?? skill.shortDescription ?? skill.description,
-            source: "codex-skill",
-            defaultPrompt: skill.interface?.defaultPrompt,
-            iconUrl: skill.interface?.iconSmall,
-          });
-        }
-      }
-      for (const app of appsResult.apps ?? []) {
-        if (!app.isEnabled || !app.isAccessible) continue;
-        commands.push({
-          name: app.name,
-          description: app.description ?? "",
-          source: "codex-app",
-          appSlug: app.id,
-          iconUrl: app.logoUrl ?? undefined,
-        });
-      }
-      setSlashCommands(commands);
+      setSlashCommands(normalizeCodexCommands({
+        skills: skillsResult.skills,
+      }));
+    });
+
+    void Promise.all([skillsRequest, appsRequest]).then(([skillsResult, appsResult]) => {
+      if (sessionIdRef.current !== sessionId) return;
+      setSlashCommands(normalizeCodexCommands({
+        skills: skillsResult.skills,
+        apps: appsResult.apps,
+      }));
     });
 
     return () => {

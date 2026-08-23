@@ -6,6 +6,10 @@ type PrefetchCodexModels = (
   preferredModel?: string,
   isCurrent?: () => boolean,
 ) => Promise<boolean>;
+type PrefetchCodexCommands = (
+  cwd: string,
+  isCurrent?: () => boolean,
+) => Promise<boolean>;
 
 interface UseCodexModelCatalogSyncParams {
   isCodex: boolean;
@@ -13,6 +17,9 @@ interface UseCodexModelCatalogSyncParams {
   activeSessionId: string | null;
   preferredModel?: string;
   prefetchCodexModels: PrefetchCodexModels;
+  isDraft?: boolean;
+  draftCwd?: string;
+  prefetchCodexCommands?: PrefetchCodexCommands;
   clearModels: () => void;
 }
 
@@ -62,10 +69,15 @@ export function useCodexModelCatalogSync({
   activeSessionId,
   preferredModel,
   prefetchCodexModels,
+  isDraft = false,
+  draftCwd,
+  prefetchCodexCommands,
   clearModels,
 }: UseCodexModelCatalogSyncParams): void {
   const prefetchKeyRef = useRef<string | null>(null);
   const requestGenerationRef = useRef(0);
+  const commandPrefetchKeyRef = useRef<string | null>(null);
+  const commandRequestGenerationRef = useRef(0);
   const settingsFingerprintRef = useRef<string | null>(null);
   const startupRefreshCheckedRef = useRef(false);
 
@@ -97,6 +109,34 @@ export function useCodexModelCatalogSync({
       }
     };
   }, [activeSessionId, isCodex, preferredModel, prefetchCodexModels, rawModelCount]);
+
+  useEffect(() => {
+    // An empty cwd is valid for the global Chat module; the main process
+    // normalizes it to the user's home directory before starting Codex.
+    if (!isCodex || !isDraft || draftCwd === undefined || !prefetchCodexCommands) {
+      commandPrefetchKeyRef.current = null;
+      commandRequestGenerationRef.current += 1;
+      return;
+    }
+    if (commandPrefetchKeyRef.current === draftCwd) return;
+
+    commandPrefetchKeyRef.current = draftCwd;
+    const generation = ++commandRequestGenerationRef.current;
+    void prefetchCodexCommands(
+      draftCwd,
+      () => commandRequestGenerationRef.current === generation,
+    ).then((loaded) => {
+      if (!loaded && commandRequestGenerationRef.current === generation) {
+        commandPrefetchKeyRef.current = null;
+      }
+    });
+
+    return () => {
+      if (commandRequestGenerationRef.current === generation) {
+        commandRequestGenerationRef.current += 1;
+      }
+    };
+  }, [draftCwd, isCodex, isDraft, prefetchCodexCommands]);
 
   useEffect(() => {
     if (!isCodex || startupRefreshCheckedRef.current) return;

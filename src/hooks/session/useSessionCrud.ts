@@ -1,6 +1,6 @@
 import { startTransition, useCallback, useRef } from "react";
 import { toast } from "sonner";
-import type { ChatSession, McpServerConfig, PersistedSession, Project, ACPConfigOption } from "@/types";
+import type { ChatSession, PersistedSession, Project, ACPConfigOption } from "@/types";
 import { suppressNextSessionCompletion } from "../../lib/notification-utils";
 import { capture } from "../../lib/analytics/analytics";
 import { toastText } from "../../lib/toast-i18n";
@@ -22,9 +22,7 @@ interface UseSessionCrudParams {
   saveCurrentSession: () => Promise<void>;
   seedBackgroundStore: () => void;
   // From draft materialization
-  eagerStartSession: (projectId: string, options?: StartOptions) => Promise<void>;
-  eagerStartAcpSession: (projectId: string, options?: StartOptions, overrideServers?: McpServerConfig[]) => Promise<void>;
-  probeMcpServers: (projectId: string, overrideServers?: McpServerConfig[]) => Promise<void>;
+  prewarmDraftSession: (projectId: string, options?: StartOptions) => void;
   abandonEagerSession: (reason?: string) => void;
   abandonDraftAcpSession: (reason?: string) => void;
   // From session cache
@@ -56,9 +54,7 @@ export function useSessionCrud({
   getProjectCwd,
   saveCurrentSession,
   seedBackgroundStore,
-  eagerStartSession,
-  eagerStartAcpSession,
-  probeMcpServers,
+  prewarmDraftSession,
   abandonEagerSession,
   abandonDraftAcpSession,
   cacheSessionPayload,
@@ -79,7 +75,6 @@ export function useSessionCrud({
     setInitialRawAcpPermission,
     setStartOptions,
     setDraftProjectId,
-    setDraftMcpStatuses,
     setAcpConfigOptionsLoading,
     setAcpMcpStatuses,
   } = setters;
@@ -88,7 +83,6 @@ export function useSessionCrud({
     sessionsRef,
     liveSessionIdsRef,
     backgroundStoreRef,
-    preStartedSessionIdRef,
     draftProjectIdRef,
     startOptionsRef,
     acpAgentIdRef,
@@ -145,8 +139,14 @@ export function useSessionCrud({
       setAcpMcpStatuses([]);
       seedBackgroundStore();
       void saveCurrentSession();
-      const draftEngine = options?.engine ?? "claude";
-      setStartOptions(options ?? {});
+      const draftOptions = options ?? {};
+      const draftEngine = draftOptions.engine ?? "claude";
+      // The eager startup path can resolve before React publishes this draft.
+      // Prime the refs first so its target guards see the new session identity.
+      startOptionsRef.current = draftOptions;
+      draftProjectIdRef.current = projectId;
+      activeSessionIdRef.current = DRAFT_ID;
+      setStartOptions(draftOptions);
       setDraftProjectId(projectId);
       setInitialMessages([]);
       setInitialMeta(null);
@@ -165,28 +165,9 @@ export function useSessionCrud({
       // Remove any leftover pending DRAFT_ID session from a previous failed ACP start
       setSessions((prev) => prev.filter(s => s.id !== DRAFT_ID).map((s) => ({ ...s, isActive: false })));
 
-      if (draftEngine === "claude") {
-        // Eager start for Claude engine (fire-and-forget)
-        eagerStartSession(projectId, options);
-        // Set immediate "pending" statuses while SDK connects
-        window.claude.mcp.list(projectId).then(servers => {
-          if (activeSessionIdRef.current === DRAFT_ID && draftProjectIdRef.current === projectId) {
-            setDraftMcpStatuses(servers.map(s => ({
-              name: s.name,
-              status: "pending" as const,
-            })));
-          }
-        }).catch(() => { /* IPC failure */ });
-      } else if (draftEngine === "acp") {
-        eagerStartAcpSession(projectId, options);
-        probeMcpServers(projectId);
-      } else {
-        // Codex: no eager start. Avoid spawning the Codex CLI during draft setup
-        // because macOS can surface CLI/MCP subprocesses as extra Dock icons.
-        setDraftMcpStatuses([]);
-      }
+      prewarmDraftSession(projectId, draftOptions);
     },
-    [saveCurrentSession, seedBackgroundStore, eagerStartSession, eagerStartAcpSession, abandonEagerSession, abandonDraftAcpSession, probeMcpServers],
+    [saveCurrentSession, seedBackgroundStore, abandonEagerSession, abandonDraftAcpSession, prewarmDraftSession],
   );
 
   // ── Switch to an existing session ──
@@ -477,43 +458,50 @@ export function useSessionCrud({
     const prevEngine = startOptionsRef.current.engine ?? "claude";
     const prevAgentId = startOptionsRef.current.agentId;
     const normalizedModel = typeof model === "string" ? model.trim() : "";
-    if (
-      prevEngine !== draftEngine
-      || prevAgentId !== agentId
-      || (startOptionsRef.current.model ?? "") !== normalizedModel
-    ) {
+    const engineChanged = prevEngine !== draftEngine;
+    const agentChanged = prevAgentId !== agentId;
+    const modelChanged = (startOptionsRef.current.model ?? "") !== normalizedModel;
+    const targetChanged = engineChanged || agentChanged || modelChanged;
+    if (targetChanged) {
       ++draftGenerationRef.current;
     }
-    if (prevEngine !== draftEngine) {
+    if (engineChanged) {
       capture("engine_switched", { from_engine: prevEngine, to_engine: draftEngine });
     }
 
-    if (draftEngine !== "claude" && preStartedSessionIdRef.current) {
-      // Switching away from Claude draft should immediately close the eager Claude session.
+    if (prevEngine === "claude" && (draftEngine !== "claude" || agentChanged || modelChanged)) {
+      // Changing a Claude draft's target invalidates its eager session too.
       abandonEagerSession("engine_switch");
     }
-    if (prevEngine === "acp" && refs.draftAcpSessionIdRef.current && (draftEngine !== "acp" || agentId !== prevAgentId)) {
+    if (prevEngine === "acp" && (draftEngine !== "acp" || agentChanged)) {
       abandonDraftAcpSession("engine_switch");
     }
 
-    setStartOptions((prev) => ({
-      ...prev,
+    const shouldPrewarm = engineChanged
+      || (draftEngine === "claude" && (agentChanged || modelChanged))
+      || (draftEngine === "acp" && agentChanged);
+    const shouldResetCommands = engineChanged
+      || (draftEngine !== "codex" && shouldPrewarm);
+    if (shouldResetCommands) {
+      setInitialSlashCommands([]);
+    }
+
+    const nextOptions: StartOptions = {
+      ...startOptionsRef.current,
       engine: draftEngine as StartOptions["engine"],
       agentId,
       model: normalizedModel || undefined,
-    }));
-    if (draftEngine === "acp" && draftProjectIdRef.current) {
+    };
+    // Keep async prewarm guards aligned before React publishes the new draft.
+    startOptionsRef.current = nextOptions;
+    setStartOptions(nextOptions);
+
+    if (!shouldPrewarm || !draftProjectIdRef.current) return;
+    if (draftEngine === "acp") {
       setInitialConfigOptions(cachedConfigOptions ?? []);
-      setInitialSlashCommands([]);
-      eagerStartAcpSession(draftProjectIdRef.current, {
-        ...startOptionsRef.current,
-        engine: "acp",
-        agentId,
-        model: normalizedModel || undefined,
-      });
-      probeMcpServers(draftProjectIdRef.current);
     }
-  }, [abandonEagerSession, abandonDraftAcpSession, eagerStartAcpSession, probeMcpServers]);
+    prewarmDraftSession(draftProjectIdRef.current, nextOptions);
+  }, [abandonEagerSession, abandonDraftAcpSession, prewarmDraftSession]);
 
   return {
     createSession,

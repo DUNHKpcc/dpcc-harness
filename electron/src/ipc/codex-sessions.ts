@@ -29,6 +29,7 @@ import {
   getCodexRolloutSearchHomes,
 } from "../lib/codex-home-isolation";
 import { resolveEffectiveCodexModels } from "../lib/codex-model-catalog";
+import { inlineRegisteredSkillIcons } from "../lib/codex-skill-icons";
 import { reclaimMacDockFocus } from "../lib/macos-dock-focus";
 import { normalizeSessionCwd } from "../lib/session-cwd";
 import { formatCodexResumeError } from "../lib/codex-resume-error";
@@ -288,6 +289,73 @@ function setupCodexHandlers(
       signal,
     });
   };
+}
+
+/** Run a short-lived app-server request for draft-only catalogs. */
+async function withTemporaryCodexAppServer<T>(
+  cwd: string,
+  operation: (rpc: CodexRpcClient) => Promise<T>,
+): Promise<T> {
+  const codexPath = await getCodexBinaryPath();
+  const proc = spawn(codexPath, ["app-server"], {
+    stdio: ["pipe", "pipe", "pipe"],
+    cwd: normalizeSessionCwd(cwd),
+    env: buildCodexAppServerEnv(),
+  });
+  if (!proc.pid) {
+    throw new Error("Failed to spawn codex app-server process");
+  }
+
+  const rpc = new CodexRpcClient(proc);
+  try {
+    await rpc.request<CodexInitializeResponse>("initialize", {
+      clientInfo: getAppServerClientInfo(),
+      capabilities: { experimentalApi: true },
+    });
+    rpc.notify("initialized", {});
+    return await operation(rpc);
+  } finally {
+    rpc.destroy();
+  }
+}
+
+async function fetchCodexDraftSkills(
+  rpc: CodexRpcClient,
+  cwd: string,
+): Promise<{ skills: SkillsListResponse["data"]; apps: AppsListResponse["data"] }> {
+  const skillsResult = await rpc.request<SkillsListResponse>("skills/list", { cwds: [cwd] });
+  return {
+    skills: await inlineRegisteredSkillIcons(skillsResult.data ?? []),
+    apps: [],
+  };
+}
+
+/** Fetch every Codex app page; apps are user-invokable $ commands too. */
+async function fetchCodexApps(
+  rpc: CodexRpcClient,
+  threadId?: string | null,
+): Promise<AppsListResponse["data"]> {
+  const apps: AppsListResponse["data"] = [];
+  const seenCursors = new Set<string>();
+  let cursor: string | null = null;
+
+  do {
+    const result: AppsListResponse = await rpc.request<AppsListResponse>("app/list", {
+      limit: 100,
+      ...(cursor ? { cursor } : {}),
+      ...(threadId ? { threadId } : {}),
+    });
+    apps.push(...(result.data ?? []));
+    cursor = result.nextCursor;
+    if (cursor) {
+      if (seenCursors.has(cursor)) {
+        throw new Error("Codex app/list returned a repeated pagination cursor");
+      }
+      seenCursors.add(cursor);
+    }
+  } while (cursor);
+
+  return apps;
 }
 
 // ── Registration ──
@@ -677,10 +745,8 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     const session = codexSessions.get(sessionId);
     if (!session) return { skills: [], error: "Session not found" };
     try {
-      const result = await session.rpc.request<SkillsListResponse>("skills/list", {
-        cwds: [session.cwd],
-      });
-      return { skills: result.data ?? [] };
+      const catalog = await fetchCodexDraftSkills(session.rpc, session.cwd);
+      return { skills: catalog.skills };
     } catch (err) {
       const errMsg = reportError("CODEX_SKILLS_LIST_ERR", err, { engine: "codex", sessionId });
       return { skills: [], error: errMsg };
@@ -692,11 +758,84 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     const session = codexSessions.get(sessionId);
     if (!session) return { apps: [], error: "Session not found" };
     try {
-      const result = await session.rpc.request<AppsListResponse>("app/list", {});
-      return { apps: result.data ?? [] };
+      return { apps: await fetchCodexApps(session.rpc, session.threadId) };
     } catch (err) {
       const errMsg = reportError("CODEX_APPS_LIST_ERR", err, { engine: "codex", sessionId });
       return { apps: [], error: errMsg };
+    }
+  });
+
+  // ─── codex:list-commands ───
+  ipcMain.handle("codex:list-commands", async (_, cwd: string) => {
+    try {
+      const normalizedCwd = normalizeSessionCwd(cwd);
+      // Prefer an existing session in the same workspace when one is already live.
+      for (const session of codexSessions.values()) {
+        if (!session.rpc.isAlive || session.cwd !== normalizedCwd) continue;
+        try {
+          const catalog = await fetchCodexDraftSkills(session.rpc, normalizedCwd);
+          log("CODEX_DRAFT_COMMANDS", {
+            cwd: normalizedCwd,
+            skills: catalog.skills.length,
+            source: "live-session",
+          });
+          return catalog;
+        } catch {
+          // Fall through to a clean short-lived catalog session.
+        }
+      }
+      const catalog = await withTemporaryCodexAppServer(normalizedCwd, (rpc) => (
+        fetchCodexDraftSkills(rpc, normalizedCwd)
+      ));
+      log("CODEX_DRAFT_COMMANDS", {
+        cwd: normalizedCwd,
+        skills: catalog.skills.length,
+        source: "temporary-session",
+      });
+      return catalog;
+    } catch (err) {
+      return {
+        skills: [],
+        apps: [],
+        error: reportError("CODEX_COMMANDS_SPAWN_ERR", err, { engine: "codex" }),
+      };
+    }
+  });
+
+  // ─── codex:list-command-apps ───
+  // Kept separate from the initial skill fetch so the draft picker can render
+  // immediately, then append the potentially remote/paginated app catalog.
+  ipcMain.handle("codex:list-command-apps", async (_, cwd: string) => {
+    try {
+      const normalizedCwd = normalizeSessionCwd(cwd);
+      for (const session of codexSessions.values()) {
+        if (!session.rpc.isAlive || session.cwd !== normalizedCwd) continue;
+        try {
+          const apps = await fetchCodexApps(session.rpc, session.threadId);
+          log("CODEX_DRAFT_COMMAND_APPS", {
+            cwd: normalizedCwd,
+            apps: apps.length,
+            source: "live-session",
+          });
+          return { apps };
+        } catch {
+          // Fall through to a clean short-lived catalog session.
+        }
+      }
+      const apps = await withTemporaryCodexAppServer(normalizedCwd, (rpc) => (
+        fetchCodexApps(rpc)
+      ));
+      log("CODEX_DRAFT_COMMAND_APPS", {
+        cwd: normalizedCwd,
+        apps: apps.length,
+        source: "temporary-session",
+      });
+      return { apps };
+    } catch (err) {
+      return {
+        apps: [],
+        error: reportError("CODEX_COMMAND_APPS_SPAWN_ERR", err, { engine: "codex" }),
+      };
     }
   });
 
@@ -716,28 +855,10 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
 
     // No live session: spawn a short-lived app-server process and fetch model/list.
     try {
-      const codexPath = await getCodexBinaryPath();
-      const proc = spawn(codexPath, ["app-server"], {
-        stdio: ["pipe", "pipe", "pipe"],
-        cwd: process.cwd(),
-        env: buildCodexAppServerEnv(),
-      });
-      if (!proc.pid) {
-        throw new Error("Failed to spawn codex app-server process");
-      }
-
-      const rpc = new CodexRpcClient(proc);
-      try {
-        await rpc.request<CodexInitializeResponse>("initialize", {
-          clientInfo: getAppServerClientInfo(),
-          capabilities: { experimentalApi: true },
-        });
-        rpc.notify("initialized", {});
+      return await withTemporaryCodexAppServer(process.cwd(), async (rpc) => {
         const result = await rpc.request<CodexModelListResponse>("model/list", { includeHidden: false });
         return { models: await resolveEffectiveCodexModels(result.data ?? []) };
-      } finally {
-        rpc.destroy();
-      }
+      });
     } catch (err) {
       return { models: [], error: reportError("CODEX_MODELS_SPAWN_ERR", err, { engine: "codex" }) };
     }

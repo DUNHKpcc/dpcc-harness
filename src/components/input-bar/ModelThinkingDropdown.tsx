@@ -36,6 +36,8 @@ interface ThinkingOptionItem {
 }
 
 interface ModelThinkingDropdownProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   isProcessing: boolean;
   isACPAgent: boolean;
   isCodexAgent: boolean;
@@ -90,6 +92,8 @@ function managedDpccPiModelId(value: string | undefined): string | undefined {
 
 /** One menu with an internally scrolling model list and a fixed thinking panel. */
 export const ModelThinkingDropdown = memo(function ModelThinkingDropdown({
+  open,
+  onOpenChange,
   isProcessing,
   isACPAgent,
   isCodexAgent,
@@ -190,7 +194,7 @@ export const ModelThinkingDropdown = memo(function ModelThinkingDropdown({
   };
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"

@@ -25,11 +25,15 @@ import {
 
 /** Permission mode dropdown -- used by Claude and Codex engines */
 export function PermissionDropdown({
+  open,
+  onOpenChange,
   permissionMode,
   onPermissionModeChange,
   showDetails,
   disabled,
 }: {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   permissionMode: string;
   onPermissionModeChange: (mode: string) => void;
   /** When true, shows policy + description (Codex style) */
@@ -41,7 +45,7 @@ export function PermissionDropdown({
     PERMISSION_MODES.find((m) => m.id === permissionMode) ??
     PERMISSION_MODES[0];
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"

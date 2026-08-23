@@ -42,6 +42,7 @@ import { BOTTOM_CHAT_MAX_WIDTH_CLASS } from "@/lib/layout/constants";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { resolveClaudePickerValue, resolveModelValue, formatClaudeModelLabel } from "@/lib/model-utils";
 import { getClaudeEffortOptions, resolveClaudeEffort } from "@/lib/engine/claude-effort";
+import { getCodexNativeCommands } from "@/lib/engine/command-prewarm";
 import { isImeComposing } from "@/lib/utils";
 // Lazy-loaded: the annotation editor pulls in konva/react-konva (~10MB) and is
 // only needed when the user edits an attached screenshot. Keep it out of the
@@ -51,7 +52,7 @@ const ImageAnnotationEditor = lazy(() =>
     default: m.ImageAnnotationEditor,
   })),
 );
-import { TOOLBAR_BTN } from "./constants";
+import { PERMISSION_MODES, TOOLBAR_BTN } from "./constants";
 import {
   readFileAsBase64,
   isAcceptedImage,
@@ -61,6 +62,7 @@ import {
   extractEditableContent,
   getAvailableSlashCommands,
   isClearCommandText,
+  parseSlashCommandText,
   parseDroppedUrls,
   buildFileReferenceMessage,
   splitComposerFiles,
@@ -177,6 +179,7 @@ export const InputBar = memo(function InputBar({
   const [fileAttachments, setFileAttachments] = useState<FileAttachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [editingAttachment, setEditingAttachment] = useState<ImageAttachment | null>(null);
+  const [nativeCommandMenu, setNativeCommandMenu] = useState<"model" | "permissions" | null>(null);
 
   // Deep folder confirmation
   const [showDeepFolderConfirm, setShowDeepFolderConfirm] = useState(false);
@@ -206,13 +209,22 @@ export const InputBar = memo(function InputBar({
   });
 
   // ── Derived engine state ──
-  const isACPAgent = selectedAgent != null && selectedAgent.engine === "acp";
-  const isCodexAgent = selectedAgent != null && selectedAgent.engine === "codex";
+  const activeEngine = lockedEngine ?? selectedAgent?.engine ?? "claude";
+  const isACPAgent = activeEngine === "acp";
+  const isCodexAgent = activeEngine === "codex";
   const isAwaitingAcpOptions = isACPAgent && !!acpConfigOptionsLoading;
 
+  const codexNativeCommands = useMemo(
+    () => isCodexAgent ? getCodexNativeCommands(lockedEngine === "codex") : [],
+    [isCodexAgent, lockedEngine],
+  );
+
   const availableSlashCommands = useMemo(
-    () => getAvailableSlashCommands(slashCommands),
-    [slashCommands],
+    () => getAvailableSlashCommands([
+      ...codexNativeCommands,
+      ...(slashCommands ?? []),
+    ]),
+    [codexNativeCommands, slashCommands],
   );
 
   // ── Derived model state ──
@@ -305,6 +317,76 @@ export const InputBar = memo(function InputBar({
     },
     [mention.closeMentions, command.setShowCommands, setComposerHasContent],
   );
+
+  const handleCodexNativeCommand = useCallback(async (
+    text: string,
+    el: HTMLDivElement,
+  ): Promise<boolean> => {
+    if (!isCodexAgent) return false;
+
+    const parsed = parseSlashCommandText(text);
+    if (!parsed) return false;
+    const command = codexNativeCommands.find((candidate) => candidate.name === parsed.name);
+    if (!command) return false;
+    if (command.disabled) return true;
+
+    switch (command.name) {
+      case "new":
+        if (parsed.argument || !onClear) return false;
+        await onClear();
+        break;
+      case "compact":
+        if (parsed.argument || !onCompact) return false;
+        await onCompact();
+        break;
+      case "model": {
+        const requestedModel = parsed.argument.toLowerCase();
+        const selected = requestedModel
+          ? modelList.find((option) => (
+              option.id.toLowerCase() === requestedModel
+              || option.label.toLowerCase() === requestedModel
+            ))
+          : undefined;
+        if (selected) {
+          handleModelSelect(selected.id);
+        } else {
+          setNativeCommandMenu("model");
+        }
+        break;
+      }
+      case "permissions": {
+        const requestedMode = parsed.argument.toLowerCase();
+        const selected = requestedMode
+          ? PERMISSION_MODES.find((option) => option.id.toLowerCase() === requestedMode)
+          : undefined;
+        if (selected) {
+          onPermissionModeChange(selected.id);
+        } else {
+          setNativeCommandMenu("permissions");
+        }
+        break;
+      }
+      case "plan":
+        if (parsed.argument) return false;
+        onPlanModeChange(true);
+        break;
+      default:
+        return false;
+    }
+
+    clearComposer(el);
+    return true;
+  }, [
+    clearComposer,
+    codexNativeCommands,
+    handleModelSelect,
+    isCodexAgent,
+    modelList,
+    onClear,
+    onCompact,
+    onPermissionModeChange,
+    onPlanModeChange,
+  ]);
 
   // ── Image attachments ──
 
@@ -499,6 +581,15 @@ export const InputBar = memo(function InputBar({
       return;
     }
 
+    const canRunNativeCommand =
+      attachments.length === 0
+      && fileAttachments.length === 0
+      && !hasGrabs
+      && mentionPaths.length === 0;
+    if (canRunNativeCommand && await handleCodexNativeCommand(trimmed, el)) {
+      return;
+    }
+
     // Check if we need to warn about deep folder size
     if (deepMentionPaths.size > 0 && projectPath) {
       try {
@@ -535,6 +626,7 @@ export const InputBar = memo(function InputBar({
     projectPath,
     onClear,
     grabbedElements,
+    handleCodexNativeCommand,
     performSend,
     clearComposer,
   ]);
@@ -841,18 +933,11 @@ export const InputBar = memo(function InputBar({
         onChange={handleFileInputChange}
       />
       <div
-        className={`pointer-events-auto rounded-2xl border bg-foreground/[0.035] dark:bg-white/[0.06] shadow-[0_2px_12px_-3px_rgba(0,0,0,0.06),0_8px_24px_-8px_rgba(0,0,0,0.04)] backdrop-blur-xl ring-1 ring-inset ring-white/[0.06] transition-all duration-200 ease-out focus-within:shadow-[0_2px_16px_-3px_rgba(0,0,0,0.08),0_12px_32px_-8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_12px_-3px_rgba(0,0,0,0.35),0_8px_24px_-8px_rgba(0,0,0,0.2)] dark:focus-within:shadow-[0_2px_16px_-3px_rgba(0,0,0,0.4),0_12px_32px_-8px_rgba(0,0,0,0.25)] ${
-          isDragging
-            ? "border-primary/50 bg-primary/5 ring-primary/25"
-            : speech.isListening
-              ? "border-red-400/40 ring-red-400/20"
-              : "border-border/35 focus-within:border-primary/40"
-        }`}
+        className="pointer-events-auto flex flex-col gap-2"
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        {/* Mention popup */}
         {mention.showMentions && (
           <MentionPicker
             results={mention.results}
@@ -868,7 +953,6 @@ export const InputBar = memo(function InputBar({
           />
         )}
 
-        {/* Slash command popup */}
         {command.showCommands && (
           <CommandPicker
             cmdResults={command.cmdResults}
@@ -884,37 +968,46 @@ export const InputBar = memo(function InputBar({
           />
         )}
 
-        {/* Input area -- contentEditable with inline chip support */}
         <div
-          className="relative px-5 pt-4 pb-2.5"
-          onClick={() => editableRef.current?.focus()}
+          className={`rounded-2xl border bg-foreground/[0.035] dark:bg-white/[0.06] shadow-[0_2px_12px_-3px_rgba(0,0,0,0.06),0_8px_24px_-8px_rgba(0,0,0,0.04)] backdrop-blur-xl ring-1 ring-inset ring-white/[0.06] transition-all duration-200 ease-out focus-within:shadow-[0_2px_16px_-3px_rgba(0,0,0,0.08),0_12px_32px_-8px_rgba(0,0,0,0.06)] dark:shadow-[0_2px_12px_-3px_rgba(0,0,0,0.35),0_8px_24px_-8px_rgba(0,0,0,0.2)] dark:focus-within:shadow-[0_2px_16px_-3px_rgba(0,0,0,0.4),0_12px_32px_-8px_rgba(0,0,0,0.25)] ${
+          isDragging
+            ? "border-primary/50 bg-primary/5 ring-primary/25"
+            : speech.isListening
+              ? "border-red-400/40 ring-red-400/20"
+              : "border-border/35 focus-within:border-primary/40"
+        }`}
         >
-          {!hasContent && (
-            <div className="pointer-events-none absolute inset-0 flex items-start px-5 pt-4 pb-2.5 text-sm text-muted-foreground/35 select-none">
-              {placeholderText}
-            </div>
-          )}
+          {/* Input area -- contentEditable with inline chip support */}
           <div
-            ref={editableRef}
-            contentEditable
-            onInput={handleEditableInput}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            className={`min-h-[24px] max-h-[200px] overflow-y-auto text-[14.5px] leading-relaxed outline-none whitespace-pre-wrap wrap-break-word ${
-              isAwaitingAcpOptions
-                ? "cursor-wait text-muted-foreground/60"
-                : "text-foreground"
-            }`}
-            role="textbox"
-            aria-multiline="true"
-            spellCheck={false}
-            autoCorrect="off"
-            autoCapitalize="off"
-            data-gramm="false"
-            aria-disabled={isAwaitingAcpOptions}
-            suppressContentEditableWarning
-          />
-        </div>
+            className="relative px-5 pt-4 pb-2.5"
+            onClick={() => editableRef.current?.focus()}
+          >
+            {!hasContent && (
+              <div className="pointer-events-none absolute inset-0 flex items-start px-5 pt-4 pb-2.5 text-sm text-muted-foreground/35 select-none">
+                {placeholderText}
+              </div>
+            )}
+            <div
+              ref={editableRef}
+              contentEditable
+              onInput={handleEditableInput}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              className={`min-h-[24px] max-h-[200px] overflow-y-auto text-[14.5px] leading-relaxed outline-none whitespace-pre-wrap wrap-break-word ${
+                isAwaitingAcpOptions
+                  ? "cursor-wait text-muted-foreground/60"
+                  : "text-foreground"
+              }`}
+              role="textbox"
+              aria-multiline="true"
+              spellCheck={false}
+              autoCorrect="off"
+              autoCapitalize="off"
+              data-gramm="false"
+              aria-disabled={isAwaitingAcpOptions}
+              suppressContentEditableWarning
+            />
+          </div>
 
         {/* Attachment & grabbed element previews */}
         <AttachmentPreview
@@ -1075,11 +1168,18 @@ export const InputBar = memo(function InputBar({
             </div>
           </div>
         </div>
+        </div>
       </div>
 
       {/* Sunken meta row -- model + thinking, permission, context usage */}
       <div className="pointer-events-auto mt-1.5 flex items-center gap-1 px-1 text-xs text-muted-foreground/80">
         <ModelThinkingDropdown
+          open={nativeCommandMenu === "model"}
+          onOpenChange={(open) => {
+            setNativeCommandMenu((current) => (
+              open ? "model" : current === "model" ? null : current
+            ));
+          }}
           isProcessing={isProcessing}
           isACPAgent={isACPAgent}
           isCodexAgent={isCodexAgent}
@@ -1109,6 +1209,12 @@ export const InputBar = memo(function InputBar({
           )
         ) : (
           <PermissionDropdown
+            open={nativeCommandMenu === "permissions"}
+            onOpenChange={(open) => {
+              setNativeCommandMenu((current) => (
+                open ? "permissions" : current === "permissions" ? null : current
+              ));
+            }}
             permissionMode={permissionMode}
             onPermissionModeChange={onPermissionModeChange}
             showDetails={isCodexAgent}

@@ -1,6 +1,7 @@
 import { useState, useRef, useMemo, useCallback, memo } from "react";
 import type { SlashCommand } from "@/types";
 import { getSlashCommandReplacement } from "./input-bar-utils";
+import { ComposerSuggestionList } from "./ComposerSuggestionList";
 
 // ── Hook: slash command autocomplete state ──
 
@@ -34,6 +35,7 @@ export function useCommandAutocomplete({
 
   const selectCommand = useCallback(
     (cmd: SlashCommand) => {
+      if (cmd.disabled) return false;
       setShowCommands(false);
       const el = editableRef.current;
       if (!el) return;
@@ -92,6 +94,33 @@ export interface CommandPickerProps {
   onHover: (index: number) => void;
 }
 
+function CommandGlyph({
+  iconUrl,
+  usesDollarPrefix,
+}: {
+  iconUrl?: string;
+  usesDollarPrefix: boolean;
+}) {
+  const [imageFailed, setImageFailed] = useState(false);
+
+  if (iconUrl && !imageFailed) {
+    return (
+      <img
+        src={iconUrl}
+        alt=""
+        className="h-4 w-4 shrink-0 rounded"
+        onError={() => setImageFailed(true)}
+      />
+    );
+  }
+
+  return (
+    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-muted text-[10px] font-bold text-muted-foreground">
+      {usesDollarPrefix ? "$" : "/"}
+    </span>
+  );
+}
+
 /** Autocomplete dropdown for slash commands. */
 export const CommandPicker = memo(function CommandPicker({
   cmdResults,
@@ -100,59 +129,51 @@ export const CommandPicker = memo(function CommandPicker({
   onSelect,
   onHover,
 }: CommandPickerProps) {
-  if (cmdResults.length === 0) return null;
-
   return (
-    <div
-      ref={commandListRef}
-      className="mx-2 mb-1 mt-2 max-h-80 overflow-y-auto rounded-lg border border-border/60 bg-popover p-1 shadow-lg"
+    <ComposerSuggestionList
+      items={cmdResults}
+      activeIndex={commandIndex}
+      listRef={commandListRef}
+      getItemKey={(cmd) => {
+        const commandName = cmd.source === "codex-app"
+          ? (cmd.appSlug ?? cmd.name)
+          : cmd.name;
+        return `${cmd.source}-${commandName}`;
+      }}
+      isItemDisabled={(cmd) => !!cmd.disabled}
+      onSelect={onSelect}
+      onHover={onHover}
     >
-      {cmdResults.map((cmd, i) => (
-        <button
-          key={`${cmd.source}-${cmd.name}`}
-          data-active={i === commandIndex}
-          className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-start text-sm transition-colors ${
-            i === commandIndex
-              ? "bg-accent text-accent-foreground"
-              : "text-popover-foreground hover:bg-muted/40"
-          }`}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            onSelect(cmd);
-          }}
-          onMouseEnter={() => onHover(i)}
-        >
-          {cmd.iconUrl ? (
-            <img
-              src={cmd.iconUrl}
-              alt=""
-              className="h-4 w-4 shrink-0 rounded"
+      {(cmd) => {
+        const commandName = cmd.source === "codex-app" ? (cmd.appSlug ?? cmd.name) : cmd.name;
+        const usesDollarPrefix = cmd.source === "codex-skill" || cmd.source === "codex-app";
+        return (
+          <>
+            <CommandGlyph
+              iconUrl={cmd.iconUrl}
+              usesDollarPrefix={usesDollarPrefix}
             />
-          ) : (
-            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded bg-muted text-[10px] font-bold text-muted-foreground">
-              {cmd.source.startsWith("codex") ? "$" : "/"}
-            </span>
-          )}
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <span className="font-mono text-xs font-medium">
-                {cmd.source.startsWith("codex") ? "$" : "/"}
-                {cmd.name}
-              </span>
-              {cmd.argumentHint && (
-                <span className="text-xs text-muted-foreground">
-                  {cmd.argumentHint}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className="font-mono text-xs font-medium">
+                  {usesDollarPrefix ? "$" : "/"}
+                  {commandName}
                 </span>
+                {cmd.argumentHint && (
+                  <span className="text-xs text-muted-foreground">
+                    {cmd.argumentHint}
+                  </span>
+                )}
+              </div>
+              {cmd.description && (
+                <div className="truncate text-xs text-muted-foreground">
+                  {cmd.description}
+                </div>
               )}
             </div>
-            {cmd.description && (
-              <div className="truncate text-xs text-muted-foreground">
-                {cmd.description}
-              </div>
-            )}
-          </div>
-        </button>
-      ))}
-    </div>
+          </>
+        );
+      }}
+    </ComposerSuggestionList>
   );
 });

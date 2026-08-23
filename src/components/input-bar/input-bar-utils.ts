@@ -232,15 +232,34 @@ export const LOCAL_CLEAR_COMMAND: SlashCommand = {
 export function getAvailableSlashCommands(
   slashCommands?: SlashCommand[],
 ): SlashCommand[] {
-  const commands =
-    slashCommands?.filter(
-      (cmd) => cmd.name !== LOCAL_CLEAR_COMMAND.name,
-    ) ?? [];
+  const commandKey = (command: SlashCommand) => (
+    command.source === "codex-skill"
+      ? `$${command.name}`
+      : command.source === "codex-app"
+        ? `$${command.appSlug ?? command.name}`
+        : `/${command.name}`
+  );
+  const seen = new Set([commandKey(LOCAL_CLEAR_COMMAND)]);
+  const commands = (slashCommands ?? []).filter((cmd) => {
+    const key = commandKey(cmd);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
   return [LOCAL_CLEAR_COMMAND, ...commands];
 }
 
 export function isClearCommandText(text: string): boolean {
   return text.trim() === `/${LOCAL_CLEAR_COMMAND.name}`;
+}
+
+export function parseSlashCommandText(text: string): {
+  name: string;
+  argument: string;
+} | null {
+  const match = text.trim().match(/^\/([^\s]+)(?:\s+([\s\S]*))?$/);
+  if (!match) return null;
+  return { name: match[1], argument: match[2]?.trim() ?? "" };
 }
 
 export function getSlashCommandReplacement(cmd: SlashCommand): string {
@@ -254,6 +273,8 @@ export function getSlashCommandReplacement(cmd: SlashCommand): string {
         : `$${cmd.name} `;
     case "codex-app":
       return `$${cmd.appSlug ?? cmd.name} `;
+    case "codex-native":
+      return cmd.argumentHint ? `/${cmd.name} ` : `/${cmd.name}`;
     case "local":
       // Local commands execute directly, so keep the exact command text with no trailing space.
       return `/${cmd.name}`;

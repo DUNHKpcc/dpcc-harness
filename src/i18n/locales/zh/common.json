@@ -103,6 +103,7 @@
   "accountAuth": {
     "title": "登录 DPCC API",
     "account": "账户",
+    "authorizationDetails": "授权详情",
     "connectedAccount": "DPCC API 账户",
     "device": "授权设备",
     "quota": "可用额度",

@@ -2,6 +2,7 @@ import { memo, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
+  ChevronRight,
   ExternalLink,
   LoaderCircle,
   LogIn,
@@ -11,6 +12,11 @@ import {
 } from "lucide-react";
 import { PccAgentLogo } from "@/components/PccAgentLogo";
 import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { useAccountAuth } from "@/hooks/useAccountAuth";
 import type {
   AccountAuthErrorCode,
@@ -40,6 +46,7 @@ export const AccountEntryScreen = memo(function AccountEntryScreen({
   const { t: tWelcome } = useTranslation("welcome");
   const auth = useAccountAuth();
   const [showLocalClear, setShowLocalClear] = useState(false);
+  const [authorizationDetailsOpen, setAuthorizationDetailsOpen] = useState(false);
   const snapshot = auth.snapshot;
   const status = snapshot?.status ?? "signed_out";
   const connected = CONNECTED_STATUSES.has(status);
@@ -256,24 +263,55 @@ export const AccountEntryScreen = memo(function AccountEntryScreen({
       </div>
 
       {connected ? (
-        <div className="space-y-2 border-t border-foreground/[0.08] pt-3">
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-xs text-muted-foreground">{t("accountAuth.account")}</span>
-            <span className="truncate text-sm font-medium">
-              {snapshot?.account?.displayName ?? t("accountAuth.connectedAccount")}
-            </span>
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-xs text-muted-foreground">{t("accountAuth.device")}</span>
-            <span className="truncate text-sm">{snapshot?.deviceName}</span>
-          </div>
-          {expiresLabel ? (
+        variant === "settings" ? (
+          <Collapsible open={authorizationDetailsOpen} onOpenChange={setAuthorizationDetailsOpen}>
+            <CollapsibleTrigger className="flex w-full items-center justify-between border-t border-foreground/[0.08] pt-3 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground">
+              {t("accountAuth.authorizationDetails")}
+              <ChevronRight
+                className={`h-4 w-4 transition-transform ${authorizationDetailsOpen ? "rotate-90" : ""}`}
+              />
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="space-y-2 pt-3">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-xs text-muted-foreground">{t("accountAuth.account")}</span>
+                  <span className="truncate text-sm font-medium">
+                    {snapshot?.account?.displayName ?? t("accountAuth.connectedAccount")}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-xs text-muted-foreground">{t("accountAuth.device")}</span>
+                  <span className="truncate text-sm">{snapshot?.deviceName}</span>
+                </div>
+                {expiresLabel ? (
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="text-xs text-muted-foreground">{t("accountAuth.expires")}</span>
+                    <span className="text-sm">{expiresLabel}</span>
+                  </div>
+                ) : null}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        ) : (
+          <div className="space-y-2 border-t border-foreground/[0.08] pt-3">
             <div className="flex items-center justify-between gap-4">
-              <span className="text-xs text-muted-foreground">{t("accountAuth.expires")}</span>
-              <span className="text-sm">{expiresLabel}</span>
+              <span className="text-xs text-muted-foreground">{t("accountAuth.account")}</span>
+              <span className="truncate text-sm font-medium">
+                {snapshot?.account?.displayName ?? t("accountAuth.connectedAccount")}
+              </span>
             </div>
-          ) : null}
-        </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-xs text-muted-foreground">{t("accountAuth.device")}</span>
+              <span className="truncate text-sm">{snapshot?.deviceName}</span>
+            </div>
+            {expiresLabel ? (
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-xs text-muted-foreground">{t("accountAuth.expires")}</span>
+                <span className="text-sm">{expiresLabel}</span>
+              </div>
+            ) : null}
+          </div>
+        )
       ) : null}
 
       {snapshot?.legacyManual ? (

@@ -103,6 +103,7 @@
   "accountAuth": {
     "title": "Sign in to DPCC API",
     "account": "Account",
+    "authorizationDetails": "Authorization details",
     "connectedAccount": "DPCC API account",
     "device": "Authorized device",
     "quota": "Available quota",

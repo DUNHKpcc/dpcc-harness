@@ -62,7 +62,7 @@ export const AccountPopover = memo(function AccountPopover({
           <PopoverTrigger asChild>
             <button
               data-package-smoke="account-menu"
-              className="mb-1.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sidebar-foreground/40 transition-all hover:bg-black/5 hover:text-sidebar-foreground dark:hover:bg-white/10"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sidebar-foreground/40 transition-all hover:bg-black/5 hover:text-sidebar-foreground dark:hover:bg-white/10"
             >
               <PccAgentLogo className="h-5 w-5 rounded" />
             </button>

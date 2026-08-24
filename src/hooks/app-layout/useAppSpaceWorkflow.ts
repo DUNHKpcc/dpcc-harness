@@ -74,7 +74,7 @@ export function useAppSpaceWorkflow(input: UseAppSpaceWorkflowInput) {
     const randomColor = SPACE_COLOR_PRESETS[1 + Math.floor(Math.random() * (SPACE_COLOR_PRESETS.length - 1))];
     preDraftSpaceRef.current = input.spaceManager.activeSpaceId;
     preDraftSessionRef.current = input.manager.activeSessionId;
-    const space = await input.spaceManager.createSpace("", "⭐", "emoji", randomColor);
+    const space = await input.spaceManager.createSpace("", "Layers", "lucide", randomColor);
     input.spaceManager.setActiveSpaceId(space.id);
     setDraftSpaceId(space.id);
   }, [input.manager.activeSessionId, input.spaceManager]);

@@ -7,12 +7,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import type { ChatFolder, ChatSession, Project, Space, SpaceColor } from "@/types";
-import { SpaceBar, SpaceIcon } from "./SpaceBar";
+import { SpaceIcon } from "./SpaceBar";
+import { AccountPopover } from "./AccountPopover";
 import { SpaceCustomizer } from "./SpaceCustomizer";
 import { UpdateBanner } from "./UpdateBanner";
 import { PreReleaseBanner } from "./PreReleaseBanner";
@@ -646,6 +652,14 @@ export const AppSidebar = memo(function AppSidebar({
             acpAgentsActive={activeWorkspaceView === "acp-agents"}
             onOpenPlugins={onOpenPlugins}
             onOpenAcpAgents={onOpenAcpAgents}
+            spaces={spaces}
+            activeSpaceId={activeSpaceId}
+            onSelectSpace={onSelectSpace}
+            onStartCreateSpace={onStartCreateSpace}
+            onUpdateSpace={onUpdateSpace}
+            onDeleteSpace={onDeleteSpace}
+            onDropProject={onMoveProjectToSpace}
+            draftSpace={draftSpace}
           />
 
           <div
@@ -725,39 +739,31 @@ export const AppSidebar = memo(function AppSidebar({
           <UpdateBanner />
           <PreReleaseBanner onOpenSettings={onOpenSettings} />
 
-          <div className="flex items-center justify-center gap-1.5 overflow-hidden px-3 py-1.5 text-[11px] text-sidebar-foreground/40">
-            {width >= 260 && (
-              <>
-                <span className="whitespace-nowrap">{t("beta.label")}</span>
-                <span className="text-sidebar-foreground/20">·</span>
-              </>
-            )}
-            <a
-              href="https://github.com/DUNHKpcc/dpcc-harness/issues"
-              target="_blank"
-              rel="noopener noreferrer"
-              title={width < 260 ? t("beta.reportBug") : undefined}
-              className="inline-flex items-center gap-1 whitespace-nowrap text-sidebar-foreground/50 transition-colors hover:text-sidebar-foreground/80"
-            >
-              <Bug className="h-3 w-3" />
-              {width >= 260 && <span>{t("beta.reportBug")}</span>}
-            </a>
-          </div>
         </div>
         </SidebarActionsProvider>
       )}
 
-      <SpaceBar
-        spaces={spaces}
-        activeSpaceId={activeSpaceId}
-        onSelectSpace={onSelectSpace}
-        onStartCreateSpace={onStartCreateSpace}
-        onUpdateSpace={onUpdateSpace}
-        onDeleteSpace={onDeleteSpace}
-        onDropProject={onMoveProjectToSpace}
-        onOpenSettings={onOpenSettings}
-        draftSpace={draftSpace}
-      />
+      <div className="no-drag shrink-0 border-t border-sidebar-border/70 px-3 py-1.5">
+        <div className="flex items-center justify-between">
+          <AccountPopover onOpenSettings={onOpenSettings} />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <a
+                href="https://github.com/DUNHKpcc/dpcc-harness/issues"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={t("beta.reportBug")}
+                className="flex h-8 w-8 items-center justify-center rounded-md text-sidebar-foreground/40 transition-colors hover:bg-sidebar-accent/55 hover:text-sidebar-foreground/80"
+              >
+                <Bug className="h-4 w-4" />
+              </a>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-xs">
+              {t("beta.reportBug")}
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      </div>
     </motion.div>
   );
 });

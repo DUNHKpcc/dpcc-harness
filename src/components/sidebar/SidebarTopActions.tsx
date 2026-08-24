@@ -2,6 +2,8 @@ import { memo } from "react";
 import { useTranslation } from "react-i18next";
 import { Bot, SquarePen } from "lucide-react";
 import { SidebarSearch } from "@/components/SidebarSearch";
+import { SpaceBar } from "@/components/SpaceBar";
+import type { Space } from "@/types";
 import { SidebarPluginEntry } from "./SidebarPluginEntry";
 
 interface SidebarTopActionsProps {
@@ -13,6 +15,14 @@ interface SidebarTopActionsProps {
   acpAgentsActive: boolean;
   onOpenPlugins: () => void;
   onOpenAcpAgents: () => void;
+  spaces: Space[];
+  activeSpaceId: string;
+  onSelectSpace: (id: string) => void;
+  onStartCreateSpace: () => void;
+  onUpdateSpace: (id: string, updates: Partial<Pick<Space, "name" | "icon" | "iconType" | "color">>) => void;
+  onDeleteSpace: (id: string) => void;
+  onDropProject: (projectId: string, spaceId: string) => void;
+  draftSpace: Space | null;
 }
 
 export const SidebarTopActions = memo(function SidebarTopActions({
@@ -24,6 +34,14 @@ export const SidebarTopActions = memo(function SidebarTopActions({
   acpAgentsActive,
   onOpenPlugins,
   onOpenAcpAgents,
+  spaces,
+  activeSpaceId,
+  onSelectSpace,
+  onStartCreateSpace,
+  onUpdateSpace,
+  onDeleteSpace,
+  onDropProject,
+  draftSpace,
 }: SidebarTopActionsProps) {
   const { t } = useTranslation("sidebar");
 
@@ -62,6 +80,17 @@ export const SidebarTopActions = memo(function SidebarTopActions({
           <Bot className="h-4.5 w-4.5 shrink-0 stroke-[1.8] text-sidebar-foreground/75" />
           <span>{t("acpAgents.open")}</span>
         </button>
+
+        <SpaceBar
+          spaces={spaces}
+          activeSpaceId={activeSpaceId}
+          onSelectSpace={onSelectSpace}
+          onStartCreateSpace={onStartCreateSpace}
+          onUpdateSpace={onUpdateSpace}
+          onDeleteSpace={onDeleteSpace}
+          onDropProject={onDropProject}
+          draftSpace={draftSpace}
+        />
       </div>
     </div>
   );

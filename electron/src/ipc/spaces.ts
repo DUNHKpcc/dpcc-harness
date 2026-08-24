@@ -17,8 +17,8 @@ interface Space {
 const DEFAULT_SPACE: Space = {
   id: "default",
   name: "General",
-  icon: "⭐",
-  iconType: "emoji",
+  icon: "Box",
+  iconType: "lucide",
   color: { hue: 0, chroma: 0 },
   createdAt: Date.now(),
   order: 0,
@@ -42,6 +42,17 @@ function writeSpaces(spaces: Space[]): void {
   fs.writeFileSync(getSpacesFilePath(), JSON.stringify(spaces, null, 2), "utf-8");
 }
 
+function migrateLegacyDefaultSpace(spaces: Space[]): Space[] {
+  const defaultSpace = spaces.find((space) => space.id === "default");
+  if (defaultSpace?.icon !== "⭐" || defaultSpace.iconType !== "emoji") return spaces;
+
+  return spaces.map((space) => (
+    space.id === "default"
+      ? { ...space, icon: DEFAULT_SPACE.icon, iconType: DEFAULT_SPACE.iconType }
+      : space
+  ));
+}
+
 export function register(): void {
   ipcMain.handle("spaces:list", () => {
     try {
@@ -49,6 +60,12 @@ export function register(): void {
       if (!spaces) {
         spaces = [DEFAULT_SPACE];
         writeSpaces(spaces);
+      } else {
+        const migratedSpaces = migrateLegacyDefaultSpace(spaces);
+        if (migratedSpaces !== spaces) {
+          spaces = migratedSpaces;
+          writeSpaces(spaces);
+        }
       }
       return spaces;
     } catch (err) {

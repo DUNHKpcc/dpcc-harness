@@ -19,7 +19,6 @@ import {
 } from "@/components/ui/popover";
 import { resolveLucideIcon } from "@/lib/icon-utils";
 import { SpaceCustomizer } from "./SpaceCustomizer";
-import { AccountPopover } from "./AccountPopover";
 import type { Space } from "@/types";
 
 interface SpaceBarProps {
@@ -30,7 +29,6 @@ interface SpaceBarProps {
   onUpdateSpace: (id: string, updates: Partial<Pick<Space, "name" | "icon" | "iconType" | "color">>) => void;
   onDeleteSpace: (id: string) => void;
   onDropProject?: (projectId: string, spaceId: string) => void;
-  onOpenSettings?: () => void;
   /** When non-null, a draft space is active — disable the + button */
   draftSpace?: Space | null;
 }
@@ -65,7 +63,6 @@ export const SpaceBar = memo(function SpaceBar({
   onUpdateSpace,
   onDeleteSpace,
   onDropProject,
-  onOpenSettings,
   draftSpace,
 }: SpaceBarProps) {
   const { t } = useTranslation("workspace");
@@ -166,16 +163,12 @@ export const SpaceBar = memo(function SpaceBar({
   const closeContext = useCallback(() => setContextSpace(null), []);
 
   return (
-    <div className="no-drag grid grid-cols-[2rem_1fr_2rem] items-end px-2 pt-1.5">
-      {/* Account — opens balance / models / settings capsule */}
-      <AccountPopover onOpenSettings={onOpenSettings} />
-
-      {/* Center — scrollable space icons */}
-      <div className="group/spaces flex min-w-0 items-end">
+    <div data-sidebar-space-switcher="true" className="no-drag flex h-8 items-center gap-1 pe-3.5 ps-2">
+      <div className="group/spaces flex min-w-0 flex-1 items-center">
         {canScrollLeft && (
           <button
             onClick={() => scrollByOne(-1)}
-            className="mb-1.5 flex h-8 w-4 shrink-0 items-center justify-center text-sidebar-foreground/30 opacity-0 transition-opacity hover:text-sidebar-foreground group-hover/spaces:opacity-100"
+            className="flex h-8 w-4 shrink-0 items-center justify-center text-sidebar-foreground/30 opacity-0 transition-opacity hover:text-sidebar-foreground group-hover/spaces:opacity-100"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
           </button>
@@ -183,10 +176,10 @@ export const SpaceBar = memo(function SpaceBar({
 
         <div
           ref={scrollRef}
-          className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden pb-1.5 scrollbar-none"
+          className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden scrollbar-none"
           style={fadeMask}
         >
-          <div className="mx-auto flex w-fit items-center gap-1">
+          <div className="flex w-max items-center gap-1">
             {sorted.map((space) => {
               const isActive = space.id === activeSpaceId;
               const isDragOver = dragOverSpaceId === space.id;
@@ -215,55 +208,48 @@ export const SpaceBar = memo(function SpaceBar({
                           onDropProject(projectId, space.id);
                         }
                       }}
-                      className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all ${
+                      className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors ${
                         isActive
-                          ? "bg-black/10 text-sidebar-foreground shadow-sm dark:bg-white/15"
-                          : "text-sidebar-foreground/60 hover:bg-black/5 hover:text-sidebar-foreground dark:hover:bg-white/10"
+                          ? "text-sidebar-foreground"
+                          : "text-sidebar-foreground/60 hover:text-sidebar-foreground"
                       } ${isDragOver ? "ring-2 ring-primary scale-110" : ""}`}
                     >
                       <SpaceIcon space={space} />
                       {isActive && (
                         <div
-                          className="absolute -bottom-1 h-0.5 w-4 rounded-full"
+                          className="absolute bottom-0.5 h-0.5 w-4 rounded-full"
                           style={getSpaceIndicatorStyle(space)}
                         />
                       )}
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent side="top" className="text-xs">
+                  <TooltipContent side="right" className="text-xs">
                     {space.name}
                   </TooltipContent>
                 </Tooltip>
               );
             })}
+
+            <button
+              onClick={onStartCreateSpace}
+              disabled={isCreatingSpace}
+              className="flex h-8 shrink-0 items-center gap-1 rounded-md px-1 text-[14px] font-medium text-sidebar-foreground/40 transition-colors hover:text-sidebar-foreground disabled:pointer-events-none disabled:opacity-30"
+            >
+              <Plus className="h-4.5 w-4.5" />
+              <span className="whitespace-nowrap">{t("space.newSpace")}</span>
+            </button>
           </div>
         </div>
 
         {canScrollRight && (
           <button
             onClick={() => scrollByOne(1)}
-            className="mb-1.5 flex h-8 w-4 shrink-0 items-center justify-center text-sidebar-foreground/30 opacity-0 transition-opacity hover:text-sidebar-foreground group-hover/spaces:opacity-100"
+            className="flex h-8 w-4 shrink-0 items-center justify-center text-sidebar-foreground/30 opacity-0 transition-opacity hover:text-sidebar-foreground group-hover/spaces:opacity-100"
           >
             <ChevronRight className="h-3.5 w-3.5" />
           </button>
         )}
       </div>
-
-      {/* + button — enters draft creation mode in sidebar */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            onClick={onStartCreateSpace}
-            disabled={isCreatingSpace}
-            className="mb-1.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sidebar-foreground/40 transition-all hover:bg-black/5 hover:text-sidebar-foreground dark:hover:bg-white/10 disabled:opacity-30 disabled:pointer-events-none"
-          >
-            <Plus className="h-4.5 w-4.5" />
-          </button>
-        </TooltipTrigger>
-        <TooltipContent side="top" className="text-xs">
-          {t("space.newSpace")}
-        </TooltipContent>
-      </Tooltip>
 
       {/* ── Edit popover (for existing spaces) ── */}
       <Popover
@@ -274,7 +260,7 @@ export const SpaceBar = memo(function SpaceBar({
       >
         <PopoverAnchor ref={anchorRef} className="pointer-events-none" />
         <PopoverContent
-          side="top"
+          side="right"
           sideOffset={12}
           align="center"
           className="w-72"

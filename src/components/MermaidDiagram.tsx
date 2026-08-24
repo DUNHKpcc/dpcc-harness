@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import mermaid from "mermaid";
 import { reportError } from "@/lib/analytics/analytics";
 import { CHAT_CONTENT_RESIZED_EVENT } from "@/lib/layout/constants";
@@ -268,6 +269,7 @@ interface MermaidDiagramProps {
 }
 
 export function MermaidDiagram({ code, isStreaming }: MermaidDiagramProps) {
+  const { t } = useTranslation("chat");
   const containerRef = useRef<HTMLDivElement>(null);
   const renderRequestRef = useRef(0);
   const [error, setError] = useState<string | null>(null);
@@ -368,7 +370,7 @@ export function MermaidDiagram({ code, isStreaming }: MermaidDiagramProps) {
     return (
       <MermaidCard label="mermaid (error)" code={code}>
         <div className="wrap-break-word whitespace-pre-wrap p-3 text-xs text-destructive">
-          Failed to render diagram: {renderError}
+          {t("diagram.renderFailed", { error: renderError })}
         </div>
         <pre className="overflow-x-auto p-3 text-xs font-mono text-muted-foreground border-t border-foreground/[0.06]">
           <code>{code}</code>

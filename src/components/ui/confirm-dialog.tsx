@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -28,9 +29,9 @@ interface ConfirmDialogProps {
   title: string;
   /** Description / body — accepts React nodes for inline formatting */
   description: React.ReactNode;
-  /** Label for the confirm button (default: "Confirm") */
+  /** Label for the confirm button. */
   confirmLabel?: string;
-  /** Label for the cancel button (default: "Cancel") */
+  /** Label for the cancel button. */
   cancelLabel?: string;
   /** Variant for the confirm button (default: "destructive") */
   confirmVariant?: ButtonVariant;
@@ -46,10 +47,13 @@ export function ConfirmDialog({
   onConfirm,
   title,
   description,
-  confirmLabel = "Confirm",
-  cancelLabel = "Cancel",
+  confirmLabel,
+  cancelLabel,
   confirmVariant = "destructive",
 }: ConfirmDialogProps) {
+  const { t } = useTranslation("common");
+  const resolvedConfirmLabel = confirmLabel ?? t("action.confirm");
+  const resolvedCancelLabel = cancelLabel ?? t("action.cancel");
   const handleConfirm = useCallback(() => {
     onConfirm();
     onOpenChange(false);
@@ -70,10 +74,10 @@ export function ConfirmDialog({
             size="sm"
             onClick={() => onOpenChange(false)}
           >
-            {cancelLabel}
+            {resolvedCancelLabel}
           </Button>
           <Button variant={confirmVariant} size="sm" onClick={handleConfirm}>
-            {confirmLabel}
+            {resolvedConfirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

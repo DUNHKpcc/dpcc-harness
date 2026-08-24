@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import crypto from "crypto";
 import { log } from "../lib/logger";
 import { safeSend } from "../lib/safe-send";
@@ -42,6 +42,14 @@ interface TerminalEntry {
 
 export const terminals = new Map<string, TerminalEntry>();
 
+function isChineseAppLocale(): boolean {
+  try {
+    return app.getLocale().toLowerCase().startsWith("zh");
+  } catch {
+    return false;
+  }
+}
+
 let ptyModule: { spawn: (...args: unknown[]) => TerminalEntry["pty"] } | null = null;
 
 function getPty() {
@@ -73,18 +81,19 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
   });
 
   ipcMain.handle("terminal:select-shell", async () => {
+    const zh = isChineseAppLocale();
     try {
       const mainWindow = getMainWindow();
       if (!mainWindow || mainWindow.isDestroyed()) {
-        return { error: "The PccAgent window is not available." };
+        return { error: zh ? "PccAgent 窗口不可用。" : "The PccAgent window is not available." };
       }
       const result = await dialog.showOpenDialog(mainWindow, {
-        title: "Select terminal shell executable",
+        title: zh ? "选择终端 shell 可执行文件" : "Select terminal shell executable",
         properties: ["openFile"],
         ...(process.platform === "win32" ? {
           filters: [
-            { name: "Windows executables", extensions: ["exe"] },
-            { name: "All files", extensions: ["*"] },
+            { name: zh ? "Windows 可执行文件" : "Windows executables", extensions: ["exe"] },
+            { name: zh ? "所有文件" : "All files", extensions: ["*"] },
           ],
         } : {}),
       });

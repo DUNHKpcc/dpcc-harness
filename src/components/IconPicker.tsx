@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -42,6 +43,7 @@ interface IconPickerProps {
 }
 
 export function IconPicker({ value, iconType, onChange }: IconPickerProps) {
+  const { t } = useTranslation("common");
   const [search, setSearch] = useState("");
   const tab = iconType === "emoji" ? "emoji" : "icons";
 
@@ -55,8 +57,8 @@ export function IconPicker({ value, iconType, onChange }: IconPickerProps) {
   return (
     <Tabs defaultValue={tab} className="w-full">
       <TabsList className="grid w-full grid-cols-2">
-        <TabsTrigger value="emoji">Emoji</TabsTrigger>
-        <TabsTrigger value="icons">Icons</TabsTrigger>
+        <TabsTrigger value="emoji">{t("iconPicker.emoji")}</TabsTrigger>
+        <TabsTrigger value="icons">{t("iconPicker.icons")}</TabsTrigger>
       </TabsList>
 
       <TabsContent value="emoji">
@@ -79,7 +81,7 @@ export function IconPicker({ value, iconType, onChange }: IconPickerProps) {
 
       <TabsContent value="icons" className="space-y-2">
         <Input
-          placeholder="Search icons..."
+          placeholder={t("iconPicker.search")}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="h-8 text-sm"

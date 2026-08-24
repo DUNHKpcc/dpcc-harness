@@ -83,6 +83,9 @@
     "statsModified": "{{n}} modified",
     "statsNew": "{{n}} new"
   },
+  "diagram": {
+    "renderFailed": "Failed to render diagram: {{error}}"
+  },
   "transcript": {
     "title": "Agent Transcript — {{description}}",
     "loading": "Loading transcript…",

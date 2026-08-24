@@ -95,7 +95,20 @@
     "strokeWidthValue": "线条宽度：{{width}}px",
     "strokeWidth": "线条宽度",
     "undo": "撤销",
-    "redo": "重做"
+    "redo": "重做",
+    "editorTitle": "标注图片",
+    "editorDescription": "发送前可在图片上绘制、高亮和添加标注。",
+    "textPlaceholder": "在此输入...",
+    "loading": "正在加载图片…",
+    "cancel": "取消",
+    "done": "完成"
+  },
+  "colorPicker": {
+    "hue": "色相",
+    "intensity": "强度",
+    "gradient": "渐变",
+    "gradientHue": "渐变色相",
+    "preview": "预览"
   },
   "split": {
     "dropToOpen": "拖放以打开",
@@ -105,6 +118,7 @@
   "dock": {
     "moveToBottom": "移到底部",
     "moveToTopRow": "移到顶部行",
-    "close": "关闭面板"
+    "close": "关闭面板",
+    "dragToDock": "拖动以停靠"
   }
 }

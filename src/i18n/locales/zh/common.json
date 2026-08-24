@@ -33,6 +33,11 @@
     "on": "开",
     "off": "关"
   },
+  "iconPicker": {
+    "emoji": "表情",
+    "icons": "图标",
+    "search": "搜索图标..."
+  },
   "notifications": {
     "readyTitle": "计划等待批准",
     "readyBody": "{{actor}} 已准备好计划，正在等待你批准。",

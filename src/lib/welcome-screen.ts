@@ -1,30 +1,25 @@
 export type TimeBucket = "lateNight" | "morning" | "afternoon" | "evening";
 
 export interface ContinueMessage {
-  headline: string;
-  subtitle: string;
+  key: string;
   accent: string;
 }
 
 const ANYTIME_CONTINUE_MESSAGES: readonly ContinueMessage[] = [
   {
-    headline: "Continue building",
-    subtitle: "Your threads are warm. Pick one and keep shipping.",
+    key: "continueBuilding",
     accent: "oklch(0.62 0.18 185)",
   },
   {
-    headline: "Welcome back",
-    subtitle: "The repo missed you for several whole seconds.",
+    key: "welcomeBack",
     accent: "oklch(0.66 0.16 32)",
   },
   {
-    headline: "Back at it, menace",
-    subtitle: "Choose a thread and apply tasteful chaos.",
+    key: "backAtIt",
     accent: "oklch(0.7 0.17 145)",
   },
   {
-    headline: "One more tiny change",
-    subtitle: "Famous last words. Your threads are waiting.",
+    key: "oneMoreTinyChange",
     accent: "oklch(0.72 0.14 260)",
   },
 ];
@@ -32,69 +27,57 @@ const ANYTIME_CONTINUE_MESSAGES: readonly ContinueMessage[] = [
 const TIME_AWARE_CONTINUE_MESSAGES: Record<TimeBucket, readonly ContinueMessage[]> = {
   lateNight: [
     {
-      headline: "Hello, night owl",
-      subtitle: "Your best ideas and worst commit messages happen now.",
+      key: "helloNight",
       accent: "oklch(0.7 0.15 250)",
     },
     {
-      headline: "Midnight debug club",
-      subtitle: "The stack trace is glowing gently in the dark.",
+      key: "midnightDebug",
       accent: "oklch(0.68 0.18 290)",
     },
     {
-      headline: "Moonlight merge pending",
-      subtitle: "Pick up where you left off before the birds clock in.",
+      key: "moonlightMerge",
       accent: "oklch(0.74 0.13 215)",
     },
   ],
   morning: [
     {
-      headline: "Good morning, builder",
-      subtitle: "Fresh tab, fresh coffee, same huge TODO list.",
+      key: "goodMorning",
       accent: "oklch(0.76 0.16 78)",
     },
     {
-      headline: "Rise and refactor",
-      subtitle: "Your threads are awake before some of your teammates.",
+      key: "riseRefactor",
       accent: "oklch(0.73 0.17 110)",
     },
     {
-      headline: "Morning commit energy",
-      subtitle: "Start with the easy win before the meetings find you.",
+      key: "morningCommit",
       accent: "oklch(0.78 0.15 48)",
     },
   ],
   afternoon: [
     {
-      headline: "Welcome back, sunshine",
-      subtitle: "Prime hour for turning half-finished ideas into features.",
+      key: "welcomeSunshine",
       accent: "oklch(0.74 0.18 58)",
     },
     {
-      headline: "Afternoon sprint mode",
-      subtitle: "The code is warm and your threads are lined up.",
+      key: "afternoonSprint",
       accent: "oklch(0.68 0.19 28)",
     },
     {
-      headline: "Post-lunch patch attack",
-      subtitle: "Pick a thread and make the roadmap more believable.",
+      key: "postLunchPatch",
       accent: "oklch(0.75 0.16 135)",
     },
   ],
   evening: [
     {
-      headline: "Evening shift engaged",
-      subtitle: "Quiet hours. Strong focus. Mild gremlin energy.",
+      key: "eveningShift",
       accent: "oklch(0.67 0.17 15)",
     },
     {
-      headline: "Twilight build session",
-      subtitle: "A nice time to ship something clever and unnecessary.",
+      key: "twilightBuild",
       accent: "oklch(0.69 0.18 335)",
     },
     {
-      headline: "Welcome back after hours",
-      subtitle: "Your threads are ready for that definitely quick check-in.",
+      key: "afterHoursWelcome",
       accent: "oklch(0.72 0.15 210)",
     },
   ],
@@ -130,8 +113,7 @@ function pickRandomMessage(
   let attempts = 0;
   while (
     attempts < 6 &&
-    nextMessage.headline === previous.headline &&
-    nextMessage.subtitle === previous.subtitle
+    nextMessage.key === previous.key
   ) {
     nextMessage = messages[Math.floor(Math.random() * messages.length)];
     attempts += 1;

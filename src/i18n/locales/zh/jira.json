@@ -23,7 +23,12 @@
     "removeConfigConfirm": "移除"
   },
   "board": {
-    "noIssues": "此看板中未找到事项"
+    "noIssues": "此看板中未找到事项",
+    "categories": {
+      "todo": "待办",
+      "inProgress": "进行中",
+      "done": "已完成"
+    }
   },
   "card": {
     "unassigned": "未分配",

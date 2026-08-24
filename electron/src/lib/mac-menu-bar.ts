@@ -164,7 +164,7 @@ export function buildMacMenuBarTemplate(
     : [{ label: zh ? "暂无最近对话" : "No recent chats", enabled: false }];
 
   const template: MenuItemConstructorOptions[] = [
-    header("Account", data.supportsHeaders),
+    header(zh ? "账户" : "Account", data.supportsHeaders),
     {
       label: accountName,
       sublabel: accountSublabel,
@@ -181,10 +181,10 @@ export function buildMacMenuBarTemplate(
 
   template.push(
     { type: "separator" },
-    header("Running", data.supportsHeaders),
+    header(zh ? "运行中" : "Running", data.supportsHeaders),
     { label: runtimeLabel, enabled: !runtimeIdle, click: runtimeIdle ? undefined : actions.showApp },
     { type: "separator" },
-    header("Recent", data.supportsHeaders),
+    header(zh ? "最近对话" : "Recent", data.supportsHeaders),
     ...recentItems,
   );
 
@@ -220,7 +220,7 @@ export function buildMacMenuBarTemplate(
 
     template.push(
       { type: "separator" },
-      header("Usage", data.supportsHeaders),
+      header(zh ? "用量" : "Usage", data.supportsHeaders),
       {
         label: zh ? `订阅：${planName}` : `Subscription: ${planName}`,
         sublabel: subscriptionStatus,

@@ -304,6 +304,7 @@ export const WelcomeScreen = memo(function WelcomeScreen({
   const [continueMessage, setContinueMessage] = useState<ContinueMessage>(() =>
     getContinueMessage(),
   );
+  const continueMessageKey = `screen.continueMessages.${continueMessage.key}`;
   const lastRefreshAtRef = useRef(new Date());
 
   useEffect(() => {
@@ -425,24 +426,24 @@ export const WelcomeScreen = memo(function WelcomeScreen({
           >
             <PccAgentMark />
             <motion.h1
-              key={continueMessage.headline}
+              key={continueMessage.key}
               className="text-center text-4xl italic text-foreground sm:text-5xl"
               style={{ fontFamily: DISPLAY_FONT }}
               initial={{ opacity: 0, y: 10, filter: "blur(4px)" }}
               animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
               transition={{ duration: 0.45, ease: EASE_OUT }}
             >
-              {continueMessage.headline}
+              {t(`${continueMessageKey}.headline`)}
             </motion.h1>
             <motion.p
-              key={continueMessage.subtitle}
+              key={`${continueMessage.key}-subtitle`}
               ref={setSubtitleElement}
               className="max-w-[min(92vw,640px)] text-center text-base leading-relaxed text-muted-foreground"
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4, delay: 0.05, ease: EASE_OUT }}
             >
-              {continueMessage.subtitle}
+              {t(`${continueMessageKey}.subtitle`)}
             </motion.p>
           </motion.div>
         </motion.div>

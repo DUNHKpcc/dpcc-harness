@@ -116,6 +116,72 @@
     "sidebarHint": "your threads are in the sidebar",
     "openProject": "Open a project",
     "openProjectSubtitle": "Choose a folder to anchor your sessions, tools, and file context.",
-    "chooseFolder": "Choose folder"
+    "chooseFolder": "Choose folder",
+    "continueMessages": {
+      "continueBuilding": {
+        "headline": "Continue building",
+        "subtitle": "Your threads are warm. Pick one and keep shipping."
+      },
+      "welcomeBack": {
+        "headline": "Welcome back",
+        "subtitle": "The repo missed you for several whole seconds."
+      },
+      "backAtIt": {
+        "headline": "Back at it, menace",
+        "subtitle": "Choose a thread and apply tasteful chaos."
+      },
+      "oneMoreTinyChange": {
+        "headline": "One more tiny change",
+        "subtitle": "Famous last words. Your threads are waiting."
+      },
+      "helloNight": {
+        "headline": "Hello, night owl",
+        "subtitle": "Your best ideas and worst commit messages happen now."
+      },
+      "midnightDebug": {
+        "headline": "Midnight debug club",
+        "subtitle": "The stack trace is glowing gently in the dark."
+      },
+      "moonlightMerge": {
+        "headline": "Moonlight merge pending",
+        "subtitle": "Pick up where you left off before the birds clock in."
+      },
+      "goodMorning": {
+        "headline": "Good morning, builder",
+        "subtitle": "Fresh tab, fresh coffee, same huge TODO list."
+      },
+      "riseRefactor": {
+        "headline": "Rise and refactor",
+        "subtitle": "Your threads are awake before some of your teammates."
+      },
+      "morningCommit": {
+        "headline": "Morning commit energy",
+        "subtitle": "Start with the easy win before the meetings find you."
+      },
+      "welcomeSunshine": {
+        "headline": "Welcome back, sunshine",
+        "subtitle": "Prime hour for turning half-finished ideas into features."
+      },
+      "afternoonSprint": {
+        "headline": "Afternoon sprint mode",
+        "subtitle": "The code is warm and your threads are lined up."
+      },
+      "postLunchPatch": {
+        "headline": "Post-lunch patch attack",
+        "subtitle": "Pick a thread and make the roadmap more believable."
+      },
+      "eveningShift": {
+        "headline": "Evening shift engaged",
+        "subtitle": "Quiet hours. Strong focus. Mild gremlin energy."
+      },
+      "twilightBuild": {
+        "headline": "Twilight build session",
+        "subtitle": "A nice time to ship something clever and unnecessary."
+      },
+      "afterHoursWelcome": {
+        "headline": "Welcome back after hours",
+        "subtitle": "Your threads are ready for that definitely quick check-in."
+      }
+    }
   }
 }

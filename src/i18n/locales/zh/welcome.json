@@ -116,6 +116,72 @@
     "sidebarHint": "你的会话都在侧边栏",
     "openProject": "打开一个项目",
     "openProjectSubtitle": "选择一个文件夹，用以承载你的会话、工具和文件上下文。",
-    "chooseFolder": "选择文件夹"
+    "chooseFolder": "选择文件夹",
+    "continueMessages": {
+      "continueBuilding": {
+        "headline": "继续构建",
+        "subtitle": "你的会话正等着你，挑一个继续推进。"
+      },
+      "welcomeBack": {
+        "headline": "欢迎回来",
+        "subtitle": "仓库已经想你想了好几秒。"
+      },
+      "backAtIt": {
+        "headline": "继续开干",
+        "subtitle": "挑一个会话，把想法好好落地。"
+      },
+      "oneMoreTinyChange": {
+        "headline": "再改一个小地方",
+        "subtitle": "这话总是说得很轻松。你的会话正在等你。"
+      },
+      "helloNight": {
+        "headline": "深夜好",
+        "subtitle": "灵感和令人头疼的提交信息，往往都在这时候出现。"
+      },
+      "midnightDebug": {
+        "headline": "午夜调试时间",
+        "subtitle": "堆栈信息正在安静地等你处理。"
+      },
+      "moonlightMerge": {
+        "headline": "等待合并的改动",
+        "subtitle": "趁新一天开始前，继续完成刚才的工作。"
+      },
+      "goodMorning": {
+        "headline": "早上好，开始构建",
+        "subtitle": "新标签页、新咖啡，还有同一份很长的待办清单。"
+      },
+      "riseRefactor": {
+        "headline": "起床，重构",
+        "subtitle": "你的会话已经比有些同事醒得更早。"
+      },
+      "morningCommit": {
+        "headline": "晨间提交时间",
+        "subtitle": "先完成一个简单的改动，再迎接会议。"
+      },
+      "welcomeSunshine": {
+        "headline": "下午好",
+        "subtitle": "正适合把半成品想法做成功能。"
+      },
+      "afternoonSprint": {
+        "headline": "下午冲刺模式",
+        "subtitle": "代码状态正好，会话也已准备就绪。"
+      },
+      "postLunchPatch": {
+        "headline": "午后补丁时间",
+        "subtitle": "挑一个会话，让路线图更接近现实。"
+      },
+      "eveningShift": {
+        "headline": "晚间模式已开启",
+        "subtitle": "环境安静，注意力也正好集中。"
+      },
+      "twilightBuild": {
+        "headline": "傍晚构建时间",
+        "subtitle": "适合交付一个聪明但并非必要的改动。"
+      },
+      "afterHoursWelcome": {
+        "headline": "下班后欢迎回来",
+        "subtitle": "你的会话已准备好处理那件肯定很快的小事。"
+      }
+    }
   }
 }

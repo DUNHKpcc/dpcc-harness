@@ -95,7 +95,20 @@
     "strokeWidthValue": "Stroke width: {{width}}px",
     "strokeWidth": "Stroke width",
     "undo": "Undo",
-    "redo": "Redo"
+    "redo": "Redo",
+    "editorTitle": "Annotate image",
+    "editorDescription": "Draw, highlight, and annotate the image before sending.",
+    "textPlaceholder": "Type here...",
+    "loading": "Loading image…",
+    "cancel": "Cancel",
+    "done": "Done"
+  },
+  "colorPicker": {
+    "hue": "Hue",
+    "intensity": "Intensity",
+    "gradient": "Gradient",
+    "gradientHue": "Gradient hue",
+    "preview": "Preview"
   },
   "split": {
     "dropToOpen": "Drop to open",
@@ -105,6 +118,7 @@
   "dock": {
     "moveToBottom": "Move to bottom",
     "moveToTopRow": "Move to top row",
-    "close": "Close panel"
+    "close": "Close panel",
+    "dragToDock": "Drag to dock"
   }
 }

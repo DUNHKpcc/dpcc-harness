@@ -65,17 +65,6 @@ export function getCategoryTone(category?: JiraIssue["statusCategory"]): Categor
   }
 }
 
-export function getCategoryLabel(category?: JiraIssue["statusCategory"]): string {
-  switch (category) {
-    case "todo":
-      return "To do";
-    case "done":
-      return "Done";
-    default:
-      return "In progress";
-  }
-}
-
 // ── Jira wiki markup to markdown converter ──
 
 export function jiraWikiToMarkdown(wiki: string): string {

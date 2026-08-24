@@ -7,7 +7,7 @@ import React, { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { getCategoryTone, getCategoryLabel } from "@/lib/jira-utils";
+import { getCategoryTone } from "@/lib/jira-utils";
 import { JiraIssueCard } from "./JiraIssueCard";
 import type { BoardColumn } from "@/hooks/useJiraBoardData";
 import type { JiraIssue } from "@shared/types/jira";
@@ -113,7 +113,14 @@ const KanbanColumn = React.memo(function KanbanColumn({
   onCreateTask,
   onPreview,
 }: KanbanColumnProps) {
+  const { t } = useTranslation("jira");
   const tone = getCategoryTone(column.category);
+  const categoryKey = column.category === "todo"
+    ? "todo"
+    : column.category === "done"
+      ? "done"
+      : "inProgress";
+  const categoryLabel = t(`board.categories.${categoryKey}`);
 
   const handleDragOver = useCallback(
     (e: React.DragEvent) => {
@@ -153,7 +160,7 @@ const KanbanColumn = React.memo(function KanbanColumn({
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold">{column.name}</p>
               <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70">
-                {getCategoryLabel(column.category)}
+                {categoryLabel}
               </p>
             </div>
           </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Stage, Layer, Image as KonvaImage, Rect, Ellipse, Arrow, Line, Text, Transformer } from "react-konva";
 import type Konva from "konva";
 import type { KonvaEventObject } from "konva/lib/Node";
@@ -54,6 +55,7 @@ export const ImageAnnotationEditor = React.memo(function ImageAnnotationEditor({
   onOpenChange,
   onSave,
 }: ImageAnnotationEditorProps) {
+  const { t } = useTranslation("workspace");
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -483,9 +485,9 @@ export const ImageAnnotationEditor = React.memo(function ImageAnnotationEditor({
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         {/* Visually-hidden title for a11y */}
-        <DialogTitle className="sr-only">Annotate Image</DialogTitle>
+        <DialogTitle className="sr-only">{t("annotation.editorTitle")}</DialogTitle>
         <DialogDescription className="sr-only">
-          Draw, highlight, and annotate the image before sending.
+          {t("annotation.editorDescription")}
         </DialogDescription>
 
         {/* Toolbar */}
@@ -547,7 +549,7 @@ export const ImageAnnotationEditor = React.memo(function ImageAnnotationEditor({
               type="text"
               className="fixed z-[60] rounded border border-border bg-background px-2 py-1 text-sm text-foreground shadow-md outline-none"
               style={{ left: textEditing.x, top: textEditing.y }}
-              placeholder="Type here..."
+              placeholder={t("annotation.textPlaceholder")}
               onKeyDown={(e) => {
                 if (isImeComposing(e)) {
                   // Don't let undo/redo handlers fire while IME is composing.
@@ -568,17 +570,17 @@ export const ImageAnnotationEditor = React.memo(function ImageAnnotationEditor({
 
           {/* Loading state */}
           {!loadedImage && open && (
-            <div className="text-sm text-muted-foreground">Loading image…</div>
+            <div className="text-sm text-muted-foreground">{t("annotation.loading")}</div>
           )}
         </div>
 
         {/* Footer */}
         <DialogFooter className="border-t px-4 py-3">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+            {t("annotation.cancel")}
           </Button>
           <Button onClick={handleSave} disabled={!loadedImage}>
-            Done
+            {t("annotation.done")}
           </Button>
         </DialogFooter>
       </DialogContent>

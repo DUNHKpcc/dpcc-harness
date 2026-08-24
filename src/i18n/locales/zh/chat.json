@@ -82,6 +82,9 @@
     "statsModified": "{{n}} 个已修改",
     "statsNew": "{{n}} 个新建"
   },
+  "diagram": {
+    "renderFailed": "无法渲染图表：{{error}}"
+  },
   "transcript": {
     "title": "Agent 记录 — {{description}}",
     "loading": "正在加载记录…",

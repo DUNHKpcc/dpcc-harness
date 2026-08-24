@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Slider } from "@/components/ui/slider";
 import type { SpaceColor } from "@/types";
 
@@ -20,6 +21,7 @@ interface ColorPickerProps {
 }
 
 export function ColorPicker({ value, onChange }: ColorPickerProps) {
+  const { t } = useTranslation("workspace");
   const [useGradient, setUseGradient] = useState(value.gradientHue !== undefined);
 
   const handlePreset = (preset: SpaceColor) => {
@@ -54,7 +56,7 @@ export function ColorPicker({ value, onChange }: ColorPickerProps) {
 
       {/* Hue slider */}
       <div className="space-y-1">
-        <label className="text-xs text-muted-foreground">Hue</label>
+        <label className="text-xs text-muted-foreground">{t("colorPicker.hue")}</label>
         <div
           className="h-3 rounded-full"
           style={{
@@ -73,7 +75,7 @@ export function ColorPicker({ value, onChange }: ColorPickerProps) {
 
       {/* Chroma slider */}
       <div className="space-y-1">
-        <label className="text-xs text-muted-foreground">Intensity</label>
+        <label className="text-xs text-muted-foreground">{t("colorPicker.intensity")}</label>
         <Slider
           min={0}
           max={0.3}
@@ -104,13 +106,13 @@ export function ColorPicker({ value, onChange }: ColorPickerProps) {
             }`}
           />
         </button>
-        <span className="text-xs text-muted-foreground">Gradient</span>
+        <span className="text-xs text-muted-foreground">{t("colorPicker.gradient")}</span>
       </div>
 
       {/* Gradient hue slider */}
       {useGradient && (
         <div className="space-y-1">
-          <label className="text-xs text-muted-foreground">Gradient Hue</label>
+          <label className="text-xs text-muted-foreground">{t("colorPicker.gradientHue")}</label>
           <Slider
             min={0}
             max={360}
@@ -123,7 +125,7 @@ export function ColorPicker({ value, onChange }: ColorPickerProps) {
 
       {/* Preview */}
       <div className="flex items-center gap-2">
-        <span className="text-xs text-muted-foreground">Preview</span>
+        <span className="text-xs text-muted-foreground">{t("colorPicker.preview")}</span>
         <div
           className="h-6 w-12 rounded-md"
           style={{

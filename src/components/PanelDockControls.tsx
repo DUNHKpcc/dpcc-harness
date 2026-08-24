@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { useTranslation } from "react-i18next";
 import { ArrowDown, ArrowRight, GripHorizontal, X, type LucideIcon } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -23,9 +24,10 @@ export const PanelDockControls = memo(function PanelDockControls({
   closeLabel,
   moveIcon,
 }: PanelDockControlsProps) {
+  const { t } = useTranslation("workspace");
   const MoveIcon = moveIcon ?? (isBottom ? ArrowRight : ArrowDown);
-  const resolvedMoveLabel = moveLabel ?? (isBottom ? "Move to side" : "Move to bottom");
-  const resolvedCloseLabel = closeLabel ?? "Close panel";
+  const resolvedMoveLabel = moveLabel ?? t(isBottom ? "dock.moveToTopRow" : "dock.moveToBottom");
+  const resolvedCloseLabel = closeLabel ?? t("dock.close");
 
   return (
     <>
@@ -56,7 +58,7 @@ export const PanelDockControls = memo(function PanelDockControls({
           </button>
         </TooltipTrigger>
         <TooltipContent side="left" sideOffset={8}>
-          <p className="text-xs font-medium">Drag to dock</p>
+          <p className="text-xs font-medium">{t("dock.dragToDock")}</p>
         </TooltipContent>
       </Tooltip>
       {onClose && (

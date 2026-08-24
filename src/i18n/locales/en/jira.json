@@ -23,7 +23,12 @@
     "removeConfigConfirm": "Remove"
   },
   "board": {
-    "noIssues": "No issues found in this board"
+    "noIssues": "No issues found in this board",
+    "categories": {
+      "todo": "To do",
+      "inProgress": "In progress",
+      "done": "Done"
+    }
   },
   "card": {
     "unassigned": "Unassigned",

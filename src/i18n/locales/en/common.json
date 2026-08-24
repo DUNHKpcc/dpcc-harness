@@ -33,6 +33,11 @@
     "on": "On",
     "off": "Off"
   },
+  "iconPicker": {
+    "emoji": "Emoji",
+    "icons": "Icons",
+    "search": "Search icons..."
+  },
   "notifications": {
     "readyTitle": "Ready to implement",
     "readyBody": "{{actor}} has a plan and is waiting for your approval.",

@@ -12,6 +12,7 @@
 import { type RefObject, useCallback, useEffect, useMemo, useRef } from "react";
 import type { ToolId } from "@/types/tools";
 import {
+  DEFAULT_BOTTOM_TOOLS_HEIGHT,
   MAX_BOTTOM_TOOLS_HEIGHT,
   MIN_BOTTOM_TOOLS_HEIGHT,
   clampWidthFractions,
@@ -158,6 +159,7 @@ function sanitizeWorkspaceState(state: ToolIslandsState): ToolIslandsState {
 const GLOBAL_TOOL_LAYOUT_STORAGE_KEY = "pcc-agent-main-tool-layout-v1";
 const SESSION_TOOL_VISIBILITY_STORAGE_KEY = "pcc-agent-main-tool-session-visibility-v1";
 const LEGACY_TOOL_LAYOUT_KEY_PATTERN = /^pcc-agent-.*-main-tool-workspace-v1$/;
+let legacyToolLayoutCleanupComplete = false;
 
 interface LegacySerializedState {
   version: 1;
@@ -253,7 +255,7 @@ function readLegacyWorkspaceState(projectId: string | null): ToolIslandsState | 
           toolIslandsById,
           toolMemories,
           bottomToolIslandIds: parsed.bottomToolIslandIds,
-          bottomHeight: Number.isFinite(parsed.bottomHeight) ? parsed.bottomHeight : migrationDefaultBottomHeight,
+          bottomHeight: Number.isFinite(parsed.bottomHeight) ? parsed.bottomHeight : DEFAULT_BOTTOM_TOOLS_HEIGHT,
           bottomWidthFractions: parsed.bottomWidthFractions,
         });
       }
@@ -263,8 +265,6 @@ function readLegacyWorkspaceState(projectId: string | null): ToolIslandsState | 
   }
   return null;
 }
-
-const migrationDefaultBottomHeight = 250;
 
 function migrateFromSettings(migration: MigrationInput): ToolIslandsState {
   const activePanelToolIds: PanelToolId[] = migration.toolOrder.filter(
@@ -441,7 +441,7 @@ function readGlobalToolLayout(): GlobalToolLayoutStorage | null {
         : null,
       bottomHeight: Number.isFinite(parsed.bottomHeight)
         ? Math.max(MIN_BOTTOM_TOOLS_HEIGHT, Math.min(MAX_BOTTOM_TOOLS_HEIGHT, parsed.bottomHeight))
-        : migrationDefaultBottomHeight,
+        : DEFAULT_BOTTOM_TOOLS_HEIGHT,
       toolMemoriesByToolId,
     };
   } catch {
@@ -504,11 +504,12 @@ function sameToolIds(left: PanelToolId[], right: PanelToolId[]): boolean {
 
 function persistSessionToolIds(sessionStorageId: string, toolIds: PanelToolId[]): void {
   const storage = readSessionToolVisibility();
-  if (sameToolIds(storage.sessions[sessionStorageId] ?? [], toolIds)
+  const normalizedToolIds = [...new Set(toolIds)].sort();
+  if (sameToolIds(storage.sessions[sessionStorageId] ?? [], normalizedToolIds)
     && Object.prototype.hasOwnProperty.call(storage.sessions, sessionStorageId)) {
     return;
   }
-  storage.sessions[sessionStorageId] = toolIds;
+  storage.sessions[sessionStorageId] = normalizedToolIds;
   try {
     localStorage.setItem(SESSION_TOOL_VISIBILITY_STORAGE_KEY, JSON.stringify(storage));
   } catch {
@@ -528,12 +529,14 @@ function removeSessionToolIds(sessionStorageId: string): void {
 }
 
 function removeLegacyToolLayoutKeys(): void {
+  if (legacyToolLayoutCleanupComplete) return;
   const keysToRemove: string[] = [];
   for (let index = 0; index < localStorage.length; index++) {
     const key = localStorage.key(index);
     if (key && LEGACY_TOOL_LAYOUT_KEY_PATTERN.test(key)) keysToRemove.push(key);
   }
   for (const key of keysToRemove) localStorage.removeItem(key);
+  legacyToolLayoutCleanupComplete = true;
 }
 
 function persistGlobalToolLayout(layout: GlobalToolLayoutStorage): void {

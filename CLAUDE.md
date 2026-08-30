@@ -1,14 +1,27 @@
 # Harnss
 
-Open-source desktop client for the Agent Client Protocol. Uses the `@anthropic-ai/claude-agent-sdk` to programmatically manage Claude sessions via `query()`. Supports multiple concurrent sessions with persistent chat history, project workspaces, background agents, tool permissions, and context compaction.
+Open-source desktop client for the Agent Client Protocol. Pi is the only built-in live Agent and runs through the pinned Pi/`pi-acp`/`pi-mcp-adapter` runtime shipped with PccAgent; custom ACP agents remain supported. Historical Claude/Codex sessions are readable and manageable, but their runtimes are not started or resumed.
 
 ## Communication
 
 Always reply to the user in Chinese (Simplified). Keep code, identifiers, API names, file paths, and established English technical terms (e.g. Electron, IPC, gateway) in their original form — do not translate them. Code comments follow the surrounding file's existing style.
 
-## Delegation Rule: `spark_executor`
+## Product Direction: Pi First
 
-Use the global `spark_executor` subagent only for bounded, low-risk, independently verifiable tasks, such as:
+Pi is the long-term built-in Agent and the default target for all new agent-facing development. Apply these rules to architecture, UI, tests, documentation, and release work:
+
+- Build new live Agent capabilities on the ACP/Pi path first. Do not add, restore, or silently reuse Claude SDK, Claude Code, Codex RPC, or Codex app-server runtime branches.
+- Keep custom ACP agents supported through generic ACP contracts. Pi-specific behavior must be gated by the complete protected built-in identity, not by display name, binary name, or a partial registry match.
+- Treat historical Claude/Codex sessions only as legacy records that may be read, searched, exported, renamed, pinned, or deleted. They must never start, resume, authenticate, receive prompts, or supply live configuration.
+- The protected built-in Pi must use the pinned bundled offline runtime. It must not resolve system `pi`, `pi-acp`, `node`, or `npx`, and it must not download a runtime on first use. A user-managed Pi is allowed only as an explicitly configured custom ACP agent with a different Agent ID.
+- Preserve lazy Pi lifecycle semantics: drafts and dormant sessions render cached config immediately, slash commands preload without starting Pi, and the child process starts or revives only on the first real prompt. Live ACP results then replace stale cache values.
+- Route new Skill and MCP installation behavior to Pi. Managed Skills live under project/global `.agents/skills`; old Claude/Codex manifests are compatibility input for migration or removal only.
+- Use the official Pi logo for every Pi identity surface. Do not introduce Claude/Codex branding in active-session UI, settings, onboarding, or current product documentation except where explicitly describing legacy data.
+- Runtime changes require focused unit tests plus real bundled ACP/Pi child integration coverage. Changes to startup, revival, persistence, MCP, or process ownership also require Electron recovery E2E coverage. Full PR quality checks remain mandatory.
+
+## Delegation Rule
+
+Do not use the `spark_executor` / Codex Spark subagent for this repository. When delegation is useful and `project_coder_medium` is available, use it only for bounded, low-risk, independently verifiable tasks, such as:
 
 - code search
 - focused repro steps
@@ -19,7 +32,7 @@ Use the global `spark_executor` subagent only for bounded, low-risk, independent
 
 The primary agent must retain architecture, security, payment, cross-system, final-review, and ambiguous/broad work.
 
-Delegation prompts must be self-contained and include explicit ownership: file scope, concrete constraints, success criteria, and the commands or checks to verify completion.
+Delegation prompts must be self-contained and include explicit ownership: file scope, concrete constraints, success criteria, and the commands or checks to verify completion. If an appropriate non-Spark subagent is unavailable, keep the work in the primary agent instead of falling back to Spark.
 
 ## Tech Stack
 
@@ -32,7 +45,6 @@ Delegation prompts must be self-contained and include explicit ownership: file s
 - **Markdown**: react-markdown + remark-gfm + react-syntax-highlighter + @tailwindcss/typography
 - **Diff**: diff (word-level diff rendering)
 - **Glass effect**: electron-liquid-glass (macOS Tahoe+ transparency)
-- **Claude SDK**: @anthropic-ai/claude-agent-sdk (ESM-only, async-imported from CommonJS)
 - **ACP SDK**: @agentclientprotocol/sdk (Agent Client Protocol client — ACP sessions use `ClientSideConnection`)
 - **Terminal**: node-pty (main process) + @xterm/xterm + @xterm/addon-fit (renderer)
 - **Browser**: Electron `<webview>` tag (requires `webviewTag: true` in webPreferences)
@@ -58,10 +70,6 @@ Delegation prompts must be self-contained and include explicit ownership: file s
 ```
 shared/
 ├── types/             # Types shared between electron and renderer processes
-│   ├── codex-protocol/  # Auto-generated Codex protocol types (from codex app-server)
-│   │   ├── v2/          # Modern v2 API types
-│   │   └── serde_json/  # JSON value types
-│   ├── codex.ts         # Codex type re-exports with Codex-prefixed aliases
 │   ├── engine.ts        # EngineId, AppPermissionBehavior, SlashCommand, RespondPermissionFn
 │   ├── acp.ts           # ACP session update types
 │   ├── registry.ts      # Agent registry types
@@ -70,9 +78,8 @@ shared/
 │   └── settings.ts      # AppSettings type definition
 └── lib/               # Shared utilities usable by both processes
     ├── acp-helpers.ts         # ACP helper functions
-    ├── async-channel.ts       # AsyncChannel implementation
-    ├── codex-helpers.ts       # Codex helper functions
-    ├── codex-rpc.ts           # Codex RPC protocol helpers
+    ├── acp-turn.ts            # Canonical Pi ACP turn outcome helpers
+    ├── session-runtime.ts     # Live ACP vs legacy read-only disposition
     ├── error-utils.ts         # Shared error extraction utilities
     ├── mcp-config.ts          # MCP configuration parsing
     └── session-persistence.ts # Session serialization logic
@@ -80,16 +87,15 @@ shared/
 electron/
 ├── dist/       # tsup build output (gitignored)
 └── src/
-    ├── ipc/    # IPC handlers (claude-sessions, acp-sessions, codex-sessions, projects, sessions,
+    ├── ipc/    # IPC handlers (acp-sessions, projects, sessions,
     │           #              settings, terminal, git, jira, mcp, spaces, files, folders, cc-import,
     │           #              title-gen, agent-registry)
-    └── lib/    # Main-process utilities (logger, data-dir, app-settings, sdk,
+    └── lib/    # Main-process utilities (logger, data-dir, app-settings,
                 #   error-utils, git-exec, jira-client, jira-store, jira-oauth-store, mcp-store,
-                #   mcp-oauth-flow, mcp-oauth-provider, mcp-oauth-store, acp-auth, claude-binary,
-                #   codex-binary, codex-rpc, migration, updater, glass, terminal-history,
-                #   json-file-store, safe-send, claude-model-cache, acp-utility-prompt,
-                #   codex-utility-prompt, agent-registry, prerelease-check)
-                #   └── __tests__/  # Main-process unit tests (sdk, acp-auth, updater, logger, etc.)
+                #   mcp-oauth-flow, mcp-oauth-provider, mcp-oauth-store, acp-auth,
+                #   migration, updater, glass, terminal-history, json-file-store,
+                #   safe-send, acp-utility-prompt, agent-registry, prerelease-check)
+                #   └── __tests__/  # Main-process unit tests (ACP, auth, updater, logger, etc.)
 
 src/
 ├── components/
@@ -119,7 +125,7 @@ src/
 │                      #   JiraIssuePreviewOverlay, McpPanel, BottomComposer, SidebarSearch,
 │                      #   ChatSearchBar, TabBar, PanelHeader, CopyButton, MessageBubble,
 │                      #   ErrorBoundary, PreReleaseBanner, UpdateBanner, WelcomeScreen,
-│                      #   ACPAuthDialog, CodexAuthDialog, JiraAuthDialog, AuthDialogShell,
+│                      #   ACPAuthDialog, JiraAuthDialog, AuthDialogShell,
 │                      #   MermaidDiagram, ThinkingBlock, SummaryBlock, OpenInEditorButton,
 │                      #   PanelDockControls, PanelDockPreview, ColorPicker, IconPicker,
 │                      #   SettingsView, AppSidebar, chat-ui-state
@@ -129,7 +135,7 @@ src/
 │   ├── app-layout/    # useAppOrchestrator decomposed (useAppLayoutUIState, useAppSessionActions,
 │   │                  #   useAppContextualPanels, useAppEnvironmentState, useAppSpaceWorkflow,
 │   │                  #   session-utils — shared session-creation option builder)
-│   └── ...            # React hooks (useEngineBase, useClaude, useACP, useCodex, useSpaceManager,
+│   └── ...            # React hooks (useEngineBase, useACP, useSpaceManager,
 │                      #   useGitStatus, useWorktreeChips, useJiraBoard, useSpeechRecognition,
 │                      #   useSpaceTerminals, useToolIslands, useSplitView, useNotifications,
 │                      #   useGlassOrchestrator, useGlassTheme, useTheme, usePaneController,
@@ -142,7 +148,7 @@ src/
 │                      #   useSpaceSwitchCooldown, useBottomHeightResize, etc.)
 ├── lib/               # Renderer utilities organized in subdirectories:
 │   ├── analytics/     #   analytics.ts (legacy local error-reporting shim)
-│   ├── background/    #   session-store.ts, claude/acp/codex-handler.ts, agent-store.ts, agent-store-utils.ts
+│   ├── background/    #   session-store.ts, acp-handler.ts, agent-store.ts, agent-store-utils.ts
 │   ├── chat/          #   scroll.ts, virtualization.ts, thinking-animation.ts, todo-utils.ts,
 │   │                  #   turn-changes.ts, assistant-turn-divider.ts, annotation-types.ts, etc.
 │   ├── diff/          #   diff-stats.ts, patch-utils.ts, unified-diff.ts
@@ -176,6 +182,9 @@ pnpm build     # tsup (electron/) + Vite (renderer) production build
 pnpm start     # Run Electron with pre-built dist/
 pnpm test      # Run vitest unit tests (uses vitest.config.electron.ts)
 pnpm test:watch    # Run vitest in watch mode
+pnpm pi:runtime:check       # Verify bundled Pi pins, entries, host, and offline policy
+pnpm test:pi-integration    # Exercise real bundled ACP/Pi child processes
+pnpm test:electron-recovery # Exercise restart and recovery through Electron
 ```
 
 **Dev logs**: Main process logs go to `logs/main-{timestamp}.log` (dev) or `{userData}/logs/main-{timestamp}.log` (packaged). Check the latest file with `ls -t logs/main-*.log | head -1 | xargs cat`.
@@ -193,44 +202,13 @@ Two recurring traps when iterating on `pnpm dev`:
 
 ## Architecture
 
-### SDK-Based Session Management
+### ACP/Pi Session Management
 
-The main process uses `@anthropic-ai/claude-agent-sdk` (ESM-only, loaded via `await import()`). Each session runs a long-lived SDK `query()` with an `AsyncChannel` for multi-turn input.
+The main process owns ACP child processes and `ClientSideConnection` instances. Built-in Pi is recognized only by the complete protected identity (`id`, `engine`, `builtIn`, and `registryId`) and always launches the bundled runtime. On macOS, Node workloads use the app's `LSUIElement` Electron Helper rather than the GUI executable, so Pi remains a headless child and does not create a second Dock app. System `pi`, `pi-acp`, `node`, and `npx` commands are ignored. Custom ACP agents use their saved registry definitions and may explicitly target a user-managed Pi under a different Agent ID.
 
-**Session Map**: `Map<sessionId, { channel, queryHandle, eventCounter, pendingPermissions }>`
+New and dormant Pi sessions are intentionally process-free. The renderer initializes model/thinking options from `cachedConfigOptions` and preloads slash commands from pinned built-ins, the agent cache, and local Prompt/Skill discovery. It must not attach to, query, or revive an absent runtime merely to render controls. First prompt materialization starts or revives Pi and reconciles the cached selections against the live ACP catalog; the live result is authoritative and refreshes the cache.
 
-- `channel` — AsyncChannel (push-based async iterable) for sending user messages to SDK
-- `queryHandle` — SDK query handle for interrupt/close/setPermissionMode
-- `pendingPermissions` — Map<requestId, { resolve }> for bridging SDK permission callbacks to UI
-
-**IPC API — Claude Sessions:**
-
-- `claude:start(options)` → spawns SDK query with AsyncChannel, returns `{ sessionId, pid }`
-  - Options: `cwd`, `model`, `permissionMode`, `resume` (session continuation)
-  - Configures `canUseTool` callback for permission bridging
-  - Thinking: `{ type: "enabled", budgetTokens: 16000 }`
-- `claude:send({ sessionId, message })` → pushes user message to session's AsyncChannel
-- `claude:stop(sessionId)` → closes channel + query handle, removes from Map
-- `claude:interrupt(sessionId)` → denies all pending permissions, calls `queryHandle.interrupt()`
-- `claude:permission_response(sessionId, requestId, ...)` → resolves pending permission Promise
-- `claude:set-permission-mode(sessionId, mode)` → calls `queryHandle.setPermissionMode()`
-- `claude:set-model({ sessionId, model })` → updates the model for an active session
-- `claude:set-thinking({ sessionId, thinkingEnabled })` → toggles extended thinking for a session
-- `claude:stop-task({ sessionId, taskId })` → stops a running Task subagent
-- `claude:read-agent-output({ outputFile })` → reads background agent JSONL output file
-- `claude:revert-files({ sessionId, checkpointId })` → reverts files to a checkpoint snapshot
-- `claude:mcp-status(sessionId)` → returns MCP server connection status for a session
-- `claude:mcp-reconnect({ sessionId, serverName })` → reconnects a specific MCP server
-- `claude:supported-models(sessionId)` → lists models available for the active SDK session
-- `claude:slash-commands(sessionId)` → lists available slash commands for the active session
-- `claude:models-cache:get` → returns cached model list (TTL'd, backed by `claude-model-cache.ts`)
-- `claude:models-cache:revalidate(options?)` → forces a model cache refresh
-- `claude:version` → returns the Claude CLI version string
-- `claude:binary-status` → returns binary detection status (found path or error)
-- `claude:restart-session` → restarts a stopped/crashed session
-- `claude:generate-title(message, cwd?)` → one-shot Haiku query for chat title
-- Events sent to renderer via `claude:event` tagged with `_sessionId`
-- Permission requests sent via `claude:permission_request` with requestId
+Each prompt receives a `turnId`. The main process observes ACP/Pi updates, validates the ACP stop reason, and emits one canonical terminal event. `completed`, `cancelled`, `failed`, and `transport_error` are distinct states; a resolved `connection.prompt()` is not sufficient proof of success.
 
 **IPC API — ACP Sessions:**
 
@@ -240,33 +218,15 @@ The main process uses `@anthropic-ai/claude-agent-sdk` (ESM-only, loaded via `aw
 - `acp:prompt({ sessionId, text, images? })` → sends a user turn (text + optional image attachments)
 - `acp:abort-pending-start()` → cancels an in-progress `acp:start` before connection completes
 - `acp:stop(sessionId)` → terminates ACP process, cleans up connection
-- `acp:reload-session({ sessionId, mcpServers, cwd })` → re-initializes MCP servers for a session
+- `acp:reload-session({ sessionId, mcpServers, cwd })` → reloads capable custom ACP agents in place; built-in Pi returns `supportsLoad: false` so the renderer performs a full process restart with a fresh isolated MCP config
 - `acp:cancel(sessionId)` → cancels the current in-progress ACP turn
 - `acp:set-config({ sessionId, configId, value })` → updates a session-level ACP config value
 - `acp:get-config-options(sessionId)` → returns available `ACPConfigOption[]` for a session
 - `acp:get-available-commands(sessionId)` → returns available slash commands for a session
 - `acp:permission_response({ sessionId, requestId, optionId })` → responds to an ACP permission prompt
-- Events sent to renderer via `acp:event` tagged with `_sessionId`
-
-**IPC API — Codex Sessions:**
-
-- `codex:start` → spawns Codex process + RPC channel, returns `{ sessionId }`
-- `codex:send` → sends a user message to the active Codex session
-- `codex:stop(sessionId)` → terminates the Codex process
-- `codex:interrupt(sessionId)` → interrupts the current Codex turn
-- `codex:compact(sessionId)` → triggers context compaction for a Codex session
-- `codex:resume` → reconnects to an existing Codex session
-- `codex:login` → triggers Codex authentication flow
-- `codex:set-model` → sets the model for a Codex session
-- `codex:approval_response` → responds to a Codex tool approval prompt
-- `codex:user_input_response` → responds to a Codex user-input request
-- `codex:server_request_error` → signals a server-side RPC error
-- `codex:list-skills(sessionId)` → lists available Codex skills
-- `codex:list-apps(sessionId)` → lists available Codex apps
-- `codex:list-models` → lists models available for Codex
-- `codex:auth-status` → returns Codex authentication status
-- `codex:version` → returns the Codex binary version string
-- `codex:binary-status` → returns binary detection status
+- Events sent to renderer via `acp:event`, `acp:turn_complete`, and
+  `acp:turn_transport_error`, all tagged with `_sessionId` and the canonical
+  `turnId` when applicable.
 
 **IPC API — Agent Registry:**
 
@@ -274,6 +234,8 @@ The main process uses `@anthropic-ai/claude-agent-sdk` (ESM-only, loaded via `aw
 - `agents:save(agent)` → saves/upserts an agent definition to disk
 - `agents:delete(id)` → removes an agent from the registry
 - `agents:update-cached-config(agentId, configOptions)` → caches `ACPConfigOption[]` per agent for fast re-use
+- `agents:update-cached-commands(agentId, commands)` → caches slash commands returned by a live agent
+- `agents:list-pi-draft-commands(cwd)` → builds the built-in Pi draft command catalog without starting Pi
 - `agents:get-platform-keys` → returns platform-specific config key list for registry agents
 - `agents:check-binaries(agents)` → batch-checks whether binary-only agents are installed on the system PATH; returns per-agent availability status
 
@@ -294,7 +256,7 @@ The main process uses `@anthropic-ai/claude-agent-sdk` (ESM-only, loaded via `aw
 - `sessions:delete(projectId, id)` — removes session file
 - `sessions:search({ projectIds, query })` — full-text search across sessions, returns `SearchResult`
 
-**IPC API — Claude Code Import:**
+**IPC API — Legacy Claude Code Transcript Import (read-only):**
 
 - `cc-sessions:list(projectPath)` — lists JSONL files in `~/.claude/projects/{hash}`
 - `cc-sessions:import(projectPath, ccSessionId)` — converts JSONL transcript to UIMessage[]
@@ -411,17 +373,17 @@ Three tiers of settings storage, each suited to different access patterns:
 - `useSessionManager` — orchestrator composing 11 sub-hooks:
   - `useSessionLifecycle` — session CRUD (create, switch, delete, rename, deselect)
   - `useSessionPersistence` — auto-save with debounce, background store seeding/consuming
-  - `useDraftMaterialization` — draft-to-live session transitions for all 3 engines
-  - `useSessionRevival` — per-engine revival (reconnecting to existing sessions)
+- `useDraftMaterialization` — draft-to-live ACP/Pi session transitions
+- `useSessionRevival` — ACP revival; legacy records are blocked before IPC
   - `useMessageQueue` — message queuing and drain for not-yet-ready sessions
   - `useSessionCache` — in-memory caches of session message arrays
   - `useSessionCrud` — extracted create/delete/rename operations
   - `useSessionPane` — derives per-pane state (`SessionPaneState`)
-  - `useSessionRestart` — engine-aware restart-session flow
+- `useSessionRestart` — ACP restart-session flow
   - `useSessionSettings` — session-scoped settings derivation
   - `useExtraPaneLoader` — loads sessions for the secondary pane in split mode
-- `useEngineBase` — shared foundation for all engine hooks (state, rAF flush, reset effect); tracks `isCompacting` flag for context compaction in-progress
-- `useClaude` / `useACP` / `useCodex` — engine-specific event handling built on `useEngineBase`
+- `useEngineBase` — shared foundation for the ACP hook (state, rAF flush, reset effect); tracks `isCompacting` flag for context compaction in-progress
+- `useACP` — ACP event handling built on `useEngineBase`
 - `useSpaceTheme` — space color tinting via CSS custom properties
 - `useSpaceManager` — space CRUD (create, delete, rename, reorder, worktree assignment)
 - `usePanelResize` / `useToolColumnResize` / `useMainToolAreaResize` — resize handle logic
@@ -429,7 +391,7 @@ Three tiers of settings storage, each suited to different access patterns:
 - `useStreamingTextReveal` — per-token fade-in animation via DOM text node splitting
 - `useProjectManager` — project CRUD via IPC
 - `useFolderManager` — folder picker for project path selection
-- `useBackgroundAgents` — polls async Task agent output files every 3s, marks complete after 2 stable polls
+- `useBackgroundAgents` — exposes historical background-agent transcript state; Pi does not create the retired Claude task runtime
 - `useSidebar` — sidebar open/close with localStorage persistence
 - `useGitStatus` — polls git status for the active project's cwd
 - `useWorktreeChips` — derives available worktrees for the WorktreeBar
@@ -460,29 +422,21 @@ Three tiers of settings storage, each suited to different access patterns:
 - `useContextMenuPosition` — shared positioning logic for right-click and button-triggered context menus (open state, align, coordinates)
 - `useInlineRename` — controlled edit state for inline rename inputs (isEditing, editName, handlers)
 
-**BackgroundSessionStore** — accumulates events for non-active sessions to prevent state loss when switching. On switch-away, session state is captured into the store; on switch-back, state is consumed from the store (or loaded from disk if no live process). Event handling is split into per-engine handler modules (`background-claude-handler.ts`, `background-acp-handler.ts`, `background-codex-handler.ts`). `InternalState` also tracks `contextUsage`, `isCompacting`, `codexPlanText`/`codexPlanTurnCounter` (Codex plan mode output), `activeTask`, `slashCommands`, and `pendingPermission`/`rawAcpPermission` for per-engine permission bridging.
+**BackgroundSessionStore** — accumulates ACP events for non-active sessions to prevent state loss when switching. On switch-away, session state is captured into the store; on switch-back, state is consumed from the store (or loaded from disk if no live process). Historical Claude/Codex records may be displayed, but no retired runtime event is accepted. `InternalState` tracks `contextUsage`, `isCompacting`, `activeTask`, `slashCommands`, and ACP `pendingPermission`/`rawAcpPermission`.
 
-### Claude CLI Stream-JSON Protocol
+### ACP Turn Contract
 
-Key event types in order:
-
-- `system` (init) — session metadata, model, tools, permissionMode, version
-- `system` (status) — status updates
-- `system` (compact_boundary) — context compaction marker
-- `stream_event` wrapping: `message_start` → `content_block_start` → `content_block_delta` (repeated) → `content_block_stop` → `message_delta` → `message_stop`
-- `assistant` — complete message snapshot (with `includePartialMessages`, sent after thinking and after text)
-- `user` (tool_result) — tool execution results with `tool_use_result` metadata
-- `result` — turn complete with cost/duration/modelUsage
+Every ACP prompt has one `turnId` and one terminal outcome. The canonical outcome is emitted through `acp:turn_complete` or `acp:turn_transport_error`; renderer and background state consume that status instead of guessing from assistant text. Pi retry diagnostics are observed and kept out of assistant history.
 
 ### Key Patterns
 
 **rAF streaming flush**: React 19 batches rapid `setState` calls into a single render. When SDK events arrive in a tight loop, all IPC-fired `setState` calls merge into one render → text appears all at once. Fix: accumulate deltas in `StreamingBuffer` (refs), schedule a single `requestAnimationFrame` to flush to React state at ~60fps.
 
-**Subagent routing via `parent_tool_use_id`**: Events from Task subagents have `parent_tool_use_id` set to the Task tool_use block's `id`. A `parentToolMap` (Map<string, string>) maps this ID to the tool_call message ID in the UI, allowing subagent activity to be routed to the correct Task card with `subagentSteps`.
+**Subagent routing via ACP tool metadata**: ACP task/tool updates are associated with their parent tool call where the agent provides that metadata. Unknown or retired task events are not routed into a new legacy runtime.
 
 **Thinking with `includePartialMessages`**: Two `assistant` events per turn — first contains only thinking blocks, second contains only text blocks. The hook merges both into the same streaming message.
 
-**Permission bridging**: SDK's async `canUseTool` callback creates a Promise stored in `pendingPermissions` Map. Main process sends `claude:permission_request` to renderer. UI shows `PermissionPrompt`. User decision sent back via `claude:permission_response`, resolving the stored Promise to allow/deny the tool.
+**Permission bridging**: ACP permission requests are stored in the main-process pending map and sent to the renderer through `acp:permission_request`. The UI responds with an ACP option ID; the adapter, not arbitrary message text, decides the resulting tool permission.
 
 **Background session store**: When switching sessions, the active session's state (messages, processing flag, sessionInfo, cost) is captured into `BackgroundSessionStore`. Events for non-active sessions route to the store instead of React state. On switch-back, state is consumed from the store to restore the UI instantly.
 
@@ -492,9 +446,9 @@ Key event types in order:
 
 **Pane controller pattern**: `usePaneController` (`src/hooks/usePaneController.ts`) builds a `PaneController` object (defined in `src/types/pane-controller.ts`) containing all per-pane callbacks — send, stop, interrupt, set-model, set-permission-mode, onElementGrab. Both the single-pane layout and each `SplitChatPane` receive a `PaneController`, enabling full parity without prop drilling or conditional logic.
 
-**Codex plan mode**: Codex sessions support a `planMode` flag that restricts the agent to planning/read-only operations before execution. `planMode: boolean` is a setting in `useSettings`. `codexPlanModeEnabled` is derived in `useSessionManager` from either the active `startOptions.planMode` (for draft sessions) or the persisted `session.planMode` (for live sessions). `getSyncedPlanMode(sessionPlanMode, livePermissionMode)` in `useAppOrchestrator` reconciles the session flag with the live permission mode string — the live mode takes priority when present. Plan text output streams into `codexPlanText` in `InternalState`.
+**ACP plan/thinking/config**: Model, thinking, permission, and command options come from ACP config/events. Do not infer Pi capabilities from retired engine settings or model names.
 
-**Context compaction**: The `compact` operation (via `codex:compact` IPC for Codex or SDK-native for Claude) condenses the conversation history to free context window space. `isCompacting` in `EngineHookState` is set true during compaction, toggling a visual indicator. Claude sessions emit a `system (compact_boundary)` event to mark compaction boundaries in the transcript.
+**Context compaction**: The ACP `compact` operation condenses conversation state when the agent supports it. `isCompacting` in `EngineHookState` is set during compaction and cleared by the canonical turn/transport cleanup path.
 
 ### Tools Panel System
 
@@ -512,7 +466,7 @@ Tool panels share a resizable column. When multiple tools are active, they split
 
 ### MCP Tool Rendering System
 
-MCP tool calls are rendered with rich, tool-specific UIs via `McpToolContent.tsx`. The system supports both SDK sessions (`mcp__Server__tool`) and ACP sessions (`Tool: Server/tool`).
+MCP tool calls are rendered with rich, tool-specific UIs via `McpToolContent.tsx`. Live Pi/custom Agent traffic uses ACP names (`Tool: Server/tool`); the renderer also accepts legacy imported SDK transcript names (`mcp__Server__tool`) for read-only history.
 
 **Detection**: `ToolCall.tsx` detects MCP tools by checking if `toolName` starts with `"mcp__"` or `"Tool: "`, then delegates to `<McpToolContent>`.
 
@@ -522,9 +476,9 @@ MCP tool calls are rendered with rich, tool-specific UIs via `McpToolContent.tsx
 
 Tool name normalization: `extractMcpToolName(toolName)` strips the `"mcp__Server__"` or `"Tool: Server/"` prefix to get the base tool name for registry lookup.
 
-**Data extraction**: `extractMcpData(toolResult)` handles both SDK and ACP response shapes:
-- SDK: `toolResult.content` (string or `[{ type: "text", text }]` array)
-- ACP: flat objects with `{ key, fields, renderedFields }` (no wrapper)
+**Data extraction**: `extractMcpData(toolResult)` handles both legacy transcript and live ACP response shapes:
+- Legacy SDK transcript: `toolResult.content` (string or `[{ type: "text", text }]` array)
+- Live ACP/Pi: flat objects with `{ key, fields, renderedFields }` (no wrapper)
 - Atlassian wraps Jira responses in `{ issues: { totalCount, nodes: [...] } }` — use `unwrapJiraIssues()` to normalize
 
 **Adding a new MCP tool renderer**:
@@ -533,7 +487,7 @@ Tool name normalization: `extractMcpToolName(toolName)` strips the `"mcp__Server
 3. Also add to `getMcpCompactSummary()` for collapsed tool card summaries
 
 **Tool naming conventions**:
-- SDK engine: `mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql`
+- Legacy imported transcript: `mcp__claude_ai_Atlassian__searchJiraIssuesUsingJql`
 - ACP engine: `Tool: Atlassian/searchJiraIssuesUsingJql`
 - All regex patterns use `Atlassian[/_]+` to match both
 - Label/formatting logic in `src/components/lib/tool-metadata.ts` (`getMcpToolLabel`, `MCP_TOOL_LABELS`) handles both prefixes
@@ -557,7 +511,7 @@ Tool name normalization: `extractMcpToolName(toolName)` strips the `"mcp__Server
 
 **Git Panel** (`src/components/git/`): Decomposed into 9 components — `GitPanel` (orchestrator), `RepoSection` (repo header + branch), `BranchPicker` (branch switcher popover), `ChangesSection` (staged/unstaged file list), `CommitInput` (message + commit button), `FileItem` (individual file row), `InlineDiff` (per-file diff preview), `InlineSelector` (hunk-level staging UI), `git-panel-utils.ts` (formatting helpers).
 
-**Commit message generation**: `oneShotSdkQuery()` calls a one-shot Claude Haiku query with the staged diff to generate a commit message. Exposed as `git:generate-commit-message(cwd)`.
+**Commit message generation**: `git:generate-commit-message` uses the active Pi ACP session through `runAcpUtility()` and falls back to a deterministic local message when no live ACP session is available. It must not start a hidden utility runtime.
 
 ### Jira Integration
 
@@ -576,6 +530,13 @@ Users can add/remove/configure MCP servers from Settings → MCP. MCP servers ca
 - **Storage**: `electron/src/lib/mcp-store.ts` — server config (name, command, args, env). `electron/src/lib/mcp-oauth-store.ts` — token storage.
 - **OAuth**: `electron/src/lib/mcp-oauth-flow.ts` + `mcp-oauth-provider.ts` — runs a local loopback HTTP server to capture the OAuth redirect, then exchanges for tokens.
 - **UI**: `src/components/mcp/` — `AddServerDialog.tsx` (server config form), `McpServerRow.tsx` (server list item with auth status), `McpAuthStatus.tsx` (OAuth connection state indicator). `McpPanel.tsx` shows the MCP status panel in tools.
+- **Pi runtime**: project MCP servers are converted into a per-launch `0600` config and loaded by the pinned bundled `pi-mcp-adapter`. The file is removed when the ACP child exits; MCP changes restart built-in Pi rather than depending on `pi-acp`'s separate `session/load` MCP behavior.
+
+### Plugin Center Runtime Targets
+
+- New Skill installs target Pi only and are stored under project/global `.agents/skills`; old Claude/Codex manifest entries remain accepted only so they can be safely removed or migrated.
+- Project Skill roots are passed to built-in Pi with the explicit `--skill` CLI path. Do not use `--approve`: it would trust unrelated project `.pi` extensions, while the explicit path grants access only to the Skill directory managed by PccAgent.
+- MCP catalog installs write the same project MCP store used by normal MCP settings and then restart the live built-in Pi process with the isolated bundled adapter config.
 
 ### Voice Dictation
 
@@ -587,7 +548,7 @@ Users can add/remove/configure MCP servers from Settings → MCP. MCP servers ca
 ### Image Annotations
 
 `ImageAnnotationEditor.tsx` and `ImageAnnotationToolbar.tsx` provide a Konva-based canvas annotation layer over attached images:
-- Draw arrows, rectangles, text labels on screenshots before sending to Claude
+- Draw arrows, rectangles, and text labels on screenshots before sending them to the active Pi session
 - History tracked via `useAnnotationHistory` (undo/redo)
 - `ImageLightbox.tsx` provides full-screen image viewing with zoom
 - `FilePreviewOverlay.tsx` wraps file attachments in a preview modal
@@ -622,7 +583,7 @@ Each Space can have a custom color and icon. `SpaceCustomizer.tsx` provides the 
 - Tooltip breakdown shows inputTokens, cacheReadTokens, cacheCreationTokens, outputTokens, and total contextWindow
 - Clicking the gauge triggers context compaction via the `onCompact` callback
 - Driven by `ContextUsage` type (`src/types/mcp.ts`): `{ inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens, contextWindow }`
-- `contextUsage` is tracked in `EngineHookState` and `ChatSession`; `extractAssistantContextUsage()` in `src/lib/engine/protocol.ts` parses it from Claude SDK result events
+- `contextUsage` is tracked in `EngineHookState` and `ChatSession`; ACP `usage_update` events are normalized by the ACP hook
 
 ### Grabbed DOM Elements
 
@@ -647,20 +608,26 @@ The Browser Panel supports a "grab element" feature that attaches DOM elements f
 - `useSplitDragDrop` — drag-and-drop session assignment to panes
 - Layout math in `src/lib/layout/split-layout.ts`
 
-### Binary Management
+### Agent Runtime Management
 
-Claude CLI and Codex binaries can be managed downloads or user-provided custom paths:
-- `electron/src/lib/claude-binary.ts` — detects Claude CLI binary: checks `AppSettings.claudeBinaryPath` first, then standard install locations, then managed download path
-- `electron/src/lib/codex-binary.ts` — same pattern for Codex binary
-- Users can configure custom binary paths in Settings → Advanced
+The built-in Pi runtime is bundled and offline-capable:
+- `electron/src/lib/bundled-pi-runtime.ts` — resolves and validates the packaged headless Electron host, Pi/`pi-acp`/MCP adapter entries, bridge, versions, and launcher without consulting PATH
+- `electron/src/lib/pi-acp-config.ts` — builds the bundled launch definition; isolates managed provider/MCP configuration; injects only PccAgent's managed global and project Skill roots
+- `electron/src/lib/pi-command-catalog.ts` — preloads built-in, Prompt, and Skill slash commands for process-free drafts
+- `electron/src/lib/pi-runtime-status.ts` — returns credential-free bundled paths, pinned/actual versions, and `offlineReady` for Settings
+- `scripts/check-pi-runtime.mjs` — verifies dependency pins, lockfile integrity, bundled launch, adapter initialize, and provider prerequisites without printing credentials
+- Users can install or select custom ACP agents through the Agent Registry; custom definitions are independent of the protected built-in `pi-acp` entry
 - `prerelease-check.ts` — detects if the current build is a pre-release; `PreReleaseBanner.tsx` shows a dismissible banner in the UI
 
 ## Reference Documentation
 
-When working on engine-related code, always consult these local docs:
+When working on agent runtime code, always consult these local docs:
 
-- **Claude Agent SDK (Anthropic engine)**: `docs/ai-sdk/` — covers `query()`, MCP config, permissions, streaming, session management, subagents, etc.
-- **ACP TypeScript SDK**: `docs/typescript-sdk-main/` — the `@anthropic-ai/agent-client-protocol` package, ACP client/server types, transport
+- **Pi-only runtime design**: `docs/superpowers/specs/2026-08-27-pi-only-agent-runtime-design.md`
+- **Pi-only implementation**: `docs/superpowers/specs/2026-08-27-pi-only-agent-runtime-implementation.md`
+- **Pi ACP reliability contract**: `docs/superpowers/specs/2026-08-27-pi-acp-reliability-repair-implementation.md`
+- **Bundled version manifest**: `scripts/pi-runtime-versions.json`
+- **ACP TypeScript SDK**: `docs/typescript-sdk-main/` — the `@agentclientprotocol/sdk` client/server types and transport
 - **Agent Client Protocol spec**: `docs/agent-client-protocol-main/` — ACP protocol spec, schema definitions, event types
 
 Always search the web when needed for up-to-date API references, Electron APIs, or third-party package docs.
@@ -691,18 +658,15 @@ Always search the web when needed for up-to-date API references, Electron APIs, 
 - Never commit local artifacts (e.g. `.codex/`, icon backups, scratch files) — add them to `.gitignore` instead.
 
 **Version bumping**:
-1. Do not upgrade `@anthropic-ai/claude-agent-sdk` during version bumping, tagging, pushing tags, or release preparation unless the user explicitly forces an SDK upgrade in the same request.
-2. Bump `version` in `package.json` (electron-builder uses this, NOT the git tag)
-3. Commit: `chore: bump version to X.Y.Z`
-4. Tag: `git tag vX.Y.Z HEAD && git push origin vX.Y.Z`
-5. Create release: `gh release create vX.Y.Z --title "..." --notes "..."`
+1. Bump `version` in `package.json` (electron-builder uses this, NOT the git tag)
+2. Commit: `chore: bump version to X.Y.Z`
+3. Tag: `git tag vX.Y.Z HEAD && git push origin vX.Y.Z`
+4. Create release: `gh release create vX.Y.Z --title "..." --notes "..."`
 
 ## Shared Types Architecture
 
 Types shared between electron and renderer live in `shared/types/`. Both tsconfigs include this directory via `@shared/*` path alias.
 
-- **`shared/types/codex-protocol/`** — auto-generated from `codex app-server generate-ts`. Contains v1, v2, and serde_json type families. Used by both electron Codex handlers and renderer hooks.
-- **`shared/types/codex.ts`** — re-exports with `Codex`-prefixed aliases (e.g., `CodexThreadItem`, `CodexSessionEvent`) plus Harnss-specific wrappers (`CodexApprovalRequest`, `CodexRequestUserInputRequest`).
 - **`shared/types/engine.ts`** — `EngineId`, `AppPermissionBehavior`, `SlashCommand`, `RespondPermissionFn`. No React or renderer dependencies.
 - **`src/types/engine-hook.ts`** — `EngineHookState`, `BackgroundSessionSnapshot`. React-dependent engine types that live in the renderer layer.
 - **`src/types/agents.ts`** — `BackgroundAgent`, `BackgroundAgentActivity`, `BackgroundAgentUsage`. Renderer-only types for tracking background Task agents (status, activity log, live usage metrics, progress summary, current tool).
@@ -713,12 +677,10 @@ Types shared between electron and renderer live in `shared/types/`. Both tsconfi
 - **`shared/types/settings.ts`** — `AppSettings` type (notification config, editor/binary preferences, pre-release channel).
 
 **Shared utilities** (`shared/lib/`) — utilities safe to import from both processes (no Electron or React imports):
-- `async-channel.ts` — `AsyncChannel` push-based async iterable
-- `session-persistence.ts` — session serialization/deserialization logic
+- `session-persistence.ts` / `session-runtime.ts` / `session-recovery.ts` — persisted-session compatibility and ACP runtime guards
 - `mcp-config.ts` — MCP configuration schema parsing
-- `codex-rpc.ts` — Codex RPC protocol helpers
-- `error-utils.ts` — `extractErrorMessage()` without platform dependencies
-- `acp-helpers.ts` / `codex-helpers.ts` — event normalization helpers
+- `error-utils.ts` — bounded, redacted error details and diagnostic context
+- `acp-helpers.ts` / `acp-turn.ts` — ACP event normalization and canonical turn outcomes
 
 **Backward compatibility**: `src/types/` contains re-export shims (`export * from "../../shared/types/..."`) so existing `@/types/*` imports continue to work. New code can use either `@/types/` or `@shared/types/`.
 
@@ -730,9 +692,7 @@ Types shared between electron and renderer live in `shared/types/`. Both tsconfi
 - `ContextUsage` (`src/types/mcp.ts`) — `{ inputTokens, outputTokens, cacheReadTokens, cacheCreationTokens, contextWindow }` — context window consumption tracked per session
 - `GrabbedElement` (`src/types/attachments.ts`) — `{ id, tag, text, html, timestamp }` — DOM element captured from the Browser Panel for use as session context
 
-**Electron SDK types**: `electron/src/lib/sdk.ts` imports `Query` and `query` types directly from `@anthropic-ai/claude-agent-sdk` (no more manual type definitions or double-casts). ACP connection is typed as `ClientSideConnection` from `@agentclientprotocol/sdk`.
-
-**Note on `AsyncChannel`**: The canonical implementation lives in `shared/lib/async-channel.ts` and is imported by both `electron/src/ipc/claude-sessions.ts` and renderer-side code. Do not duplicate it.
+**Electron ACP types**: ACP connections are typed as `ClientSideConnection` from `@agentclientprotocol/sdk`. Pi launch metadata is kept in `electron/src/lib/pi-acp-config.ts`; no Claude SDK or Codex RPC runtime is loaded.
 
 ### Shared Utilities
 
@@ -740,8 +700,8 @@ Types shared between electron and renderer live in `shared/types/`. Both tsconfi
 
 - **`src/lib/utils.ts`** — `cn()` (clsx + tailwind-merge), `isRecord()` type guard, `isMac`/`isWindows` synchronous platform checks
 - **`src/lib/message-factory.ts`** — `createSystemMessage()`, `createUserMessage()`, `formatResultError()` — replaces 20+ inline UIMessage constructions
-- **`src/lib/engine/streaming-buffer.ts`** — `StreamingBuffer` (Claude) + `SimpleStreamingBuffer` (ACP/Codex, merged from two identical copies)
-- **`src/lib/engine/protocol.ts`** — event normalization from raw SDK events to `UIMessage[]`
+- **`src/lib/engine/streaming-buffer.ts`** — bounded streaming buffers used by ACP message updates
+- **`src/lib/engine/protocol.ts`** — ACP event normalization to `UIMessage[]`
 - **`src/lib/engine/permission-queue.ts`** — permission request batching/deduplication
 - **`src/lib/engine/acp-task-adapter.ts`** — `isTaskToolName()`, `getTaskStatus()`, `extractTaskSubagentSteps()` — normalizes ACP Task/Agent tool results into `SubagentToolStep[]` for routing to Task cards
 - **`src/lib/engine/acp-agent-updates.ts`** — `PlannedAcpAgentUpdate` type + `mergeRegistryAgentUpdate()` — computes and applies registry-driven agent definition updates
@@ -784,32 +744,31 @@ Types shared between electron and renderer live in `shared/types/`. Both tsconfi
 - **`electron/src/lib/git-exec.ts`** — git command execution helpers used by `ipc/git.ts`
 - **`electron/src/lib/jira-client.ts`** — Jira REST API client (search, fetch issue, update)
 - **`electron/src/lib/migration.ts`** — data migration utilities for localStorage and file store upgrades
-- **`electron/src/lib/claude-binary.ts`** / **`codex-binary.ts`** — CLI binary detection (managed download path + custom user path)
+- **`electron/src/lib/bundled-pi-runtime.ts`** — packaged Pi/pi-acp host, entry, wrapper, and version validation
+- **`electron/src/lib/pi-acp-config.ts`** — protected bundled Pi launch and isolated provider environment
+- **`electron/src/lib/pi-runtime-status.ts`** — credential-free bundled runtime status used by the renderer settings panel
 - **`electron/src/lib/mcp-oauth-flow.ts`** / **`mcp-oauth-provider.ts`** — MCP OAuth provider server (loopback redirect) + flow orchestration
-- **`electron/src/lib/agent-registry.ts`** — reads/writes `InstalledAgent` definitions from disk; exposes `BUILTIN_CLAUDE` constant; used by `ipc/agent-registry.ts`
+- **`electron/src/lib/agent-registry.ts`** — reads/writes `InstalledAgent` definitions from disk; protects the built-in Pi entry and preserves custom ACP agents
 
 ### Error Logging
 
-`reportError(label, err, context?)` returns the normalized error message while logging it locally: the main process writes through `log()`, and the renderer writes through `console.error()`. No analytics or remote error reporting is configured.
+`reportError(label, err, context?)` records bounded, redacted structured details locally: the main process writes through `log()`, and the renderer writes through `console.error()`. It is diagnostic plumbing only; canonical ACP turn status comes from `shared/lib/acp-turn.ts`, not from whether a message string is non-empty. No analytics or remote error reporting is configured.
 
 **When to use `reportError` vs leave a catch alone:**
-- **DO use `reportError`**: session start/stop failures, IPC handler errors, SDK/process spawn errors, OAuth failures, updater errors, file operation errors, user-visible errors
+- **DO use `reportError`**: session start/stop failures, IPC handler errors, ACP/process spawn errors, OAuth failures, updater errors, file operation errors, user-visible errors
 - **DO NOT use `reportError`**: process kill cleanup (`/* already dead */`), JSON parse fallbacks, audio autoplay blocked, cache parse defaults, cancellation guards
 
 ### Electron Session Handler Patterns
 
-The three session IPC handlers share extracted utilities:
+The ACP session IPC handler shares extracted utilities:
 - **`createAcpConnection()`** — factory for ACP process spawn + ClientSideConnection setup (eliminates duplication between `acp:start` and `acp:revive-session`)
-- **`setupCodexHandlers()`** — wires RPC handlers for Codex sessions (shared between `codex:start` and `codex:resume`)
-- **`startEventLoop()`** — iterates SDK QueryHandle async generator with event forwarding (shared between `claude:start` and `restartSession`)
-- **`oneShotSdkQuery()`** — fire-and-forget Claude SDK query with timeout (title gen + commit message gen)
 - **`acp-utility-prompt.ts`** — one-shot ACP utility prompt (commit message gen, title gen via ACP)
-- **`codex-utility-prompt.ts`** — one-shot Codex utility prompt (same pattern for Codex engine)
+- **`session-runtime.ts`** — shared session disposition guard for live ACP versus legacy read-only records
+- **`session-recovery.ts`** — restart normalization for interrupted turns, pending requests, and in-flight tools
 
 Key main-process infrastructure:
 - **`json-file-store.ts`** — generic JSON file store backing `mcp-store`, `mcp-oauth-store`, `jira-store`, `jira-oauth-store`. Handles atomic writes and optional encryption.
-- **`safe-send.ts`** — `safeSend(getWindow, channel, payload)` guards `webContents.send` against destroyed BrowserWindows. Use in all async event loops (PTY, SDK, ACP, Codex).
-- **`claude-model-cache.ts`** — TTL'd disk cache for Claude `supportedModels` results (avoids re-querying on every session start).
+- **`safe-send.ts`** — `safeSend(getWindow, channel, payload)` guards `webContents.send` against destroyed BrowserWindows. Use in all async event loops (PTY and ACP).
 
 ## Coding Conventions
 

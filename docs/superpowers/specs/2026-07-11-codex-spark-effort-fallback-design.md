@@ -1,5 +1,8 @@
 # DPCC Codex Capability Metadata Design
 
+> [!IMPORTANT]
+> Archived design. Codex is retained only as legacy session data; current model/thinking capability behavior is owned by Pi ACP.
+
 ## Goal
 
 Make Codex reasoning effort controls work for DPCC models even when the bundled

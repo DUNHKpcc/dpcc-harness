@@ -1,5 +1,8 @@
 # DPCC Codex Capability Metadata Implementation Plan
 
+> [!IMPORTANT]
+> Archived plan. Codex is no longer a live runtime. Do not execute these tasks; model and thinking capability work now belongs to Pi ACP config and live catalog reconciliation.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Preserve native Codex effort metadata when available and let DPCC `/v1/models` supply exact per-model effort capabilities when isolated `model/list` omits an entitlement-gated model.

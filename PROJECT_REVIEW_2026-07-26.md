@@ -1,5 +1,8 @@
 # Harnss 全项目性能、兼容性与稳定性复审
 
+> [!NOTE]
+> 本文是 2026-07-26 的历史快照，其中 Claude/Codex runtime 结论不再代表当前产品方向。当前开发以 Pi 为唯一内置 live Agent，并保留 custom ACP 与 legacy session 的兼容边界。
+
 - 日期：2026-07-26
 - 基线：`master` / `2c70947`
 - 范围：`src/`、`electron/`、`shared/`、构建配置及相关测试

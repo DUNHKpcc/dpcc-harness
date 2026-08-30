@@ -1,5 +1,8 @@
 # Claude DPCC Model Catalog Design
 
+> [!IMPORTANT]
+> Archived design. Claude Code is retained only as legacy session data; current model catalog behavior is owned by Pi ACP.
+
 ## Goal
 
 When Claude's effective source is the DPCC default, make the Claude token's

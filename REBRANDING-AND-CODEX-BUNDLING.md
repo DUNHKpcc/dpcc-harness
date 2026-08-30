@@ -1,5 +1,8 @@
 # 品牌替换 & Codex 内置方案
 
+> [!IMPORTANT]
+> 本文是已废弃的历史方案，不再作为实现依据。PccAgent 已转向 Pi-first：Pi 是唯一内置 live Agent，使用随包提供的 bundled offline runtime；Codex runtime/vendor 不会恢复。当前约束见 `docs/superpowers/specs/2026-08-27-pi-only-agent-runtime-design.md` 和 `AGENTS.md`。
+
 ## 一、Codex 二进制内置（方案一：构建时打包）
 
 ### 目标

@@ -1,5 +1,8 @@
 # Claude DPCC Model Catalog Implementation Plan
 
+> [!IMPORTANT]
+> Archived plan. Claude Code is no longer a live runtime. Do not execute these tasks; model catalog work now belongs to the Pi ACP config path defined by the Pi-only runtime spec.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make DPCC `/v1/models` authoritative for Claude composer visibility while retaining SDK metadata and safe fallback behavior.

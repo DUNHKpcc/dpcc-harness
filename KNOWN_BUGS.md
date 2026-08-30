@@ -3,6 +3,9 @@
 > 最后更新:2026-06-22 · 主要针对 Windows x64 的用户反馈 + 日志分析。
 > 代码引用为 `file:line`,可点击定位。
 
+> [!NOTE]
+> 这是 Claude/Codex runtime 仍存在时期的历史故障记录，不是当前 Pi-first 架构的 active backlog。旧条目保留用于追溯；新问题应按 bundled Pi、ACP canonical outcome、真实 child integration 和 Electron recovery 契约重新验证。
+
 ## 状态图例
 
 | 标记 | 含义 |

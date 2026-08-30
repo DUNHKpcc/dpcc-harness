@@ -75,7 +75,9 @@ jobs:
         run: pnpm exec electron-builder --config electron-builder.config.js --config.npmRebuild=false --linux --dir --publish never
 
       - name: Smoke check packaged app
-        run: xvfb-run -a pnpm package:smoke -- "release/$(node -p \"require('./package.json').version\")"
+        run: |
+          version=$(node -p "require('./package.json').version")
+          xvfb-run -a pnpm package:smoke -- "release/$version"
 
       - name: Diff check
         run: git diff --check

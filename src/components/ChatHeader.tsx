@@ -10,7 +10,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { ToolPickerMenu } from "./ToolPickerMenu";
 import { UPSTREAM_REQUEST_SCROLL_AREA_CLASS } from "@/components/lib/chat-header-layout";
 import { isMac } from "@/lib/utils";
-import { getUpstreamRequestCount } from "@/lib/usage/upstream-requests";
+import {
+  getUpstreamRequestCount,
+  getUpstreamRequestTokenTotal,
+} from "@/lib/usage/upstream-requests";
 import type { AcpPermissionBehavior, UpstreamRequestRecord } from "@/types";
 import type { ToolId } from "@/types/tools";
 
@@ -44,7 +47,8 @@ interface ChatHeaderProps {
 }
 
 function formatTokenCount(value: number | undefined): string {
-  if (!value) return "0";
+  if (value == null) return "--";
+  if (value === 0) return "0";
   return value >= 1000 ? `${(value / 1000).toFixed(value >= 10_000 ? 0 : 1)}k` : String(value);
 }
 
@@ -62,12 +66,7 @@ function UpstreamRequestRow({
   ordinal: number;
 }) {
   const { t } = useTranslation("chat");
-  const tokenTotal =
-    (record.inputTokens ?? 0) +
-    (record.outputTokens ?? 0) +
-    (record.cacheReadTokens ?? 0) +
-    (record.cacheCreationTokens ?? 0) +
-    (record.reasoningOutputTokens ?? 0);
+  const tokenTotal = getUpstreamRequestTokenTotal(record);
   const duration = formatDuration(record.durationMs);
 
   return (

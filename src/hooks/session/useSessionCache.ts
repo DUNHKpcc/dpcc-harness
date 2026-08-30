@@ -1,18 +1,17 @@
 import { startTransition, useCallback, useEffect, useRef } from "react";
-import { toast } from "sonner";
 import type { PersistedSession, Project } from "../../types";
 import {
   normalizePersistedSessionForDisplay,
   toChatSession,
 } from "../../lib/session/records";
 import { withChatModuleProjectIds } from "../../lib/session/chat-module";
-import { toastText } from "../../lib/toast-i18n";
-import {
-  claudeModelCatalogSettingsFingerprint,
-  isClaudeModelCacheRequestCurrent,
-} from "../../lib/engine/claude-model-request";
 import { DRAFT_ID } from "./types";
 import type { SharedSessionRefs, SharedSessionSetters } from "./types";
+import {
+  getAgentCachedConfigOptions,
+  getAgentCachedSlashCommands,
+} from "@shared/lib/acp-config-cache";
+import { getSessionRuntimeDisposition } from "@shared/lib/session-runtime";
 
 const MAX_SESSION_PAYLOAD_CACHE = 6;
 
@@ -21,7 +20,6 @@ interface UseSessionCacheParams {
   setters: SharedSessionSetters;
   projects: Project[];
   activeSessionId: string | null;
-  getProjectCwd: (project: Project) => string;
 }
 
 export function useSessionCache({
@@ -29,25 +27,25 @@ export function useSessionCache({
   setters,
   projects,
   activeSessionId,
-  getProjectCwd,
 }: UseSessionCacheParams) {
   const {
     setSessions,
     setStartOptions,
     setInitialMessages,
     setInitialMeta,
+    setInitialConfigOptions,
+    setInitialSlashCommands,
     setInitialPermission,
     setInitialRawAcpPermission,
+    setAcpConfigOptionsLoading,
     setActiveSessionId,
     setDraftProjectId,
-    setCachedModels,
-    invalidateCachedModels,
   } = setters;
   const {
     activeSessionIdRef,
     sessionsRef,
+    installedAgentsRef,
     backgroundStoreRef,
-    claudeModelCatalogRequestGenerationRef,
   } = refs;
 
   const sessionPayloadCacheRef = useRef<Map<string, PersistedSession>>(new Map());
@@ -77,17 +75,45 @@ export function useSessionCache({
   /** Apply a loaded (or cached) session payload into React state. */
   const applyLoadedSession = useCallback((id: string, data: PersistedSession) => {
     const restoredData = normalizePersistedSessionForDisplay(data);
+    const disposition = getSessionRuntimeDisposition({
+      engine: restoredData.invalidEngine ?? restoredData.engine,
+      agentId: restoredData.agentId,
+    });
+    const restoredAgentId = disposition.kind === "runtime"
+      ? disposition.agentId
+      : undefined;
+    const restoredEngine = disposition.kind === "runtime"
+      ? "acp" as const
+      : disposition.kind === "legacy-read-only"
+        ? disposition.engine
+        : undefined;
+    const invalidEngine = disposition.kind === "invalid"
+      ? disposition.engine
+      : restoredData.invalidEngine;
+    const restoredConfigOptions = getAgentCachedConfigOptions(
+      installedAgentsRef.current,
+      restoredAgentId,
+    );
+    const restoredSlashCommands = getAgentCachedSlashCommands(
+      installedAgentsRef.current,
+      restoredAgentId,
+    );
     startTransition(() => {
       setStartOptions((prev) => ({
         ...prev,
-        engine: restoredData.engine ?? "claude",
+        engine: restoredEngine,
         model: restoredData.model,
-        effort: restoredData.effort,
+        effort: disposition.kind === "runtime" ? undefined : restoredData.effort,
         permissionMode: restoredData.permissionMode,
         planMode: !!restoredData.planMode,
-        agentId: restoredData.agentId,
+        agentId: restoredAgentId,
+        cachedConfigOptions: restoredConfigOptions,
+        cachedSlashCommands: restoredSlashCommands,
       }));
       setInitialMessages(restoredData.messages);
+      setInitialConfigOptions(restoredConfigOptions);
+      setInitialSlashCommands(restoredSlashCommands);
+      setAcpConfigOptionsLoading(false);
       setInitialMeta({
         isProcessing: false,
         isConnected: false,
@@ -106,8 +132,9 @@ export function useSessionCache({
           ...s,
           isActive: s.id === id,
           ...(s.id === id ? {
-            ...(restoredData.engine ? { engine: restoredData.engine } : {}),
-            ...(restoredData.agentId ? { agentId: restoredData.agentId } : {}),
+            engine: restoredEngine,
+            invalidEngine,
+            agentId: restoredAgentId,
             ...(restoredData.agentSessionId ? { agentSessionId: restoredData.agentSessionId } : {}),
             ...(restoredData.codexThreadId ? { codexThreadId: restoredData.codexThreadId } : {}),
             ...(restoredData.codexRolloutPath ? { codexRolloutPath: restoredData.codexRolloutPath } : {}),
@@ -122,11 +149,14 @@ export function useSessionCache({
     });
   }, [
     setActiveSessionId,
+    setAcpConfigOptionsLoading,
     setDraftProjectId,
+    setInitialConfigOptions,
     setInitialMessages,
     setInitialMeta,
     setInitialPermission,
     setInitialRawAcpPermission,
+    setInitialSlashCommands,
     setSessions,
     setStartOptions,
   ]);
@@ -163,79 +193,6 @@ export function useSessionCache({
       });
     }).catch(() => { /* IPC failure — leave sessions empty */ });
   }, [projects]);
-
-  // Hydrate Claude model cache at app startup and refresh it in the background.
-  useEffect(() => {
-    let cancelled = false;
-    let settingsFingerprint: string | null = null;
-
-    const firstProject = refs.projectsRef.current[0];
-    const preferredCwd = firstProject ? getProjectCwd(firstProject) : undefined;
-
-    const cacheGetGeneration = ++claudeModelCatalogRequestGenerationRef.current;
-    window.claude.modelsCacheGet().then((result) => {
-      if (cancelled || !isClaudeModelCacheRequestCurrent(
-        cacheGetGeneration,
-        claudeModelCatalogRequestGenerationRef.current,
-      )) return;
-      if (!result.error && !result.stale) {
-        setCachedModels(result.models, result.authoritative);
-      }
-    }).catch(() => { /* cache read is optional */ });
-
-    const revalidateModels = () => {
-      const revalidateGeneration = ++claudeModelCatalogRequestGenerationRef.current;
-      return window.claude.modelsCacheRevalidate(preferredCwd ? { cwd: preferredCwd } : undefined).then((result) => {
-        if (cancelled || !isClaudeModelCacheRequestCurrent(
-          revalidateGeneration,
-          claudeModelCatalogRequestGenerationRef.current,
-        )) return;
-        if (!result.error && !result.stale) {
-          setCachedModels(result.models, result.authoritative);
-          return;
-        }
-        if (result.error && !result.stale) {
-          toast.error(toastText("claude.modelsLoadFailed"), { description: result.error });
-        }
-      }).catch(() => { /* keep stale cache if revalidation fails */ });
-    };
-
-    // Defer revalidation (spawns a Claude SDK subprocess) to avoid competing with
-    // the startup IPC burst. The cached models from modelsCacheGet() above are
-    // sufficient for the initial render.
-    const revalidateTimer = setTimeout(() => {
-      void revalidateModels();
-    }, 3000);
-
-    void window.claude.settings.get().then((settings) => {
-      if (!cancelled && settingsFingerprint === null) {
-        settingsFingerprint = claudeModelCatalogSettingsFingerprint(settings);
-      }
-    });
-    const unsubscribeSettings = window.claude.settings.onChanged((settings) => {
-      const nextFingerprint = claudeModelCatalogSettingsFingerprint(settings);
-      const previousFingerprint = settingsFingerprint;
-      settingsFingerprint = nextFingerprint;
-      if (previousFingerprint === null || previousFingerprint === nextFingerprint) return;
-
-      claudeModelCatalogRequestGenerationRef.current += 1;
-      clearTimeout(revalidateTimer);
-      invalidateCachedModels();
-      void revalidateModels();
-    });
-    const unsubscribeAccount = window.claude.accountAuth?.onChanged(() => {
-      claudeModelCatalogRequestGenerationRef.current += 1;
-      invalidateCachedModels();
-      void revalidateModels();
-    }) ?? (() => {});
-
-    return () => {
-      cancelled = true;
-      clearTimeout(revalidateTimer);
-      unsubscribeSettings();
-      unsubscribeAccount();
-    };
-  }, [getProjectCwd]);
 
   // Idle-time prefetch of recent session payloads.
   useEffect(() => {

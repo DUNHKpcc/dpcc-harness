@@ -1,83 +1,64 @@
 /**
- * Per-pane controller hook.
+ * Per-pane controller for the single live runtime (ACP/Pi).
  *
- * Encapsulates the model/permission/send/stop logic for a single pane.
- * Used identically by single-chat mode (for the active session) and
- * split-view mode (for each split pane). Extracted from the monolithic
- * `buildPaneController` callback that lived in AppLayout.
+ * Persisted legacy identities are still exposed to the UI so their history can
+ * be inspected, but every mutating path is guarded before IPC and all pane
+ * state is held by the ACP hook.
  */
 
 import { useMemo } from "react";
-import { toast } from "sonner";
-import type { ACPConfigOption, ChatSession, ClaudeEffort, EngineId, FileReference, ImageAttachment, InstalledAgent, ModelInfo } from "@/types";
+import type {
+  ACPConfigOption,
+  ChatSession,
+  EngineId,
+  FileReference,
+  ImageAttachment,
+  InstalledAgent,
+} from "@/types";
 import type { SessionPaneState } from "@/hooks/session/useSessionPane";
-import type { CodexModelSummary } from "@/hooks/session/types";
-import { buildCodexCollabMode, DEFAULT_PERMISSION_MODE } from "@/hooks/session/types";
-import { resolveClaudePickerValue } from "@/lib/model-utils";
-import { toastText } from "@/lib/toast-i18n";
+import { DEFAULT_PERMISSION_MODE } from "@/hooks/session/types";
 import { continueWeChatSession } from "@/lib/session/wechat-continue";
+import { createSystemMessage } from "@/lib/message-factory";
 import type { PaneController } from "@/types";
-
-// ── Model catalog builders (moved from AppLayout) ──
-
-function buildPaneModelFallback(model: string | undefined): ModelInfo[] {
-  if (!model?.trim()) return [];
-  return [{ value: model, displayName: model, description: "" }];
-}
-
-function buildCodexModelCatalog(rawModels: CodexModelSummary[]): ModelInfo[] {
-  return rawModels.map((model) => ({
-    value: model.id,
-    displayName: model.displayName,
-    description: model.description,
-    supportsEffort: model.supportedReasoningEfforts.length > 0,
-    supportedEffortLevels: model.supportedReasoningEfforts.map((entry) => entry.reasoningEffort as ClaudeEffort),
-  }));
-}
-
-// ── Context bundle — values from the orchestrator that the pane controller needs ──
+import {
+  getSessionRuntimeDisposition,
+  INVALID_SESSION_ENGINE_MESSAGE,
+  LEGACY_SESSION_READ_ONLY_MESSAGE,
+} from "@shared/lib/session-runtime";
 
 export interface PaneControllerContext {
   agents: InstalledAgent[];
   selectedAgent: InstalledAgent | null;
   settings: {
     getModelForEngine: (engine: EngineId) => string;
-    permissionMode: string;
-    planMode: boolean;
-    claudeEffort: ClaudeEffort;
-    acpPermissionBehavior: "ask" | "auto_accept" | "allow_all";
   };
-  // Manager methods for active-pane path
-  handleModelChange: (nextModel: string) => void;
-  handleClaudeModelEffortChange: (nextModel: string, effort: ClaudeEffort) => void;
-  handlePlanModeChange: (enabled: boolean) => void;
-  handlePermissionModeChange: (nextMode: string) => void;
   handleAgentChange: (agent: InstalledAgent | null) => void;
   handleStop: () => Promise<void>;
   handleComposerClear: () => Promise<void>;
-  wrappedHandleSend: (text: string, images?: ImageAttachment[], displayText?: string, fileReferences?: FileReference[]) => Promise<void>;
-  // Manager session-level mutations (for non-active panes)
+  wrappedHandleSend: (
+    text: string,
+    images?: ImageAttachment[],
+    displayText?: string,
+    fileReferences?: FileReference[],
+  ) => Promise<void>;
   manager: {
-    setSessionModel: (sessionId: string, model: string) => void;
-    setSessionClaudeModelAndEffort: (sessionId: string, model: string, effort: ClaudeEffort) => void;
-    setSessionPlanMode: (sessionId: string, enabled: boolean) => void;
-    setSessionPermissionMode: (sessionId: string, mode: string) => void;
-    setCodexEffort: (effort: string) => void;
-    codexEffort: string;
-    codexRawModels: CodexModelSummary[];
-    codexModelsLoadingMessage: string | null;
-    cachedClaudeModels: ModelInfo[];
-    cachedClaudeModelsLoaded: boolean;
     acpConfigOptions: ACPConfigOption[];
     acpConfigOptionsLoading: boolean;
     setACPConfig: (key: string, value: string) => void;
   };
-  // Split-view helpers (optional — absent in single-chat mode)
-  splitView?: {
-    setFocusedSession: (sessionId: string | null) => void;
-  };
-  createSplitPaneDraftSession?: (replacedSessionId: string, projectId: string, agent: InstalledAgent | null) => Promise<void>;
-  queueSplitPaneSendAfterSwitch?: (sessionId: string, text: string, images?: ImageAttachment[], displayText?: string, fileReferences?: FileReference[]) => Promise<void>;
+  splitView?: { setFocusedSession: (sessionId: string | null) => void };
+  createSplitPaneDraftSession?: (
+    replacedSessionId: string,
+    projectId: string,
+    agent: InstalledAgent | null,
+  ) => Promise<void>;
+  queueSplitPaneSendAfterSwitch?: (
+    sessionId: string,
+    text: string,
+    images?: ImageAttachment[],
+    displayText?: string,
+    fileReferences?: FileReference[],
+  ) => Promise<void>;
 }
 
 export function usePaneController(
@@ -88,119 +69,62 @@ export function usePaneController(
   ctx: PaneControllerContext,
 ): PaneController {
   return useMemo(() => {
-    const paneEngine: EngineId = session?.engine
-      ?? (isActiveSessionPane ? (ctx.selectedAgent?.engine ?? "claude") : "claude");
+    const disposition = session
+      ? getSessionRuntimeDisposition({
+          engine: session.invalidEngine ?? session.engine,
+          agentId: session.agentId,
+        })
+      : null;
+    const paneEngine: EngineId = disposition?.kind === "legacy-read-only"
+      ? disposition.engine
+      : "acp";
     const selectedPaneAgent = isActiveSessionPane
       ? ctx.selectedAgent
       : session?.agentId
         ? ctx.agents.find((agent) => agent.id === session.agentId) ?? null
-        : session?.engine === "codex"
-          ? ctx.agents.find((agent) => agent.engine === "codex") ?? null
-          : null;
-    const liveModel = paneState.sessionInfo?.model?.trim();
+        : null;
+
+    const paneAcpConfigOptions = isActiveSessionPane
+      ? ctx.manager.acpConfigOptions
+      : paneState.acp.configOptions;
+    const paneAcpConfigOptionsLoading = isActiveSessionPane
+      ? ctx.manager.acpConfigOptionsLoading
+      : paneState.acp.configOptionsLoading;
+    const configuredModelValue = paneEngine === "acp"
+      ? paneAcpConfigOptions
+          .find((option) => option.id === "model" || option.category === "model")
+          ?.currentValue
+      : undefined;
+    const configuredModel = typeof configuredModelValue === "string"
+      ? configuredModelValue.trim()
+      : undefined;
+    const liveModel = configuredModel || paneState.sessionInfo?.model?.trim();
     const persistedModel = session?.model?.trim();
     const defaultModel = isActiveSessionPane
-      ? ctx.settings.getModelForEngine(paneEngine).trim()
+      ? ctx.settings.getModelForEngine("acp").trim()
       : "";
-    const rawPaneModel = liveModel || persistedModel || defaultModel;
-    const panePermissionMode =
-      paneState.sessionInfo?.permissionMode
+    const paneModel = liveModel || persistedModel || defaultModel;
+    const panePermissionMode = paneState.sessionInfo?.permissionMode
       ?? session?.permissionMode
-      ?? (isActiveSessionPane ? ctx.settings.permissionMode : DEFAULT_PERMISSION_MODE);
-    const panePlanMode = panePermissionMode === "plan"
-      || !!session?.planMode
-      || (isActiveSessionPane && !session ? ctx.settings.planMode : false);
-    const paneSupportedModels = paneEngine === "acp"
-      ? []
-      : paneEngine === "codex"
-        ? (paneState.codex.codexModels.length > 0
-          ? paneState.codex.codexModels
-          : ctx.manager.codexRawModels.length > 0
-            ? buildCodexModelCatalog(ctx.manager.codexRawModels)
-            : buildPaneModelFallback(rawPaneModel))
-        : paneState.claude.supportedModelsLoaded
-          ? paneState.claude.supportedModels
-          : ctx.manager.cachedClaudeModelsLoaded
-            ? ctx.manager.cachedClaudeModels
-            : buildPaneModelFallback(rawPaneModel);
-    const paneModel = paneEngine === "claude"
-      ? (resolveClaudePickerValue(rawPaneModel, paneSupportedModels) ?? rawPaneModel)
-      : rawPaneModel;
-    const paneAcpConfigOptions = paneEngine === "acp"
-      ? (isActiveSessionPane ? ctx.manager.acpConfigOptions : paneState.acp.configOptions)
-      : [];
-    const paneAcpConfigOptionsLoading = paneEngine === "acp"
-      ? (isActiveSessionPane ? ctx.manager.acpConfigOptionsLoading : paneState.acp.configOptionsLoading)
-      : false;
-    const paneCodexModelsLoadingMessage = paneEngine === "codex" && paneSupportedModels.length === 0
-      ? ctx.manager.codexModelsLoadingMessage
-      : null;
-
-    const handlePaneModelChange = (nextModel: string) => {
-      if (isActiveSessionPane) {
-        ctx.handleModelChange(nextModel);
-        return;
-      }
-      ctx.manager.setSessionModel(sessionId, nextModel);
-    };
-
-    const handlePaneClaudeModelEffortChange = (nextModel: string, effort: ClaudeEffort | undefined) => {
-      const resolvedEffort = effort ?? ctx.settings.claudeEffort;
-      if (isActiveSessionPane) {
-        ctx.handleClaudeModelEffortChange(nextModel, resolvedEffort);
-        return;
-      }
-      ctx.manager.setSessionClaudeModelAndEffort(sessionId, nextModel, resolvedEffort);
-    };
-
-    const handlePanePlanModeChange = (enabled: boolean) => {
-      if (isActiveSessionPane) {
-        ctx.handlePlanModeChange(enabled);
-        return;
-      }
-      ctx.manager.setSessionPlanMode(sessionId, enabled);
-    };
-
-    const handlePanePermissionModeChange = (nextMode: string) => {
-      if (isActiveSessionPane) {
-        ctx.handlePermissionModeChange(nextMode);
-        return;
-      }
-      if (paneEngine === "codex") {
-        void paneState.codex.setPermissionMode(nextMode);
-      }
-      ctx.manager.setSessionPermissionMode(sessionId, nextMode);
-    };
-
-    const handlePaneCodexEffortChange = (effort: string) => {
-      if (isActiveSessionPane) {
-        ctx.manager.setCodexEffort(effort);
-        return;
-      }
-      paneState.codex.setCodexEffort(effort);
-    };
+      ?? DEFAULT_PERMISSION_MODE;
+    const panePlanMode = panePermissionMode === "plan" || !!session?.planMode;
 
     const handlePaneAgentChange = async (agent: InstalledAgent | null) => {
       if (isActiveSessionPane) {
         ctx.handleAgentChange(agent);
         return;
       }
-
       if (!session) return;
 
-      const currentEngine = session.engine ?? "claude";
-      const currentAgentId = session.agentId;
-      const wantedEngine = agent?.engine ?? "claude";
+      const currentAgentId = disposition?.kind === "runtime"
+        ? disposition.agentId
+        : undefined;
       const wantedAgentId = agent?.id;
-      const needsNewSession =
-        currentEngine !== wantedEngine
-        || (currentEngine === "acp" && wantedEngine === "acp" && currentAgentId !== wantedAgentId);
-
+      const needsNewSession = disposition?.kind !== "runtime" || currentAgentId !== wantedAgentId;
       if (!needsNewSession) {
         ctx.splitView?.setFocusedSession(sessionId);
         return;
       }
-
       await ctx.createSplitPaneDraftSession?.(sessionId, session.projectId, agent);
     };
 
@@ -208,32 +132,44 @@ export function usePaneController(
       if (!session) return;
       if (isActiveSessionPane) {
         await ctx.handleComposerClear();
-        return;
+      } else {
+        await ctx.createSplitPaneDraftSession?.(sessionId, session.projectId, selectedPaneAgent);
       }
-      await ctx.createSplitPaneDraftSession?.(sessionId, session.projectId, selectedPaneAgent);
     };
 
-    const handlePaneSend = async (text: string, images?: ImageAttachment[], displayText?: string, fileReferences?: FileReference[]) => {
+    const handlePaneSend = async (
+      text: string,
+      images?: ImageAttachment[],
+      displayText?: string,
+      fileReferences?: FileReference[],
+    ) => {
       ctx.splitView?.setFocusedSession(sessionId);
-
       if (isActiveSessionPane) {
         await ctx.wrappedHandleSend(text, images, displayText, fileReferences);
         return;
       }
-
       if (!session) return;
 
-      // WeChat sessions continue through the bridge (relays the reply to WeChat);
-      // live events stream back over claude:event into this pane's engine hook.
+      const sendDisposition = getSessionRuntimeDisposition({
+        engine: session.invalidEngine ?? session.engine,
+        agentId: session.agentId,
+      });
+      if (sendDisposition.kind !== "runtime") {
+        const message = sendDisposition.kind === "legacy-read-only"
+          ? LEGACY_SESSION_READ_ONLY_MESSAGE
+          : `${INVALID_SESSION_ENGINE_MESSAGE} (${sendDisposition.engine})`;
+        paneState.acp.setMessages((prev) => [...prev, createSystemMessage(message, true)]);
+        paneState.acp.setIsProcessing(false);
+        return;
+      }
+
       if (session.source === "wechat") {
         await continueWeChatSession({
           sessionId,
-          engine: session.engine,
           text,
           images,
           displayText,
-          claude: paneState.claude,
-          codex: paneState.codex,
+          acp: paneState.acp,
         });
         return;
       }
@@ -242,31 +178,7 @@ export function usePaneController(
         await ctx.queueSplitPaneSendAfterSwitch?.(sessionId, text, images, displayText, fileReferences);
         return;
       }
-
-      if (paneEngine === "acp") {
-        await paneState.acp.send(text, images, displayText);
-        return;
-      }
-
-      if (paneEngine === "codex") {
-        try {
-          const collaborationMode = buildCodexCollabMode(panePlanMode, paneModel);
-          const sent = await paneState.codex.send(text, images, displayText, collaborationMode, fileReferences);
-          if (!sent) {
-            await ctx.queueSplitPaneSendAfterSwitch?.(sessionId, text, images, displayText, fileReferences);
-          }
-        } catch (err) {
-          toast.error(toastText("session.sendMessageFailed"), {
-            description: err instanceof Error ? err.message : String(err),
-          });
-        }
-        return;
-      }
-
-      const sent = await paneState.claude.send(text, images, displayText);
-      if (!sent) {
-        await ctx.queueSplitPaneSendAfterSwitch?.(sessionId, text, images, displayText, fileReferences);
-      }
+      await paneState.acp.send(text, images, displayText);
     };
 
     const handlePaneStop = async () => {
@@ -275,7 +187,23 @@ export function usePaneController(
         await ctx.handleStop();
         return;
       }
-      await paneState.engine.interrupt();
+      if (session?.source === "wechat") {
+        const result = await window.claude.wechat.cancel({ sessionId });
+        if (!result.ok && result.error !== "当前没有正在运行的任务") {
+          paneState.acp.setMessages((prev) => [
+            ...prev,
+            createSystemMessage(result.error || "微信 Pi 会话取消失败。", true),
+          ]);
+        }
+        paneState.acp.setIsProcessing(false);
+        return;
+      }
+      if (session && getSessionRuntimeDisposition({
+        engine: session.invalidEngine ?? session.engine,
+        agentId: session.agentId,
+      }).kind === "runtime") {
+        await paneState.acp.interrupt();
+      }
     };
 
     return {
@@ -285,29 +213,16 @@ export function usePaneController(
       paneHeaderModel: liveModel || paneModel,
       panePermissionMode,
       panePlanMode,
-      paneSupportedModels,
-      paneClaudeEffort: session?.effort ?? ctx.settings.claudeEffort,
-      paneSlashCommands: paneState.engine.slashCommands,
+      paneSlashCommands: paneState.acp.slashCommands,
       paneAcpConfigOptions,
       paneAcpConfigOptionsLoading,
-      paneCodexModelsLoadingMessage,
-      paneCodexEffort: isActiveSessionPane ? ctx.manager.codexEffort : paneState.codex.codexEffort,
-      handlePaneModelChange,
-      handlePaneClaudeModelEffortChange,
-      handlePanePlanModeChange,
-      handlePanePermissionModeChange,
-      handlePaneCodexEffortChange,
       handlePaneAgentChange,
       handlePaneClear,
       handlePaneSend,
       handlePaneStop,
-      handlePaneAcpConfigChange: isActiveSessionPane ? ctx.manager.setACPConfig : paneState.acp.setConfig,
+      handlePaneAcpConfigChange: isActiveSessionPane
+        ? ctx.manager.setACPConfig
+        : paneState.acp.setConfig,
     };
-  }, [
-    ctx,
-    isActiveSessionPane,
-    paneState,
-    session,
-    sessionId,
-  ]);
+  }, [ctx, isActiveSessionPane, paneState, session, sessionId]);
 }

@@ -1,250 +1,112 @@
-import { memo, useState, useCallback, useEffect } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Server, RefreshCw, Loader2, ChevronRight } from "lucide-react";
+import { RefreshCw } from "lucide-react";
+import { PiLogo } from "@/components/PiLogo";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { SettingRow, SettingsSelect, SettingsHeader, SettingsSection } from "@/components/settings/shared";
+import { Button } from "@/components/ui/button";
 import {
-  CLAUDE_GATEWAY_MODEL_PRESETS,
-  CODEX_GATEWAY_MODEL_PRESETS,
-  buildGatewayModelMappings,
-} from "@/lib/gateway-models";
-import { isImeComposing } from "@/lib/utils";
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { SettingRow, SettingsHeader, SettingsSection } from "@/components/settings/shared";
+import { CODEX_GATEWAY_MODEL_PRESETS, buildGatewayModelMappings } from "@/lib/gateway-models";
 import { resolveGatewayConfigSource } from "@shared/lib/upstream-routing";
-import {
-  GatewayModelField,
-  GatewayModelMappingsEditor,
-  GatewayTextField,
-  OpenAiGatewayEditor,
-} from "./GatewaySettings";
-import type {
-  AppSettings,
-  ClaudeGatewaySettings,
-  CodexGatewaySettings,
-  PiGatewaySettings,
-} from "@/types";
+import { OpenAiGatewayEditor } from "./GatewaySettings";
+import type { AppSettings, PiGatewaySettings } from "@/types";
+import type { PiRuntimeBinaryStatus, PiRuntimeStatus } from "@shared/types/registry";
 
 interface EngineSettingsProps {
   appSettings: AppSettings | null;
   onUpdateAppSettings: (patch: Partial<AppSettings>) => Promise<void>;
 }
 
-const CLAUDE_GATEWAY_DEFAULT: ClaudeGatewaySettings = { enabled: false, baseUrl: "", authToken: "", model: "", modelMappings: CLAUDE_GATEWAY_MODEL_PRESETS };
-const CODEX_GATEWAY_DEFAULT: CodexGatewaySettings = { enabled: false, name: "", baseUrl: "", apiKey: "", model: "", modelMappings: CODEX_GATEWAY_MODEL_PRESETS };
-const PI_GATEWAY_DEFAULT: PiGatewaySettings = { enabled: false, name: "", baseUrl: "", apiKey: "", model: "", modelMappings: CODEX_GATEWAY_MODEL_PRESETS };
-type CodexOrigin = "env" | "managed" | "known" | "path" | "bundled" | "custom" | "none";
-type ClaudeOrigin = "custom" | "env" | "known" | "path" | "sdk-fallback" | "none";
-interface ClaudeGitBashStatus {
-  required: boolean;
-  ready: boolean;
-  path: string | null;
-  message: string | null;
-}
+const PI_GATEWAY_DEFAULT: PiGatewaySettings = {
+  enabled: false,
+  name: "",
+  baseUrl: "",
+  apiKey: "",
+  model: "",
+  modelMappings: CODEX_GATEWAY_MODEL_PRESETS,
+};
 
-// ── Component ──
+function RuntimeBinaryDetails({ status }: { status: PiRuntimeBinaryStatus }) {
+  const { t } = useTranslation("settings");
+  const statusClass = status.status === "ok"
+    ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+    : status.status === "missing"
+      ? "bg-red-500/15 text-red-700 dark:text-red-300"
+      : "bg-amber-500/15 text-amber-700 dark:text-amber-300";
+
+  return (
+    <div className="flex min-w-0 flex-col gap-2 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+      <div className="flex shrink-0 items-center gap-2">
+        <code className="text-sm font-medium text-foreground">{status.binary}</code>
+        <span className={`rounded px-1.5 py-0.5 text-[10.5px] font-medium ${statusClass}`}>
+          {t(`engines.pi.runtimeStatus.${status.status}`)}
+        </span>
+      </div>
+      <div className="min-w-0 text-xs sm:max-w-[70%] sm:text-right">
+        {status.resolvedPath ? (
+          <p className="break-all font-mono text-foreground/80">{status.resolvedPath}</p>
+        ) : (
+          <p className="text-foreground/80">{t("engines.pi.runtimeRepairHint")}</p>
+        )}
+        <p className="mt-1 text-muted-foreground">
+          {status.actualVersion
+            ? t("engines.pi.runtimeVersion", {
+              actual: status.actualVersion,
+              expected: status.expectedVersion,
+            })
+            : status.available
+              ? t("engines.pi.runtimeVersionUnreadable", { expected: status.expectedVersion })
+              : t("engines.pi.runtimeRepairHint")}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 export const EngineSettings = memo(function EngineSettings({
   appSettings,
   onUpdateAppSettings,
 }: EngineSettingsProps) {
   const { t } = useTranslation("settings");
-  const [claudeBinarySource, setClaudeBinarySource] = useState<"builtin" | "auto" | "managed" | "custom">("builtin");
-  const [claudeCustomBinaryPath, setClaudeCustomBinaryPath] = useState("");
-  const [claudeVersion, setClaudeVersion] = useState<string | null>(null);
-  const [claudeOrigin, setClaudeOrigin] = useState<ClaudeOrigin>("none");
-  const [claudeGitBash, setClaudeGitBash] = useState<ClaudeGitBashStatus | null>(null);
-  const [claudeUpdating, setClaudeUpdating] = useState(false);
-  const [claudeUpdateMsg, setClaudeUpdateMsg] = useState<string | null>(null);
-  const [codexBinarySource, setCodexBinarySource] = useState<"builtin" | "auto" | "managed" | "custom">("builtin");
-  const [codexCustomBinaryPath, setCodexCustomBinaryPath] = useState("");
-  const [codexVersion, setCodexVersion] = useState<string | null>(null);
-  const [codexOrigin, setCodexOrigin] = useState<CodexOrigin>("none");
-  const [codexUpdating, setCodexUpdating] = useState(false);
-  const [codexUpdateMsg, setCodexUpdateMsg] = useState<string | null>(null);
-  const [claudeGateway, setClaudeGateway] = useState<ClaudeGatewaySettings>(CLAUDE_GATEWAY_DEFAULT);
-  const [codexGateway, setCodexGateway] = useState<CodexGatewaySettings>(CODEX_GATEWAY_DEFAULT);
   const [piGateway, setPiGateway] = useState<PiGatewaySettings>(PI_GATEWAY_DEFAULT);
-  const [claudeGatewayOpen, setClaudeGatewayOpen] = useState(false);
-  const [codexGatewayOpen, setCodexGatewayOpen] = useState(false);
   const [piGatewayOpen, setPiGatewayOpen] = useState(false);
-  const [claudeUpstreamModels, setClaudeUpstreamModels] = useState<string[]>([]);
-  const [codexUpstreamModels, setCodexUpstreamModels] = useState<string[]>([]);
   const [piUpstreamModels, setPiUpstreamModels] = useState<string[]>([]);
-  const [claudeUpstreamError, setClaudeUpstreamError] = useState<string | null>(null);
-  const [codexUpstreamError, setCodexUpstreamError] = useState<string | null>(null);
   const [piUpstreamError, setPiUpstreamError] = useState<string | null>(null);
-  const [claudeModelsLoading, setClaudeModelsLoading] = useState(false);
-  const [codexModelsLoading, setCodexModelsLoading] = useState(false);
   const [piModelsLoading, setPiModelsLoading] = useState(false);
+  const [piRuntimeStatus, setPiRuntimeStatus] = useState<PiRuntimeStatus | null>(null);
+  const [piRuntimeLoading, setPiRuntimeLoading] = useState(false);
+  const [piRuntimeError, setPiRuntimeError] = useState(false);
 
   useEffect(() => {
-    if (appSettings) {
-      setClaudeBinarySource(appSettings.claudeBinarySource || "builtin");
-      setClaudeCustomBinaryPath(appSettings.claudeCustomBinaryPath || "");
-      setCodexBinarySource(appSettings.codexBinarySource || "builtin");
-      setCodexCustomBinaryPath(appSettings.codexCustomBinaryPath || "");
-      setClaudeGateway({
-        ...CLAUDE_GATEWAY_DEFAULT,
-        ...appSettings.claudeGateway,
-        modelMappings: buildGatewayModelMappings("claude", appSettings.claudeGateway?.modelMappings),
-      });
-      setCodexGateway({
-        ...CODEX_GATEWAY_DEFAULT,
-        ...appSettings.codexGateway,
-        modelMappings: buildGatewayModelMappings("codex", appSettings.codexGateway?.modelMappings),
-      });
-      setPiGateway({
-        ...PI_GATEWAY_DEFAULT,
-        ...appSettings.piGateway,
-        modelMappings: buildGatewayModelMappings("pi", appSettings.piGateway?.modelMappings),
-      });
-    }
+    if (!appSettings) return;
+    setPiGateway({
+      ...PI_GATEWAY_DEFAULT,
+      ...appSettings.piGateway,
+      modelMappings: buildGatewayModelMappings("pi", appSettings.piGateway?.modelMappings),
+    });
   }, [appSettings]);
 
-  const refreshClaudeInfo = useCallback(async () => {
-    const info = await window.claude.binaryInfo();
-    if (info.error) return;
-    setClaudeVersion(info.version ?? null);
-    setClaudeOrigin((info.origin as ClaudeOrigin) ?? "none");
-    setClaudeGitBash(info.gitBash ?? null);
-  }, []);
-
-  const refreshCodexInfo = useCallback(async () => {
-    const info = await window.claude.codex.binaryInfo();
-    if (info.error) return;
-    setCodexVersion(info.version ?? null);
-    setCodexOrigin((info.origin as CodexOrigin) ?? "none");
+  const refreshPiRuntimeStatus = useCallback(async () => {
+    setPiRuntimeLoading(true);
+    setPiRuntimeError(false);
+    try {
+      setPiRuntimeStatus(await window.claude.agents.getPiRuntimeStatus());
+    } catch {
+      setPiRuntimeError(true);
+    } finally {
+      setPiRuntimeLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    void refreshClaudeInfo();
-  }, [refreshClaudeInfo, claudeBinarySource, claudeCustomBinaryPath]);
-
-  useEffect(() => {
-    void refreshCodexInfo();
-  }, [refreshCodexInfo, codexBinarySource, codexCustomBinaryPath]);
-
-  const handleClaudeCheckUpdate = useCallback(async () => {
-    setClaudeUpdating(true);
-    setClaudeUpdateMsg(null);
-    try {
-      const result = await window.claude.downloadUpdate();
-      if (result.error) {
-        setClaudeUpdateMsg(t("engines.claude.updateFailed", { error: result.error }));
-      } else {
-        setClaudeUpdateMsg(t("engines.claude.updated", { version: result.version ?? "" }));
-        await refreshClaudeInfo();
-      }
-    } catch (err) {
-      setClaudeUpdateMsg(t("engines.claude.updateFailed", { error: err instanceof Error ? err.message : String(err) }));
-    } finally {
-      setClaudeUpdating(false);
-    }
-  }, [refreshClaudeInfo, t]);
-
-  const handleCodexCheckUpdate = useCallback(async () => {
-    setCodexUpdating(true);
-    setCodexUpdateMsg(null);
-    try {
-      const result = await window.claude.codex.downloadUpdate();
-      if (result.error) {
-        setCodexUpdateMsg(t("engines.codex.updateFailed", { error: result.error }));
-      } else {
-        setCodexUpdateMsg(t("engines.codex.updated", { version: result.version ?? "" }));
-        await refreshCodexInfo();
-      }
-    } catch (err) {
-      setCodexUpdateMsg(t("engines.codex.updateFailed", { error: err instanceof Error ? err.message : String(err) }));
-    } finally {
-      setCodexUpdating(false);
-    }
-  }, [refreshCodexInfo, t]);
-
-  const handleClaudeBinarySourceChange = useCallback(
-    async (source: "builtin" | "auto" | "managed" | "custom") => {
-      setClaudeBinarySource(source);
-      await onUpdateAppSettings({ claudeBinarySource: source });
-    },
-    [onUpdateAppSettings],
-  );
-
-  const handleClaudeCustomPathSave = useCallback(
-    async (value: string) => {
-      const next = value.trim();
-      setClaudeCustomBinaryPath(next);
-      await onUpdateAppSettings({ claudeCustomBinaryPath: next });
-    },
-    [onUpdateAppSettings],
-  );
-
-  const handleCodexBinarySourceChange = useCallback(
-    async (source: "builtin" | "auto" | "managed" | "custom") => {
-      setCodexBinarySource(source);
-      await onUpdateAppSettings({ codexBinarySource: source });
-    },
-    [onUpdateAppSettings],
-  );
-
-  const handleCodexCustomPathSave = useCallback(
-    async (value: string) => {
-      const next = value.trim();
-      setCodexCustomBinaryPath(next);
-      await onUpdateAppSettings({ codexCustomBinaryPath: next });
-    },
-    [onUpdateAppSettings],
-  );
-
-  const handleClaudeGatewayChange = useCallback(
-    async (patch: Partial<ClaudeGatewaySettings>) => {
-      const next = { ...claudeGateway, ...patch };
-      setClaudeGateway(next);
-      await onUpdateAppSettings({
-        claudeGateway: next,
-        claudeCliConfigSource: resolveGatewayConfigSource({
-          enabled: next.enabled,
-          baseUrl: next.baseUrl,
-          credential: next.authToken,
-        }),
-      });
-    },
-    [claudeGateway, onUpdateAppSettings],
-  );
-
-  const handleClaudeGatewayEnabledChange = useCallback(
-    (checked: boolean) => {
-      if (checked && !claudeGateway.enabled) setClaudeGatewayOpen(true);
-      if (!checked) setClaudeGatewayOpen(false);
-      void handleClaudeGatewayChange({ enabled: checked }).catch(() => {});
-    },
-    [claudeGateway.enabled, handleClaudeGatewayChange],
-  );
-
-  const handleCodexGatewayChange = useCallback(
-    async (patch: Partial<CodexGatewaySettings>) => {
-      const next = { ...codexGateway, ...patch };
-      setCodexGateway(next);
-      await onUpdateAppSettings({
-        codexGateway: next,
-        codexCliConfigSource: resolveGatewayConfigSource({
-          enabled: next.enabled,
-          baseUrl: next.baseUrl,
-          credential: next.apiKey,
-        }),
-      });
-    },
-    [codexGateway, onUpdateAppSettings],
-  );
-
-  const handleCodexGatewayEnabledChange = useCallback(
-    (checked: boolean) => {
-      if (checked && !codexGateway.enabled) setCodexGatewayOpen(true);
-      if (!checked) setCodexGatewayOpen(false);
-      void handleCodexGatewayChange({ enabled: checked }).catch(() => {});
-    },
-    [codexGateway.enabled, handleCodexGatewayChange],
-  );
+    void refreshPiRuntimeStatus();
+  }, [refreshPiRuntimeStatus]);
 
   const handlePiGatewayChange = useCallback(
     async (patch: Partial<PiGatewaySettings>) => {
@@ -259,47 +121,16 @@ export const EngineSettings = memo(function EngineSettings({
         }),
       });
     },
-    [piGateway, onUpdateAppSettings],
+    [onUpdateAppSettings, piGateway],
   );
 
   const handlePiGatewayEnabledChange = useCallback(
     (checked: boolean) => {
-      if (checked && !piGateway.enabled) setPiGatewayOpen(true);
-      if (!checked) setPiGatewayOpen(false);
+      setPiGatewayOpen(checked);
       void handlePiGatewayChange({ enabled: checked }).catch(() => {});
     },
-    [handlePiGatewayChange, piGateway.enabled],
+    [handlePiGatewayChange],
   );
-
-  const fetchClaudeGatewayModels = useCallback(async () => {
-    setClaudeModelsLoading(true);
-    setClaudeUpstreamError(null);
-    try {
-      const result = await window.claude.ccConfig.probeModels({
-        baseUrl: claudeGateway.baseUrl,
-        token: claudeGateway.authToken,
-      });
-      setClaudeUpstreamModels(result.models ?? []);
-      setClaudeUpstreamError(result.error);
-    } finally {
-      setClaudeModelsLoading(false);
-    }
-  }, [claudeGateway.baseUrl, claudeGateway.authToken]);
-
-  const fetchCodexGatewayModels = useCallback(async () => {
-    setCodexModelsLoading(true);
-    setCodexUpstreamError(null);
-    try {
-      const result = await window.claude.ccConfig.probeModels({
-        baseUrl: codexGateway.baseUrl,
-        token: codexGateway.apiKey,
-      });
-      setCodexUpstreamModels(result.models ?? []);
-      setCodexUpstreamError(result.error);
-    } finally {
-      setCodexModelsLoading(false);
-    }
-  }, [codexGateway.baseUrl, codexGateway.apiKey]);
 
   const fetchPiGatewayModels = useCallback(async () => {
     setPiModelsLoading(true);
@@ -314,267 +145,70 @@ export const EngineSettings = memo(function EngineSettings({
     } finally {
       setPiModelsLoading(false);
     }
-  }, [piGateway.baseUrl, piGateway.apiKey]);
-
-  const claudeGitBashMissing = !!claudeGitBash?.required && !claudeGitBash.ready;
-  const claudeRuntimeDescription = claudeGitBashMissing
-    ? t("engines.claude.gitBashMissing")
-    : t("engines.claude.versionDesc", {
-      version: claudeVersion ?? t("engines.claude.origin.none"),
-      origin: t(`engines.claude.origin.${claudeOrigin}`),
-    });
+  }, [piGateway.apiKey, piGateway.baseUrl]);
 
   return (
     <div className="flex h-full flex-col">
       <SettingsHeader
         title={t("engines.title")}
         description={t("engines.description")}
+        actions={
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t("engines.pi.runtimeRefresh")}
+                  disabled={piRuntimeLoading}
+                  onClick={() => void refreshPiRuntimeStatus()}
+                >
+                  <RefreshCw className={piRuntimeLoading ? "animate-spin" : ""} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t("engines.pi.runtimeRefresh")}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        }
       />
-
       <ScrollArea className="min-h-0 flex-1">
         <div className="px-6 py-2">
-          <SettingsSection icon={Server} label={t("engines.claude.section")} first>
-            <SettingRow
-              label={t("engines.claude.sourceLabel")}
-              description={t("engines.claude.sourceDesc")}
-            >
-              <SettingsSelect
-                value={claudeBinarySource}
-                onValueChange={handleClaudeBinarySourceChange}
-                options={[
-                  { value: "builtin", label: t("engines.source.builtin") },
-                  { value: "auto", label: t("engines.source.auto") },
-                  { value: "managed", label: t("engines.source.managedInstall") },
-                  { value: "custom", label: t("engines.source.custom") },
-                ]}
-                className="w-44"
-              />
-            </SettingRow>
-
-            {claudeBinarySource !== "custom" && (
-              <SettingRow
-                label={t("engines.claude.versionLabel")}
-                description={
-                  claudeUpdateMsg ??
-                  claudeRuntimeDescription
-                }
-              >
-                {/* Only "managed" downloads a native Claude from claude.ai; for
-                    built-in/auto the binary is already present, so show status only. */}
-                {claudeBinarySource === "managed" ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleClaudeCheckUpdate}
-                    disabled={claudeUpdating}
-                    className="gap-1.5"
-                  >
-                    {claudeUpdating ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-3.5 w-3.5" />
-                    )}
-                    {claudeUpdating ? t("action.downloading", { ns: "common" }) : t("action.checkForUpdates", { ns: "common" })}
-                  </Button>
-                ) : null}
-              </SettingRow>
-            )}
-
-            {claudeBinarySource === "custom" && (
-              <SettingRow
-                label={t("engines.claude.customLabel")}
-                description={claudeGitBashMissing ? t("engines.claude.gitBashMissing") : t("engines.claude.customDesc")}
-              >
-                <input
-                  type="text"
-                  value={claudeCustomBinaryPath}
-                  onChange={(e) => setClaudeCustomBinaryPath(e.target.value)}
-                  onBlur={(e) => {
-                    void handleClaudeCustomPathSave(e.target.value).catch(() => {});
-                  }}
-                  onKeyDown={(e) => {
-                    if (isImeComposing(e)) return;
-                    if (e.key === "Enter") {
-                      void handleClaudeCustomPathSave(e.currentTarget.value).catch(() => {});
-                    }
-                  }}
-                  spellCheck={false}
-                  className="h-8 w-80 rounded-md border border-foreground/10 bg-background px-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground hover:border-foreground/20 focus:border-foreground/30 focus:ring-1 focus:ring-foreground/20"
-                  placeholder={t("engines.claude.customPlaceholder")}
-                />
-              </SettingRow>
-            )}
-
-            <SettingRow
-              label={t("engines.claude.gateway.toggleLabel")}
-              description={t("engines.claude.gateway.toggleDesc")}
-            >
-              <Switch
-                checked={claudeGateway.enabled}
-                onCheckedChange={handleClaudeGatewayEnabledChange}
-              />
-            </SettingRow>
-
-            {claudeGateway.enabled && (
-              <Collapsible open={claudeGatewayOpen} onOpenChange={setClaudeGatewayOpen}>
-                <CollapsibleTrigger className="flex w-full items-center gap-1.5 px-1 py-1.5 text-sm font-medium text-foreground/80 transition-colors hover:text-foreground">
-                  <ChevronRight className={`h-4 w-4 transition-transform ${claudeGatewayOpen ? "rotate-90" : ""}`} />
-                  {t("engines.claude.gateway.editLabel")}
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <div className="px-1 pt-1">
-                    <SettingRow label={t("engines.claude.gateway.baseUrlLabel")} description={t("engines.claude.gateway.baseUrlDesc")}>
-                      <GatewayTextField
-                        value={claudeGateway.baseUrl}
-                        onSave={(v) => handleClaudeGatewayChange({ baseUrl: v.trim() })}
-                        placeholder={t("engines.claude.gateway.baseUrlPlaceholder")}
-                      />
-                    </SettingRow>
-                    <SettingRow label={t("engines.claude.gateway.tokenLabel")} description={t("engines.claude.gateway.tokenDesc")}>
-                      <GatewayTextField
-                        value={claudeGateway.authToken}
-                        onSave={(v) => handleClaudeGatewayChange({ authToken: v.trim() })}
-                        placeholder={t("engines.claude.gateway.tokenPlaceholder")}
-                        type="password"
-                      />
-                    </SettingRow>
-                    <SettingRow label={t("engines.claude.gateway.modelLabel")} description={t("engines.claude.gateway.modelDesc")}>
-                      <GatewayModelField
-                        value={claudeGateway.model}
-                        mappings={claudeGateway.modelMappings}
-                        upstreamModels={claudeUpstreamModels}
-                        onSave={(v) => handleClaudeGatewayChange({ model: v.trim() })}
-                        placeholder={t("engines.claude.gateway.modelPlaceholder")}
-                        datalistId="claude-gateway-default-models"
-                      />
-                    </SettingRow>
-                    <GatewayModelMappingsEditor
-                      engine="claude"
-                      mappings={claudeGateway.modelMappings}
-                      upstreamModels={claudeUpstreamModels}
-                      upstreamError={claudeUpstreamError}
-                      loading={claudeModelsLoading}
-                      onFetch={fetchClaudeGatewayModels}
-                      onChange={(modelMappings) => {
-                        void handleClaudeGatewayChange({ modelMappings }).catch(() => {});
-                      }}
-                    />
-                  </div>
-                </CollapsibleContent>
-              </Collapsible>
-            )}
-          </SettingsSection>
-
-          <SettingsSection icon={Server} label={t("engines.codex.section")}>
-            <SettingRow
-              label={t("engines.codex.sourceLabel")}
-              description={t("engines.codex.sourceDesc")}
-            >
-              <SettingsSelect
-                value={codexBinarySource}
-                onValueChange={handleCodexBinarySourceChange}
-                options={[
-                  { value: "builtin", label: t("engines.source.builtin") },
-                  { value: "auto", label: t("engines.source.auto") },
-                  { value: "managed", label: t("engines.source.managedDownload") },
-                  { value: "custom", label: t("engines.source.custom") },
-                ]}
-                className="w-44"
-              />
-            </SettingRow>
-
-            {codexBinarySource !== "custom" && (
-              <SettingRow
-                label={t("engines.codex.versionLabel")}
-                description={
-                  codexUpdateMsg ??
-                  t("engines.codex.versionDesc", {
-                    version: codexVersion ?? t("engines.codex.origin.none"),
-                    origin: t(`engines.codex.origin.${codexOrigin}`),
-                  })
-                }
-              >
-                {/* Only "managed" downloads codex from npm; built-in/auto already
-                    have a binary, so show status only. */}
-                {codexBinarySource === "managed" ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleCodexCheckUpdate}
-                    disabled={codexUpdating}
-                    className="gap-1.5"
-                  >
-                    {codexUpdating ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-3.5 w-3.5" />
-                    )}
-                    {codexUpdating ? t("action.downloading", { ns: "common" }) : t("action.checkForUpdates", { ns: "common" })}
-                  </Button>
-                ) : null}
-              </SettingRow>
-            )}
-
-            {codexBinarySource === "custom" && (
-              <SettingRow
-                label={t("engines.codex.customLabel")}
-                description={t("engines.codex.customDesc")}
-              >
-                <input
-                  type="text"
-                  value={codexCustomBinaryPath}
-                  onChange={(e) => setCodexCustomBinaryPath(e.target.value)}
-                  onBlur={(e) => {
-                    void handleCodexCustomPathSave(e.target.value).catch(() => {});
-                  }}
-                  onKeyDown={(e) => {
-                    if (isImeComposing(e)) return;
-                    if (e.key === "Enter") {
-                      void handleCodexCustomPathSave(e.currentTarget.value).catch(() => {});
-                    }
-                  }}
-                  spellCheck={false}
-                  className="h-8 w-80 rounded-md border border-foreground/10 bg-background px-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground hover:border-foreground/20 focus:border-foreground/30 focus:ring-1 focus:ring-foreground/20"
-                  placeholder={t("engines.codex.customPlaceholder")}
-                />
-              </SettingRow>
-            )}
-
-            <SettingRow
-              label={t("engines.codex.gateway.toggleLabel")}
-              description={t("engines.codex.gateway.toggleDesc")}
-            >
-              <Switch
-                checked={codexGateway.enabled}
-                onCheckedChange={handleCodexGatewayEnabledChange}
-              />
-            </SettingRow>
-
-            {codexGateway.enabled && (
-              <OpenAiGatewayEditor
-                engine="codex"
-                gateway={codexGateway}
-                open={codexGatewayOpen}
-                onOpenChange={setCodexGatewayOpen}
-                upstreamModels={codexUpstreamModels}
-                upstreamError={codexUpstreamError}
-                loading={codexModelsLoading}
-                onFetch={fetchCodexGatewayModels}
-                onChange={handleCodexGatewayChange}
-              />
-            )}
-          </SettingsSection>
-
-          <SettingsSection icon={Server} label={t("engines.pi.section")}>
-            <SettingRow
-              label={t("engines.pi.runtimeLabel")}
-              description={t("engines.pi.runtimeDesc")}
-            >
-              <span className="font-mono text-xs text-muted-foreground">
-                {t("engines.pi.runtimeValue")}
-              </span>
-            </SettingRow>
-
+          <SettingsSection icon={PiLogo} label={t("engines.pi.section")} first>
+            <div className="py-3">
+              <p className="text-sm font-medium text-foreground">
+                {t("engines.pi.runtimeLabel")}
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {t("engines.pi.runtimeDesc")}
+              </p>
+              {piRuntimeStatus && (
+                <p className={`mt-2 text-xs font-medium ${
+                  piRuntimeStatus.offlineReady
+                    ? "text-emerald-700 dark:text-emerald-300"
+                    : "text-red-700 dark:text-red-300"
+                }`}>
+                  {t(piRuntimeStatus.offlineReady
+                    ? "engines.pi.runtimeOfflineReady"
+                    : "engines.pi.runtimeOfflineUnavailable")}
+                </p>
+              )}
+              <div className="mt-2 divide-y divide-foreground/[0.06]">
+                {piRuntimeStatus ? (
+                  <>
+                    <RuntimeBinaryDetails status={piRuntimeStatus.pi} />
+                    <RuntimeBinaryDetails status={piRuntimeStatus.piAcp} />
+                    <RuntimeBinaryDetails status={piRuntimeStatus.piMcpAdapter} />
+                  </>
+                ) : (
+                  <p className="py-3 text-xs text-muted-foreground">
+                    {piRuntimeError
+                      ? t("engines.pi.runtimeLoadFailed")
+                      : t("engines.pi.runtimeLoading")}
+                  </p>
+                )}
+              </div>
+            </div>
             <SettingRow
               label={t("engines.pi.gateway.toggleLabel")}
               description={t("engines.pi.gateway.toggleDesc")}
@@ -584,7 +218,6 @@ export const EngineSettings = memo(function EngineSettings({
                 onCheckedChange={handlePiGatewayEnabledChange}
               />
             </SettingRow>
-
             {piGateway.enabled && (
               <OpenAiGatewayEditor
                 engine="pi"

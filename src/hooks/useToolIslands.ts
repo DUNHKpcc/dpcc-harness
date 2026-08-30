@@ -123,7 +123,7 @@ export interface UseToolIslandsReturn {
 
   // Direct state mutation (for wrapper-level operations like session management)
   update: (updater: (current: ToolIslandsState) => ToolIslandsState) => void;
-  resetState: (next: ToolIslandsState) => void;
+  resetState: (next: ToolIslandsState, notify?: boolean) => void;
 
   // Width fractions
   setWidthFractions: (fractions: number[]) => void;
@@ -169,9 +169,11 @@ export function useToolIslands(
     });
   }, []);
 
-  const resetState = useCallback((next: ToolIslandsState) => {
+  const resetState = useCallback((next: ToolIslandsState, notify = true) => {
     setState(next);
-    configRef.current.onStateChange?.(next);
+    if (notify) {
+      configRef.current.onStateChange?.(next);
+    }
   }, []);
 
   // ── Derived memos ──
@@ -430,6 +432,7 @@ export function useToolIslands(
           toolMemories: {
             ...current.toolMemories,
             [memoryKey]: {
+              ...memory,
               islandId, persistKey, lastDock: resolvedDock,
               lastTopIndex: nextTopIndex, lastBottomIndex: nextBottomIndex,
               lastTopColumnId: nextTopColumnId,
@@ -540,6 +543,7 @@ export function useToolIslands(
           toolMemories: {
             ...current.toolMemories,
             [memoryKey]: {
+              ...memory,
               islandId,
               persistKey,
               lastDock: "top",
@@ -621,6 +625,7 @@ export function useToolIslands(
           toolMemories: {
             ...current.toolMemories,
             [memoryKey]: {
+              ...current.toolMemories[memoryKey],
               islandId,
               persistKey: current.toolMemories[memoryKey]?.persistKey ?? island.persistKey,
               lastDock: island.dock,

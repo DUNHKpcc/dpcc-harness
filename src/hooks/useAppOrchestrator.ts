@@ -11,17 +11,16 @@ import { useAcpAgentAutoUpdate } from "@/hooks/useAcpAgentAutoUpdate";
 import { useSplitView } from "@/hooks/useSplitView";
 import { useFolderManager } from "@/hooks/useFolderManager";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
-import { resolveClaudePickerValue, resolveModelValue } from "@/lib/model-utils";
 import type { ToolId } from "@/types/tools";
-import type { AcpPermissionBehavior, EngineId, InstalledAgent, ModelInfo } from "@/types";
-import { getSyncedPlanMode } from "@/hooks/app-layout/session-utils";
+import { BUILTIN_PI_AGENT, BUILTIN_PI_AGENT_ID } from "@/types";
+import type { EngineId, InstalledAgent } from "@/types";
+import { useSettingsStore } from "@/stores/settings-store";
 import { useAppEnvironmentState } from "@/hooks/app-layout/useAppEnvironmentState";
 import { useAppSessionActions } from "@/hooks/app-layout/useAppSessionActions";
 import { useAppSpaceWorkflow } from "@/hooks/app-layout/useAppSpaceWorkflow";
 import { useAppContextualPanels } from "@/hooks/app-layout/useAppContextualPanels";
-import { pickCodexModel, type CodexModelSummary } from "@/hooks/session/types";
+import { getSessionRuntimeDisposition } from "@shared/lib/session-runtime";
 
-export { getSyncedPlanMode } from "@/hooks/app-layout/session-utils";
 
 interface UseAppOrchestratorInput {
   onOpenSession?: (sessionId: string) => void;
@@ -54,49 +53,50 @@ export function planToolToggle(toolId: ToolId, activeTools: ReadonlySet<ToolId>)
   };
 }
 
-export function getCanonicalClaudeModelForCatalog(
-  currentModel: string | null | undefined,
-  supportedModels: ModelInfo[],
-): string | undefined {
-  return resolveClaudePickerValue(currentModel, supportedModels);
-}
-
-export function getValidCodexModelForCatalog(
-  currentModel: string | null | undefined,
-  models: CodexModelSummary[],
-): string | undefined {
-  if (models.length === 0) return undefined;
-  return pickCodexModel(currentModel ?? undefined, models);
-}
-
 export function useAppOrchestrator(input: UseAppOrchestratorInput = {}) {
   const sidebar = useSidebar();
   const splitView = useSplitView();
   const projectManager = useProjectManager();
   const spaceManager = useSpaceManager();
-  // Read ACP permission behavior early — it's a global setting (same localStorage key as useSettings)
-  // so we can read it before useSettings which depends on manager.activeSession for per-project scoping
-  const acpPermissionBehavior = (localStorage.getItem("pcc-agent-acp-permission-behavior") ?? "ask") as AcpPermissionBehavior;
+  const agentRegistry = useAgentRegistry();
+  const acpPermissionBehavior = useSettingsStore((state) => state.acpPermissionBehavior);
   const manager = useSessionManager(
     projectManager.projects,
     acpPermissionBehavior,
     spaceManager.setActiveSpaceId,
     splitView.visibleSessionIds,
+    agentRegistry.agents,
   );
 
-  const [selectedAgent, setSelectedAgent] = useState<InstalledAgent | null>(null);
-  const settingsEngine: EngineId = (!manager.isDraft && manager.activeSession?.engine)
-    ? manager.activeSession.engine
-    : (selectedAgent?.engine ?? "claude");
+  const [selectedAgent, setSelectedAgent] = useState<InstalledAgent | null>(() => ({
+    ...BUILTIN_PI_AGENT,
+  }));
+  // Settings are now scoped to the sole live runtime. Legacy session identity
+  // remains visible through `lockedEngine`, but must not select old model
+  // catalogs or old runtime controls.
+  const settingsEngine: EngineId = "acp";
   const settingsProjectId = manager.activeSession?.projectId ?? manager.draftProjectId ?? null;
   const settings = useSettings(settingsProjectId, settingsEngine);
   const resolvedTheme = useTheme(settings.theme);
-  const { agents, refresh: refreshAgents, saveAgent, deleteAgent } = useAgentRegistry();
+  const { agents, refresh: refreshAgents, saveAgent, deleteAgent } = agentRegistry;
   useAcpAgentAutoUpdate({ installedAgents: agents, refreshInstalledAgents: refreshAgents });
-  // Engine is locked once a session is active (not draft) — null means free to switch
-  const lockedEngine = !manager.isDraft && manager.activeSession?.engine
-    ? manager.activeSession.engine
+  const activeSessionDisposition = !manager.isDraft && manager.activeSession
+    ? getSessionRuntimeDisposition({
+        engine: manager.activeSession.invalidEngine ?? manager.activeSession.engine,
+        agentId: manager.activeSession.agentId,
+      })
     : null;
+  // Engine is locked once a session is active (not draft) — null means free to switch
+  const lockedEngine: EngineId | null = activeSessionDisposition
+    ? activeSessionDisposition.kind === "legacy-read-only"
+      ? activeSessionDisposition.engine
+      : "acp"
+    : null;
+  const readOnlyReason: "legacy" | "invalid" | null = activeSessionDisposition?.kind === "legacy-read-only"
+    ? "legacy"
+    : activeSessionDisposition?.kind === "invalid"
+      ? "invalid"
+      : null;
 
   // Agent ID is locked for ACP sessions — switching agents must open a new chat
   const lockedAgentId = !manager.isDraft && manager.activeSession?.agentId
@@ -152,7 +152,6 @@ export function useAppOrchestrator(input: UseAppOrchestratorInput = {}) {
     sessionInfo: manager.sessionInfo,
     isProcessing: manager.isProcessing,
     visibleSessionIds: splitView.visibleSessionIds,
-    setPlanMode: settings.setPlanMode,
     onOpenSession: input.onOpenSession ?? manager.switchSession,
   });
 
@@ -160,6 +159,7 @@ export function useAppOrchestrator(input: UseAppOrchestratorInput = {}) {
     manager,
     settings,
     selectedAgent,
+    installedAgents: agents,
     setSelectedAgent,
     setShowSettings: environment.setShowSettings,
     refreshAgents,
@@ -182,112 +182,36 @@ export function useAppOrchestrator(input: UseAppOrchestratorInput = {}) {
     isSpaceSwitching: spaceWorkflow.isSpaceSwitching,
   });
 
-  useEffect(() => {
-    const currentModel = settings.getModelForEngine("claude");
-    const canonicalModel = getCanonicalClaudeModelForCatalog(currentModel, manager.supportedModels);
-    if (canonicalModel && canonicalModel !== currentModel) {
-      settings.setModelForEngine("claude", canonicalModel);
-    }
-  }, [manager.supportedModels, settings.getModelForEngine, settings.setModelForEngine]);
-
-  useEffect(() => {
-    if (!manager.isDraft) return;
-    const currentModel = settings.getModelForEngine("codex");
-    const validModel = getValidCodexModelForCatalog(currentModel, manager.codexRawModels);
-    if (validModel && validModel !== currentModel) {
-      settings.setModelForEngine("codex", validModel);
-    }
-  }, [
-    manager.codexRawModels,
-    manager.isDraft,
-    settings.getModelForEngine,
-    settings.setModelForEngine,
-  ]);
-
-  // Sync model from loaded session (canonical runtime names -> picker values)
-  useEffect(() => {
-    if (!manager.activeSessionId || manager.isDraft || manager.supportedModels.length === 0) return;
-    const session = manager.sessions.find((s) => s.id === manager.activeSessionId);
-    if (!session?.model) return;
-
-    const sessionEngine = session.engine ?? "claude";
-    const syncedModel = sessionEngine === "claude"
-      ? (resolveClaudePickerValue(session.model, manager.supportedModels) ?? session.model)
-      : (resolveModelValue(session.model, manager.supportedModels) ?? session.model);
-    if (syncedModel !== settings.getModelForEngine(sessionEngine)) {
-      settings.setModelForEngine(sessionEngine, syncedModel);
-    }
-  }, [manager.activeSessionId, manager.isDraft, manager.sessions, manager.supportedModels, settings.getModelForEngine, settings.setModelForEngine]);
-
-  useEffect(() => {
-    if (!manager.activeSessionId || manager.isDraft) return;
-    const session = manager.sessions.find((s) => s.id === manager.activeSessionId);
-    if (!session || (session.engine ?? "claude") !== "claude" || !session.effort) return;
-    if (session.effort !== settings.claudeEffort) {
-      settings.setClaudeEffort(session.effort);
-    }
-  }, [manager.activeSessionId, manager.isDraft, manager.sessions, settings.claudeEffort, settings.setClaudeEffort]);
-
   // Sync selectedAgent when switching to a different session
   useEffect(() => {
     if (!manager.activeSessionId || manager.isDraft) return;
     const session = manager.sessions.find((s) => s.id === manager.activeSessionId);
     if (!session) return;
 
-    if (session.engine === "acp" && session.agentId) {
-      const agent = agents.find((a) => a.id === session.agentId);
+    const disposition = getSessionRuntimeDisposition({
+      engine: session.invalidEngine ?? session.engine,
+      agentId: session.agentId,
+    });
+    if (disposition.kind === "runtime") {
+      const agentId = disposition.agentId;
+      const agent = agents.find((a) => a.id === agentId)
+        ?? (agentId === BUILTIN_PI_AGENT_ID ? BUILTIN_PI_AGENT : undefined);
       if (agent && selectedAgent?.id !== agent.id) {
         setSelectedAgent(agent);
       }
       return;
     }
 
-    if (session.engine === "codex") {
-      const codexAgent = (session.agentId
-        ? agents.find((a) => a.id === session.agentId)
-        : undefined) ?? agents.find((a) => a.engine === "codex");
-      if (codexAgent && selectedAgent?.id !== codexAgent.id) {
-        setSelectedAgent(codexAgent);
-      }
-      return;
-    }
-
-    if (selectedAgent !== null) {
-      setSelectedAgent(null);
+    if (selectedAgent?.id !== BUILTIN_PI_AGENT_ID) {
+      setSelectedAgent(agents.find((agent) => agent.id === BUILTIN_PI_AGENT_ID) ?? BUILTIN_PI_AGENT);
     }
   }, [manager.activeSessionId, manager.isDraft, manager.sessions, agents]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Keyboard shortcuts ──
   useKeyboardShortcuts({
-    planMode: settings.planMode,
-    setPlanMode: settings.setPlanMode,
-    setActivePlanMode: manager.setActivePlanMode,
-    activeEngine: manager.activeSession?.engine ?? selectedAgent?.engine ?? "claude",
     activeSessionId: manager.activeSessionId,
     setChatSearchOpen: environment.setChatSearchOpen,
   });
-
-  // Sync plan toggle to the active chat session (handles both sessionInfo.permissionMode
-  // changes like ExitPlanMode and session switches).
-  useEffect(() => {
-    if (!manager.activeSessionId || manager.isDraft || !manager.activeSession) return;
-    const nextPlanMode = getSyncedPlanMode(
-      manager.activeSession.planMode,
-      manager.sessionInfo?.permissionMode,
-    );
-    if (settings.planMode !== nextPlanMode) settings.setPlanMode(nextPlanMode);
-    if (!!manager.activeSession.planMode !== nextPlanMode) {
-      manager.setActivePlanMode(nextPlanMode);
-    }
-  }, [
-    manager.activeSessionId,
-    manager.activeSession?.planMode,
-    manager.isDraft,
-    manager.sessionInfo?.permissionMode,
-    manager.setActivePlanMode,
-    settings.planMode,
-    settings.setPlanMode,
-  ]);
 
   const activeSpaceTerminals = spaceTerminals.getSpaceState(spaceManager.activeSpaceId);
 
@@ -341,6 +265,7 @@ export function useAppOrchestrator(input: UseAppOrchestratorInput = {}) {
     handleAgentChange: sessionActions.handleAgentChange,
     lockedEngine,
     lockedAgentId,
+    readOnlyReason,
   };
 
   const actions = {
@@ -349,10 +274,6 @@ export function useAppOrchestrator(input: UseAppOrchestratorInput = {}) {
     handleToolReorder,
     handleNewChat: sessionActions.handleNewChat,
     handleSend: sessionActions.handleSend,
-    handleModelChange: sessionActions.handleModelChange,
-    handlePermissionModeChange: sessionActions.handlePermissionModeChange,
-    handlePlanModeChange: sessionActions.handlePlanModeChange,
-    handleClaudeModelEffortChange: sessionActions.handleClaudeModelEffortChange,
     handleAgentWorktreeChange: sessionActions.handleAgentWorktreeChange,
     handleStop: sessionActions.handleStop,
     handleSendQueuedNow: sessionActions.handleSendQueuedNow,
@@ -407,6 +328,7 @@ export function useAppOrchestrator(input: UseAppOrchestratorInput = {}) {
     handleAgentChange: sessionActions.handleAgentChange,
     lockedEngine,
     lockedAgentId,
+    readOnlyReason,
 
     // Derived state
     activeProjectId: spaceWorkflow.activeProjectId,
@@ -458,10 +380,6 @@ export function useAppOrchestrator(input: UseAppOrchestratorInput = {}) {
     handleToolReorder,
     handleNewChat: sessionActions.handleNewChat,
     handleSend: sessionActions.handleSend,
-    handleModelChange: sessionActions.handleModelChange,
-    handlePermissionModeChange: sessionActions.handlePermissionModeChange,
-    handlePlanModeChange: sessionActions.handlePlanModeChange,
-    handleClaudeModelEffortChange: sessionActions.handleClaudeModelEffortChange,
     handleAgentWorktreeChange: sessionActions.handleAgentWorktreeChange,
     handleStop: sessionActions.handleStop,
     handleSendQueuedNow: sessionActions.handleSendQueuedNow,

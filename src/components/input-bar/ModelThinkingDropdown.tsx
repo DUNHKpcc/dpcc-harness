@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { ACPConfigOption, ClaudeEffort } from "@/types";
+import type { ACPConfigOption } from "@/types";
 import { flattenConfigOptions } from "@/lib/engine/acp-utils";
 import {
   getPiThinkingDisplayLevel,
@@ -23,11 +23,8 @@ import {
   ModelOptionList,
   selectedModelOptionLabel,
   toAcpModelOptionItems,
-  type ModelOptionItem,
 } from "./ModelOptionList";
 import { TOOLBAR_BTN } from "./constants";
-
-const KNOWN_CLAUDE_EFFORTS = new Set(["low", "medium", "high", "xhigh", "max"]);
 
 interface ThinkingOptionItem {
   value: string;
@@ -39,20 +36,6 @@ interface ModelThinkingDropdownProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   isProcessing: boolean;
-  isACPAgent: boolean;
-  isCodexAgent: boolean;
-  selectedModelId: string;
-  selectedModelLabel: string;
-  modelList: ModelOptionItem[];
-  modelsLoading: boolean;
-  modelsLoadingText: string;
-  onModelChange: (model: string) => void;
-  claudeEffortOptions: string[];
-  claudeActiveEffort: ClaudeEffort;
-  onClaudeModelEffortChange: (model: string, effort: ClaudeEffort) => void;
-  codexEffortOptions: Array<{ reasoningEffort: string; description: string }>;
-  codexActiveEffort: string;
-  onCodexEffortChange?: (effort: string) => void;
   acpConfigOptions?: ACPConfigOption[];
   acpConfigOptionsLoading?: boolean;
   onACPConfigChange?: (configId: string, value: string) => void;
@@ -95,20 +78,6 @@ export const ModelThinkingDropdown = memo(function ModelThinkingDropdown({
   open,
   onOpenChange,
   isProcessing,
-  isACPAgent,
-  isCodexAgent,
-  selectedModelId,
-  selectedModelLabel,
-  modelList,
-  modelsLoading,
-  modelsLoadingText,
-  onModelChange,
-  claudeEffortOptions,
-  claudeActiveEffort,
-  onClaudeModelEffortChange,
-  codexEffortOptions,
-  codexActiveEffort,
-  onCodexEffortChange,
   acpConfigOptions,
   acpConfigOptionsLoading,
   onACPConfigChange,
@@ -129,68 +98,34 @@ export const ModelThinkingDropdown = memo(function ModelThinkingDropdown({
           || piThinkingProfile?.levels.includes(option.value as PiThinkingLevel),
       )
     : [];
-  const thinkingItems: ThinkingOptionItem[] = isACPAgent
-    ? acpThinkingItems.map((option) => ({
-        value: option.value,
-        label: dpccPiModelId
-          ? getPiThinkingDisplayLevel(dpccPiModelId, option.value)
-          : acpThinkingOption
-            ? compactAcpValueLabel(acpThinkingOption, option.name)
-            : option.name,
-        description: option.description ?? undefined,
-      }))
-    : isCodexAgent
-      ? codexEffortOptions.map((option) => ({
-          value: option.reasoningEffort,
-          label: option.reasoningEffort,
-          description: option.description,
-        }))
-      : claudeEffortOptions.map((effort) => ({
-          value: effort,
-          label: effort,
-          description: KNOWN_CLAUDE_EFFORTS.has(effort)
-            ? t(`engine.effortDesc.${effort}`)
-            : t("engine.customReasoningEffort"),
-        }));
-  const selectedThinkingValue = isACPAgent
-    ? acpThinkingOption?.currentValue ?? ""
-    : isCodexAgent
-      ? codexActiveEffort
-      : claudeActiveEffort;
-  const activeModelLabel = isACPAgent
-    ? selectedModelOptionLabel(
-        acpModelItems,
-        acpModelOption?.currentValue ?? "",
-        acpCurrentLabel(acpModelOption),
-      )
-    : selectedModelLabel;
+  const thinkingItems: ThinkingOptionItem[] = acpThinkingItems.map((option) => ({
+    value: option.value,
+    label: dpccPiModelId
+      ? getPiThinkingDisplayLevel(dpccPiModelId, option.value)
+      : acpThinkingOption
+        ? compactAcpValueLabel(acpThinkingOption, option.name)
+        : option.name,
+    description: option.description ?? undefined,
+  }));
+  const selectedThinkingValue = acpThinkingOption?.currentValue ?? "";
+  const activeModelLabel = selectedModelOptionLabel(
+    acpModelItems,
+    acpModelOption?.currentValue ?? "",
+    acpCurrentLabel(acpModelOption),
+  );
   const activeThinkingLabel = thinkingItems.find(
     (option) => option.value === selectedThinkingValue,
   )?.label ?? "";
-  const canChangeThinking = isACPAgent
-    ? !!acpThinkingOption && !!onACPConfigChange
-    : isCodexAgent
-      ? !!onCodexEffortChange
-      : true;
+  const canChangeThinking = !!acpThinkingOption && !!onACPConfigChange;
   const hasThinkingOptions = thinkingItems.length > 0 && canChangeThinking;
-  const hasModelOptions = isACPAgent
-    ? acpModelItems.length > 0 && !!acpModelOption && !!onACPConfigChange
-    : modelList.length > 0;
+  const hasModelOptions = acpModelItems.length > 0 && !!acpModelOption && !!onACPConfigChange;
   const showThinkingPanel = hasModelOptions || hasThinkingOptions;
-  const isLoading = isACPAgent
-    ? !!acpConfigOptionsLoading && (acpConfigOptions?.length ?? 0) === 0
-    : modelsLoading;
+  const isLoading = !!acpConfigOptionsLoading && (acpConfigOptions?.length ?? 0) === 0;
 
   const handleThinkingSelect = (value: string) => {
-    if (isACPAgent && acpThinkingOption && onACPConfigChange) {
+    if (acpThinkingOption && onACPConfigChange) {
       onACPConfigChange(acpThinkingOption.id, value);
-      return;
     }
-    if (isCodexAgent) {
-      onCodexEffortChange?.(value);
-      return;
-    }
-    onClaudeModelEffortChange(selectedModelId, value as ClaudeEffort);
   };
 
   return (
@@ -232,7 +167,7 @@ export const ModelThinkingDropdown = memo(function ModelThinkingDropdown({
         {isLoading && (
           <DropdownMenuItem disabled className="text-xs text-muted-foreground">
             <Loader2 className="h-3 w-3 animate-spin" />
-            {isACPAgent ? t("engine.loadingOptions") : modelsLoadingText}
+            {t("engine.loadingOptions")}
           </DropdownMenuItem>
         )}
         {!isLoading && hasModelOptions && (
@@ -241,11 +176,11 @@ export const ModelThinkingDropdown = memo(function ModelThinkingDropdown({
               {t("engine.model")}
             </DropdownMenuLabel>
             <ModelOptionList
-              items={isACPAgent ? acpModelItems : modelList}
-              selectedId={isACPAgent ? (acpModelOption?.currentValue ?? "") : selectedModelId}
-              onSelect={isACPAgent && acpModelOption && onACPConfigChange
+              items={acpModelItems}
+              selectedId={acpModelOption?.currentValue ?? ""}
+              onSelect={acpModelOption && onACPConfigChange
                 ? (value) => onACPConfigChange(acpModelOption.id, value)
-                : onModelChange}
+                : () => {}}
               keepOpenOnSelect
               constrainHeight={false}
               className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain [scrollbar-gutter:stable]"
@@ -256,7 +191,7 @@ export const ModelThinkingDropdown = memo(function ModelThinkingDropdown({
         {!isLoading && showThinkingPanel && (
           <DropdownMenuGroup data-slot="thinking-option-panel" className="shrink-0">
             <DropdownMenuLabel className="text-[10px] font-medium text-muted-foreground">
-              {isACPAgent && acpThinkingOption?.name
+              {acpThinkingOption?.name
                 ? acpThinkingOption.name
                 : t("engine.thinking")}
             </DropdownMenuLabel>

@@ -249,7 +249,6 @@ export const AboutSettings = memo(function AboutSettings() {
                 "TypeScript",
                 "Tailwind CSS",
                 "ShadCN",
-                "Claude Agent SDK",
                 "Agent Client Protocol",
               ].map((tech) => (
                 <span

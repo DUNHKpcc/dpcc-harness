@@ -140,7 +140,6 @@ function renderIslandContent(
         headerControls={controls}
         projectPath={paneProjectPath}
         projectRoot={paneProjectRoot}
-        projectId={paneProject?.id ?? null}
         sessionId={island.sourceSessionId}
         messages={paneState.messages}
         activeEngine={session?.engine}

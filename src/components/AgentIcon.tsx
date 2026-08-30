@@ -1,5 +1,7 @@
 import { Bot } from "lucide-react";
 import { resolveLucideIcon } from "@/lib/icon-utils";
+import { PI_OFFICIAL_ICON } from "@/types";
+import { PiLogo } from "@/components/PiLogo";
 
 interface AgentIconProps {
   icon?: string;
@@ -8,10 +10,14 @@ interface AgentIconProps {
 }
 
 /**
- * Renders an agent icon — supports URL (from registry CDN), emoji, or lucide name.
+ * Renders an agent icon — supports the official Pi badge, registry URLs, emoji, or lucide names.
  * Falls back to a generic Bot icon when nothing matches.
  */
 export function AgentIcon({ icon, size = 16, className }: AgentIconProps) {
+  if (icon === PI_OFFICIAL_ICON) {
+    return <PiLogo size={size} className={className} />;
+  }
+
   if (!icon) {
     return <Bot style={{ width: size, height: size }} className={className} />;
   }

@@ -98,64 +98,11 @@ contextBridge.exposeInMainWorld("claude", {
     setTheme: (theme: string) =>
       ipcRenderer.send("glass:set-theme", theme),
   },
-  start: (options: unknown) => ipcRenderer.invoke("claude:start", options),
-  send: (sessionId: string, message: unknown) => ipcRenderer.invoke("claude:send", { sessionId, message }),
-  stop: (sessionId: string, reason?: string) =>
-    ipcRenderer.invoke("claude:stop", { sessionId, reason }),
-  interrupt: (sessionId: string) => ipcRenderer.invoke("claude:interrupt", sessionId),
-  stopTask: (sessionId: string, taskId: string) =>
-    ipcRenderer.invoke("claude:stop-task", { sessionId, taskId }),
-  readAgentOutput: (outputFile: string) =>
-    ipcRenderer.invoke("claude:read-agent-output", { outputFile }),
-  log: (label: string, data: unknown) => ipcRenderer.send("claude:log", label, data),
-  onEvent: (callback: (data: unknown) => void) => {
-    const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);
-    ipcRenderer.on("claude:event", listener);
-    return () => ipcRenderer.removeListener("claude:event", listener);
-  },
   onUpstreamRequest: (callback: (data: unknown) => void) => {
     const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);
     ipcRenderer.on("usage:upstream-request", listener);
     return () => ipcRenderer.removeListener("usage:upstream-request", listener);
   },
-  onStderr: (callback: (data: unknown) => void) => {
-    const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);
-    ipcRenderer.on("claude:stderr", listener);
-    return () => ipcRenderer.removeListener("claude:stderr", listener);
-  },
-  onExit: (callback: (data: unknown) => void) => {
-    const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);
-    ipcRenderer.on("claude:exit", listener);
-    return () => ipcRenderer.removeListener("claude:exit", listener);
-  },
-  onPermissionRequest: (callback: (data: unknown) => void) => {
-    const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);
-    ipcRenderer.on("claude:permission_request", listener);
-    return () => ipcRenderer.removeListener("claude:permission_request", listener);
-  },
-  respondPermission: (sessionId: string, requestId: string, behavior: string, toolUseId: string, toolInput: unknown, newPermissionMode?: string, updatedPermissions?: unknown[]) =>
-    ipcRenderer.invoke("claude:permission_response", { sessionId, requestId, behavior, toolUseId, toolInput, newPermissionMode, updatedPermissions }),
-  setPermissionMode: (sessionId: string, permissionMode: string) =>
-    ipcRenderer.invoke("claude:set-permission-mode", { sessionId, permissionMode }),
-  setModel: (sessionId: string, model?: string) =>
-    ipcRenderer.invoke("claude:set-model", { sessionId, model }),
-  setThinking: (sessionId: string, thinkingEnabled: boolean) =>
-    ipcRenderer.invoke("claude:set-thinking", { sessionId, thinkingEnabled }),
-  version: () => ipcRenderer.invoke("claude:version"),
-  binaryStatus: () => ipcRenderer.invoke("claude:binary-status"),
-  binaryInfo: () => ipcRenderer.invoke("claude:binary-info"),
-  downloadUpdate: () => ipcRenderer.invoke("claude:download-update"),
-  supportedModels: (sessionId: string) => ipcRenderer.invoke("claude:supported-models", sessionId),
-  slashCommands: (sessionId: string) => ipcRenderer.invoke("claude:slash-commands", sessionId),
-  modelsCacheGet: () => ipcRenderer.invoke("claude:models-cache:get"),
-  modelsCacheRevalidate: (options?: { cwd?: string }) => ipcRenderer.invoke("claude:models-cache:revalidate", options),
-  mcpStatus: (sessionId: string) => ipcRenderer.invoke("claude:mcp-status", sessionId),
-  mcpReconnect: (sessionId: string, serverName: string) =>
-    ipcRenderer.invoke("claude:mcp-reconnect", { sessionId, serverName }),
-  revertFiles: (sessionId: string, checkpointId: string) =>
-    ipcRenderer.invoke("claude:revert-files", { sessionId, checkpointId }),
-  restartSession: (sessionId: string, mcpServers?: unknown[], cwd?: string, effort?: string, model?: string, claudeCodexBridgeEnabled?: boolean) =>
-    ipcRenderer.invoke("claude:restart-session", { sessionId, mcpServers, cwd, effort, model, claudeCodexBridgeEnabled }),
   readFile: (filePath: string) => ipcRenderer.invoke("file:read", filePath),
   // Synchronously resolve the absolute disk path of a File object (e.g. one
   // obtained from a drag-and-drop DataTransfer.files entry). Electron 32+
@@ -173,12 +120,7 @@ contextBridge.exposeInMainWorld("claude", {
   openExternal: (url: string) => ipcRenderer.invoke("shell:open-external", url),
   showItemInFolder: (filePath: string) => ipcRenderer.invoke("shell:show-item-in-folder", filePath),
   generateTitle: (message: string, cwd?: string, engine?: string, sessionId?: string) =>
-    ipcRenderer.invoke("claude:generate-title", { message, cwd, engine, sessionId }),
-  onCodexDelegationRequest: (callback: (data: unknown) => void) => {
-    const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);
-    ipcRenderer.on("claude-codex:delegate-request", listener);
-    return () => ipcRenderer.removeListener("claude-codex:delegate-request", listener);
-  },
+    ipcRenderer.invoke("session:generate-title", { message, cwd, engine, sessionId }),
   onTrayOpenSession: (
     callback: (target: { projectId: string; sessionId: string }) => void,
   ) => {
@@ -220,8 +162,6 @@ contextBridge.exposeInMainWorld("claude", {
       return () => ipcRenderer.removeListener("notifications:activated", listener);
     },
   } satisfies AppNotificationBridge,
-  completeCodexDelegation: (result: unknown) =>
-    ipcRenderer.invoke("claude-codex:complete-delegation", result),
   projects: {
     list: () => ipcRenderer.invoke("projects:list"),
     create: (spaceId?: string) => ipcRenderer.invoke("projects:create", spaceId),
@@ -323,7 +263,7 @@ contextBridge.exposeInMainWorld("claude", {
   },
   acp: {
     log: (label: string, data: unknown) => ipcRenderer.send("acp:log", label, data),
-    start: (options: { agentId: string; cwd: string; mcpServers?: unknown[] }) => ipcRenderer.invoke("acp:start", options),
+    start: (options: { agentId: string; cwd: string; mcpServers?: unknown[]; initialConfigOptions?: unknown[] }) => ipcRenderer.invoke("acp:start", options),
     authenticate: (sessionId: string, methodId: string) =>
       ipcRenderer.invoke("acp:authenticate", { sessionId, methodId }),
     prompt: (sessionId: string, text: string, images?: unknown[]) =>
@@ -331,7 +271,7 @@ contextBridge.exposeInMainWorld("claude", {
     stop: (sessionId: string) => ipcRenderer.invoke("acp:stop", sessionId),
     reloadSession: (sessionId: string, mcpServers?: unknown[], cwd?: string) =>
       ipcRenderer.invoke("acp:reload-session", { sessionId, mcpServers, cwd }),
-    reviveSession: (options: { agentId: string; cwd: string; sessionId?: string; agentSessionId?: string; mcpServers?: unknown[] }) =>
+    reviveSession: (options: { agentId: string; cwd: string; sessionId?: string; agentSessionId?: string; mcpServers?: unknown[]; initialConfigOptions?: unknown[] }) =>
       ipcRenderer.invoke("acp:revive-session", options),
     cancel: (sessionId: string) => ipcRenderer.invoke("acp:cancel", sessionId),
     abortPendingStart: () => ipcRenderer.invoke("acp:abort-pending-start"),
@@ -360,65 +300,21 @@ contextBridge.exposeInMainWorld("claude", {
       ipcRenderer.on("acp:turn_complete", listener);
       return () => ipcRenderer.removeListener("acp:turn_complete", listener);
     },
+    onTurnTransportError: (callback: (data: unknown) => void) => {
+      const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);
+      ipcRenderer.on("acp:turn_transport_error", listener);
+      return () => ipcRenderer.removeListener("acp:turn_transport_error", listener);
+    },
     onExit: (callback: (data: unknown) => void) => {
       const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);
       ipcRenderer.on("acp:exit", listener);
       return () => ipcRenderer.removeListener("acp:exit", listener);
     },
   },
-  codex: {
-    log: (label: string, data: unknown) => ipcRenderer.send("codex:log", label, data),
-    start: (options: { cwd: string; model?: string; permissionMode?: string; approvalPolicy?: string; sandbox?: "read-only" | "workspace-write" | "danger-full-access"; personality?: string; collaborationMode?: { mode: string; settings: { model: string; reasoning_effort: string | null; developer_instructions: string | null } } }) =>
-      ipcRenderer.invoke("codex:start", options),
-    send: (sessionId: string, text: string, images?: Array<{ type: "image"; url: string } | { type: "localImage"; path: string }>, effort?: string, collaborationMode?: { mode: string; settings: { model: string; reasoning_effort: string | null; developer_instructions: string | null } }, mentions?: Array<{ type: "mention"; name: string; path: string }>) =>
-      ipcRenderer.invoke("codex:send", { sessionId, text, images, effort, collaborationMode, mentions }),
-    stop: (sessionId: string) => ipcRenderer.invoke("codex:stop", sessionId),
-    interrupt: (sessionId: string) => ipcRenderer.invoke("codex:interrupt", sessionId),
-    respondApproval: (sessionId: string, rpcId: string | number, decision: string, acceptSettings?: unknown) =>
-      ipcRenderer.invoke("codex:approval_response", { sessionId, rpcId, decision, acceptSettings }),
-    respondUserInput: (sessionId: string, rpcId: string | number, answers: Record<string, { answers: string[] }>) =>
-      ipcRenderer.invoke("codex:user_input_response", { sessionId, rpcId, answers }),
-    respondServerRequestError: (sessionId: string, rpcId: string | number, code: number, message: string) =>
-      ipcRenderer.invoke("codex:server_request_error", { sessionId, rpcId, code, message }),
-    compact: (sessionId: string) => ipcRenderer.invoke("codex:compact", sessionId),
-    listSkills: (sessionId: string) => ipcRenderer.invoke("codex:list-skills", sessionId),
-    listApps: (sessionId: string) => ipcRenderer.invoke("codex:list-apps", sessionId),
-    listCommands: (cwd: string) => ipcRenderer.invoke("codex:list-commands", cwd),
-    listCommandApps: (cwd: string) => ipcRenderer.invoke("codex:list-command-apps", cwd),
-    listModels: () => ipcRenderer.invoke("codex:list-models"),
-    authStatus: () => ipcRenderer.invoke("codex:auth-status"),
-    login: (sessionId: string, type: "apiKey" | "chatgpt", apiKey?: string) =>
-      ipcRenderer.invoke("codex:login", { sessionId, type, apiKey }),
-    resume: (options: { cwd: string; threadId: string; rolloutPath?: string; model?: string; permissionMode?: string; approvalPolicy?: string; sandbox?: "read-only" | "workspace-write" | "danger-full-access" }) =>
-      ipcRenderer.invoke("codex:resume", options),
-    setModel: (sessionId: string, model: string) =>
-      ipcRenderer.invoke("codex:set-model", { sessionId, model }),
-    setPermissionMode: (sessionId: string, permissionMode: string) =>
-      ipcRenderer.invoke("codex:set-permission-mode", { sessionId, permissionMode }),
-    version: () => ipcRenderer.invoke("codex:version"),
-    binaryStatus: () => ipcRenderer.invoke("codex:binary-status"),
-    binaryInfo: () => ipcRenderer.invoke("codex:binary-info"),
-    downloadUpdate: () => ipcRenderer.invoke("codex:download-update"),
-    onEvent: (callback: (data: unknown) => void) => {
-      const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);
-      ipcRenderer.on("codex:event", listener);
-      return () => ipcRenderer.removeListener("codex:event", listener);
-    },
-    onApprovalRequest: (callback: (data: unknown) => void) => {
-      const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);
-      ipcRenderer.on("codex:approval_request", listener);
-      return () => ipcRenderer.removeListener("codex:approval_request", listener);
-    },
-    onExit: (callback: (data: unknown) => void) => {
-      const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);
-      ipcRenderer.on("codex:exit", listener);
-      return () => ipcRenderer.removeListener("codex:exit", listener);
-    },
-  },
   mcp: {
-    list: (projectId: string) => ipcRenderer.invoke("mcp:list", projectId),
-    add: (projectId: string, server: unknown) => ipcRenderer.invoke("mcp:add", { projectId, server }),
-    remove: (projectId: string, name: string) => ipcRenderer.invoke("mcp:remove", { projectId, name }),
+    list: () => ipcRenderer.invoke("mcp:list"),
+    add: (server: unknown) => ipcRenderer.invoke("mcp:add", server),
+    remove: (name: string) => ipcRenderer.invoke("mcp:remove", name),
     authenticate: (serverName: string, serverUrl: string) => ipcRenderer.invoke("mcp:authenticate", { serverName, serverUrl }),
     authStatus: (serverName: string) => ipcRenderer.invoke("mcp:auth-status", serverName),
     probe: (servers: unknown[]) => ipcRenderer.invoke("mcp:probe", servers),
@@ -426,13 +322,13 @@ contextBridge.exposeInMainWorld("claude", {
   plugins: {
     skills: {
       search: (query: string) => ipcRenderer.invoke("plugins:skills:search", query),
-      listInstalled: (projectPath?: string | null) =>
-        ipcRenderer.invoke("plugins:skills:list-installed", projectPath),
+      listInstalled: () => ipcRenderer.invoke("plugins:skills:list-installed"),
       install: (request: unknown) => ipcRenderer.invoke("plugins:skills:install", request),
       remove: (id: string) => ipcRenderer.invoke("plugins:skills:remove", id),
     },
     mcp: {
       list: (query: string) => ipcRenderer.invoke("plugins:mcp:list", query),
+      listInstalled: () => ipcRenderer.invoke("plugins:mcp:list-installed"),
       install: (request: unknown) => ipcRenderer.invoke("plugins:mcp:install", request),
     },
   },
@@ -442,9 +338,14 @@ contextBridge.exposeInMainWorld("claude", {
     delete: (id: string) => ipcRenderer.invoke("agents:delete", id),
     updateCachedConfig: (agentId: string, configOptions: unknown[]) =>
       ipcRenderer.invoke("agents:update-cached-config", agentId, configOptions),
+    updateCachedSlashCommands: (agentId: string, commands: unknown[]) =>
+      ipcRenderer.invoke("agents:update-cached-commands", agentId, commands),
     checkBinaries: (agents: Array<{ id: string; binary: Record<string, { cmd: string; args?: string[] }> }>) =>
       ipcRenderer.invoke("agents:check-binaries", agents),
     getPlatformKeys: () => ipcRenderer.invoke("agents:get-platform-keys"),
+    getPiRuntimeStatus: () => ipcRenderer.invoke("agents:get-pi-runtime-status"),
+    listPiDraftCommands: (cwd: string) =>
+      ipcRenderer.invoke("agents:list-pi-draft-commands", cwd),
   },
   settings: {
     get: () => ipcRenderer.invoke("settings:get"),
@@ -465,6 +366,7 @@ contextBridge.exposeInMainWorld("claude", {
     stop: () => ipcRenderer.invoke("wechat:stop"),
     reconnect: () => ipcRenderer.invoke("wechat:reconnect"),
     send: (args: { sessionId: string; text: string }) => ipcRenderer.invoke("wechat:send", args),
+    cancel: (args: { sessionId: string }) => ipcRenderer.invoke("wechat:cancel", args),
     onEvent: (callback: (data: unknown) => void) => {
       const listener = (_event: IpcRendererEvent, data: unknown) => callback(data);
       ipcRenderer.on("wechat:event", listener);
@@ -561,3 +463,18 @@ contextBridge.exposeInMainWorld("claude", {
     },
   },
 });
+
+// This bridge is exposed only for the explicit two-process recovery test. It is
+// absent from normal renderer globals, and main refuses this mode when packaged.
+const isAcpRecoveryTest = process.env.HARNSS_E2E_MODE === "acp-recovery"
+  || process.argv.some((value) => value === "--test-mode=acp-recovery");
+if (isAcpRecoveryTest) {
+  contextBridge.exposeInMainWorld("__harnssE2e", {
+    getConfig: () => ipcRenderer.invoke("harnss:e2e:get-config"),
+    writeResult: (result: unknown) => ipcRenderer.invoke("harnss:e2e:write-result", result),
+    runtimeSnapshot: () => ipcRenderer.invoke("harnss:e2e:runtime-snapshot"),
+    terminateRuntime: (internalId: string) => ipcRenderer.invoke("harnss:e2e:terminate-runtime", internalId),
+    normalizeSession: (session: unknown) => ipcRenderer.invoke("harnss:e2e:normalize-session", session),
+    shutdown: (exitCode?: number) => ipcRenderer.invoke("harnss:e2e:shutdown", exitCode ?? 0),
+  });
+}

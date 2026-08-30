@@ -1,34 +1,21 @@
 import type { RegistryAgent, RegistryBinaryTarget, InstalledAgent } from "@/types";
+import { BUILTIN_PI_AGENT_ID } from "@/types";
 import type { BinaryCheckResult } from "@/lib/engine/acp-agent-registry";
 
 /**
  * Convert a registry agent to a local InstalledAgent.
- * Supports npx distribution (preferred), user-managed Pi ACP, and binary
- * distribution when a resolved system path is provided.
+ * Supports npx distribution and binary distribution when a resolved system
+ * path is provided. The protected built-in Pi is updated with PccAgent itself.
  */
 export function registryAgentToDefinition(
   agent: RegistryAgent,
   binaryInfo?: BinaryCheckResult,
 ): InstalledAgent | null {
+  if (agent.id === BUILTIN_PI_AGENT_ID) return null;
+
   // NPX distribution — preferred for registry agents other than Pi ACP.
   const npx = agent.distribution.npx;
   if (npx) {
-    // Pi ACP is intentionally user-managed. Register the PATH command instead
-    // of retaining an npx package reference that could download at launch.
-    if (agent.id === "pi-acp") {
-      return {
-        id: agent.id,
-        name: agent.name,
-        engine: "acp",
-        binary: "pi-acp",
-        args: npx.args,
-        env: npx.env,
-        icon: agent.icon,
-        registryId: agent.id,
-        registryVersion: agent.version,
-        description: agent.description,
-      };
-    }
     return {
       id: agent.id,
       name: agent.name,
@@ -81,6 +68,7 @@ export function isInstallable(
   agent: RegistryAgent,
   binaryPaths?: Record<string, BinaryCheckResult>,
 ): boolean {
+  if (agent.id === BUILTIN_PI_AGENT_ID) return false;
   if (agent.distribution.npx != null) return true;
   if (binaryPaths && binaryPaths[agent.id]) return true;
   return false;

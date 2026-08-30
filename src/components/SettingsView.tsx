@@ -1,22 +1,20 @@
-import { memo, useState, useCallback, useEffect } from "react";
+import { memo, useState, useCallback, useEffect, type ComponentType } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
   SlidersHorizontal,
   Bell,
-  Cpu,
   Info,
   Wrench,
   Palette,
   Sparkles,
   Users,
-  Server,
   ArrowLeft,
   Smartphone,
   Contact,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import { PccAgentLogo } from "@/components/PccAgentLogo";
+import { PiLogo } from "@/components/PiLogo";
 import { WeChatSettings } from "@/components/settings/WeChatSettings";
 import { AppearanceSettings } from "@/components/settings/AppearanceSettings";
 import { GeneralSettings } from "@/components/settings/GeneralSettings";
@@ -43,7 +41,7 @@ interface NavItem {
   id: SettingsSection;
   /** i18n key under the "settings" namespace, resolved at render time */
   labelKey: string;
-  icon?: LucideIcon;
+  icon?: ComponentType<{ className?: string }>;
   /** Renders a subtle "soon" indicator next to the label */
   comingSoon?: boolean;
 }
@@ -53,9 +51,9 @@ const NAV_ITEMS: NavItem[] = [
   { id: "general", labelKey: "nav.general", icon: SlidersHorizontal },
   { id: "appearance", labelKey: "nav.appearance", icon: Palette },
   { id: "notifications", labelKey: "nav.notifications", icon: Bell },
-  { id: "engines", labelKey: "nav.engines", icon: Cpu },
+  { id: "engines", labelKey: "nav.engines", icon: PiLogo },
   { id: "wechat", labelKey: "nav.wechat", icon: Smartphone },
-  { id: "current-config", labelKey: "nav.currentConfig", icon: Server },
+  { id: "current-config", labelKey: "nav.currentConfig", icon: PiLogo },
   { id: "custom-agents", labelKey: "nav.customAgents", icon: Users, comingSoon: true },
   { id: "advanced", labelKey: "nav.advanced", icon: Wrench },
   { id: "contact", labelKey: "nav.contact", icon: Contact },

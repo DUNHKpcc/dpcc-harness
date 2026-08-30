@@ -27,6 +27,11 @@
     "indexing": "正在索引…",
     "empty": "访问过的文件将显示在这里"
   },
+  "filePreview": {
+    "selectFile": "从右侧选择文件以预览",
+    "readError": "无法读取文件",
+    "lines_other": "{{count}} 行"
+  },
   "projectFiles": {
     "title": "项目文件",
     "noProject": "未选择项目",

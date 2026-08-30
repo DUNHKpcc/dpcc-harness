@@ -1,7 +1,5 @@
-import type { ChatSession, UIMessage, SessionInfo, PermissionRequest, FileReference, ImageAttachment, McpServerStatus, ModelInfo, AcpPermissionBehavior, EngineId, Project, SlashCommand, ClaudeEffort, ContextUsage, ACPConfigOption, ACPPermissionEvent, UpstreamRequestRecord } from "@/types";
+import type { ChatSession, UIMessage, SessionInfo, PermissionRequest, FileReference, ImageAttachment, McpServerStatus, AcpPermissionBehavior, EngineId, Project, SlashCommand, ClaudeEffort, ContextUsage, ACPConfigOption, ACPPermissionEvent, UpstreamRequestRecord, InstalledAgent } from "@/types";
 import type { BackgroundSessionStore } from "../../lib/background/session-store";
-import { permissionModeToCodexPolicy, permissionModeToCodexSandbox } from "../../lib/engine/codex-adapter";
-import type { CollaborationMode } from "../../types/codex-protocol/CollaborationMode";
 
 export const DRAFT_ID = "__draft__";
 export const DEFAULT_PERMISSION_MODE = "default";
@@ -10,24 +8,14 @@ export interface StartOptions {
   model?: string;
   permissionMode?: string;
   planMode?: boolean;
-  thinkingEnabled?: boolean;
   effort?: ClaudeEffort;
   cwd?: string;
   engine?: EngineId;
   agentId?: string;
-  /** When true (Claude only), Claude can delegate to a visible Codex split pane via the built-in bridge MCP server. */
-  claudeCodexBridgeEnabled?: boolean;
   /** Cached config options from previous sessions */
   cachedConfigOptions?: ACPConfigOption[];
-}
-
-export interface CodexModelSummary {
-  id: string;
-  displayName: string;
-  description: string;
-  supportedReasoningEfforts: Array<{ reasoningEffort: string; description: string }>;
-  defaultReasoningEffort: string;
-  isDefault?: boolean;
+  /** Cached ACP slash commands available before the runtime starts. */
+  cachedSlashCommands?: SlashCommand[];
 }
 
 export interface InitialMeta {
@@ -66,6 +54,7 @@ export interface MaterializedDraftSession {
 
 export interface SessionPaneBootstrap {
   session: ChatSession;
+  runtimeAvailable: boolean;
   initialMessages: UIMessage[];
   initialMeta: InitialMeta | null;
   initialPermission: PermissionRequest | null;
@@ -79,6 +68,7 @@ export interface SessionPaneBootstrap {
 export interface SharedSessionRefs {
   activeSessionIdRef: React.MutableRefObject<string | null>;
   sessionsRef: React.MutableRefObject<ChatSession[]>;
+  installedAgentsRef: React.MutableRefObject<readonly InstalledAgent[]>;
   projectsRef: React.MutableRefObject<Project[]>;
   draftProjectIdRef: React.MutableRefObject<string | null>;
   startOptionsRef: React.MutableRefObject<StartOptions>;
@@ -92,9 +82,9 @@ export interface SharedSessionRefs {
   isConnectedRef: React.MutableRefObject<boolean>;
   sessionInfoRef: React.MutableRefObject<SessionInfo | null>;
   pendingPermissionRef: React.MutableRefObject<PermissionRequest | null>;
+  acpConfigOptionsRef: React.MutableRefObject<ACPConfigOption[]>;
   liveSessionIdsRef: React.MutableRefObject<Set<string>>;
   backgroundStoreRef: React.MutableRefObject<BackgroundSessionStore>;
-  preStartedSessionIdRef: React.MutableRefObject<string | null>;
   draftAcpSessionIdRef: React.MutableRefObject<string | null>;
   draftMcpStatusesRef: React.MutableRefObject<McpServerStatus[]>;
   materializingRef: React.MutableRefObject<boolean>;
@@ -103,9 +93,6 @@ export interface SharedSessionRefs {
   pendingAcpDraftPromptRef: React.MutableRefObject<PendingAcpDraftPrompt | null>;
   acpAgentIdRef: React.MutableRefObject<string | null>;
   acpAgentSessionIdRef: React.MutableRefObject<string | null>;
-  codexRawModelsRef: React.MutableRefObject<CodexModelSummary[]>;
-  codexEffortRef: React.MutableRefObject<string | undefined>;
-  codexEffortManualOverrideRef: React.MutableRefObject<boolean>;
   lastMessageSyncSessionRef: React.MutableRefObject<string | null>;
   switchSessionRef: React.MutableRefObject<((id: string) => Promise<void>) | undefined>;
   onSpaceChangeRef: React.MutableRefObject<((spaceId: string) => void) | undefined>;
@@ -113,8 +100,6 @@ export interface SharedSessionRefs {
   /** Current git branch for the active project — set by the orchestrator. */
   currentBranchRef: React.MutableRefObject<string | undefined>;
   draftGenerationRef: React.MutableRefObject<number>;
-  claudeModelCatalogRequestGenerationRef: React.MutableRefObject<number>;
-  claudeEagerStartGenerationRef: React.MutableRefObject<number>;
 }
 
 /** State setters from the orchestrator that sub-hooks need */
@@ -129,104 +114,22 @@ export interface SharedSessionSetters {
   setInitialRawAcpPermission: React.Dispatch<React.SetStateAction<ACPPermissionEvent | null>>;
   setStartOptions: React.Dispatch<React.SetStateAction<StartOptions>>;
   setDraftProjectId: React.Dispatch<React.SetStateAction<string | null>>;
-  setPreStartedSessionId: React.Dispatch<React.SetStateAction<string | null>>;
   setDraftAcpSessionId: React.Dispatch<React.SetStateAction<string | null>>;
   setAcpConfigOptionsLoading: React.Dispatch<React.SetStateAction<boolean>>;
   setDraftMcpStatuses: React.Dispatch<React.SetStateAction<McpServerStatus[]>>;
   setAcpMcpStatuses: React.Dispatch<React.SetStateAction<McpServerStatus[]>>;
   setQueuedCount: React.Dispatch<React.SetStateAction<number>>;
-  setCachedModels: (models: ModelInfo[], authoritative?: boolean) => void;
-  invalidateCachedModels: () => void;
-  setCodexRawModels: React.Dispatch<React.SetStateAction<CodexModelSummary[]>>;
-  setCodexModelsLoadingMessage: React.Dispatch<React.SetStateAction<string | null>>;
 }
 
 // Engine hook types — use ReturnType of the actual hooks for perfect alignment.
 // Imported via type-only to avoid circular dependency (hooks import types, not vice versa).
-import type { useClaude } from "../useClaude";
 import type { useACP } from "../useACP";
-import type { useCodex } from "../useCodex";
 
-/** The engine hook return types that sub-hooks need to call */
+/** The only live engine hook. Legacy records are rendered through this state
+ * but are never connected to a removed runtime. */
 export interface EngineHooks {
-  claude: ReturnType<typeof useClaude>;
   acp: ReturnType<typeof useACP>;
-  codex: ReturnType<typeof useCodex>;
-  /** The currently-active engine — one of claude/acp/codex */
-  engine: ReturnType<typeof useClaude> | ReturnType<typeof useACP> | ReturnType<typeof useCodex>;
+  engine: ReturnType<typeof useACP>;
 }
 
 // ── Utility functions shared across sub-hooks ──
-
-export function getSelectedPermissionMode(options: StartOptions): string {
-  const mode = options.permissionMode?.trim();
-  return mode && mode !== "plan" ? mode : DEFAULT_PERMISSION_MODE;
-}
-
-export function getEffectiveClaudePermissionMode(options: StartOptions): string {
-  return options.planMode ? "plan" : getSelectedPermissionMode(options);
-}
-
-export function normalizeCodexModels(rawModels: unknown[]): CodexModelSummary[] {
-  const models: CodexModelSummary[] = [];
-  for (const raw of rawModels) {
-    const model = raw as Record<string, unknown>;
-    if (typeof model.id !== "string") continue;
-    const supportedReasoningEfforts = Array.isArray(model.supportedReasoningEfforts)
-      ? model.supportedReasoningEfforts
-        .map((entry) => entry as Record<string, unknown>)
-        .filter((entry): entry is { reasoningEffort: string; description: string } =>
-          typeof entry.reasoningEffort === "string" && typeof entry.description === "string",
-        )
-      : [];
-    models.push({
-      id: model.id,
-      displayName: typeof model.displayName === "string" ? model.displayName : model.id,
-      description: typeof model.description === "string" ? model.description : "",
-      supportedReasoningEfforts,
-      defaultReasoningEffort:
-        typeof model.defaultReasoningEffort === "string"
-          ? model.defaultReasoningEffort
-          : "medium",
-      isDefault: model.isDefault === true,
-    });
-  }
-  return models;
-}
-
-export function pickCodexModel(
-  requestedModel: string | undefined,
-  models: CodexModelSummary[],
-): string | undefined {
-  const requested = typeof requestedModel === "string" ? requestedModel.trim() : "";
-  if (requested.length > 0 && models.some((m) => m.id === requested)) {
-    return requested;
-  }
-  return models.find((m) => m.isDefault)?.id ?? models[0]?.id;
-}
-
-/** Build a CollaborationMode for plan mode, including the required model in settings. */
-export function buildCodexCollabMode(planMode: boolean | undefined, model: string | undefined): CollaborationMode | undefined {
-  if (!planMode) return undefined;
-  const normalizedModel = model?.trim();
-  if (!normalizedModel) {
-    throw new Error("Codex plan mode is enabled, but no model is selected. Select a Codex model and try again.");
-  }
-  return {
-    mode: "plan" as const,
-    settings: {
-      // The server requires model in settings; it takes precedence when collaborationMode is set
-      model: normalizedModel,
-      reasoning_effort: null,
-      developer_instructions: null,
-    },
-  };
-}
-
-export function getCodexApprovalPolicy(options: StartOptions): string | undefined {
-  return permissionModeToCodexPolicy(getSelectedPermissionMode(options));
-}
-
-export function getCodexSandboxMode(options: StartOptions): "workspace-write" | "danger-full-access" | undefined {
-  return permissionModeToCodexSandbox(getSelectedPermissionMode(options));
-}

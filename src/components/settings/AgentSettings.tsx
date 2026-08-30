@@ -33,6 +33,7 @@ import {
 import { IconPicker } from "@/components/IconPicker";
 import { AgentIcon } from "@/components/AgentIcon";
 import { AgentStore } from "@/components/settings/AgentStore";
+import { getAgentIcon } from "@/lib/engine-icons";
 import type { InstalledAgent } from "@/types";
 
 // ── Types ──
@@ -128,7 +129,7 @@ const AgentCard = memo(function AgentCard({
     >
       {/* Icon */}
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted/40 text-foreground/60">
-        <AgentIcon icon={agent.icon} />
+        <AgentIcon icon={getAgentIcon(agent)} />
       </div>
 
       {/* Info */}

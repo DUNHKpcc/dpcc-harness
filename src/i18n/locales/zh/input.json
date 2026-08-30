@@ -1,14 +1,12 @@
 {
   "placeholder": {
     "compacting": "正在压缩上下文…",
+    "readOnly": "此旧版会话仅供查看",
+    "invalidSession": "会话引擎数据不受支持，原历史已保留",
     "loadingAgentOptions": "正在加载 agent 选项…",
     "responding": "{{name}} 正在回复…（消息将进入队列）",
     "askWithCommands": "随便问，@ 引用文件，/ 输入命令",
     "ask": "随便问，@ 引用文件"
-  },
-  "model": {
-    "loadingCodex": "正在加载 Codex 模型…",
-    "loading": "正在加载模型…"
   },
   "voice": {
     "attachImage": "添加文件",
@@ -41,6 +39,9 @@
     "noOptions": "无法加载此 agent 的选项",
     "noThinkingOptions": "当前模型不支持可调推理强度",
     "opensNewChat": "将打开新会话",
+    "legacyReadOnly": "旧版会话 · 只读",
+    "invalidReadOnly": "会话数据异常 · 只读",
+    "createPiChat": "新建 Pi 会话",
     "engines": "引擎",
     "acpAgents": "ACP Agents",
     "manageACPs": "管理 ACP",
@@ -53,22 +54,6 @@
     }
   },
   "control": {
-    "plan": "Plan",
-    "planModeOn": "Plan 模式已开启",
-    "planModeOff": "Plan 模式已关闭",
-    "codex": "Codex",
-    "codexBridgeOn": "Claude 可以在可见分屏中调用 Codex",
-    "codexBridgeOff": "允许 Claude 调用 Codex",
-    "permissionMode": {
-      "default": "编辑前询问",
-      "acceptEdits": "接受编辑",
-      "bypassPermissions": "全部允许"
-    },
-    "codexPermissionDesc": {
-      "default": "执行命令和文件编辑前询问",
-      "acceptEdits": "自动批准受信任的编辑；不受信任的操作仍会询问",
-      "bypassPermissions": "不弹出审批提示"
-    },
     "acpBehavior": {
       "ask": "询问",
       "askDesc": "显示权限提示",

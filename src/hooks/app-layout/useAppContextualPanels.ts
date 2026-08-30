@@ -18,9 +18,6 @@ interface UseAppContextualPanelsInput {
 export function useAppContextualPanels(input: UseAppContextualPanelsInput) {
   const todoMsgCount = input.manager.messages.length;
   const activeTodos = useMemo(() => {
-    if (input.manager.codexTodoItems && input.manager.codexTodoItems.length > 0) {
-      return input.manager.codexTodoItems;
-    }
     for (let i = input.manager.messages.length - 1; i >= 0; i -= 1) {
       const msg = input.manager.messages[i];
       if (
@@ -34,7 +31,7 @@ export function useAppContextualPanels(input: UseAppContextualPanelsInput) {
     }
     return [];
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [todoMsgCount, input.manager.codexTodoItems]);
+  }, [todoMsgCount]);
 
   const bgAgents = useBackgroundAgents({ sessionId: input.manager.activeSessionId });
   const hasTodos = activeTodos.length > 0;

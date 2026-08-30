@@ -90,7 +90,7 @@
   },
   "engines": {
     "title": "SDK",
-    "description": "配置 SDK 运行方式、二进制来源与独立第三方网关",
+    "description": "检查随包离线可用的 Pi runtime，并配置 Pi 专属第三方网关",
     "claude": {
       "section": "Claude Code",
       "sourceLabel": "Claude SDK来源",
@@ -167,11 +167,24 @@
     "pi": {
       "section": "Pi ACP",
       "runtimeLabel": "Pi 运行环境",
-      "runtimeDesc": "Pi 与 pi-acp 由用户自行安装并确保应用可在 PATH 中找到；PccAgent 不负责安装或更新。",
-      "runtimeValue": "pi + pi-acp",
+      "runtimeDesc": "内置 Agent 始终使用 PccAgent 随包提供并锁定版本的 Pi 与 pi-acp，不读取系统命令；本地模式仍会读取你的 Pi 配置。",
+      "runtimeRefresh": "重新检查 Pi 运行环境",
+      "runtimeLoading": "正在检查内置运行环境与版本…",
+      "runtimeLoadFailed": "无法读取 Pi 运行环境，请重新检查。",
+      "runtimeOfflineReady": "内置运行环境已就绪，可离线启动。",
+      "runtimeOfflineUnavailable": "内置运行环境不完整或已损坏。",
+      "runtimeVersion": "当前 {{actual}}，兼容矩阵 {{expected}}",
+      "runtimeVersionUnreadable": "无法读取版本，兼容矩阵要求 {{expected}}",
+      "runtimeRepairHint": "请重新安装或更新 PccAgent 以恢复内置运行环境。",
+      "runtimeStatus": {
+        "ok": "可用",
+        "missing": "未找到",
+        "version-mismatch": "版本不匹配",
+        "version-unreadable": "版本未知"
+      },
       "gateway": {
         "toggleLabel": "自定义网关",
-        "toggleDesc": "保存仅供 Pi 使用的 OpenAI 兼容提供方；可在「当前配置」中单独启用，不影响 Claude 与 Codex。",
+        "toggleDesc": "保存仅供 Pi 使用的 OpenAI 兼容提供方；可在「当前配置」中单独启用。",
         "editLabel": "编辑 Pi 网关配置",
         "nameLabel": "提供方名称",
         "nameDesc": "Pi 提供方的显示名称。",
@@ -196,7 +209,7 @@
     },
     "gatewayModels": {
       "title": "模型映射",
-      "description": "配置显示名称与上游 Model ID。默认补齐官方 Claude/Codex 候选，也可从当前 URL/key 拉取上游模型加入。",
+      "description": "配置显示名称与上游 Model ID。默认补齐 Pi 兼容候选，也可从当前 URL/key 拉取上游模型加入。",
       "fetch": "拉取上游模型",
       "loading": "拉取中…",
       "fetchError": "拉取失败：{{error}}",
@@ -375,19 +388,19 @@
     "events": {
       "sessionComplete": {
         "label": "会话完成",
-        "description": "当 Claude 处理完毕、会话进入空闲状态时。"
+        "description": "当当前 agent 处理完毕、会话进入空闲状态时。"
       },
       "exitPlanMode": {
         "label": "退出计划模式",
-        "description": "当 Claude 完成计划、准备开始实现时。"
+        "description": "当当前 agent 完成计划、准备开始实现时。"
       },
       "permissions": {
         "label": "权限请求",
-        "description": "当 Claude 需要批准才能运行命令、编辑文件等时。"
+        "description": "当当前 agent 需要批准才能运行命令、编辑文件等时。"
       },
       "askUserQuestion": {
         "label": "向用户提问",
-        "description": "当 Claude 向你提问以引导工作时。"
+        "description": "当当前 agent 向你提问以引导工作时。"
       }
     },
     "osNotification": "系统通知",
@@ -400,7 +413,7 @@
   },
   "currentConfig": {
     "title": "当前配置",
-    "description": "PccAgent 实际用于运行会话的上游与模型配置。可在此分别切换 Claude Code、Codex 与 Pi ACP 的配置来源；具体密钥和网关参数仍在「设置 → 账户 / SDK」中维护。",
+    "description": "PccAgent 实际用于运行 Pi ACP 会话的上游与模型配置；具体 provider 密钥和网关参数仍在「设置 → 账户 / SDK」中维护。",
     "refresh": "刷新",
     "refreshing": "刷新中…",
     "saveFailed": "无法保存配置来源。",
@@ -439,9 +452,7 @@
   "advanced": {
     "title": "高级",
     "description": "用于协议行为和服务器通信的底层设置",
-    "codexSection": "Codex",
-    "clientNameLabel": "客户端名称",
-    "clientNameDesc": "本应用在握手时向 Codex 服务器标识自身的名称。更改将在新会话中生效。",
+    "appSection": "应用",
     "devFillLabel": "在对话标题栏显示 Dev Fill",
     "devFillDesc": "在当前对话标题栏启用开发者填充操作。默认隐藏。",
     "jiraBoardLabel": "启用 Jira 看板",
@@ -471,7 +482,7 @@
     "title": "关于",
     "description": "版本信息、链接与致谢",
     "tagline": "面向 AI 编程 agent 的开源桌面客户端。",
-    "taglineLine2": "一款应用即可使用 Claude Code、Codex 以及任何 ACP agent。",
+    "taglineLine2": "内置 Pi，也支持按需添加自定义 ACP agent。",
     "links": "链接",
     "githubLabel": "GitHub 仓库",
     "githubDesc": "源代码、问题与发布版本",
@@ -743,7 +754,7 @@
   },
   "wechat": {
     "title": "微信桥接",
-    "description": "通过微信，用手机远程控制内置的 Claude Code 和 Codex CLI。",
+    "description": "通过微信，用手机远程运行内置 Pi Agent。",
     "loading": "加载中…",
     "connection": "连接",
     "notLoggedIn": "尚未连接。用微信扫描二维码以绑定桥接。",
@@ -756,25 +767,25 @@
     "enableLabel": "启用桥接",
     "enableDesc": "立即启动，并在每次启动应用时自动启动。",
     "behavior": "行为",
-    "defaultTool": "默认引擎",
-    "defaultToolDesc": "消息未通过 @ 指定引擎时使用的默认引擎。",
+    "defaultTool": "Agent",
+    "defaultToolDesc": "微信桥接只使用 Pi ACP runtime。",
     "permissionMode": "权限模式",
-    "permissionModeDesc": "每条消息允许 CLI 的自主程度。",
+    "permissionModeDesc": "每条消息允许 Pi 的自主程度。",
     "mode": {
       "safe": "安全（只读）",
       "auto": "自动（完整权限）",
       "plan": "规划（仅规划）"
     },
     "workDir": "工作目录",
-    "workDirDesc": "CLI 运行的目录（留空使用应用默认）。",
+    "workDirDesc": "Pi 运行的目录（留空使用用户主目录）。",
     "workDirPlaceholder": "/项目/路径",
     "model": "模型",
-    "modelDesc": "模型覆盖（留空使用引擎默认）。",
+    "modelDesc": "Pi 模型覆盖（留空使用 Pi 默认）。",
     "modelPlaceholder": "默认",
     "access": "访问控制",
     "allowedUsersDesc": "允许的微信用户 ID，每行一个。留空则任何能私聊机器人的人都可使用（不安全）。",
     "allowedUsersPlaceholder": "ilink_user_id…",
-    "allowAllWarning": "未设置白名单——任何能私聊机器人的人都能以完整权限运行 CLI。请添加你自己的微信用户 ID 以限制访问。",
+    "allowAllWarning": "未设置白名单——任何能私聊机器人的人都能发起 Pi 任务。请添加你自己的微信用户 ID 以限制访问。",
     "activity": "活动",
     "activityEmpty": "暂无活动。",
     "status": {

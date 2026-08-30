@@ -22,7 +22,6 @@ interface RightPanelContentProps {
   bgAgents: {
     agents: BackgroundAgent[];
     dismissAgent: (id: string) => void;
-    stopAgent: (id: string, taskId: string) => void;
   };
   onCloseTodos: () => void;
   expandEditToolCallsByDefault: boolean;
@@ -123,7 +122,6 @@ export const RightPanel = React.memo(function RightPanel({
               agents={bgAgents.agents}
               expandEditToolCallsByDefault={expandEditToolCallsByDefault}
               onDismiss={bgAgents.dismissAgent}
-              onStopAgent={bgAgents.stopAgent}
             />
           </div>
         )}

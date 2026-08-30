@@ -65,18 +65,6 @@
     "terminalUnsupported": "Terminal auth is not supported in PccAgent yet.",
     "envVarUnsupported": "Env-var auth is not supported in PccAgent yet. Required vars: {{vars}}"
   },
-  "codexAuth": {
-    "title": "Codex Authentication",
-    "description": "Codex requires authentication to access OpenAI models.",
-    "waitingForBrowser": "Waiting for browser login...",
-    "loginTimedOut": "Login timed out — please try again",
-    "loginFailed": "Login failed",
-    "apiKey": "API Key",
-    "apiKeyDesc": "Use an OpenAI API key",
-    "chatgptLogin": "ChatGPT Login",
-    "chatgptLoginDesc": "Login with your ChatGPT account",
-    "connect": "Connect"
-  },
   "jiraAuth": {
     "title": "Authenticate with Jira",
     "description": "Enter your Jira API token to connect. You can create an API token from your Atlassian account settings.",

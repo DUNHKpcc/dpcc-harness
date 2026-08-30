@@ -5,15 +5,15 @@ import { useSettingsStore } from "@/stores/settings-store";
 import { PERMISSION_MODES, type ReadyStepProps } from "./shared";
 
 export function ReadyStep({
-  permissionMode,
+  permissionBehavior,
   onComplete,
 }: ReadyStepProps) {
   const { t } = useTranslation("welcome");
   const theme = useSettingsStore((s) => s.theme);
-  const selectedMode = PERMISSION_MODES.find((m) => m.id === permissionMode);
+  const selectedMode = PERMISSION_MODES.find((m) => m.id === permissionBehavior);
   const modeLabel = selectedMode
     ? t(`permissionsStep.modes.${selectedMode.id}.label`)
-    : permissionMode;
+    : permissionBehavior;
   const themeName =
     theme === "dark" || theme === "light" || theme === "system"
       ? t(`readyStep.theme.${theme}`)

@@ -129,6 +129,7 @@ export type {
   McpCatalogItem,
   McpCatalogInstallRequest,
   McpCatalogInstallResult,
+  InstalledMcpRecord,
 } from "@shared/types/plugins";
 
 // ── Settings types (shared) ──
@@ -195,6 +196,7 @@ export type {
   RegistryBinaryTarget,
   BinaryCheckResult,
 } from "./registry";
+export { BUILTIN_PI_AGENT, BUILTIN_PI_AGENT_ID, PI_OFFICIAL_ICON } from "./registry";
 
 // ── ACP types ──
 
@@ -212,7 +214,20 @@ export type {
   ACPCurrentModeUpdate,
   ACPConfigOptionUpdate,
   ACPPermissionEvent,
+  ACPStopReason,
+  ACPTurnStatus,
+  ACPCompletedStopReason,
+  ACPErrorSource,
+  ACPErrorStage,
+  ACPErrorDetails,
+  ACPPiTurnOutcome,
   ACPTurnCompleteEvent,
+  ACPTransportErrorEvent,
+  ACPPromptCompletedResult,
+  ACPPromptFailedResult,
+  ACPPromptTransportErrorResult,
+  ACPPromptResult,
+  ACP_STOP_REASONS,
   ACPConfigOption,
   ACPConfigSelectOption,
   ACPConfigSelectGroup,
@@ -229,36 +244,22 @@ export type {
   ACPStartErrorResult,
   ACPStartResult,
   ACPAuthenticateResult,
+  ACPReviveResult,
 } from "./acp";
 
 // ── Engine types ──
 
-export type { EngineId, EngineHookState, AppPermissionBehavior, RespondPermissionFn, BackgroundSessionSnapshot, SlashCommand } from "./engine";
-
-// ── Codex types ──
-
 export type {
-  CodexSessionEvent,
-  CodexApprovalRequest,
-  CodexRequestUserInputRequest,
-  CodexServerRequest,
-  CodexExitEvent,
-  CodexAuthRequiredNotification,
-  CodexTokenUsageNotification,
-  CodexThreadItem,
-  CodexItemStartedNotification,
-  CodexItemCompletedNotification,
-  CodexAgentMessageDeltaNotification,
-  CodexCommandOutputDeltaNotification,
-  CodexPlanDeltaNotification,
-  CodexTurnPlanUpdatedNotification,
-  CodexReasoningTextDeltaNotification,
-  CodexFileUpdateChange,
-  CodexPatchChangeKind,
-  CodexTurnPlanStep,
-  CodexUserInput,
-  CodexWebSearchAction,
-} from "./codex";
+  EngineId,
+  RuntimeEngineId,
+  LegacyEngineId,
+  PersistedEngineId,
+  EngineHookState,
+  AppPermissionBehavior,
+  RespondPermissionFn,
+  BackgroundSessionSnapshot,
+  SlashCommand,
+} from "./engine";
 
 // ── Tool types ──
 

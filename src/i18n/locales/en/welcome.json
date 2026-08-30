@@ -38,25 +38,25 @@
   },
   "permissionsStep": {
     "title": "Your rules",
-    "subtitle": "Set how much freedom Claude gets. Change this anytime.",
+    "subtitle": "Set how much freedom Pi gets. Change this anytime.",
     "modes": {
-      "default": {
+      "ask": {
         "label": "Ask Before Edits",
-        "description": "Claude asks for approval before making file changes or running commands."
+        "description": "Pi asks for approval before making file changes or running commands."
       },
-      "acceptEdits": {
-        "label": "Accept Edits",
-        "description": "File edits are auto-approved, commands still require confirmation."
+      "auto_accept": {
+        "label": "Auto Accept",
+        "description": "Pi automatically approves each tool call for this session."
       },
-      "bypassPermissions": {
+      "allow_all": {
         "label": "Allow All",
-        "description": "Everything runs automatically with no prompts."
+        "description": "Pi automatically approves tools and uses always-allow when supported."
       }
     }
   },
   "accountStep": {
     "title": "DPCC API",
-    "subtitle": "Connect your DPCC API account so Claude can run — and see your balance at a glance.",
+    "subtitle": "Connect your DPCC API account so Pi can run — and see your balance at a glance.",
     "gatewayLabel": "Gateway key",
     "gatewayUrlPlaceholder": "https://origin-api.dpccgaming.xyz",
     "tokenPlaceholder": "Token (sk-…)",
@@ -66,7 +66,7 @@
     "accessTokenPlaceholder": "System access token",
     "connect": "Connect",
     "skipForNow": "Skip for now",
-    "gatewayHint": "Just your gateway key is enough — Claude runs and your balance shows automatically.",
+    "gatewayHint": "Just your gateway key is enough — Pi runs and your balance shows automatically.",
     "claudeKeyLabel": "Claude key (sk-)",
     "codexKeyLabel": "Codex key (sk-, optional)"
   },
@@ -79,7 +79,7 @@
   "agentsStep": {
     "title": "Connect agents",
     "subtitle": "Browse the store and add ACP agents with one click.",
-    "builtIn": "Claude Code and Codex are already built in."
+    "builtIn": "Pi is built in; custom ACP agents remain available."
   },
   "tourStep": {
     "title": "What's inside",

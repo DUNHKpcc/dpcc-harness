@@ -90,10 +90,10 @@ export function SessionItem({
 
   if (isEditing) {
     return (
-      <div className="flex items-center gap-1 px-1 ps-2">
+      <div className="flex min-w-0 items-center gap-1 px-1 py-px ps-2">
         <input
           {...renameInputProps}
-          className="flex-1 rounded-lg bg-black/5 px-2 py-1 text-[13px] text-sidebar-foreground outline-none ring-1 ring-sidebar-ring dark:bg-white/5"
+          className="h-7 min-w-0 flex-1 rounded-lg bg-black/5 px-2 text-[13px] leading-5 text-sidebar-foreground outline-none ring-1 ring-inset ring-sidebar-ring dark:bg-white/5"
         />
       </div>
     );

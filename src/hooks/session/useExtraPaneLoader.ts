@@ -13,6 +13,7 @@ import type { InitialMeta, SessionPaneBootstrap } from "./types";
 interface ExtraPaneLoaderResult {
   readyId: string | null;
   session: ChatSession | null;
+  runtimeAvailable: boolean;
   initialMessages: UIMessage[];
   initialMeta: InitialMeta | null;
   initialPermission: PermissionRequest | null;
@@ -33,6 +34,7 @@ export function useExtraPaneLoader({
 }: UseExtraPaneLoaderOptions): ExtraPaneLoaderResult {
   const [readyId, setReadyId] = useState<string | null>(null);
   const [session, setSession] = useState<ChatSession | null>(null);
+  const [runtimeAvailable, setRuntimeAvailable] = useState(false);
   const [initialMessages, setInitialMessages] = useState<UIMessage[]>([]);
   const [initialMeta, setInitialMeta] = useState<InitialMeta | null>(null);
   const [initialPermission, setInitialPermission] = useState<PermissionRequest | null>(null);
@@ -53,6 +55,7 @@ export function useExtraPaneLoader({
       startTransition(() => {
         setReadyId(null);
         setSession(null);
+        setRuntimeAvailable(false);
         setInitialMessages([]);
         setInitialMeta(null);
         setInitialPermission(null);
@@ -72,6 +75,7 @@ export function useExtraPaneLoader({
       startTransition(() => {
         setReadyId(sessionId);
         setSession(bootstrap.session);
+        setRuntimeAvailable(bootstrap.runtimeAvailable);
         setInitialMessages(bootstrap.initialMessages);
         setInitialMeta(bootstrap.initialMeta);
         setInitialPermission(bootstrap.initialPermission);
@@ -88,6 +92,7 @@ export function useExtraPaneLoader({
       startTransition(() => {
         setReadyId(null);
         setSession(null);
+        setRuntimeAvailable(false);
         setInitialMessages([]);
         setInitialMeta(null);
         setInitialPermission(null);
@@ -102,6 +107,7 @@ export function useExtraPaneLoader({
   return {
     readyId,
     session,
+    runtimeAvailable,
     initialMessages,
     initialMeta,
     initialPermission,

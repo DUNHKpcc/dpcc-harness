@@ -22,7 +22,7 @@ import { SplitPaneHost } from "@/components/split/SplitPaneHost";
 import type { ToolId } from "@/types/tools";
 import type { ChatSession, InstalledAgent, Project, TodoItem, BackgroundAgent } from "@/types";
 import type { SessionPaneState } from "@/hooks/session/useSessionPane";
-import type { CodexModelSummary, SessionPaneBootstrap } from "@/hooks/session/types";
+import type { SessionPaneBootstrap } from "@/hooks/session/types";
 import type { PaneControllerContext } from "@/hooks/usePaneController";
 import type { SplitViewState } from "@/hooks/useSplitView";
 import type {
@@ -32,6 +32,7 @@ import type {
   TopRowItem,
   ToolIslandContextProps,
 } from "@/types";
+import { getSessionRuntimeDisposition } from "@shared/lib/session-runtime";
 
 // ── Props ──
 
@@ -104,27 +105,19 @@ export interface SplitTopRowItemProps {
   // Locked engine
   lockedEngine: import("@/types").EngineId | null;
   lockedAgentId: string | null;
+  readOnlyReason: "legacy" | "invalid" | null;
 
   // Worktree
   handleAgentWorktreeChange: (path: string | null) => void;
-
-  // Revert
-  handleRevert: ((checkpointId: string) => void) | undefined;
-  handleFullRevert: ((checkpointId: string) => void) | undefined;
 
   // Scroll
   makePaneScrollCallback: (paneIndex: number) => (progress: number) => void;
   setScrollToMessageId: (messageId: string | undefined) => void;
 
-  // File preview
-  handlePreviewFile: (path: string, rect: DOMRect) => void;
   handleElementGrab: (element: GrabbedElement) => void;
 
   // Close
   handleCloseSplitPane: (sessionId: string | null) => Promise<void>;
-
-  // Codex models
-  codexRawModels: CodexModelSummary[];
 
   // Queue
   queuedCount: number;
@@ -135,7 +128,6 @@ export interface SplitTopRowItemProps {
   bgAgents: {
     agents: BackgroundAgent[];
     dismissAgent: (id: string) => void;
-    stopAgent: (id: string, taskId: string) => void;
   };
 
   // Navigation
@@ -252,7 +244,6 @@ function renderToolIsland(
         headerControls={controls}
         projectPath={paneProjectPath}
         projectRoot={paneProjectRoot}
-        projectId={paneProject?.id ?? null}
         sessionId={island.sourceSessionId}
         messages={paneState.messages}
         activeEngine={session?.engine}
@@ -425,9 +416,8 @@ function SplitTopRowItemInner(props: SplitTopRowItemProps) {
     acpPermissionBehavior, setAcpPermissionBehavior,
     agents, devFillEnabled, handleSeedDevExampleSpaceData, seedDevExampleConversation,
     grabbedElements, handleRemoveGrabbedElement,
-    lockedEngine, lockedAgentId,
+    lockedEngine, lockedAgentId, readOnlyReason,
     handleAgentWorktreeChange,
-    handleRevert, handleFullRevert,
     makePaneScrollCallback,
     handleCloseSplitPane,
     queuedCount,
@@ -480,6 +470,26 @@ function SplitTopRowItemInner(props: SplitTopRowItemProps) {
       ? (getStoredProjectGitCwd(paneProject.id) ?? paneProject.path)
       : activeProjectPath;
     const activeContextualTool = splitView.getPaneContextualTool(sessionId);
+    const paneDisposition = resolvedSession
+      ? getSessionRuntimeDisposition({
+          engine: resolvedSession.invalidEngine ?? resolvedSession.engine,
+          agentId: resolvedSession.agentId,
+        })
+      : null;
+    const paneLockedEngine = isActiveSessionPane
+      ? lockedEngine
+      : paneDisposition?.kind === "legacy-read-only"
+        ? paneDisposition.engine
+        : resolvedSession
+          ? "acp" as const
+          : null;
+    const paneReadOnlyReason: "legacy" | "invalid" | null = isActiveSessionPane
+      ? readOnlyReason
+      : paneDisposition?.kind === "legacy-read-only"
+        ? "legacy"
+        : paneDisposition?.kind === "invalid"
+          ? "invalid"
+          : null;
 
     return {
       sessionId,
@@ -509,15 +519,13 @@ function SplitTopRowItemInner(props: SplitTopRowItemProps) {
       onSeedDevExampleSpaceData: isActiveSessionPane ? handleSeedDevExampleSpaceData : undefined,
       grabbedElements: isActiveSessionPane ? grabbedElements : [],
       onRemoveGrabbedElement: handleRemoveGrabbedElement,
-      lockedEngine: isActiveSessionPane ? lockedEngine : (resolvedSession?.engine ?? null),
+      lockedEngine: paneLockedEngine,
       lockedAgentId: isActiveSessionPane ? lockedAgentId : (resolvedSession?.agentId ?? null),
+      readOnlyReason: paneReadOnlyReason,
       projectPath: paneProjectPath,
       selectedWorktreePath: paneProjectPath,
       onSelectWorktree: isActiveSessionPane ? handleAgentWorktreeChange : undefined,
-      codexModelData: props.codexRawModels,
       spaceId: spaceActiveSpaceId,
-      onRevert: isActiveSessionPane ? handleRevert : undefined,
-      onFullRevert: isActiveSessionPane ? handleFullRevert : undefined,
       onTopScrollProgress: makePaneScrollCallback(displayIndex),
       onClosePane: () => { void handleCloseSplitPane(sessionId); },
       onFocus: () => splitView.setFocusedSession(sessionId),

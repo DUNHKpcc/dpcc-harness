@@ -65,18 +65,6 @@
     "terminalUnsupported": "PccAgent 暂不支持终端身份验证。",
     "envVarUnsupported": "PccAgent 暂不支持环境变量身份验证。所需变量：{{vars}}"
   },
-  "codexAuth": {
-    "title": "Codex 身份验证",
-    "description": "Codex 需要身份验证才能访问 OpenAI 模型。",
-    "waitingForBrowser": "正在等待浏览器登录…",
-    "loginTimedOut": "登录超时，请重试",
-    "loginFailed": "登录失败",
-    "apiKey": "API key",
-    "apiKeyDesc": "使用 OpenAI API key",
-    "chatgptLogin": "ChatGPT 登录",
-    "chatgptLoginDesc": "使用你的 ChatGPT 账户登录",
-    "connect": "连接"
-  },
   "jiraAuth": {
     "title": "连接 Jira",
     "description": "输入你的 Jira API token 以连接。你可以在 Atlassian 账户设置中创建 API token。",

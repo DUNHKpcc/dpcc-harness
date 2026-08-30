@@ -1,14 +1,11 @@
 import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
-import type { PersistedSession, ClaudeEvent, SystemInitEvent, EngineId, ACPSessionEvent, ACPPermissionEvent, ACPTurnCompleteEvent } from "@/types";
-import { resolveClaudePickerValue } from "@/lib/model-utils";
+import type { PersistedSession, EngineId, ACPSessionEvent, ACPPermissionEvent, ACPTurnCompleteEvent, ACPTransportErrorEvent } from "@/types";
 import { getSessionNotificationActor } from "@/lib/session-notifications";
 import { toastText } from "@/lib/toast-i18n";
-import { toMcpStatusState } from "../../lib/mcp-utils";
 import { buildPersistedSession, toChatSession } from "../../lib/session/records";
 import { normalizeToolInput as acpNormalizeToolInput, pickAutoResponseOption } from "../../lib/engine/acp-adapter";
 import { DRAFT_ID } from "./types";
-import { clearClaudeObservedRequests } from "@/lib/usage/upstream-requests";
 import { createSystemMessage } from "@/lib/message-factory";
 import {
   SESSION_SEND_FAILURE_EVENT,
@@ -20,6 +17,7 @@ import {
   type SplitPaneStateSnapshot,
 } from "@/lib/split-pane-state";
 import type { SharedSessionRefs, SharedSessionSetters, EngineHooks } from "./types";
+import { getSessionRuntimeDisposition } from "@shared/lib/session-runtime";
 
 interface UseSessionPersistenceParams {
   refs: SharedSessionRefs;
@@ -36,12 +34,10 @@ export function useSessionPersistence({
   activeSessionId,
   continueQueuedBackgroundSession,
 }: UseSessionPersistenceParams) {
-  const { claude, acp, codex, engine } = engines;
+  const { acp, engine } = engines;
   const { messages, totalCost, upstreamRequestCount, requestLog, sessionInfo } = engine;
   const {
     setSessions,
-    setDraftMcpStatuses,
-    setPreStartedSessionId,
     setDraftAcpSessionId,
     setInitialConfigOptions,
     setInitialSlashCommands,
@@ -61,14 +57,12 @@ export function useSessionPersistence({
     pendingPermissionRef,
     liveSessionIdsRef,
     backgroundStoreRef,
-    preStartedSessionIdRef,
     draftAcpSessionIdRef,
     lastMessageSyncSessionRef,
     switchSessionRef,
     acpPermissionBehaviorRef,
     saveTimerRef,
   } = refs;
-  const activeClaudeModels = claude.supportedModels;
   const metadataSyncSessionRef = useRef<string | null>(null);
   const splitSaveTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const splitPendingSavesRef = useRef(new Map<string, {
@@ -91,26 +85,20 @@ export function useSessionPersistence({
   const pendingPersistenceWritesRef = useRef(new Set<Promise<void>>());
   const persistenceGenerationRef = useRef(0);
 
-  // Preserve Codex resume metadata when a transient renderer state omits it.
-  const persistSessionWithCodexFallback = useCallback((data: PersistedSession) => {
+  const persistRuntimeSession = useCallback((data: PersistedSession) => {
+    const disposition = getSessionRuntimeDisposition({
+      engine: data.invalidEngine ?? data.engine,
+      agentId: data.agentId,
+    });
+    if (disposition.kind !== "runtime") return Promise.resolve();
+
     persistenceGenerationRef.current += 1;
     const write = (async () => {
-      let payload = data;
-      if (data.engine === "codex" && (!data.codexThreadId || !data.codexRolloutPath)) {
-        try {
-          const existing = await window.claude.sessions.load(data.projectId, data.id);
-          if (existing) {
-            payload = {
-              ...data,
-              codexThreadId: data.codexThreadId ?? existing.codexThreadId,
-              codexRolloutPath: data.codexRolloutPath ?? existing.codexRolloutPath,
-            };
-          }
-        } catch {
-          // Best-effort fallback only.
-        }
-      }
-      const result = await window.claude.sessions.save(payload);
+      const result = await window.claude.sessions.save({
+        ...data,
+        engine: disposition.engine,
+        agentId: disposition.agentId,
+      });
       if (result?.error) throw new Error(result.error);
     })();
     pendingPersistenceWritesRef.current.add(write);
@@ -125,6 +113,14 @@ export function useSessionPersistence({
     if (activeSessionIdRef.current !== sessionId) return;
     const session = sessionsRef.current.find((entry) => entry.id === sessionId);
     if (!session || messagesRef.current.length === 0) return;
+    // Selecting a historical Claude/Codex record must never trigger an
+    // automatic migration write. Explicit management actions may still save
+    // that record through their own IPC path.
+    const disposition = getSessionRuntimeDisposition({
+      engine: session.invalidEngine ?? session.engine,
+      agentId: session.agentId,
+    });
+    if (disposition.kind !== "runtime") return;
 
     const messages = messagesRef.current.filter((message) => !message.isQueued);
     const data: PersistedSession = {
@@ -134,22 +130,18 @@ export function useSessionPersistence({
       createdAt: session.createdAt,
       messages,
       model: session.model || sessionInfoRef.current?.model,
-      effort: session.effort,
       permissionMode: session.permissionMode,
       planMode: session.planMode,
       totalCost: totalCostRef.current,
       upstreamRequestCount: upstreamRequestCountRef.current,
       requestLog: requestLogRef.current,
       contextUsage: contextUsageRef.current,
-      engine: session.engine,
-      ...(session.agentId ? { agentId: session.agentId } : {}),
+      engine: disposition.engine,
+      agentId: disposition.agentId,
       ...(session.agentSessionId ? { agentSessionId: session.agentSessionId } : {}),
-      ...(session.delegatedFromSessionId ? { delegatedFromSessionId: session.delegatedFromSessionId } : {}),
-      ...(session.engine === "codex" && session.codexThreadId ? { codexThreadId: session.codexThreadId } : {}),
-      ...(session.engine === "codex" && session.codexRolloutPath ? { codexRolloutPath: session.codexRolloutPath } : {}),
     };
-    await persistSessionWithCodexFallback(data);
-  }, [persistSessionWithCodexFallback]);
+    await persistRuntimeSession(data);
+  }, [persistRuntimeSession]);
 
   const flushActiveSaveWhenIdle = useCallback(function checkActiveSave() {
     const pending = activeSavePendingRef.current;
@@ -171,11 +163,16 @@ export function useSessionPersistence({
   const persistSplitSnapshot = useCallback(async (snapshot: SplitPaneStateSnapshot) => {
     const session = sessionsRef.current.find((entry) => entry.id === snapshot.sessionId);
     if (!session || snapshot.messages.length === 0) return;
+    const disposition = getSessionRuntimeDisposition({
+      engine: session.invalidEngine ?? session.engine,
+      agentId: session.agentId,
+    });
+    if (disposition.kind !== "runtime") return;
     const sessionForPersist = snapshot.sessionInfo?.model
       ? { ...session, model: snapshot.sessionInfo.model }
       : session;
     const messages = snapshot.messages.filter((message) => !message.isQueued);
-    await persistSessionWithCodexFallback(buildPersistedSession(
+    await persistRuntimeSession(buildPersistedSession(
       sessionForPersist,
       messages,
       snapshot.totalCost,
@@ -183,7 +180,7 @@ export function useSessionPersistence({
       snapshot.requestLog,
       snapshot.upstreamRequestCount,
     ));
-  }, [persistSessionWithCodexFallback]);
+  }, [persistRuntimeSession]);
 
   useEffect(() => {
     const splitSaveDelayMs = 2000;
@@ -316,7 +313,7 @@ export function useSessionPersistence({
       splitPendingSavesRef.current.clear();
       splitMetadataRef.current.clear();
     };
-  }, [persistSessionWithCodexFallback, setSessions]);
+  }, [persistRuntimeSession, setSessions]);
 
   // Wire up background store callbacks for sidebar indicators
   useEffect(() => {
@@ -431,7 +428,7 @@ export function useSessionPersistence({
 
       const state = backgroundStoreRef.current.get(detail.sessionId);
       if (!state) return;
-      void persistSessionWithCodexFallback(buildPersistedSession(
+      void persistRuntimeSession(buildPersistedSession(
         {
           ...session,
           model: session.model || state.sessionInfo?.model,
@@ -445,21 +442,13 @@ export function useSessionPersistence({
     };
     window.addEventListener(SESSION_SEND_FAILURE_EVENT, handleSendFailure);
     return () => window.removeEventListener(SESSION_SEND_FAILURE_EVENT, handleSendFailure);
-  }, [persistSessionWithCodexFallback]);
+  }, [persistRuntimeSession]);
 
-  // Handle session exits across all engines
+  // Handle exits from the sole live runtime: ACP/Pi.
   useEffect(() => {
     const handleSessionExit = (sid: string) => {
-      clearClaudeObservedRequests(sid);
       liveSessionIdsRef.current.delete(sid);
 
-      // If the pre-started eager session crashed, clear it
-      if (sid === preStartedSessionIdRef.current) {
-        preStartedSessionIdRef.current = null;
-        setPreStartedSessionId(null);
-        backgroundStoreRef.current.delete(sid);
-        return;
-      }
       if (sid === draftAcpSessionIdRef.current) {
         draftAcpSessionIdRef.current = null;
         setDraftAcpSessionId(null);
@@ -486,19 +475,13 @@ export function useSessionPersistence({
             bgState.requestLog ?? [],
             bgState.upstreamRequestCount,
           );
-          void persistSessionWithCodexFallback(persisted).catch(() => undefined);
+          void persistRuntimeSession(persisted).catch(() => undefined);
         }
       }
     };
 
-    const unsubExit = window.claude.onExit((data) => handleSessionExit(data._sessionId));
     const unsubAcpExit = window.claude.acp.onExit((data: { _sessionId: string; code: number | null }) => handleSessionExit(data._sessionId));
-    const unsubCodexExit = window.claude.codex.onExit((data) => handleSessionExit(data._sessionId));
-    return () => {
-      unsubExit();
-      unsubAcpExit();
-      unsubCodexExit();
-    };
+    return () => unsubAcpExit();
   }, []);
 
   // Upsert WeChat-originated sessions into the sidebar as the bridge creates/updates them.
@@ -527,32 +510,8 @@ export function useSessionPersistence({
     return () => unsub();
   }, []);
 
-  // Route events for non-active sessions to the background store
+  // Route non-active ACP events to the background store.
   useEffect(() => {
-    const unsub = window.claude.onEvent((event: ClaudeEvent & { _sessionId?: string }) => {
-      const sid = event._sessionId;
-      if (!sid) return;
-      if (sid === activeSessionIdRef.current) return;
-      // Split view: secondary pane's engine hooks handle their own events
-      if (isSplitPaneRoutingReady(sid)) return;
-
-      // Pre-started session: route to background store AND extract MCP statuses
-      if (sid === preStartedSessionIdRef.current) {
-        backgroundStoreRef.current.handleEvent(event);
-        if (event.type === "system" && "subtype" in event && event.subtype === "init") {
-          const init = event as SystemInitEvent;
-          if (init.mcp_servers?.length) {
-            setDraftMcpStatuses(init.mcp_servers.map(s => ({
-              name: s.name,
-              status: toMcpStatusState(s.status),
-            })));
-          }
-        }
-        return;
-      }
-
-      backgroundStoreRef.current.handleEvent(event);
-    });
     const unsubAcp = window.claude.acp.onEvent((event: ACPSessionEvent) => {
       const sid = event._sessionId;
       if (!sid) return;
@@ -560,20 +519,6 @@ export function useSessionPersistence({
       if (isSplitPaneRoutingReady(sid)) return;
       if (sid === draftAcpSessionIdRef.current) return;
       backgroundStoreRef.current.handleACPEvent(event);
-    });
-
-    // Route permission requests for non-active Claude sessions to the background store
-    const unsubBgPerm = window.claude.onPermissionRequest((data) => {
-      const sid = data._sessionId;
-      if (!sid || sid === activeSessionIdRef.current || isSplitPaneRoutingReady(sid) || sid === preStartedSessionIdRef.current) return;
-      backgroundStoreRef.current.setPermission(sid, {
-        requestId: data.requestId,
-        toolName: data.toolName,
-        toolInput: data.toolInput,
-        toolUseId: data.toolUseId,
-        suggestions: data.suggestions,
-        decisionReason: data.decisionReason,
-      });
     });
 
     // Route permission requests for non-active ACP sessions to the background store
@@ -614,7 +559,12 @@ export function useSessionPersistence({
     const unsubBgAcpTurn = window.claude.acp.onTurnComplete((data: ACPTurnCompleteEvent) => {
       const sid = data._sessionId;
       if (!sid || sid === activeSessionIdRef.current || isSplitPaneRoutingReady(sid)) return;
-      backgroundStoreRef.current.handleACPTurnComplete(sid);
+      backgroundStoreRef.current.handleACPTurnComplete(sid, data);
+    });
+    const unsubBgAcpTransportError = window.claude.acp.onTurnTransportError((data: ACPTransportErrorEvent) => {
+      const sid = data._sessionId;
+      if (!sid || sid === activeSessionIdRef.current || isSplitPaneRoutingReady(sid)) return;
+      backgroundStoreRef.current.handleACPTransportError(sid, data);
     });
 
     const unsubBgUpstreamRequest = window.claude.onUpstreamRequest((event) => {
@@ -622,51 +572,7 @@ export function useSessionPersistence({
       if (!sid || sid === activeSessionIdRef.current || isSplitPaneRoutingReady(sid)) return;
       backgroundStoreRef.current.recordUpstreamRequest(sid, event.record, event.countDelta);
     });
-
-    // Route Codex events for non-active sessions to the background store
-    const unsubCodex = window.claude.codex.onEvent((event) => {
-      const sid = event._sessionId;
-      if (!sid || sid === activeSessionIdRef.current || isSplitPaneRoutingReady(sid)) return;
-      backgroundStoreRef.current.handleCodexEvent(event);
-    });
-
-    // Route Codex approval requests for non-active sessions — auto-decline for now
-    const unsubCodexApproval = window.claude.codex.onApprovalRequest((data) => {
-      const sid = data._sessionId;
-      if (!sid || sid === activeSessionIdRef.current || isSplitPaneRoutingReady(sid)) return;
-      if (data.method === "item/tool/requestUserInput") {
-        backgroundStoreRef.current.setPermission(sid, {
-          requestId: String(data.rpcId),
-          toolName: "AskUserQuestion",
-          toolInput: {
-            source: "codex_request_user_input",
-            questions: data.questions.map((question) => ({
-              id: question.id,
-              header: question.header,
-              question: question.question,
-              isOther: question.isOther,
-              isSecret: question.isSecret,
-              options: question.options ?? undefined,
-              multiSelect: false,
-            })),
-          },
-          toolUseId: data.itemId,
-          codexRpcId: data.rpcId,
-        });
-        return;
-      }
-
-      // Auto-decline background Codex approvals (user must switch to the session)
-      backgroundStoreRef.current.setPermission(sid, {
-        requestId: String(data.rpcId),
-        toolName: data.method.includes("commandExecution") ? "Bash" : "Edit",
-        toolInput: {},
-        toolUseId: data.itemId,
-        codexRpcId: data.rpcId,
-      });
-    });
-
-    return () => { unsub(); unsubAcp(); unsubBgPerm(); unsubBgAcpPerm(); unsubBgAcpTurn(); unsubBgUpstreamRequest(); unsubCodex(); unsubCodexApproval(); };
+    return () => { unsubAcp(); unsubBgAcpPerm(); unsubBgAcpTurn(); unsubBgAcpTransportError(); unsubBgUpstreamRequest(); };
   }, []);
 
   // Debounced auto-save
@@ -781,11 +687,7 @@ export function useSessionPersistence({
         const updates: Record<string, unknown> = {};
 
         // Model sync
-        const nextModel = (s.engine ?? "claude") === "claude"
-          ? (activeClaudeModels.length > 0
-            ? (resolveClaudePickerValue(sessionInfo?.model, activeClaudeModels) ?? sessionInfo?.model)
-            : s.model)
-          : sessionInfo?.model;
+        const nextModel = sessionInfo?.model;
         if (nextModel && s.model !== nextModel) {
           updates.model = nextModel;
         }
@@ -828,7 +730,7 @@ export function useSessionPersistence({
       });
       return changed ? next : prev;
     });
-  }, [activeClaudeModels, activeSessionId, sessionInfo?.model, sessionInfo?.permissionMode, totalCost, upstreamRequestCount, requestLog, messages.length, engine.isProcessing, engine.pendingPermission]);
+  }, [activeSessionId, sessionInfo?.model, sessionInfo?.permissionMode, totalCost, upstreamRequestCount, requestLog, messages.length, engine.isProcessing, engine.pendingPermission]);
 
   // Save current session to disk (used before switching/creating)
   const saveCurrentSession = useCallback(async () => {
@@ -836,6 +738,14 @@ export function useSessionPersistence({
     if (!id || id === DRAFT_ID || messagesRef.current.length === 0) return;
     const session = sessionsRef.current.find((s) => s.id === id);
     if (!session) return;
+    // Switching away from a historical/invalid record must not turn the
+    // display-only snapshot into an implicit migration write. Only a live ACP
+    // record is owned by this runtime and may be saved here.
+    const disposition = getSessionRuntimeDisposition({
+      engine: session.invalidEngine ?? session.engine,
+      agentId: session.agentId,
+    });
+    if (disposition.kind !== "runtime") return;
     // Never persist queued messages — unsent queue state is runtime-only.
     const msgs = messagesRef.current.filter((m) => !m.isQueued);
     const data: PersistedSession = buildPersistedSession(
@@ -846,20 +756,19 @@ export function useSessionPersistence({
       requestLogRef.current,
       upstreamRequestCountRef.current,
     );
-    await persistSessionWithCodexFallback(data);
-  }, [persistSessionWithCodexFallback]);
+    await persistRuntimeSession(data);
+  }, [persistRuntimeSession]);
 
   // Seed background store with current active session's state
   const seedBackgroundStore = useCallback(() => {
     const currentId = activeSessionIdRef.current;
     if (currentId && currentId !== DRAFT_ID) {
-      // Pick slash commands from the active engine hook
-      const sessionEngine = sessionsRef.current.find(s => s.id === currentId)?.engine ?? "claude";
-      const slashCommands = sessionEngine === "codex"
-        ? codex.slashCommands
-        : sessionEngine === "acp"
-          ? acp.slashCommands
-          : claude.slashCommands;
+      const session = sessionsRef.current.find((entry) => entry.id === currentId);
+      if (!session || getSessionRuntimeDisposition({
+        engine: session.invalidEngine ?? session.engine,
+        agentId: session.agentId,
+      }).kind !== "runtime") return;
+      const slashCommands = acp.slashCommands;
 
       backgroundStoreRef.current.initFromState(currentId, {
         messages: messagesRef.current,
@@ -876,7 +785,7 @@ export function useSessionPersistence({
         slashCommands,
       });
     }
-  }, [claude.slashCommands, acp.slashCommands, codex.slashCommands]);
+  }, [acp.slashCommands]);
 
   // AI-generated title via background utility prompt (SDK Haiku or ACP utility session)
   const generateSessionTitle = useCallback(
@@ -919,7 +828,7 @@ export function useSessionPersistence({
           sessionId,
         );
         if (data) {
-          await persistSessionWithCodexFallback({ ...data, title });
+          await persistRuntimeSession({ ...data, title });
         }
       } catch {
         setSessions((prev) =>
@@ -938,6 +847,5 @@ export function useSessionPersistence({
     saveCurrentSession,
     seedBackgroundStore,
     generateSessionTitle,
-    persistSessionWithCodexFallback,
   };
 }

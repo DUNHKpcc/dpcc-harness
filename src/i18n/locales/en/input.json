@@ -1,14 +1,12 @@
 {
   "placeholder": {
     "compacting": "Compacting context...",
+    "readOnly": "This legacy session is read-only",
+    "invalidSession": "Unsupported session data; history is preserved",
     "loadingAgentOptions": "Loading agent options...",
     "responding": "{{name}} is responding... (messages will be queued)",
     "askWithCommands": "Ask anything, @ to tag files, / for commands",
     "ask": "Ask anything, @ to tag files"
-  },
-  "model": {
-    "loadingCodex": "Loading Codex models...",
-    "loading": "Loading models..."
   },
   "voice": {
     "attachImage": "Attach file",
@@ -41,6 +39,9 @@
     "noOptions": "Could not load options for this agent",
     "noThinkingOptions": "This model has no adjustable reasoning effort",
     "opensNewChat": "Opens new chat",
+    "legacyReadOnly": "Legacy session · read-only",
+    "invalidReadOnly": "Invalid session data · read-only",
+    "createPiChat": "New Pi chat",
     "engines": "Engines",
     "acpAgents": "ACP Agents",
     "manageACPs": "Manage ACPs",
@@ -53,22 +54,6 @@
     }
   },
   "control": {
-    "plan": "Plan",
-    "planModeOn": "Plan mode on",
-    "planModeOff": "Plan mode off",
-    "codex": "Codex",
-    "codexBridgeOn": "Claude can delegate to Codex in a visible split pane",
-    "codexBridgeOff": "Allow Claude to delegate to Codex",
-    "permissionMode": {
-      "default": "Ask Before Edits",
-      "acceptEdits": "Accept Edits",
-      "bypassPermissions": "Allow All"
-    },
-    "codexPermissionDesc": {
-      "default": "Prompt before commands and file edits",
-      "acceptEdits": "Auto-approve trusted edits; prompt for untrusted actions",
-      "bypassPermissions": "No approval prompts"
-    },
     "acpBehavior": {
       "ask": "Ask",
       "askDesc": "Show permission prompt",

@@ -1,18 +1,25 @@
 /**
- * useSessionPane — encapsulates one complete engine triple (useClaude + useACP + useCodex)
- * for a single "pane" of the UI.
+ * Owns the renderer state for one chat pane.
  *
- * In single mode, only the primary pane is active. In split view, both primary
- * and secondary panes are active simultaneously. The hook is always called
- * unconditionally (satisfying Rules of Hooks); when not in use, all engine hooks
- * receive null sessionIds and hold dormant empty state.
+ * ACP is the only live runtime. Historical Claude/Codex records still use this
+ * pane for displaying their persisted messages, but they never receive a
+ * runtime session id and therefore cannot bind any process event listeners.
  */
 
 import { useEffect } from "react";
-import { useClaude } from "../useClaude";
 import { useACP } from "../useACP";
-import { useCodex } from "../useCodex";
-import type { UIMessage, PermissionRequest, EngineId, AcpPermissionBehavior, ContextUsage, SessionInfo, ACPConfigOption, ACPPermissionEvent, SlashCommand, UpstreamRequestRecord } from "@/types";
+import type {
+  UIMessage,
+  PermissionRequest,
+  EngineId,
+  AcpPermissionBehavior,
+  ContextUsage,
+  SessionInfo,
+  ACPConfigOption,
+  ACPPermissionEvent,
+  SlashCommand,
+  UpstreamRequestRecord,
+} from "@/types";
 import { createSystemMessage } from "@/lib/message-factory";
 import {
   SESSION_SEND_FAILURE_EVENT,
@@ -23,38 +30,37 @@ import type { InitialMeta } from "./types";
 export interface UseSessionPaneOptions {
   /** The logical session ID for this pane (or null when the pane is unused). */
   activeSessionId: string | null;
-  /** Which engine this pane's session uses. */
+  /** Persisted engine identity; only ACP is eligible for a live runtime. */
   activeEngine: EngineId;
-
-  // ── Per-engine session IDs (pre-computed by the caller) ──
-  claudeSessionId: string | null;
+  /** ACP process session ID. Must be null for legacy read-only records. */
   acpSessionId: string | null;
-  codexSessionId: string | null;
-  codexSessionModel: string | undefined;
-  codexPlanModeEnabled: boolean;
+  /**
+   * Whether this pane is allowed to bind a live ACP process. Keep this
+   * explicit instead of inferring it from the display engine: an unknown
+   * persisted engine must remain detached and read-only.
+   */
+  runtimeEnabled?: boolean;
+  /** Whether the main process currently owns this session's ACP transport. */
+  runtimeAvailable?: boolean;
 
-  // ── Initial state for session restoration ──
+  // Initial state for session restoration.
   initialMessages: UIMessage[];
   initialMeta: InitialMeta | null;
   initialPermission: PermissionRequest | null;
-
-  // ── ACP-specific initial state ──
   initialConfigOptions?: ACPConfigOption[];
   initialSlashCommands?: SlashCommand[];
   initialRawAcpPermission?: ACPPermissionEvent | null;
   acpPermissionBehavior: AcpPermissionBehavior;
 }
 
+export type SessionPaneEngine = ReturnType<typeof useACP>;
+
 export interface SessionPaneState {
-  /** Individual engine hook returns — sub-hooks need direct access. */
-  claude: ReturnType<typeof useClaude>;
-  acp: ReturnType<typeof useACP>;
-  codex: ReturnType<typeof useCodex>;
+  /** The only live engine state exposed to pane consumers. */
+  acp: SessionPaneEngine;
+  /** Alias retained for generic pane code; it always points to ACP state. */
+  engine: SessionPaneEngine;
 
-  /** The currently-selected engine for this pane. */
-  engine: ReturnType<typeof useClaude> | ReturnType<typeof useACP> | ReturnType<typeof useCodex>;
-
-  /** Convenience accessors — derived from the active engine. */
   messages: UIMessage[];
   totalCost: number;
   upstreamRequestCount: number;
@@ -67,14 +73,40 @@ export interface SessionPaneState {
   pendingPermission: PermissionRequest | null;
 }
 
+export function resolveAcpInitialRuntimeState(
+  runtimeEnabled: boolean,
+  initialConfigOptions?: ACPConfigOption[],
+  initialSlashCommands?: SlashCommand[],
+  initialRawAcpPermission?: ACPPermissionEvent | null,
+) {
+  if (!runtimeEnabled) {
+    return {
+      initialConfigOptions: undefined,
+      initialSlashCommands: undefined,
+      initialRawAcpPermission: null,
+    };
+  }
+  return {
+    initialConfigOptions,
+    initialSlashCommands,
+    initialRawAcpPermission: initialRawAcpPermission ?? null,
+  };
+}
+
+export function resolveAcpBoundSessionId(
+  runtimeEnabled: boolean,
+  runtimeAvailable: boolean,
+  acpSessionId: string | null,
+): string | null {
+  return runtimeEnabled && runtimeAvailable ? acpSessionId : null;
+}
+
 export function useSessionPane({
   activeSessionId,
   activeEngine,
-  claudeSessionId,
   acpSessionId,
-  codexSessionId,
-  codexSessionModel,
-  codexPlanModeEnabled,
+  runtimeEnabled,
+  runtimeAvailable,
   initialMessages,
   initialMeta,
   initialPermission,
@@ -83,72 +115,76 @@ export function useSessionPane({
   initialRawAcpPermission,
   acpPermissionBehavior,
 }: UseSessionPaneOptions): SessionPaneState {
-  const isACP = activeEngine === "acp";
-  const isCodex = activeEngine === "codex";
-  const isClaude = activeEngine === "claude";
-
-  // ── Engine hooks (always called — Rules of Hooks) ──
-  const claude = useClaude({
-    sessionId: claudeSessionId,
-    initialMessages: isClaude ? initialMessages : [],
-    initialSlashCommands: isClaude ? initialSlashCommands : undefined,
-    initialMeta: isClaude ? initialMeta : null,
-    initialPermission: isClaude ? initialPermission : null,
-  });
-
+  const isRuntimeEnabled = runtimeEnabled ?? activeEngine === "acp";
+  const isRuntimeAvailable = runtimeAvailable ?? acpSessionId !== null;
+  const boundAcpSessionId = resolveAcpBoundSessionId(
+    isRuntimeEnabled,
+    isRuntimeAvailable,
+    acpSessionId,
+  );
+  const runtimeInitialState = resolveAcpInitialRuntimeState(
+    isRuntimeEnabled,
+    initialConfigOptions,
+    initialSlashCommands,
+    initialRawAcpPermission,
+  );
   const acp = useACP({
-    sessionId: acpSessionId,
-    initialMessages: isACP ? initialMessages : [],
-    initialConfigOptions: isACP ? initialConfigOptions : undefined,
-    initialSlashCommands: isACP ? initialSlashCommands : undefined,
-    initialMeta: isACP ? initialMeta : null,
-    initialPermission: isACP ? initialPermission : null,
-    initialRawAcpPermission: isACP ? initialRawAcpPermission : null,
+    // A legacy record is deliberately passed null: no old session ID may bind
+    // ACP listeners or accidentally send to a removed runtime.
+    sessionId: boundAcpSessionId,
+    initialMessages,
+    // Keep dormant props referentially stable. Fresh [] literals would retrigger
+    // useACP's prop-to-state effects on every render and recurse indefinitely.
+    initialConfigOptions: runtimeInitialState.initialConfigOptions,
+    initialSlashCommands: runtimeInitialState.initialSlashCommands,
+    initialMeta,
+    initialPermission,
+    initialRawAcpPermission: runtimeInitialState.initialRawAcpPermission,
     acpPermissionBehavior,
   });
 
-  const codex = useCodex({
-    sessionId: codexSessionId,
-    sessionModel: codexSessionModel,
-    planModeEnabled: codexPlanModeEnabled,
-    initialMessages: isCodex ? initialMessages : [],
-    initialMeta: isCodex ? initialMeta : null,
-    initialPermission: isCodex ? initialPermission : null,
-    initialSlashCommands: isCodex ? initialSlashCommands : undefined,
-  });
+  useEffect(() => {
+    if (!activeSessionId || !isRuntimeEnabled || isRuntimeAvailable) return;
+    window.claude.acp.log("SESSION_DORMANT", {
+      session: activeSessionId.slice(0, 8),
+      cachedConfigOptions: initialConfigOptions?.length ?? 0,
+    });
+  }, [activeSessionId, initialConfigOptions?.length, isRuntimeAvailable, isRuntimeEnabled]);
 
-  // Pick the active engine's state
-  const engine = isCodex ? codex : isACP ? acp : claude;
+  // `useACP` resets on its process id. Legacy and dormant ACP records have no
+  // live process id, so hydrate their display state on logical session switches.
+  useEffect(() => {
+    if (boundAcpSessionId) return;
+    acp.hydrate(initialMessages, initialMeta, initialPermission, null);
+  }, [acp.hydrate, activeSessionId, boundAcpSessionId, initialMessages, initialMeta, initialPermission]);
 
   useEffect(() => {
     if (!activeSessionId) return;
     const handleSendFailure = (event: Event) => {
       const detail = (event as CustomEvent<SessionSendFailureDetail>).detail;
       if (!detail || detail.sessionId !== activeSessionId) return;
-      engine.setMessages((prev) => [
+      acp.setMessages((prev) => [
         ...prev,
         createSystemMessage(detail.message, true),
       ]);
-      engine.setIsProcessing(false);
+      acp.setIsProcessing(false);
     };
     window.addEventListener(SESSION_SEND_FAILURE_EVENT, handleSendFailure);
     return () => window.removeEventListener(SESSION_SEND_FAILURE_EVENT, handleSendFailure);
-  }, [activeSessionId, engine.setIsProcessing, engine.setMessages]);
+  }, [acp.setIsProcessing, acp.setMessages, activeSessionId]);
 
   return {
-    claude,
     acp,
-    codex,
-    engine,
-    messages: engine.messages,
-    totalCost: engine.totalCost,
-    upstreamRequestCount: engine.upstreamRequestCount,
-    requestLog: engine.requestLog,
-    contextUsage: engine.contextUsage,
-    isProcessing: engine.isProcessing,
-    isConnected: engine.isConnected,
-    isCompacting: "isCompacting" in engine ? !!engine.isCompacting : false,
-    sessionInfo: engine.sessionInfo,
-    pendingPermission: engine.pendingPermission,
+    engine: acp,
+    messages: acp.messages,
+    totalCost: acp.totalCost,
+    upstreamRequestCount: acp.upstreamRequestCount,
+    requestLog: acp.requestLog,
+    contextUsage: acp.contextUsage,
+    isProcessing: acp.isProcessing,
+    isConnected: acp.isConnected,
+    isCompacting: acp.isCompacting,
+    sessionInfo: acp.sessionInfo,
+    pendingPermission: acp.pendingPermission,
   };
 }

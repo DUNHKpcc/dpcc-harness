@@ -3,7 +3,9 @@ import { Trans, useTranslation } from "react-i18next";
 import { ExternalLink, Loader2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AuthDialogShell } from "@/components/AuthDialogShell";
-import type { ACPAuthenticateResult, ACPAuthMethod } from "@/types";
+import { PiLogo } from "@/components/PiLogo";
+import { BUILTIN_PI_AGENT_ID, type ACPAuthenticateResult, type ACPAuthMethod } from "@/types";
+import { formatAcpOperationError } from "@/lib/engine/acp-utils";
 
 interface ACPAuthDialogProps {
   sessionId: string;
@@ -35,7 +37,7 @@ export const ACPAuthDialog = memo(function ACPAuthDialog({
     try {
       const result = await window.claude.acp.authenticate(sessionId, method.id);
       if (result.error) {
-        setError(result.error);
+        setError(formatAcpOperationError(result, t("acpAuth.stillRequired")));
         return;
       }
       if (result.authRequired) {
@@ -61,7 +63,9 @@ export const ACPAuthDialog = memo(function ACPAuthDialog({
       description={t("acpAuth.description")}
       error={error}
       loading={isLoading}
-      icon={<ShieldCheck className="h-4 w-4" />}
+      icon={agentId === BUILTIN_PI_AGENT_ID
+        ? <PiLogo size={16} />
+        : <ShieldCheck className="h-4 w-4" />}
     >
       {cursorHint && (
         <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/8 p-3 text-sm text-amber-700 dark:text-amber-300">

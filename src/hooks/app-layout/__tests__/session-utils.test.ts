@@ -1,27 +1,62 @@
 import { describe, expect, it } from "vitest";
 import { CHAT_MODULE_PROJECT_ID } from "@/lib/session/chat-module";
 import { buildSessionOptions, resolveComposerClearProjectId } from "../session-utils";
-import type { ClaudeEffort, EngineId } from "@/types";
+import { BUILTIN_PI_AGENT, type EngineId } from "@/types";
 
 const getModel = (_engine: EngineId) => "claude-opus-4-8";
-const noEffort = (_model: string | undefined): ClaudeEffort | undefined => undefined;
 
-describe("buildSessionOptions claudeCodexBridgeEnabled", () => {
-  it("carries the bridge flag for Claude sessions", () => {
-    const options = buildSessionOptions("claude", getModel, "default", false, false, noEffort, null, true);
-    expect(options.claudeCodexBridgeEnabled).toBe(true);
+describe("buildSessionOptions Pi identity", () => {
+  it("normalizes every new session request to the built-in Pi runtime", () => {
+    for (const engine of ["claude", "codex", "acp"] as const) {
+      const options = buildSessionOptions(engine, getModel, null);
+      expect(options).toMatchObject({
+        engine: "acp",
+        agentId: "pi-acp",
+        permissionMode: "default",
+        planMode: false,
+      });
+    }
   });
 
-  it("never enables the bridge for non-Claude engines", () => {
-    const codex = buildSessionOptions("codex", getModel, "default", false, false, noEffort, null, true);
-    expect(codex.claudeCodexBridgeEnabled).toBe(false);
-    const acp = buildSessionOptions("acp", getModel, "default", false, false, noEffort, null, true);
-    expect(acp.claudeCodexBridgeEnabled).toBe(false);
+  it("preserves a selected custom ACP agent while keeping the ACP protocol", () => {
+    const options = buildSessionOptions(
+      "acp",
+      getModel,
+      { id: "custom-agent", name: "Custom", engine: "acp" } as never,
+    );
+    expect(options).toMatchObject({ engine: "acp", agentId: "custom-agent" });
   });
 
-  it("defaults to disabled when the flag is omitted", () => {
-    const options = buildSessionOptions("claude", getModel, "default", false, false, noEffort, null);
-    expect(options.claudeCodexBridgeEnabled).toBe(false);
+  it("carries config and slash caches into a process-free draft", () => {
+    const cachedConfigOptions = [{
+      id: "model",
+      name: "Model",
+      type: "select" as const,
+      currentValue: "cached-model",
+      options: [{ value: "cached-model", name: "Cached Model" }],
+    }];
+    const cachedSlashCommands = [{
+      name: "compact",
+      description: "Compact context",
+      source: "acp" as const,
+    }];
+
+    expect(buildSessionOptions("acp", getModel, {
+      id: "pi-acp",
+      name: "Pi",
+      engine: "acp",
+      cachedConfigOptions,
+      cachedSlashCommands,
+    })).toMatchObject({
+      cachedConfigOptions,
+      cachedSlashCommands,
+    });
+  });
+
+  it("provides Pi built-in slash commands before the first live session", () => {
+    const options = buildSessionOptions("acp", getModel, BUILTIN_PI_AGENT);
+
+    expect(options.cachedSlashCommands?.map((command) => command.name)).toContain("compact");
   });
 });
 

@@ -6,7 +6,7 @@
  * the single-chat view and each split-view pane.
  */
 
-import type { ACPConfigOption, ClaudeEffort, FileReference, ImageAttachment, SlashCommand, EngineId, InstalledAgent, McpServerConfig, McpServerStatus, ModelInfo, GrabbedElement } from "@/types";
+import type { ACPConfigOption, FileReference, ImageAttachment, SlashCommand, EngineId, InstalledAgent, McpServerConfig, McpServerStatus, GrabbedElement } from "@/types";
 import type { TerminalTab } from "@/lib/terminal-tabs";
 import type { ResolvedTheme } from "@/hooks/useTheme";
 
@@ -17,18 +17,9 @@ export interface PaneController {
   paneHeaderModel: string;
   panePermissionMode: string;
   panePlanMode: boolean;
-  paneSupportedModels: ModelInfo[];
-  paneClaudeEffort: ClaudeEffort;
   paneSlashCommands: SlashCommand[];
   paneAcpConfigOptions: ACPConfigOption[];
   paneAcpConfigOptionsLoading: boolean;
-  paneCodexModelsLoadingMessage: string | null;
-  paneCodexEffort: string;
-  handlePaneModelChange: (nextModel: string) => void;
-  handlePaneClaudeModelEffortChange: (nextModel: string, effort: ClaudeEffort | undefined) => void;
-  handlePanePlanModeChange: (enabled: boolean) => void;
-  handlePanePermissionModeChange: (nextMode: string) => void;
-  handlePaneCodexEffortChange: (effort: string) => void;
   handlePaneAgentChange: (agent: InstalledAgent | null) => Promise<void>;
   handlePaneClear: () => Promise<void>;
   handlePaneSend: (text: string, images?: ImageAttachment[], displayText?: string, fileReferences?: FileReference[]) => Promise<void>;
@@ -51,8 +42,6 @@ export interface ToolIslandContextProps {
   onCloseTerminal: (tabId: string) => Promise<void>;
   resolvedTheme: ResolvedTheme;
   onElementGrab?: (element: GrabbedElement) => void;
-  onScrollToToolCall?: (messageId: string) => void;
-  onPreviewFile?: (path: string, rect: DOMRect) => void;
   collapsedRepos: Set<string>;
   onToggleRepoCollapsed: (path: string) => void;
   mcpServerStatuses: McpServerStatus[];

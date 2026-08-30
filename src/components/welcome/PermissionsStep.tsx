@@ -6,8 +6,8 @@ import { PERMISSION_MODES, type PermissionsStepProps } from "./shared";
 const ICON_MAP = { Shield, ShieldCheck, ShieldOff } as const;
 
 export function PermissionsStep({
-  permissionMode,
-  onPermissionModeChange,
+  permissionBehavior,
+  onPermissionBehaviorChange,
 }: PermissionsStepProps) {
   const { t } = useTranslation("welcome");
   return (
@@ -37,13 +37,13 @@ export function PermissionsStep({
         {/* Permission cards */}
         <div className="flex flex-col gap-3">
           {PERMISSION_MODES.map((mode, i) => {
-            const isSelected = permissionMode === mode.id;
+            const isSelected = permissionBehavior === mode.id;
             const Icon = ICON_MAP[mode.icon];
 
             return (
               <motion.button
                 key={mode.id}
-                onClick={() => onPermissionModeChange(mode.id)}
+                onClick={() => onPermissionBehaviorChange(mode.id)}
                 className={`flex items-center gap-4 rounded-xl border-2 px-5 py-4 text-start transition-all ${
                   isSelected
                     ? "border-foreground/80 bg-foreground/[0.05]"

@@ -31,6 +31,7 @@
     "requestStatus": {
       "pending": "进行中",
       "completed": "完成",
+      "cancelled": "已取消",
       "failed": "失败"
     },
     "permissionMode": {
@@ -49,10 +50,7 @@
     "attachedImage": "附加图片",
     "queued": "排队中",
     "sendNext": "下一个发送",
-    "unqueue": "移出队列",
-    "revertToHere": "回退到此处",
-    "revertFilesOnly": "仅回退文件",
-    "revertFilesAndChat": "回退文件 + 对话"
+    "unqueue": "移出队列"
   },
   "thinking": {
     "thinking": "思考中...",

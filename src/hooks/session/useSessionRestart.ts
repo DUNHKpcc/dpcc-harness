@@ -3,14 +3,16 @@ import type { McpServerConfig, Project } from "../../types";
 import { toMcpStatusState } from "../../lib/mcp-utils";
 import { suppressNextSessionCompletion } from "../../lib/notification-utils";
 import { createSystemMessage } from "../../lib/message-factory";
-import { useSettingsStore } from "../../stores/settings-store";
 import {
   DRAFT_ID,
-  getEffectiveClaudePermissionMode,
-  getCodexApprovalPolicy,
-  getCodexSandboxMode,
 } from "./types";
 import type { SharedSessionRefs, SharedSessionSetters, EngineHooks } from "./types";
+import {
+  BUILTIN_PI_AGENT_ID,
+  getSessionRuntimeDisposition,
+  INVALID_SESSION_ENGINE_MESSAGE,
+  LEGACY_SESSION_READ_ONLY_MESSAGE,
+} from "@shared/lib/session-runtime";
 
 interface UseSessionRestartParams {
   refs: SharedSessionRefs;
@@ -27,7 +29,7 @@ export function useSessionRestart({
   findProject,
   getProjectCwd,
 }: UseSessionRestartParams) {
-  const { claude, acp } = engines;
+  const { acp } = engines;
   const {
     setSessions,
     setActiveSessionId,
@@ -47,7 +49,6 @@ export function useSessionRestart({
     isProcessingRef,
     liveSessionIdsRef,
     backgroundStoreRef,
-    startOptionsRef,
     acpAgentIdRef,
   } = refs;
 
@@ -59,7 +60,18 @@ export function useSessionRestart({
 
     const session = sessionsRef.current.find(s => s.id === currentId);
     const project = session ? findProject(session.projectId) : null;
-    const agentId = acpAgentIdRef.current;
+    const disposition = getSessionRuntimeDisposition({
+      engine: session?.invalidEngine ?? session?.engine,
+      agentId: session?.agentId,
+    });
+    if (disposition.kind !== "runtime") {
+      return {
+        error: disposition.kind === "legacy-read-only"
+          ? LEGACY_SESSION_READ_ONLY_MESSAGE
+          : `${INVALID_SESSION_ENGINE_MESSAGE} (${disposition.engine})`,
+      };
+    }
+    const agentId = acpAgentIdRef.current ?? disposition.agentId ?? BUILTIN_PI_AGENT_ID;
     if (!session || !project || !agentId) return { error: "ACP session cannot be restarted right now." };
 
     // Probe servers so we get accurate statuses (including needs-auth) before any reload
@@ -135,184 +147,27 @@ export function useSessionRestart({
 
     const session = sessionsRef.current.find((s) => s.id === currentId);
     if (!session) return { error: "Active session not found." };
+    const disposition = getSessionRuntimeDisposition({
+      engine: session.invalidEngine ?? session.engine,
+      agentId: session.agentId,
+    });
+    if (disposition.kind !== "runtime") {
+      return {
+        error: disposition.kind === "legacy-read-only"
+          ? LEGACY_SESSION_READ_ONLY_MESSAGE
+          : `${INVALID_SESSION_ENGINE_MESSAGE} (${disposition.engine})`,
+      };
+    }
     const project = findProject(session.projectId);
     if (!project) return { error: "Project not found." };
     const nextCwd = getProjectCwd(project);
-    const mcpServers = await window.claude.mcp.list(session.projectId);
+    const mcpServers = await window.claude.mcp.list();
 
-    if (session.engine === "acp") {
-      return restartAcpSession(mcpServers, nextCwd);
-    }
-
-    if (session.engine === "codex") {
-      let codexThreadId: string | undefined = session.codexThreadId;
-      let codexRolloutPath: string | undefined = session.codexRolloutPath;
-      if (!codexThreadId || !codexRolloutPath) {
-        try {
-          const persisted = await window.claude.sessions.load(session.projectId, currentId);
-          codexThreadId ??= persisted?.codexThreadId;
-          codexRolloutPath ??= persisted?.codexRolloutPath;
-        } catch {
-          // Ignore persistence lookup failure; we'll surface the missing thread below.
-        }
-      }
-
-      if (!codexThreadId) {
-        return { error: "Codex session cannot be restarted in another worktree because no thread ID is available." };
-      }
-
-      const resumeResult = await window.claude.codex.resume({
-        cwd: nextCwd,
-        threadId: codexThreadId,
-        rolloutPath: codexRolloutPath,
-        model: session.model,
-        permissionMode: session.permissionMode,
-        approvalPolicy: getCodexApprovalPolicy({ permissionMode: session.permissionMode }),
-        sandbox: getCodexSandboxMode({ permissionMode: session.permissionMode }),
-      });
-
-      if (resumeResult.error || !resumeResult.sessionId) {
-        return { error: resumeResult.error || "Failed to restart Codex session in the selected worktree." };
-      }
-
-      const newId = resumeResult.sessionId;
-      liveSessionIdsRef.current.add(newId);
-      setSessions((prev) => prev.map((s) =>
-        s.id === currentId
-          ? {
-              ...s,
-              id: newId,
-              codexThreadId: resumeResult.threadId ?? codexThreadId,
-              codexRolloutPath: resumeResult.rolloutPath ?? codexRolloutPath,
-            }
-          : s,
-      ));
-      setInitialMessages(messagesRef.current);
-      setInitialMeta({
-        isProcessing: false,
-        isConnected: true,
-        sessionInfo: null,
-        totalCost: totalCostRef.current,
-        upstreamRequestCount: upstreamRequestCountRef.current,
-        requestLog: requestLogRef.current,
-        contextUsage: contextUsageRef.current,
-      });
-      setActiveSessionId(newId);
-
-      suppressNextSessionCompletion(currentId);
-      await window.claude.codex.stop(currentId);
-      liveSessionIdsRef.current.delete(currentId);
-      backgroundStoreRef.current.delete(currentId);
-      return { ok: true };
-    }
-
-    const restartResult = await window.claude.restartSession(currentId, mcpServers, nextCwd);
-    if (restartResult?.error) {
-      return { error: restartResult.error };
-    }
-    if (restartResult?.restarted) {
-      await new Promise((resolve) => setTimeout(resolve, 3000));
-    }
-    await claude.refreshMcpStatus();
-    return { ok: true };
-  }, [claude.refreshMcpStatus, findProject, getProjectCwd, restartAcpSession]);
-
-  // ── Full revert: rewind files + fork a new SDK session truncated to the checkpoint ──
-
-  const fullRevertSession = useCallback(async (checkpointId: string) => {
-    const currentId = activeSessionIdRef.current;
-    if (!currentId || currentId === DRAFT_ID) return;
-
-    const session = sessionsRef.current.find(s => s.id === currentId);
-    if (!session) return;
-    const project = findProject(session.projectId);
-    if (!project) return;
-
-    // 1. Flush any pending streaming content
-    claude.flushNow();
-    claude.resetStreaming();
-
-    // 2. Compute truncated messages BEFORE the async IPC calls
-    const currentMessages = messagesRef.current;
-    const checkpointIdx = currentMessages.findIndex(
-      (m) => m.role === "user" && m.checkpointId === checkpointId,
-    );
-    const truncatedMessages = checkpointIdx >= 0
-      ? currentMessages.slice(0, checkpointIdx)
-      : currentMessages;
-
-    // 3. Revert files while old session is still alive (needs queryHandle.rewindFiles)
-    const revertResult = await window.claude.revertFiles(currentId, checkpointId);
-    if (revertResult.error) {
-      claude.setMessages(prev => [...prev, createSystemMessage(`File revert failed: ${revertResult.error}`, true)]);
-      return;
-    }
-
-    // 4. Stop old session — cleanup runs async in the event loop's finally block
-    suppressNextSessionCompletion(currentId);
-    await window.claude.stop(currentId, "revert_restart");
-    liveSessionIdsRef.current.delete(currentId);
-    backgroundStoreRef.current.delete(currentId);
-
-    // 5. Start a forked session — SDK creates a new session branched at the checkpoint.
-    const mcpServers = await window.claude.mcp.list(session.projectId);
-    const startResult = await window.claude.start({
-      cwd: getProjectCwd(project),
-      model: session.model,
-      permissionMode: getEffectiveClaudePermissionMode(startOptionsRef.current),
-      thinkingEnabled: startOptionsRef.current.thinkingEnabled,
-      effort: startOptionsRef.current.effort,
-      resume: currentId,
-      forkSession: true,
-      resumeSessionAt: checkpointId,
-      claudeCodexBridgeEnabled: useSettingsStore.getState().claudeCodexBridgeEnabled,
-      mcpServers,
-    });
-
-    if (startResult.error) {
-      claude.setMessages(prev => [...prev, createSystemMessage(`Full revert failed: ${startResult.error}`, true)]);
-      return;
-    }
-
-    const newId = startResult.sessionId;
-    liveSessionIdsRef.current.add(newId);
-
-    // 6. Map sidebar entry to new forked ID
-    setSessions(prev => prev.map(s =>
-      s.id === currentId ? { ...s, id: newId } : s,
-    ));
-
-    // 7. Provide truncated messages + system message via initialMessages -> reset effect
-    const systemMsg = createSystemMessage("Session reverted: files restored and chat history truncated.");
-    setInitialMessages([...truncatedMessages, systemMsg]);
-    setInitialMeta({
-      isProcessing: false,
-      isConnected: true,
-      sessionInfo: null, // repopulated by system/init event from forked session
-      totalCost: totalCostRef.current,
-      upstreamRequestCount: upstreamRequestCountRef.current,
-      requestLog: requestLogRef.current,
-      contextUsage: contextUsageRef.current,
-    });
-
-    // 8. Switch to new session ID -> triggers useClaude's reset effect
-    setActiveSessionId(newId);
-
-    // 9. Persist: save under new forked ID, delete old session file
-    const oldData = await window.claude.sessions.load(project.id, currentId);
-    if (oldData) {
-      await window.claude.sessions.save({
-        ...oldData,
-        id: newId,
-        messages: [...truncatedMessages, systemMsg],
-      });
-      await window.claude.sessions.delete(project.id, currentId);
-    }
-  }, [findProject, claude.flushNow, claude.resetStreaming, claude.setMessages]);
+    return restartAcpSession(mcpServers, nextCwd);
+  }, [findProject, getProjectCwd, restartAcpSession]);
 
   return {
     restartAcpSession,
     restartActiveSessionInCurrentWorktree,
-    fullRevertSession,
   };
 }

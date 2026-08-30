@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Bot,
@@ -7,7 +7,6 @@ import {
   ChevronDown,
   AlertCircle,
   X,
-  Square,
   FileSearch,
   Terminal,
   FileText,
@@ -39,7 +38,6 @@ interface BackgroundAgentsPanelProps {
   agents: BackgroundAgent[];
   expandEditToolCallsByDefault: boolean;
   onDismiss: (agentId: string) => void;
-  onStopAgent: (agentId: string, taskId: string) => void;
 }
 
 const TOOL_ICONS: Record<string, typeof Terminal> = {
@@ -61,7 +59,6 @@ export function BackgroundAgentsPanel({
   agents,
   expandEditToolCallsByDefault,
   onDismiss,
-  onStopAgent,
 }: BackgroundAgentsPanelProps) {
   const { t } = useTranslation("tools");
   const runningCount = agents.filter((a) => a.status === "running" || a.status === "stopping").length;
@@ -89,7 +86,6 @@ export function BackgroundAgentsPanel({
               agent={agent}
               expandEditToolCallsByDefault={expandEditToolCallsByDefault}
               onDismiss={onDismiss}
-              onStopAgent={onStopAgent}
             />
           ))}
         </div>
@@ -104,12 +100,10 @@ function AgentCard({
   agent,
   expandEditToolCallsByDefault,
   onDismiss,
-  onStopAgent,
 }: {
   agent: BackgroundAgent;
   expandEditToolCallsByDefault: boolean;
   onDismiss: (agentId: string) => void;
-  onStopAgent: (agentId: string, taskId: string) => void;
 }) {
   const { t } = useTranslation("tools");
   const isRunning = agent.status === "running";
@@ -119,14 +113,6 @@ function AgentCard({
   const isError = agent.status === "error";
   const [expanded, setExpanded] = useState(isRunning);
   const [showTranscript, setShowTranscript] = useState(false);
-
-  const handleStop = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      if (agent.taskId) onStopAgent(agent.agentId, agent.taskId);
-    },
-    [agent.agentId, agent.taskId, onStopAgent],
-  );
 
   return (
     <>
@@ -150,17 +136,6 @@ function AgentCard({
             </CollapsibleTrigger>
 
             <div className="flex items-center shrink-0">
-              {isRunning && agent.taskId && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-4.5 w-4.5 text-foreground/30 hover:text-red-400/80"
-                  onClick={handleStop}
-                  title={t("agents.stopAgent")}
-                >
-                  <Square className="h-2 w-2" />
-                </Button>
-              )}
               {(isCompleted || isError) && agent.outputFile && (
                 <Button
                   variant="ghost"

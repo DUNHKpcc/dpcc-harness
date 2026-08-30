@@ -31,6 +31,7 @@
     "requestStatus": {
       "pending": "Pending",
       "completed": "Completed",
+      "cancelled": "Cancelled",
       "failed": "Failed"
     },
     "permissionMode": {
@@ -49,10 +50,7 @@
     "attachedImage": "attached image",
     "queued": "Queued",
     "sendNext": "Send next",
-    "unqueue": "Unqueue",
-    "revertToHere": "Revert to here",
-    "revertFilesOnly": "Revert files only",
-    "revertFilesAndChat": "Revert files + chat"
+    "unqueue": "Unqueue"
   },
   "thinking": {
     "thinking": "Thinking...",

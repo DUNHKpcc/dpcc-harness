@@ -348,6 +348,7 @@ export const AppSidebar = memo(function AppSidebar({
   // Scroll fade
   const scrollRef = useRef<HTMLDivElement>(null);
   const projectListRef = useRef<HTMLDivElement>(null);
+  const footerContentRef = useRef<HTMLDivElement>(null);
   const draggedProjectIdRef = useRef<string | null>(null);
   const dragPointerYRef = useRef<number | null>(null);
   const autoScrollFrameRef = useRef<number | null>(null);
@@ -355,6 +356,19 @@ export const AppSidebar = memo(function AppSidebar({
   const [fadeBottom, setFadeBottom] = useState(false);
   const [draggedProjectId, setDraggedProjectId] = useState<string | null>(null);
   const [projectDropTarget, setProjectDropTarget] = useState<ProjectDropTarget | null>(null);
+  const [footerContentWidth, setFooterContentWidth] = useState<number>();
+
+  useEffect(() => {
+    const footer = footerContentRef.current;
+    if (!footer) return;
+
+    const updateFooterWidth = () => setFooterContentWidth(footer.clientWidth);
+    updateFooterWidth();
+
+    const observer = new ResizeObserver(updateFooterWidth);
+    observer.observe(footer);
+    return () => observer.disconnect();
+  }, []);
 
   const updateFade = useCallback(() => {
     const viewport = getScrollViewport(scrollRef.current);
@@ -744,8 +758,11 @@ export const AppSidebar = memo(function AppSidebar({
       )}
 
       <div className="no-drag shrink-0 border-t border-sidebar-border/70 px-3 py-1.5">
-        <div className="flex items-center justify-between">
-          <AccountPopover onOpenSettings={onOpenSettings} />
+        <div ref={footerContentRef} className="flex items-center justify-between">
+          <AccountPopover
+            availableWidth={footerContentWidth}
+            onOpenSettings={onOpenSettings}
+          />
           <Tooltip>
             <TooltipTrigger asChild>
               <a

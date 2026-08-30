@@ -33,8 +33,10 @@ const ACCOUNT_LINKS = {
 
 export const AccountPopover = memo(function AccountPopover({
   onOpenSettings,
+  availableWidth,
 }: {
   onOpenSettings?: () => void;
+  availableWidth?: number;
 }) {
   const { t } = useTranslation("workspace");
   const { t: tCommon } = useTranslation("common");
@@ -72,7 +74,13 @@ export const AccountPopover = memo(function AccountPopover({
           {t("space.account")}
         </TooltipContent>
       </Tooltip>
-      <PopoverContent side="top" align="start" sideOffset={12} className="w-80 p-0">
+      <PopoverContent
+        side="top"
+        align="start"
+        sideOffset={12}
+        className="w-80 min-w-0 max-w-[var(--radix-popover-content-available-width)] overflow-hidden p-0"
+        style={availableWidth === undefined ? undefined : { width: availableWidth }}
+      >
         {connected ? (
           <div className="flex flex-col">
             <div className="flex items-center gap-2.5 border-b border-border/60 px-4 pb-3 pt-3.5">
@@ -99,7 +107,7 @@ export const AccountPopover = memo(function AccountPopover({
               {balance ? (
                 balance.unlimited ? (
                   <>
-                    <div className="flex items-baseline justify-between">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
                       <span className="text-xs text-muted-foreground">{t("account.used")}</span>
                       <span className="rounded bg-foreground/[0.06] px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                         {t("account.unlimited")}
@@ -111,7 +119,7 @@ export const AccountPopover = memo(function AccountPopover({
                   </>
                 ) : (
                   <>
-                    <div className="flex items-baseline justify-between">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
                       <span className="text-xs text-muted-foreground">{t("account.balance")}</span>
                       <span className="text-[11px] tabular-nums text-muted-foreground">
                         ${balance.usedUsd.toFixed(2)} / ${balance.totalUsd.toFixed(2)}

@@ -90,7 +90,7 @@
   },
   "engines": {
     "title": "Engines",
-    "description": "Configure engine runtimes, binary selection, and independent gateways",
+    "description": "Check the bundled offline Pi runtime and configure its dedicated third-party gateway",
     "claude": {
       "section": "Claude Code",
       "sourceLabel": "Claude binary source",
@@ -167,11 +167,24 @@
     "pi": {
       "section": "Pi ACP",
       "runtimeLabel": "Pi runtime",
-      "runtimeDesc": "Pi and pi-acp are user-managed and must be available on the app PATH. PccAgent never installs or updates them.",
-      "runtimeValue": "pi + pi-acp",
+      "runtimeDesc": "The built-in Agent always uses the pinned Pi and pi-acp shipped with PccAgent. System commands are ignored; local mode still reads your Pi configuration.",
+      "runtimeRefresh": "Check Pi runtime again",
+      "runtimeLoading": "Checking bundled runtime and versions…",
+      "runtimeLoadFailed": "Pi runtime details could not be read. Check again.",
+      "runtimeOfflineReady": "Bundled runtime is ready for offline launch.",
+      "runtimeOfflineUnavailable": "Bundled runtime is incomplete or damaged.",
+      "runtimeVersion": "Current {{actual}}, compatibility matrix {{expected}}",
+      "runtimeVersionUnreadable": "Version could not be read; compatibility matrix requires {{expected}}",
+      "runtimeRepairHint": "Reinstall or update PccAgent to restore the bundled runtime.",
+      "runtimeStatus": {
+        "ok": "Available",
+        "missing": "Not found",
+        "version-mismatch": "Version mismatch",
+        "version-unreadable": "Version unknown"
+      },
       "gateway": {
         "toggleLabel": "Custom gateway",
-        "toggleDesc": "Store a Pi-only OpenAI-compatible provider. Use Current Config to select it without changing Claude or Codex.",
+        "toggleDesc": "Store a Pi-only OpenAI-compatible provider and select it independently in Current Config.",
         "editLabel": "Edit Pi gateway config",
         "nameLabel": "Provider name",
         "nameDesc": "Human-readable display name for the Pi provider.",
@@ -196,7 +209,7 @@
     },
     "gatewayModels": {
       "title": "Model mappings",
-      "description": "Configure display names and upstream Model IDs. Official Claude/Codex candidates are prefilled, and models can be fetched from the current URL/key.",
+      "description": "Configure display names and upstream Model IDs. Pi-compatible candidates are prefilled, and models can be fetched from the current URL/key.",
       "fetch": "Fetch upstream models",
       "loading": "Fetching…",
       "fetchError": "Fetch failed: {{error}}",
@@ -375,19 +388,19 @@
     "events": {
       "sessionComplete": {
         "label": "Session Complete",
-        "description": "When Claude finishes processing and the session becomes idle."
+        "description": "When the active agent finishes processing and the session becomes idle."
       },
       "exitPlanMode": {
         "label": "Exit Plan Mode",
-        "description": "When Claude finishes planning and is ready to implement."
+        "description": "When the active agent finishes planning and is ready to implement."
       },
       "permissions": {
         "label": "Permission Request",
-        "description": "When Claude needs approval to run a command, edit a file, etc."
+        "description": "When the active agent needs approval to run a command, edit a file, etc."
       },
       "askUserQuestion": {
         "label": "Ask User Question",
-        "description": "When Claude asks you a question to guide the work."
+        "description": "When the active agent asks you a question to guide the work."
       }
     },
     "osNotification": "OS Notification",
@@ -400,7 +413,7 @@
   },
   "currentConfig": {
     "title": "Current Config",
-    "description": "The upstream and model configuration PccAgent is actually using to run sessions. Switch Claude Code, Codex, and Pi ACP sources independently here; maintain keys and gateway details in Settings → Account / Engines.",
+    "description": "The upstream and model configuration PccAgent is actually using for Pi ACP sessions. Maintain provider keys and gateway details in Settings → Account / Engines.",
     "refresh": "Refresh",
     "refreshing": "Refreshing…",
     "saveFailed": "Couldn't save the config source.",
@@ -439,9 +452,7 @@
   "advanced": {
     "title": "Advanced",
     "description": "Low-level settings for protocol behavior and server communication",
-    "codexSection": "Codex",
-    "clientNameLabel": "Client name",
-    "clientNameDesc": "How this app identifies itself to Codex servers during the handshake. Changes take effect on new sessions.",
+    "appSection": "Application",
     "devFillLabel": "Show Dev Fill in chat title bar",
     "devFillDesc": "Enable developer seeding actions in the active chat title bar. Hidden by default.",
     "jiraBoardLabel": "Enable Jira board",
@@ -471,7 +482,7 @@
     "title": "About",
     "description": "Version info, links & credits",
     "tagline": "Open-source desktop client for AI coding agents.",
-    "taglineLine2": "One app for Claude Code, Codex, and any ACP agent.",
+    "taglineLine2": "Pi built in, with custom ACP agents when you need them.",
     "links": "Links",
     "githubLabel": "GitHub Repository",
     "githubDesc": "Source code, issues & releases",
@@ -743,7 +754,7 @@
   },
   "wechat": {
     "title": "WeChat Bridge",
-    "description": "Control the built-in Claude Code and Codex CLIs from your phone over WeChat.",
+    "description": "Run the built-in Pi Agent from your phone over WeChat.",
     "loading": "Loading…",
     "connection": "Connection",
     "notLoggedIn": "Not connected. Scan a QR code with WeChat to link the bridge.",
@@ -756,25 +767,25 @@
     "enableLabel": "Enable bridge",
     "enableDesc": "Start the bridge now and on every app launch.",
     "behavior": "Behavior",
-    "defaultTool": "Default engine",
-    "defaultToolDesc": "Engine used when a message doesn't pick one via @mention.",
+    "defaultTool": "Agent",
+    "defaultToolDesc": "The WeChat bridge only uses the Pi ACP runtime.",
     "permissionMode": "Permission mode",
-    "permissionModeDesc": "How much autonomy the CLI gets per message.",
+    "permissionModeDesc": "How much autonomy Pi gets per message.",
     "mode": {
       "safe": "Safe (read-only)",
       "auto": "Auto (full access)",
       "plan": "Plan (planning only)"
     },
     "workDir": "Working directory",
-    "workDirDesc": "Directory the CLIs run in (empty = app default).",
+    "workDirDesc": "Directory Pi runs in (empty = user home).",
     "workDirPlaceholder": "/path/to/project",
     "model": "Model",
-    "modelDesc": "Model override (empty = engine default).",
+    "modelDesc": "Pi model override (empty = Pi default).",
     "modelPlaceholder": "default",
     "access": "Access control",
     "allowedUsersDesc": "Allowed WeChat user IDs, one per line. Leave empty to allow anyone who can message the bot (unsafe).",
     "allowedUsersPlaceholder": "ilink_user_id…",
-    "allowAllWarning": "No allowlist set — anyone who can message the bot can run the CLI with full permissions. Add your own WeChat user ID to restrict access.",
+    "allowAllWarning": "No allowlist set — anyone who can message the bot can start Pi tasks. Add your own WeChat user ID to restrict access.",
     "activity": "Activity",
     "activityEmpty": "No activity yet.",
     "status": {

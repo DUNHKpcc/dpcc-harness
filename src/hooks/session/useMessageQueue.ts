@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FileReference, ImageAttachment, UIMessage } from "../../types";
-import type { CollaborationMode } from "../../types/codex-protocol/CollaborationMode";
-import { fileReferencesToCodexMentions, imageAttachmentsToCodexInputs } from "../../lib/engine/codex-adapter";
 import { suppressNextSessionCompletion } from "../../lib/notification-utils";
-import { buildSdkContent } from "../../lib/engine/protocol";
 import { createSystemMessage } from "../../lib/message-factory";
-import { buildCodexCollabMode, DRAFT_ID } from "./types";
+import { DRAFT_ID } from "./types";
 import type { SharedSessionRefs, SharedSessionSetters, EngineHooks, QueuedMessage } from "./types";
+import { getAcpPromptTransportErrorMessage, hasAcpPromptTransportEvent } from "@shared/lib/acp-turn";
+import {
+  getSessionRuntimeDisposition,
+  INVALID_SESSION_ENGINE_MESSAGE,
+  LEGACY_SESSION_READ_ONLY_MESSAGE,
+} from "@shared/lib/session-runtime";
 
 interface UseMessageQueueParams {
   refs: SharedSessionRefs;
@@ -21,7 +24,7 @@ type BoundaryWaitState =
   | { kind: "asap" };
 
 export function useMessageQueue({ refs, setters, engines, activeSessionId }: UseMessageQueueParams) {
-  const { claude, acp, codex, engine } = engines;
+  const { acp, engine } = engines;
   const { setQueuedCount } = setters;
   const {
     activeSessionIdRef,
@@ -30,8 +33,6 @@ export function useMessageQueue({ refs, setters, engines, activeSessionId }: Use
     backgroundStoreRef,
     messageQueueRef,
     messagesRef,
-    startOptionsRef,
-    codexEffortRef,
   } = refs;
   const drainingSessionIdsRef = useRef<Set<string>>(new Set());
   const boundaryWaitRef = useRef<Map<string, BoundaryWaitState>>(new Map());
@@ -71,10 +72,6 @@ export function useMessageQueue({ refs, setters, engines, activeSessionId }: Use
     return created;
   }, [messageQueueRef]);
 
-  const getSessionEngine = useCallback((sessionId: string) => {
-    return sessionsRef.current.find((s) => s.id === sessionId)?.engine ?? "claude";
-  }, [sessionsRef]);
-
   const reorderSentQueuedMessage = useCallback((prev: UIMessage[], messageId: string) => {
     const index = prev.findIndex((m) => m.id === messageId);
     if (index < 0) return prev;
@@ -87,37 +84,28 @@ export function useMessageQueue({ refs, setters, engines, activeSessionId }: Use
 
   const updateSessionMessages = useCallback((
     sessionId: string,
-    sessionEngine: "claude" | "acp" | "codex",
     updater: (prev: UIMessage[]) => UIMessage[],
   ) => {
     if (sessionId === activeSessionIdRef.current) {
-      const targetSetMessages = sessionEngine === "codex"
-        ? codex.setMessages
-        : sessionEngine === "acp"
-          ? acp.setMessages
-          : claude.setMessages;
-      targetSetMessages(updater);
+      // The active pane is always backed by ACP. Legacy records are rejected
+      // before reaching this path, but using the ACP state here also prevents
+      // an old engine tag from selecting a removed hook.
+      acp.setMessages(updater);
       return;
     }
     backgroundStoreRef.current.updateMessages(sessionId, updater);
-  }, [activeSessionIdRef, acp.setMessages, backgroundStoreRef, claude.setMessages, codex.setMessages]);
+  }, [activeSessionIdRef, acp.setMessages, backgroundStoreRef]);
 
   const setSessionProcessing = useCallback((
     sessionId: string,
-    sessionEngine: "claude" | "acp" | "codex",
     isProcessing: boolean,
   ) => {
     if (sessionId === activeSessionIdRef.current) {
-      const targetSetIsProcessing = sessionEngine === "codex"
-        ? codex.setIsProcessing
-        : sessionEngine === "acp"
-          ? acp.setIsProcessing
-          : claude.setIsProcessing;
-      targetSetIsProcessing(isProcessing);
+      acp.setIsProcessing(isProcessing);
       return;
     }
     backgroundStoreRef.current.setProcessing(sessionId, isProcessing);
-  }, [activeSessionIdRef, acp.setIsProcessing, backgroundStoreRef, claude.setIsProcessing, codex.setIsProcessing]);
+  }, [activeSessionIdRef, acp.setIsProcessing, backgroundStoreRef]);
 
   const clearQueueForSession = useCallback((sessionId: string) => {
     if (!sessionId || sessionId === DRAFT_ID) {
@@ -138,11 +126,9 @@ export function useMessageQueue({ refs, setters, engines, activeSessionId }: Use
     }
     if (queuedIds.size === 0) return;
 
-    const sessionEngine = getSessionEngine(sessionId);
-    updateSessionMessages(sessionId, sessionEngine, (prev) => prev.filter((m) => !queuedIds.has(m.id)));
+    updateSessionMessages(sessionId, (prev) => prev.filter((m) => !queuedIds.has(m.id)));
   }, [
     activeSessionIdRef,
-    getSessionEngine,
     messageQueueRef,
     setQueuedCount,
     updateSessionMessages,
@@ -152,6 +138,18 @@ export function useMessageQueue({ refs, setters, engines, activeSessionId }: Use
   const enqueueMessage = useCallback((text: string, images?: ImageAttachment[], displayText?: string, fileReferences?: FileReference[]) => {
     const activeId = activeSessionIdRef.current;
     if (!activeId || activeId === DRAFT_ID) return;
+    const session = sessionsRef.current.find((entry) => entry.id === activeId);
+    const disposition = getSessionRuntimeDisposition({
+      engine: session?.invalidEngine ?? session?.engine,
+      agentId: session?.agentId,
+    });
+    if (disposition.kind !== "runtime") {
+      engine.setMessages((prev) => [
+        ...prev,
+        createSystemMessage(LEGACY_SESSION_READ_ONLY_MESSAGE, true),
+      ]);
+      return;
+    }
 
     const msgId = `user-queued-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const queue = getQueueForSession(activeId);
@@ -169,7 +167,7 @@ export function useMessageQueue({ refs, setters, engines, activeSessionId }: Use
         ...(displayText ? { displayContent: displayText } : {}),
       },
     ]);
-  }, [activeSessionIdRef, engine.setMessages, getQueueForSession, setQueuedCount]);
+  }, [activeSessionIdRef, engine.setMessages, getQueueForSession, sessionsRef, setQueuedCount]);
 
   const reorderQueuedMessagesInUI = useCallback((orderedMessageIds: string[]) => {
     const rank = new Map<string, number>();
@@ -224,7 +222,11 @@ export function useMessageQueue({ refs, setters, engines, activeSessionId }: Use
     const queue = messageQueueRef.current.get(sessionId);
     if (!queue || queue.length === 0) return false;
 
-    const sessionEngine = getSessionEngine(sessionId);
+    const session = sessionsRef.current.find((entry) => entry.id === sessionId);
+    const disposition = getSessionRuntimeDisposition({
+      engine: session?.invalidEngine ?? session?.engine,
+      agentId: session?.agentId,
+    });
     const next = queue.shift()!;
     if (queue.length === 0) {
       messageQueueRef.current.delete(sessionId);
@@ -236,54 +238,29 @@ export function useMessageQueue({ refs, setters, engines, activeSessionId }: Use
     }
     drainingSessionIdsRef.current.add(sessionId);
 
-    updateSessionMessages(sessionId, sessionEngine, (prev) => reorderSentQueuedMessage(prev, next.messageId));
+    updateSessionMessages(sessionId, (prev) => reorderSentQueuedMessage(prev, next.messageId));
 
     const handleSendError = (message = "Failed to send queued message.") => {
-      updateSessionMessages(sessionId, sessionEngine, (prev) => [
+      updateSessionMessages(sessionId, (prev) => [
         ...prev,
         createSystemMessage(message, true),
       ]);
       clearQueueForSession(sessionId);
-      setSessionProcessing(sessionId, sessionEngine, false);
+      setSessionProcessing(sessionId, false);
     };
 
     try {
-      if (sessionEngine === "acp") {
-        setSessionProcessing(sessionId, sessionEngine, true);
-        const result = await window.claude.acp.prompt(sessionId, next.text, next.images);
-        if (result?.error) handleSendError("Failed to send queued message.");
-      } else if (sessionEngine === "codex") {
-        setSessionProcessing(sessionId, sessionEngine, true);
-        const session = sessionsRef.current.find((s) => s.id === sessionId);
-        let codexCollabMode: CollaborationMode | undefined;
-        try {
-          codexCollabMode = buildCodexCollabMode(startOptionsRef.current.planMode, session?.model);
-        } catch (err) {
-          updateSessionMessages(sessionId, sessionEngine, (prev) => [
-            ...prev,
-            createSystemMessage(err instanceof Error ? err.message : String(err), true),
-          ]);
-          clearQueueForSession(sessionId);
-          setSessionProcessing(sessionId, sessionEngine, false);
-          return false;
-        }
-        const result = await window.claude.codex.send(
-          sessionId,
-          next.text,
-          imageAttachmentsToCodexInputs(next.images),
-          codexEffortRef.current,
-          codexCollabMode,
-          fileReferencesToCodexMentions(next.fileReferences),
-        );
-        if (result?.error) handleSendError("Failed to send queued message.");
-      } else {
-        setSessionProcessing(sessionId, sessionEngine, true);
-        const content = buildSdkContent(next.text, next.images);
-        const result = await window.claude.send(sessionId, {
-          type: "user",
-          message: { role: "user", content },
-        });
-        if (result?.error || result?.ok === false) handleSendError("Failed to send queued message.");
+      if (disposition.kind !== "runtime") {
+        handleSendError(disposition.kind === "legacy-read-only"
+          ? LEGACY_SESSION_READ_ONLY_MESSAGE
+          : `${INVALID_SESSION_ENGINE_MESSAGE} (${disposition.engine})`);
+        return false;
+      }
+      setSessionProcessing(sessionId, true);
+      const result = await window.claude.acp.prompt(sessionId, next.text, next.images);
+      const promptError = getAcpPromptTransportErrorMessage(result);
+      if (promptError && !hasAcpPromptTransportEvent(result)) {
+        handleSendError(promptError);
       }
       return true;
     } catch {
@@ -296,16 +273,13 @@ export function useMessageQueue({ refs, setters, engines, activeSessionId }: Use
     activeSessionIdRef,
     backgroundStoreRef,
     clearQueueForSession,
-    codexEffortRef,
     engine.isProcessing,
-    getSessionEngine,
     liveSessionIdsRef,
     messageQueueRef,
     reorderSentQueuedMessage,
     sessionsRef,
     setQueuedCount,
     setSessionProcessing,
-    startOptionsRef,
     updateSessionMessages,
   ]);
 
@@ -432,14 +406,10 @@ export function useMessageQueue({ refs, setters, engines, activeSessionId }: Use
     if (!shouldInterrupt) return;
 
     boundaryWaitRef.current.delete(activeId);
-    const sessionEngine = sessionsRef.current.find((s) => s.id === activeId)?.engine ?? "claude";
+    const sessionEngine = sessionsRef.current.find((s) => s.id === activeId)?.engine;
     suppressNextSessionCompletion(activeId);
     if (sessionEngine === "acp") {
       void window.claude.acp.cancel(activeId);
-    } else if (sessionEngine === "codex") {
-      void window.claude.codex.interrupt(activeId);
-    } else {
-      void window.claude.interrupt(activeId);
     }
   }, [
     activeSessionId,

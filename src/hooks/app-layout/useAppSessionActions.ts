@@ -2,11 +2,17 @@ import { useCallback, useEffect } from "react";
 import { useProjectManager } from "@/hooks/useProjectManager";
 import { useSessionManager } from "@/hooks/useSessionManager";
 import { useSettingsCompat } from "@/hooks/useSettingsCompat";
-import type { FileReference, ImageAttachment, InstalledAgent, ClaudeEffort, EngineId } from "@/types";
+import { BUILTIN_PI_AGENT } from "@/types";
+import type { FileReference, ImageAttachment, InstalledAgent } from "@/types";
 import type { SettingsSection } from "@/components/SettingsView";
 import { selectProjectModelForEngine, useSettingsStore } from "@/stores/settings-store";
-import { resolveClaudeEffort } from "@/lib/engine/claude-effort";
 import { buildSessionOptions } from "./session-utils";
+import {
+  areAcpSlashCommandsEqual,
+  areAcpConfigOptionsEqual,
+  getAgentCachedConfigOptions,
+  getAgentCachedSlashCommands,
+} from "@shared/lib/acp-config-cache";
 
 type SessionManagerState = ReturnType<typeof useSessionManager>;
 type SettingsState = ReturnType<typeof useSettingsCompat>;
@@ -16,6 +22,7 @@ interface UseAppSessionActionsInput {
   manager: SessionManagerState;
   settings: SettingsState;
   selectedAgent: InstalledAgent | null;
+  installedAgents: readonly InstalledAgent[];
   setSelectedAgent: (agent: InstalledAgent | null) => void;
   setShowSettings: (show: SettingsSection | false) => void;
   refreshAgents: () => Promise<void> | void;
@@ -24,57 +31,44 @@ interface UseAppSessionActionsInput {
 }
 
 export function useAppSessionActions(input: UseAppSessionActionsInput) {
-  const getClaudeEffortForModel = useCallback((model: string | undefined): ClaudeEffort | undefined => {
-    return resolveClaudeEffort(
-      model,
-      input.manager.supportedModels,
-      input.settings.claudeEffort,
-    );
-  }, [input.manager.supportedModels, input.settings.claudeEffort]);
+  const selectedAgent = input.selectedAgent?.engine === "acp"
+    ? input.selectedAgent
+    : BUILTIN_PI_AGENT;
 
   const handleAgentWorktreeChange = useCallback((nextPath: string | null) => {
     input.settings.setGitCwd(nextPath);
 
     if (input.manager.activeSessionId && !input.manager.isDraft && input.manager.activeSession) {
-      const engine = input.manager.activeSession.engine ?? "claude";
+      const engine = "acp" as const;
       const options = buildSessionOptions(
         engine,
         input.settings.getModelForEngine,
-        input.settings.permissionMode,
-        input.settings.planMode,
-        input.settings.thinking,
-        getClaudeEffortForModel,
-        input.selectedAgent,
-        input.settings.claudeCodexBridgeEnabled,
+        selectedAgent,
       );
       void input.manager.createSession(input.manager.activeSession.projectId, {
         ...options,
-        agentId: input.manager.activeSession.agentId,
+        agentId: selectedAgent.id,
       });
     }
-  }, [getClaudeEffortForModel, input.manager, input.selectedAgent, input.settings]);
+  }, [input.manager, input.settings, selectedAgent]);
 
   const handleAgentChange = useCallback((agent: InstalledAgent | null) => {
-    input.setSelectedAgent(agent);
+    const nextAgent = agent?.engine === "acp" ? agent : BUILTIN_PI_AGENT;
+    input.setSelectedAgent(nextAgent);
 
-    const currentEngine = input.manager.activeSession?.engine ?? "claude";
+    const currentEngine = input.manager.activeSession?.engine;
     const currentAgentId = input.manager.activeSession?.agentId;
-    const wantedEngine = agent?.engine ?? "claude";
+    const wantedEngine = "acp" as const;
     const needsNewSession = !input.manager.isDraft && input.manager.activeSession && (
       currentEngine !== wantedEngine ||
-      (currentEngine === "acp" && wantedEngine === "acp" && currentAgentId !== agent?.id)
+      (currentEngine === "acp" && currentAgentId !== nextAgent.id)
     );
 
     if (needsNewSession) {
       const options = buildSessionOptions(
         wantedEngine,
         input.settings.getModelForEngine,
-        input.settings.permissionMode,
-        input.settings.planMode,
-        input.settings.thinking,
-        getClaudeEffortForModel,
-        agent,
-        input.settings.claudeCodexBridgeEnabled,
+        nextAgent,
       );
       void input.manager.createSession(input.manager.activeSession!.projectId, options);
       return;
@@ -83,16 +77,16 @@ export function useAppSessionActions(input: UseAppSessionActionsInput) {
     const wantedModel = input.settings.getModelForEngine(wantedEngine);
     input.manager.setDraftAgent(
       wantedEngine,
-      agent?.id ?? "claude-code",
-      agent?.cachedConfigOptions,
+      nextAgent.id,
+      nextAgent.cachedConfigOptions,
       wantedModel || undefined,
+      nextAgent.cachedSlashCommands,
     );
-  }, [getClaudeEffortForModel, input.manager, input.settings, input.setSelectedAgent]);
+  }, [input.manager, input.settings, input.setSelectedAgent]);
 
   const handleNewChat = useCallback(async (projectId: string) => {
     input.setShowSettings(false);
-    input.settings.setPlanMode(false);
-    const wantedEngine = input.selectedAgent?.engine ?? "claude";
+    const wantedEngine = "acp" as const;
     const settingsState = useSettingsStore.getState();
     const options = buildSessionOptions(
       wantedEngine,
@@ -101,66 +95,28 @@ export function useAppSessionActions(input: UseAppSessionActionsInput) {
         projectId,
         engine,
       ),
-      input.settings.permissionMode,
-      false,
-      input.settings.thinking,
-      getClaudeEffortForModel,
-      input.selectedAgent,
-      input.settings.claudeCodexBridgeEnabled,
+      selectedAgent,
     );
     await input.manager.createSession(projectId, options);
-  }, [getClaudeEffortForModel, input.manager, input.selectedAgent, input.setShowSettings, input.settings]);
+  }, [input.manager, input.setShowSettings, selectedAgent]);
 
   const handleSend = useCallback(async (text: string, images?: ImageAttachment[], displayText?: string, fileReferences?: FileReference[]) => {
-    const currentEngine = input.manager.activeSession?.engine ?? "claude";
-    const wantedEngine = input.selectedAgent?.engine ?? "claude";
-    const needsNewSession = !input.manager.isDraft && input.manager.activeSession && (
-      currentEngine !== wantedEngine ||
-      (currentEngine === "acp" && wantedEngine === "acp" && input.manager.activeSession.agentId !== input.selectedAgent?.id)
-    );
+    const wantedEngine = "acp" as const;
+    // A legacy session stays read-only. Do not silently create Pi and pretend
+    // the message continued in the old conversation.
+    const needsNewSession = !input.manager.isDraft
+      && input.manager.activeSession?.engine === "acp"
+      && input.manager.activeSession.agentId !== selectedAgent.id;
     if (needsNewSession) {
       const options = buildSessionOptions(
         wantedEngine,
         input.settings.getModelForEngine,
-        input.settings.permissionMode,
-        input.settings.planMode,
-        input.settings.thinking,
-        getClaudeEffortForModel,
-        input.selectedAgent,
-        input.settings.claudeCodexBridgeEnabled,
+        selectedAgent,
       );
       await input.manager.createSession(input.manager.activeSession!.projectId, options);
     }
     await input.manager.send(text, images, displayText, fileReferences);
-  }, [getClaudeEffortForModel, input.manager, input.selectedAgent, input.settings]);
-
-  const handleModelChange = useCallback((nextModel: string) => {
-    const settingsEngine: EngineId = (!input.manager.isDraft && input.manager.activeSession?.engine)
-      ? input.manager.activeSession.engine
-      : (input.selectedAgent?.engine ?? "claude");
-    input.settings.setModel(nextModel);
-    input.manager.setActiveModel(nextModel);
-    if (settingsEngine !== "claude") return;
-    const nextEffort = getClaudeEffortForModel(nextModel);
-    if (!nextEffort || nextEffort === input.settings.claudeEffort) return;
-    input.settings.setClaudeEffort(nextEffort);
-  }, [getClaudeEffortForModel, input.manager, input.selectedAgent, input.settings]);
-
-  const handlePermissionModeChange = useCallback((nextMode: string) => {
-    input.settings.setPermissionMode(nextMode);
-    input.manager.setActivePermissionMode(nextMode);
-  }, [input.manager, input.settings]);
-
-  const handlePlanModeChange = useCallback((enabled: boolean) => {
-    input.settings.setPlanMode(enabled);
-    input.manager.setActivePlanMode(enabled);
-  }, [input.manager, input.settings]);
-
-  const handleClaudeModelEffortChange = useCallback((model: string, effort: ClaudeEffort) => {
-    input.settings.setModel(model);
-    input.settings.setClaudeEffort(effort);
-    input.manager.setActiveClaudeModelAndEffort(model, effort);
-  }, [input.manager, input.settings]);
+  }, [input.manager, input.settings, selectedAgent]);
 
   const handleStop = useCallback(async () => {
     await input.manager.interrupt();
@@ -176,9 +132,8 @@ export function useAppSessionActions(input: UseAppSessionActionsInput) {
 
   const handleSelectSession = useCallback((sessionId: string) => {
     input.setShowSettings(false);
-    input.settings.setPlanMode(false);
     input.manager.switchSession(sessionId);
-  }, [input.manager, input.setShowSettings, input.settings]);
+  }, [input.manager, input.setShowSettings]);
 
   const handleCreateProject = useCallback(async () => {
     input.setShowSettings(false);
@@ -202,30 +157,52 @@ export function useAppSessionActions(input: UseAppSessionActionsInput) {
   }, [input.activeSpaceId, input.manager.refreshSessions, input.projectManager.createDevProject, input.projectManager.projects]);
 
   const handleNavigateToMessage = useCallback((sessionId: string, setScrollToMessageId: (messageId: string) => void, messageId: string) => {
-    input.settings.setPlanMode(false);
     input.manager.switchSession(sessionId);
     setTimeout(() => setScrollToMessageId(messageId), 200);
-  }, [input.manager, input.settings]);
+  }, [input.manager]);
 
   useEffect(() => {
     const agentId = input.manager.activeSession?.agentId;
-    if (!agentId || input.manager.activeSession?.engine !== "acp") return;
-    if (!input.manager.acpConfigOptions?.length) return;
+    if (
+      !agentId
+      || input.manager.activeSession?.engine !== "acp"
+      || !input.manager.isConnected
+    ) return;
 
-    window.claude.agents.updateCachedConfig(agentId, input.manager.acpConfigOptions)
+    const cachedConfigOptions = getAgentCachedConfigOptions(input.installedAgents, agentId);
+    const cachedSlashCommands = getAgentCachedSlashCommands(input.installedAgents, agentId);
+    const updates: Array<Promise<{ ok?: boolean }>> = [];
+
+    if (
+      input.manager.acpConfigOptions.length > 0
+      && !areAcpConfigOptionsEqual(cachedConfigOptions, input.manager.acpConfigOptions)
+    ) {
+      updates.push(window.claude.agents.updateCachedConfig(agentId, input.manager.acpConfigOptions));
+    }
+    if (
+      input.manager.slashCommands.length > 0
+      && !areAcpSlashCommandsEqual(cachedSlashCommands, input.manager.slashCommands)
+    ) {
+      updates.push(window.claude.agents.updateCachedSlashCommands(agentId, input.manager.slashCommands));
+    }
+    if (updates.length === 0) return;
+
+    Promise.all(updates)
       .then(() => input.refreshAgents());
-  }, [input.manager.acpConfigOptions, input.manager.activeSession, input.refreshAgents]);
+  }, [
+    input.installedAgents,
+    input.manager.acpConfigOptions,
+    input.manager.activeSession,
+    input.manager.isConnected,
+    input.manager.slashCommands,
+    input.refreshAgents,
+  ]);
 
   return {
-    getClaudeEffortForModel,
     handleAgentWorktreeChange,
     handleAgentChange,
     handleNewChat,
     handleSend,
-    handleModelChange,
-    handlePermissionModeChange,
-    handlePlanModeChange,
-    handleClaudeModelEffortChange,
     handleStop,
     handleSendQueuedNow,
     handleUnqueueMessage,

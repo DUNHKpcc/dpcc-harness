@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useRef, useState, type CSSProperties } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import {
@@ -30,6 +30,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { PanelHeader } from "@/components/PanelHeader";
 import { OpenInEditorButton } from "./OpenInEditorButton";
+import { InlineFilePreview } from "./InlineFilePreview";
+import { useFileBrowserResize } from "@/hooks/useFileBrowserResize";
 import { useProjectFiles } from "@/hooks/useProjectFiles";
 import {
   filterTree,
@@ -79,8 +81,29 @@ function dirname(p: string): string {
 interface ProjectFilesPanelProps {
   cwd?: string;
   enabled: boolean;
-  onPreviewFile?: (filePath: string, sourceRect: DOMRect) => void;
   headerControls?: React.ReactNode;
+}
+
+function findFirstFile(nodes: FileTreeNode[]): FileTreeNode | null {
+  for (const node of nodes) {
+    if (node.type === "file") return node;
+    const child = findFirstFile(node.children ?? []);
+    if (child) return child;
+  }
+  return null;
+}
+
+function hasFilePath(nodes: FileTreeNode[], path: string): boolean {
+  return nodes.some((node) => (
+    node.type === "file"
+      ? node.path === path
+      : hasFilePath(node.children ?? [], path)
+  ));
+}
+
+function getAncestorDirs(path: string): string[] {
+  const segments = path.split("/");
+  return segments.slice(0, -1).map((_, index) => segments.slice(0, index + 1).join("/"));
 }
 
 // ── Component ──
@@ -88,7 +111,6 @@ interface ProjectFilesPanelProps {
 export const ProjectFilesPanel = memo(function ProjectFilesPanel({
   cwd,
   enabled,
-  onPreviewFile,
   headerControls,
 }: ProjectFilesPanelProps) {
   const { t } = useTranslation("tools");
@@ -97,6 +119,8 @@ export const ProjectFilesPanel = memo(function ProjectFilesPanel({
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(() => new Set());
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
+  const fileBrowserResize = useFileBrowserResize();
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Inline creation state: { parentDir (relative), type }
@@ -130,6 +154,23 @@ export const ProjectFilesPanel = memo(function ProjectFilesPanel({
 
   const totalFiles = useMemo(() => (tree ? countFiles(tree) : 0), [tree]);
 
+  useEffect(() => {
+    if (!cwd || !tree) {
+      if (selectedFilePath) setSelectedFilePath(null);
+      return;
+    }
+    const relativePath = selectedFilePath?.startsWith(`${cwd}/`)
+      ? selectedFilePath.slice(cwd.length + 1)
+      : null;
+    if (relativePath && hasFilePath(tree, relativePath)) return;
+
+    const firstFile = findFirstFile(tree);
+    if (firstFile) {
+      setExpandedDirs((previous) => new Set([...previous, ...getAncestorDirs(firstFile.path)]));
+    }
+    setSelectedFilePath(firstFile ? `${cwd}/${firstFile.path}` : null);
+  }, [cwd, selectedFilePath, tree]);
+
   // Toggle directory expanded state
   const toggleDir = useCallback((path: string) => {
     setExpandedDirs((prev) => {
@@ -144,15 +185,9 @@ export const ProjectFilesPanel = memo(function ProjectFilesPanel({
   }, []);
 
   // Handle file row click
-  const handleFileClick = useCallback(
-    (node: FileTreeNode, event: React.MouseEvent<HTMLDivElement>) => {
-      if (!cwd || !onPreviewFile) return;
-      const rect = event.currentTarget.getBoundingClientRect();
-      const absolutePath = `${cwd}/${node.path}`;
-      onPreviewFile(absolutePath, rect);
-    },
-    [cwd, onPreviewFile],
-  );
+  const handleFileClick = useCallback((node: FileTreeNode) => {
+    if (cwd) setSelectedFilePath(`${cwd}/${node.path}`);
+  }, [cwd]);
 
   // Start inline creation under a directory
   const handleStartCreate = useCallback((parentDir: string, type: "file" | "folder") => {
@@ -204,41 +239,49 @@ export const ProjectFilesPanel = memo(function ProjectFilesPanel({
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <PanelHeader icon={FolderTree} label={t("projectFiles.title")} iconClass="text-teal-600/70 dark:text-teal-200/50">
-        {totalFiles > 0 && (
-          <span className="text-[10px] tabular-nums text-foreground/35">{totalFiles}</span>
-        )}
-        <button
-          type="button"
-          onClick={refresh}
-          className="inline-flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-md
-            text-foreground/35 transition-colors
-            hover:text-foreground/60 hover:bg-foreground/[0.06]"
-          title={t("projectFiles.refresh")}
+    <div data-file-browser-layout="project-files" className="file-browser-layout flex h-full min-h-0 min-w-0 flex-col">
+      <div ref={fileBrowserResize.contentRef} className="file-browser-content min-h-0 flex-1" style={fileBrowserResize.contentStyle}>
+        <section data-file-browser-preview className="file-browser-preview">
+          <InlineFilePreview filePath={selectedFilePath} />
+        </section>
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="调整文件列表宽度"
+          className="file-browser-resize-handle group flex w-2 shrink-0 cursor-col-resize items-center justify-center"
+          onMouseDown={fileBrowserResize.handleResizeStart}
         >
-          <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
-        </button>
-        {headerControls}
-      </PanelHeader>
+          <div className={`h-10 w-0.5 rounded-full transition-colors duration-150 ${fileBrowserResize.isResizing ? "bg-foreground/40" : "bg-transparent group-hover:bg-foreground/25"}`} />
+        </div>
+        <aside data-file-browser-list className="file-browser-list flex flex-col">
+          <PanelHeader icon={FolderTree} label={t("projectFiles.title")} iconClass="text-teal-600/70 dark:text-teal-200/50">
+            {totalFiles > 0 && (
+              <span className="text-[10px] tabular-nums text-foreground/35">{totalFiles}</span>
+            )}
+            <button
+              type="button"
+              onClick={refresh}
+              className="inline-flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-md text-foreground/35 transition-colors hover:bg-foreground/[0.06] hover:text-foreground/60"
+              title={t("projectFiles.refresh")}
+            >
+              <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
+            </button>
+            {headerControls}
+          </PanelHeader>
 
-      {/* Search bar */}
-      <div className="flex items-center gap-1.5 px-3 py-1">
-        <Search className="h-3 w-3 shrink-0 text-foreground/25" />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => handleSearchChange(e.target.value)}
-          placeholder={t("projectFiles.searchPlaceholder")}
-          className="h-5 w-full bg-transparent text-[11px] text-foreground/75 outline-none placeholder:text-foreground/25"
-        />
-      </div>
-      <div className="mx-2">
-        <div className="h-px bg-foreground/[0.06]" />
-      </div>
+          <div className="flex items-center gap-1.5 px-3 py-1">
+            <Search className="h-3 w-3 shrink-0 text-foreground/25" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder={t("projectFiles.searchPlaceholder")}
+              className="h-5 w-full bg-transparent text-[11px] text-foreground/75 outline-none placeholder:text-foreground/25"
+            />
+          </div>
+          <div className="mx-2"><div className="h-px bg-foreground/[0.06]" /></div>
 
-      {/* Tree content */}
-      <ScrollArea className="flex-1 min-h-0">
+          <ScrollArea className="min-h-0 flex-1">
         {loading && !tree && (
           <div className="flex flex-col items-center justify-center gap-1 py-6">
             <RefreshCw className="h-3 w-3 animate-spin text-foreground/25" />
@@ -267,6 +310,7 @@ export const ProjectFilesPanel = memo(function ProjectFilesPanel({
               node={item.node}
               depth={item.depth}
               isExpanded={item.isExpanded}
+              isSelected={selectedFilePath === `${cwd}/${item.node.path}`}
               cwd={cwd}
               t={t}
               onToggleDir={toggleDir}
@@ -293,7 +337,9 @@ export const ProjectFilesPanel = memo(function ProjectFilesPanel({
             />
           )}
         </div>
-      </ScrollArea>
+          </ScrollArea>
+        </aside>
+      </div>
     </div>
   );
 });
@@ -371,6 +417,7 @@ interface FileTreeRowProps {
   node: FileTreeNode;
   depth: number;
   isExpanded: boolean;
+  isSelected: boolean;
   cwd: string;
   t: TFunction<"tools">;
   onToggleDir: (path: string) => void;
@@ -386,6 +433,7 @@ const FileTreeRow = memo(function FileTreeRow({
   node,
   depth,
   isExpanded,
+  isSelected,
   cwd,
   t,
   onToggleDir,
@@ -557,7 +605,7 @@ const FileTreeRow = memo(function FileTreeRow({
         onClick={handleClick}
         onContextMenu={handleContextMenu}
         className={`group relative flex min-h-7 cursor-pointer items-center gap-2 pe-1.5 py-1 transition-colors duration-75 hover:bg-foreground/[0.05] ${
-          menuOpen ? "bg-foreground/[0.05]" : ""
+          isSelected || menuOpen ? "bg-primary/10" : ""
         }`}
         style={{ paddingInlineStart: depth * 14 + 8 }}
       >

@@ -1,15 +1,9 @@
 import { memo, useState, useMemo, createContext, useContext, lazy, Suspense, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertCircle, Clock, Crosshair, File, Folder, Info, RotateCcw, Send, Undo2, X } from "lucide-react";
+import { AlertCircle, Clock, Crosshair, File, Folder, Info, Send, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { guessLanguage } from "@/lib/languages";
 import { useStreamingTextReveal } from "@/hooks/useStreamingTextReveal";
@@ -228,10 +222,6 @@ interface MessageBubbleProps {
   isContinuation?: boolean;
   /** True when this queued message is the prioritized "send next" item */
   isSendNextQueued?: boolean;
-  /** Called when user clicks "Revert files only" — restores files to state before this message */
-  onRevert?: (checkpointId: string) => void;
-  /** Called when user clicks "Revert files + chat" — restores files AND truncates conversation */
-  onFullRevert?: (checkpointId: string) => void;
   /** Called when user clicks "Send next" on a queued user message */
   onSendQueuedNow?: (messageId: string) => void;
   /** Called when user removes a queued user message before it is sent */
@@ -244,8 +234,6 @@ export const MessageBubble = memo(function MessageBubble({
   assistantTurnDividerLabel,
   isContinuation,
   isSendNextQueued = false,
-  onRevert,
-  onFullRevert,
   onSendQueuedNow,
   onUnqueueQueued,
 }: MessageBubbleProps) {
@@ -302,11 +290,9 @@ export const MessageBubble = memo(function MessageBubble({
   }
 
   if (isUser) {
-    const checkpointId = message.checkpointId;
-    const canRevert = !!checkpointId && (!!onRevert || !!onFullRevert);
     return (
       <div className={cn("group/user flex justify-end", CHAT_ROW_CLASS, message.isQueued && "opacity-60")}>
-        <div className={cn("relative max-w-[var(--chat-user-message-max-width,80%)]", canRevert && "pb-5")}>
+        <div className="relative max-w-[var(--chat-user-message-max-width,80%)]">
           <Tooltip>
             <TooltipTrigger asChild>
               <div className={cn(
@@ -374,33 +360,6 @@ export const MessageBubble = memo(function MessageBubble({
               <p className="text-xs">{time}</p>
             </TooltipContent>
           </Tooltip>
-          {/* Revert dropdown — visible on hover, offers file-only or full (files + chat) revert */}
-          {canRevert && (
-            <div className="pointer-events-none absolute end-0 -bottom-0.5 w-max opacity-0 transition-opacity group-hover/user:opacity-100">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button className="pointer-events-auto flex items-center gap-1 whitespace-nowrap rounded px-1.5 py-0.5 text-[11px] text-foreground/30 transition-colors hover:text-foreground/60">
-                    <Undo2 className="h-3 w-3" />
-                    {t("message.revertToHere")}
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  {onRevert && (
-                    <DropdownMenuItem onClick={() => onRevert(checkpointId)}>
-                      <Undo2 className="h-3.5 w-3.5 me-2" />
-                      {t("message.revertFilesOnly")}
-                    </DropdownMenuItem>
-                  )}
-                  {onFullRevert && (
-                    <DropdownMenuItem onClick={() => onFullRevert(checkpointId)}>
-                      <RotateCcw className="h-3.5 w-3.5 me-2" />
-                      {t("message.revertFilesAndChat")}
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          )}
         </div>
       </div>
     );
@@ -488,8 +447,6 @@ export const MessageBubble = memo(function MessageBubble({
   prev.isSendNextQueued === next.isSendNextQueued &&
   prev.showThinking === next.showThinking &&
   prev.isContinuation === next.isContinuation &&
-  prev.onRevert === next.onRevert &&
-  prev.onFullRevert === next.onFullRevert &&
   prev.onSendQueuedNow === next.onSendQueuedNow &&
   prev.onUnqueueQueued === next.onUnqueueQueued,
 );

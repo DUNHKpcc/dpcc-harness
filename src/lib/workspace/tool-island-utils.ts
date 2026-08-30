@@ -18,7 +18,7 @@ export const PANEL_TOOL_IDS = new Set<PanelToolId>([
 ]);
 
 /** Type guard: is this ToolId one of the panel tools? */
-export function isPanelTool(toolId: ToolId): toolId is PanelToolId {
+export function isPanelTool(toolId: string): toolId is PanelToolId {
   return PANEL_TOOL_IDS.has(toolId as PanelToolId);
 }
 

@@ -121,7 +121,7 @@ interface ModelOptionListProps {
   className?: string;
 }
 
-/** Shared, height-constrained model list for Claude, Codex, and ACP agents. */
+/** Shared, height-constrained model list for ACP agents. */
 export const ModelOptionList = memo(function ModelOptionList({
   items,
   selectedId,

@@ -10,57 +10,36 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn() },
 }));
 
-const cachedModels = [{ value: "cached-model", displayName: "Cached model", description: "" }];
-
-function makePaneState(supportedModelsLoaded: boolean): SessionPaneState {
+function makePaneState(model = ""): SessionPaneState {
   return {
-    claude: {
-      supportedModels: [],
-      supportedModelsLoaded,
+    acp: {
+      setConfig: vi.fn(),
+      sessionInfo: model ? { model, permissionMode: "default" } : null,
+      slashCommands: [],
+      configOptions: [],
+      configOptionsLoading: false,
       send: vi.fn(),
+      setMessages: vi.fn(),
+      setIsProcessing: vi.fn(),
     },
-    acp: { setConfig: vi.fn() },
-    codex: {
-      codexModels: [],
-      codexEffort: "",
-      setPermissionMode: vi.fn(),
-      send: vi.fn(),
-    },
+    sessionInfo: model ? { model, permissionMode: "default" } : null,
     engine: { slashCommands: [], interrupt: vi.fn() },
     isConnected: true,
   } as unknown as SessionPaneState;
 }
 
-function makeContext(cachedClaudeModelsLoaded = true, models = cachedModels): PaneControllerContext {
+function makeContext(): PaneControllerContext {
   return {
     agents: [],
     selectedAgent: null,
     settings: {
       getModelForEngine: () => "default-model",
-      permissionMode: "default",
-      planMode: false,
-      claudeEffort: "medium",
-      acpPermissionBehavior: "ask",
     },
-    handleModelChange: vi.fn(),
-    handleClaudeModelEffortChange: vi.fn(),
-    handlePlanModeChange: vi.fn(),
-    handlePermissionModeChange: vi.fn(),
     handleAgentChange: vi.fn(),
     handleStop: vi.fn(),
     handleComposerClear: vi.fn(),
     wrappedHandleSend: vi.fn(),
     manager: {
-      setSessionModel: vi.fn(),
-      setSessionClaudeModelAndEffort: vi.fn(),
-      setSessionPlanMode: vi.fn(),
-      setSessionPermissionMode: vi.fn(),
-      setCodexEffort: vi.fn(),
-      codexEffort: "",
-      codexRawModels: [],
-      codexModelsLoadingMessage: null,
-      cachedClaudeModels: models,
-      cachedClaudeModelsLoaded,
       acpConfigOptions: [],
       acpConfigOptionsLoading: false,
       setACPConfig: vi.fn(),
@@ -69,53 +48,90 @@ function makeContext(cachedClaudeModelsLoaded = true, models = cachedModels): Pa
 }
 
 describe("usePaneController", () => {
-  it("keeps a loaded-empty Claude catalog empty instead of falling back to cached models", () => {
+  it("uses the live ACP model as the pane authority", () => {
     const controller = usePaneController(
       "session-1",
-      { id: "session-1", engine: "claude", model: "current-model" } as never,
-      makePaneState(true),
+      { id: "session-1", engine: "acp", agentId: "pi-acp", model: "persisted-model" } as never,
+      makePaneState("live-model"),
+      true,
+      makeContext(),
+    );
+
+    expect(controller.paneModel).toBe("live-model");
+  });
+
+  it("prefers the current ACP model config over stale session metadata", () => {
+    const context = makeContext();
+    context.manager.acpConfigOptions = [{
+      id: "model",
+      name: "Model",
+      category: "model",
+      type: "select",
+      currentValue: "provider/runtime-model",
+      options: [],
+    }];
+    const controller = usePaneController(
+      "session-1",
+      { id: "session-1", engine: "acp", agentId: "pi-acp", model: "persisted-model" } as never,
+      makePaneState("stale-live-model"),
+      true,
+      context,
+    );
+
+    expect(controller.paneModel).toBe("provider/runtime-model");
+    expect(controller.paneHeaderModel).toBe("provider/runtime-model");
+  });
+
+  it("falls back to the persisted model when no live ACP model exists", () => {
+    const controller = usePaneController(
+      "session-1",
+      { id: "session-1", engine: "acp", agentId: "pi-acp", model: "current-model" } as never,
+      makePaneState(),
       false,
       makeContext(),
     );
 
-    expect(controller.paneSupportedModels).toEqual([]);
+    expect(controller.paneModel).toBe("current-model");
   });
 
-  it("keeps a loaded-empty cached Claude catalog empty before the live catalog has loaded", () => {
+  it("does not consult legacy Claude/Codex model catalogs", () => {
     const controller = usePaneController(
       "session-1",
-      { id: "session-1", engine: "claude", model: "current-model" } as never,
-      makePaneState(false),
-      false,
-      makeContext(true, []),
-    );
-
-    expect(controller.paneSupportedModels).toEqual([]);
-  });
-
-  it("falls back to the current Claude model when neither catalog has loaded", () => {
-    const controller = usePaneController(
-      "session-1",
-      { id: "session-1", engine: "claude", model: "current-model" } as never,
-      makePaneState(false),
-      false,
-      makeContext(false, []),
-    );
-
-    expect(controller.paneSupportedModels).toEqual([
-      { value: "current-model", displayName: "current-model", description: "" },
-    ]);
-  });
-
-  it("uses cached Claude models when the cache has loaded before the live catalog", () => {
-    const controller = usePaneController(
-      "session-1",
-      { id: "session-1", engine: "claude", model: "current-model" } as never,
-      makePaneState(false),
+      { id: "session-1", engine: "codex", model: "current-model" } as never,
+      makePaneState(),
       false,
       makeContext(),
     );
 
-    expect(controller.paneSupportedModels).toContainEqual(cachedModels[0]);
+    expect(controller.paneModel).toBe("current-model");
+  });
+
+  it("blocks send for a legacy pane before any ACP IPC call", async () => {
+    const paneState = makePaneState();
+    const controller = usePaneController(
+      "session-1",
+      { id: "session-1", engine: "claude", model: "current-model" } as never,
+      paneState,
+      false,
+      makeContext(),
+    );
+
+    await controller.handlePaneSend("should not run");
+
+    expect(paneState.acp.send).not.toHaveBeenCalled();
+    expect(paneState.acp.setMessages).toHaveBeenCalled();
+    expect(paneState.acp.setIsProcessing).toHaveBeenCalledWith(false);
+  });
+
+  it("does not expose an unknown persisted engine as a live pane engine", () => {
+    const controller = usePaneController(
+      "session-1",
+      { id: "session-1", engine: "future-runtime" } as never,
+      makePaneState(),
+      false,
+      makeContext(),
+    );
+
+    expect(controller.paneEngine).toBe("acp");
   });
 });

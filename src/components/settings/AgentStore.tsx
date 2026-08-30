@@ -30,7 +30,11 @@ import {
   getRegistryAgentSetupUrl,
   getPreferredRegistryBinaryTarget,
 } from "@/lib/background/agent-store-utils";
-import type { InstalledAgent, RegistryAgent } from "@/types";
+import {
+  BUILTIN_PI_AGENT_ID,
+  type InstalledAgent,
+  type RegistryAgent,
+} from "@/types";
 
 // ── Types ──
 
@@ -267,9 +271,10 @@ export const AgentStore = memo(function AgentStore({
 
   // Client-side search filter
   const filtered = useMemo(() => {
-    if (!search.trim()) return registryAgents;
+    const installableAgents = registryAgents.filter((agent) => agent.id !== BUILTIN_PI_AGENT_ID);
+    if (!search.trim()) return installableAgents;
     const q = search.toLowerCase();
-    return registryAgents.filter(
+    return installableAgents.filter(
       (a) =>
         a.name.toLowerCase().includes(q) ||
         a.description.toLowerCase().includes(q) ||

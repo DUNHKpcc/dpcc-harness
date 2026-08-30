@@ -97,7 +97,7 @@ export interface SessionInfo {
 }
 
 export type UpstreamRequestEngine = "claude" | "acp" | "codex";
-export type UpstreamRequestStatus = "pending" | "completed" | "failed";
+export type UpstreamRequestStatus = "pending" | "completed" | "cancelled" | "failed";
 
 export interface UpstreamModelUsageBreakdown {
   model: string;
@@ -113,6 +113,8 @@ export interface UpstreamModelUsageBreakdown {
 
 export interface UpstreamRequestRecord {
   id: string;
+  /** Correlates this request with the canonical ACP terminal outcome. */
+  turnId?: string;
   engine: UpstreamRequestEngine;
   model?: string;
   status: UpstreamRequestStatus;
@@ -128,6 +130,10 @@ export interface UpstreamRequestRecord {
   costUSD?: number;
   modelBreakdown?: UpstreamModelUsageBreakdown[];
   note?: string;
+  /** Stable, non-secret failure classification for runtime diagnostics. */
+  errorCode?: string;
+  /** Bounded user-safe failure message, when the request failed. */
+  errorMessage?: string;
 }
 
 export interface UpstreamRequestEvent {
@@ -179,6 +185,8 @@ export interface SessionBase {
   upstreamRequestCount?: number;
   requestLog?: UpstreamRequestRecord[];
   engine?: EngineId;
+  /** Raw unknown engine retained so the UI can fail closed instead of guessing. */
+  invalidEngine?: string;
   agentSessionId?: string;
   agentId?: string;
   codexThreadId?: string;

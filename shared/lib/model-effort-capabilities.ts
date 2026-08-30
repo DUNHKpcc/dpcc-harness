@@ -1,8 +1,8 @@
 /**
  * App-owned reasoning metadata for model catalogs that only expose model IDs.
  *
- * Keep this list scoped to documented upstream behavior. Runtime metadata from
- * Claude/Codex remains authoritative when it is available.
+ * Keep this list scoped to documented upstream behavior. ACP runtime metadata
+ * remains authoritative when it is available.
  */
 
 const MODEL_EFFORT_LEVELS = [

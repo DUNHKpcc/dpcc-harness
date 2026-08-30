@@ -1,25 +1,17 @@
 // ── Permission types ──
 
-import type { PermissionMode, PermissionUpdate as SDKPermissionUpdate } from "@anthropic-ai/claude-agent-sdk";
+import type {
+  PermissionMode,
+  PermissionRuleValue,
+  PermissionUpdate as SharedPermissionUpdate,
+} from "@shared/types/engine";
 
-export type { PermissionMode };
-export type PermissionUpdate = SDKPermissionUpdate;
-
-type SDKPermissionUpdateDestination = SDKPermissionUpdate extends infer Update
-  ? Update extends { destination?: infer Destination }
-    ? NonNullable<Destination>
-    : never
-  : never;
-
-export type PermissionUpdateDestination = Exclude<SDKPermissionUpdateDestination, "cliArg">;
-
-export type PermissionRuleValue = SDKPermissionUpdate extends infer Update
-  ? Update extends { type: "addRules"; rules?: infer Rules }
-    ? Rules extends ReadonlyArray<infer Rule>
-      ? Rule
-      : never
-    : never
-  : never;
+export type { PermissionMode, PermissionRuleValue };
+export type PermissionUpdate = SharedPermissionUpdate;
+export type PermissionUpdateDestination = Exclude<
+  SharedPermissionUpdate["destination"],
+  "cliArg"
+>;
 
 export interface PermissionRequest {
   requestId: string;

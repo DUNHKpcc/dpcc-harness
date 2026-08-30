@@ -40,10 +40,6 @@ import { glassEnabled, applyGlass, setGlassTint } from "./lib/glass";
 import { getAppSettings, setAppSettings } from "./lib/app-settings";
 import { initAutoUpdater, getIsInstallingUpdate } from "./lib/updater";
 import { initPreReleaseCheck } from "./lib/prerelease-check";
-import {
-  createClaudeCodexBridgeController,
-  setClaudeCodexBridgeController,
-} from "./lib/claude-codex-bridge-controller";
 import { safeSend } from "./lib/safe-send";
 import { reclaimMacDockFocus } from "./lib/macos-dock-focus";
 import { killProcessTree } from "./lib/process-tree";
@@ -69,12 +65,22 @@ import {
   isPackageSmokeCheckRequested,
   runPackageSmokeCheck,
 } from "./lib/package-smoke-check";
+import {
+  buildAcpRecoveryRendererUrl,
+  readAcpRecoveryE2EConfig,
+  registerAcpRecoveryIpc,
+} from "./lib/e2e/acp-recovery-harness";
+import { getPiRuntimeStatus } from "./lib/pi-runtime-status";
 
 const diagnosticBuild = __PCC_DIAGNOSTIC_BUILD__;
 const packageSmokeCheck = isPackageSmokeCheckRequested();
+const acpRecoveryE2E = app.isPackaged ? null : readAcpRecoveryE2EConfig();
 
 if (packageSmokeCheck && process.env.PCC_PACKAGE_SMOKE_USER_DATA) {
   app.setPath("userData", process.env.PCC_PACKAGE_SMOKE_USER_DATA);
+}
+if (acpRecoveryE2E?.userDataPath) {
+  app.setPath("userData", acpRecoveryE2E.userDataPath);
 }
 
 // IPC module registrations
@@ -85,13 +91,11 @@ import * as foldersIpc from "./ipc/folders";
 import * as ccImportIpc from "./ipc/cc-import";
 import * as ccConfigIpc from "./ipc/cc-config";
 import * as filesIpc from "./ipc/files";
-import * as claudeSessionsIpc from "./ipc/claude-sessions";
 import * as titleGenIpc from "./ipc/title-gen";
 import * as terminalIpc from "./ipc/terminal";
 import * as gitIpc from "./ipc/git";
 import * as agentRegistryIpc from "./ipc/agent-registry";
 import * as acpSessionsIpc from "./ipc/acp-sessions";
-import * as codexSessionsIpc from "./ipc/codex-sessions";
 import * as mcpIpc from "./ipc/mcp";
 import * as pluginsIpc from "./ipc/plugins";
 import * as settingsIpc from "./ipc/settings";
@@ -212,7 +216,7 @@ function restoreWindowBounds(
 
 function persistMainWindowState(): void {
   const win = getMainWindow();
-  if (packageSmokeCheck || !win || win.isDestroyed()) return;
+  if (packageSmokeCheck || acpRecoveryE2E || !win || win.isDestroyed()) return;
   try {
     setAppSettings({
       windowBounds: win.getNormalBounds(),
@@ -300,14 +304,13 @@ function requestRendererPersistenceFlush(timeoutMs = 2500): Promise<void> {
 function getInterruptibleWorkSummary(): InterruptibleWorkSummary {
   return {
     agentTasks:
-      claudeSessionsIpc.getActiveTurnCount()
-      + acpSessionsIpc.getActiveTurnCount()
-      + codexSessionsIpc.getActiveTurnCount(),
+      acpSessionsIpc.getActiveTurnCount(),
     terminals: [...terminals.values()].filter((terminal) => !terminal.exited).length,
   };
 }
 
 function shouldConfirmQuit(): boolean {
+  if (acpRecoveryE2E) return false;
   return !quitConfirmed
     && !getIsInstallingUpdate()
     && hasInterruptibleWork(getInterruptibleWorkSummary());
@@ -530,9 +533,7 @@ function toggleMacMenuBarMenu(): void {
     auth,
     overview,
     recentSessions: macMenuBarRecentSessions,
-    activeAgentCount: claudeSessionsIpc.getActiveTurnCount()
-      + acpSessionsIpc.getActiveTurnCount()
-      + codexSessionsIpc.getActiveTurnCount(),
+    activeAgentCount: acpSessionsIpc.getActiveTurnCount(),
     activeTerminalCount: Array.from(terminals.values()).filter((terminal) => !terminal.exited).length,
     openAtLogin: loginItemSupported ? app.getLoginItemSettings().openAtLogin : false,
     loginItemSupported,
@@ -862,10 +863,9 @@ function createWindow(): void {
   });
 
   // A renderer crash abandons every session/terminal handle it owned. Without
-  // this, the orphaned SDK queries (and their bundled CLI subprocesses), ACP/
-  // Codex child processes, and node-pty shells keep running and holding RAM/CPU
-  // until the whole app quits. Tear them down so the reloaded renderer starts
-  // clean (it revives sessions via `resume`).
+  // this, ACP child processes and node-pty shells keep running and holding
+  // RAM/CPU until the whole app quits. Tear them down so the reloaded renderer
+  // starts clean and revives persisted ACP sessions.
   mainWindow.webContents.on("render-process-gone", (_e, details) => {
     rendererWindowActivationReady = false;
     reportError(
@@ -878,7 +878,7 @@ function createWindow(): void {
 
   // electron-context-menu is ESM-only (and pulls in ESM-only electron-dl), so it
   // must be loaded via dynamic import rather than a synchronous require.
-  if (!packageSmokeCheck) {
+  if (!packageSmokeCheck && !acpRecoveryE2E) {
     void import("electron-context-menu").then(({ default: contextMenu }) => {
       if (!mainWindow) return;
       contextMenu({
@@ -890,8 +890,10 @@ function createWindow(): void {
     });
   }
 
-  const isDev = !app.isPackaged && !packageSmokeCheck;
-  if (isDev) {
+  const isDev = !app.isPackaged && !packageSmokeCheck && !acpRecoveryE2E;
+  if (acpRecoveryE2E) {
+    mainWindow.loadURL(buildAcpRecoveryRendererUrl(acpRecoveryE2E));
+  } else if (isDev) {
     mainWindow.loadURL(process.env.PCC_DEV_SERVER_URL || "http://localhost:5173");
   } else {
     mainWindow.loadFile(path.join(__dirname, "../../dist/index.html"));
@@ -1038,13 +1040,20 @@ foldersIpc.register();
 ccImportIpc.register();
 ccConfigIpc.register();
 filesIpc.register(getMainWindow);
-claudeSessionsIpc.register(getMainWindow);
 titleGenIpc.register();
 terminalIpc.register(getMainWindow);
 gitIpc.register();
 agentRegistryIpc.register();
 acpSessionsIpc.register(getMainWindow);
-codexSessionsIpc.register(getMainWindow);
+if (acpRecoveryE2E) {
+  registerAcpRecoveryIpc(
+    acpRecoveryE2E,
+    getMainWindow,
+    acpSessionsIpc.getAcpRecoveryRuntimeSnapshot,
+    acpSessionsIpc.terminateAcpRecoveryRuntime,
+    acpSessionsIpc.stopAll,
+  );
+}
 mcpIpc.register();
 pluginsIpc.register();
 settingsIpc.register(getMainWindow);
@@ -1056,20 +1065,6 @@ accountAuthIpc.register(
 jiraIpc.register();
 wechatIpc.register(getMainWindow);
 notificationsIpc.register(getMainWindow, activateNotification);
-
-// --- Claude → Codex visible delegation bridge ---
-// Loopback controller the stdio MCP helper forwards `codex_delegate` calls to.
-// The renderer opens a visible Codex split pane and reports completion back.
-const claudeCodexBridge = createClaudeCodexBridgeController({
-  notifyRenderer: (request) => {
-    safeSend(getMainWindow, "claude-codex:delegate-request", request);
-  },
-});
-setClaudeCodexBridgeController(claudeCodexBridge);
-ipcMain.handle("claude-codex:complete-delegation", (_event, result) => {
-  claudeCodexBridge.completeDelegation(result);
-  return { ok: true };
-});
 
 // --- DevTools in separate window via remote debugging ---
 let devToolsWindow: BrowserWindow | null = null;
@@ -1172,20 +1167,30 @@ function initializeApp(): void {
 
   createWindow();
 
+  if (acpRecoveryE2E) {
+    // The recovery harness must not start tray, updater, WeChat, or bridge
+    // side effects. The renderer exercises the production preload and ACP IPC.
+    setAppSettings({ piCliConfigSource: "local" });
+    return;
+  }
+
   if (packageSmokeCheck) {
     if (!mainWindow) {
       throw new Error("Package smoke check could not create the main window");
     }
-    void runPackageSmokeCheck(mainWindow).then(
-      (result) => {
-        const payload = { ok: true, ...result };
+    void Promise.all([runPackageSmokeCheck(mainWindow), getPiRuntimeStatus()])
+      .then(([result, piRuntime]) => {
+        if (!piRuntime.offlineReady) {
+          throw new Error("Bundled Pi runtime is not offline-ready in the packaged application.");
+        }
+        const payload = { ok: true, ...result, piRuntime };
         if (process.env.PCC_PACKAGE_SMOKE_RESULT) {
           writeFileSync(process.env.PCC_PACKAGE_SMOKE_RESULT, JSON.stringify(payload));
         }
-        console.log(`PACKAGE_SMOKE_CHECK_OK ${JSON.stringify(result)}`);
+        console.log(`PACKAGE_SMOKE_CHECK_OK ${JSON.stringify(payload)}`);
         app.exit(0);
-      },
-      (error) => {
+      })
+      .catch((error) => {
         const message = error instanceof Error ? error.stack ?? error.message : String(error);
         const payload = { ok: false, error: message };
         if (process.env.PCC_PACKAGE_SMOKE_RESULT) {
@@ -1193,8 +1198,7 @@ function initializeApp(): void {
         }
         console.error(`PACKAGE_SMOKE_CHECK_FAILED ${message}`);
         app.exit(1);
-      },
-    );
+      });
     return;
   }
 
@@ -1222,11 +1226,6 @@ function initializeApp(): void {
 
   initAutoUpdater(getMainWindow, diagnosticBuild, prepareForUpdateInstall);
   initPreReleaseCheck(getMainWindow);
-
-  // Start the Claude→Codex delegation bridge before any session can be created.
-  claudeCodexBridge.start().catch((err) => {
-    reportError("CLAUDE_CODEX_BRIDGE", err, { context: "startup" });
-  });
 
   // Auto-start the WeChat bridge if the user enabled it and is already logged in.
   try {
@@ -1276,15 +1275,13 @@ if (hasSingleInstanceLock) {
   void app.whenReady().then(initializeApp);
 }
 
-// Kill all renderer-owned processes (Claude/ACP/Codex sessions + node-pty
+// Kill all renderer-owned processes (ACP sessions + node-pty
 // terminals). Idempotent and safe to call repeatedly — used by window-all-closed,
 // renderer-crash, and OS signal paths. Does NOT touch the WeChat bridge, which
 // runs independently of the renderer.
 function teardownSessionsAndTerminals(reason: string): void {
   log("CLEANUP", `Teardown sessions/terminals (${reason})`);
-  try { claudeSessionsIpc.stopAll(); } catch (err) { reportError("CLEANUP", err, { context: "claude-stopAll", reason }); }
   try { acpSessionsIpc.stopAll(); } catch (err) { reportError("CLEANUP", err, { context: "acp-stopAll", reason }); }
-  try { codexSessionsIpc.stopAll(); } catch (err) { reportError("CLEANUP", err, { context: "codex-stopAll", reason }); }
   try { filesIpc.disposeAllProjectWatchers(); } catch (err) { reportError("CLEANUP", err, { context: "file-watchers", reason }); }
 
   for (const [terminalId, term] of terminals) {
@@ -1306,6 +1303,10 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 }
 
 app.on("before-quit", (event) => {
+  if (acpRecoveryE2E) {
+    isQuitting = true;
+    return;
+  }
   if (shouldConfirmQuit()) {
     event.preventDefault();
     requestQuitAfterConfirmation();
@@ -1342,8 +1343,6 @@ app.on("will-quit", () => {
   if (tray && !tray.isDestroyed()) {
     tray.destroy();
   }
-  void claudeCodexBridge.stop();
-
   closeLogStream();
 });
 

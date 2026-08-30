@@ -147,7 +147,7 @@ const DEV_PROJECT_SEEDS: ProjectSeed[] = [
       },
       {
         title: "Model picker consistency",
-        objective: "Unify model picker behavior across Claude/Codex/ACP engines.",
+        objective: "Unify model picker behavior across Pi and custom ACP agents.",
         constraints: ["Keep engine-specific capabilities", "No settings migration breakage", "Retain current defaults"],
         acceptance: ["Selection labels are consistent", "Invalid model values auto-resolve", "Session-scoped persistence works"],
       },

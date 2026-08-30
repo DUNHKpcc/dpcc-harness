@@ -87,12 +87,24 @@ export function AgentTranscriptViewer({
     let cancelled = false;
     (async () => {
       try {
-        const result = await window.claude.readAgentOutput(outputFile);
+        const result = await window.claude.readFile(outputFile);
         if (cancelled) return;
         if (result.error) {
           setError(result.error);
         } else {
-          const entries = (result.messages ?? []) as TranscriptEntry[];
+          const entries = (result.content ?? "")
+            .split(/\r?\n/)
+            .filter(Boolean)
+            .flatMap((line): TranscriptEntry[] => {
+              try {
+                const entry = JSON.parse(line) as unknown;
+                return entry && typeof entry === "object"
+                  ? [entry as TranscriptEntry]
+                  : [];
+              } catch {
+                return [];
+              }
+            });
           setItems(buildDisplayItems(entries));
         }
       } catch (err) {

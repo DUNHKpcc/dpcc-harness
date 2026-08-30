@@ -1,11 +1,9 @@
-import type { ClaudeEvent } from "./protocol";
-import type { CCSessionInfo, ChatFolder, PersistedSession, Project, UIMessage, ClaudeEffort, UpstreamRequestEvent } from "./session";
+import type { CCSessionInfo, ChatFolder, PersistedSession, Project, UIMessage, UpstreamRequestEvent } from "./session";
 import type { Space } from "./spaces";
 import type { SearchMessageResult, SearchSessionResult } from "./search";
-import type { ModelInfo, McpServerConfig, McpServerStatus } from "./mcp";
-import type { PermissionUpdate } from "./permissions";
+import type { McpServerConfig } from "./mcp";
 import type { GitRepoInfo, GitStatus, GitBranch, GitLogEntry } from "@shared/types/git";
-import type { InstalledAgent } from "@shared/types/registry";
+import type { InstalledAgent, PiRuntimeStatus } from "@shared/types/registry";
 import type { EffectiveCliConfig, EffectiveCliModels } from "@shared/types/cc-config";
 import type { AppSettings, MacBackgroundEffect, ThemeOption } from "@shared/types/settings";
 import type {
@@ -16,6 +14,7 @@ import type { AccountConfig, AccountBalanceResult, AccountModelsResult, AccountO
 import type { AccountAuthActionResult, AccountAuthSnapshot } from "@shared/types/account-auth";
 import type {
   CatalogResult,
+  InstalledMcpRecord,
   InstalledSkillRecord,
   McpCatalogInstallRequest,
   McpCatalogInstallResult,
@@ -27,19 +26,17 @@ import type {
   ACPSessionEvent,
   ACPPermissionEvent,
   ACPTurnCompleteEvent,
+  ACPTransportErrorEvent,
   ACPConfigOption,
   ACPAuthenticateResult,
   ACPAvailableCommand,
   ACPAuthMethod,
   ACPStartResult,
   ACPStatusInfo,
+  ACPPromptResult,
+  ACPReviveResult,
 } from "./acp";
-import type { EngineId, AppPermissionBehavior } from "./engine";
-import type { CodexSessionEvent, CodexServerRequest, CodexExitEvent } from "./codex";
-import type { Model as CodexModel } from "./codex-protocol/v2/Model";
-import type { CollaborationMode } from "./codex-protocol/CollaborationMode";
-import type { SkillsListEntry } from "./codex-protocol/v2/SkillsListEntry";
-import type { AppInfo } from "./codex-protocol/v2/AppInfo";
+import type { EngineId, SlashCommand } from "./engine";
 import type { SessionMeta as SessionListItem } from "@shared/lib/session-persistence";
 import type {
   JiraProjectConfig,
@@ -69,9 +66,6 @@ interface FileWatchChangeEvent {
   paths?: string[];
   hasStructuralChange?: boolean;
 }
-
-type CodexImageInput = { type: "image"; url: string } | { type: "localImage"; path: string };
-type CodexMentionInput = { type: "mention"; name: string; path: string };
 
 declare global {
   /** Result of the GitHub pre-release check for the running version. */
@@ -105,57 +99,6 @@ declare global {
         setTintColor: (tintColor: string | null) => void;
         setTheme: (theme: "light" | "dark" | "system") => void;
       };
-      start: (options?: {
-        cwd?: string;
-        model?: string;
-        permissionMode?: string;
-        thinkingEnabled?: boolean;
-        effort?: ClaudeEffort;
-        resume?: string;
-        /** Fork to a new session ID when resuming (model forgets messages after resumeSessionAt) */
-        forkSession?: boolean;
-        /** Resume at a specific message UUID — used with forkSession to truncate history */
-        resumeSessionAt?: string;
-        mcpServers?: McpServerConfig[];
-        /** Inject the built-in `harnss-codex` bridge MCP server for visible Codex delegation. */
-        claudeCodexBridgeEnabled?: boolean;
-      }) => Promise<{ sessionId: string; pid: number; error?: string }>;
-      send: (
-        sessionId: string,
-        message: { type: string; message: { role: string; content: string | Array<{ type: string; [key: string]: unknown }> } },
-      ) => Promise<IpcResult>;
-      stop: (sessionId: string, reason?: string) => Promise<{ ok: boolean }>;
-      interrupt: (sessionId: string) => Promise<IpcResult>;
-      stopTask: (sessionId: string, taskId: string) => Promise<IpcResult>;
-      readAgentOutput: (outputFile: string) => Promise<{ messages?: unknown[]; error?: string }>;
-      supportedModels: (sessionId: string) => Promise<{
-        models: ModelInfo[];
-        authoritative?: boolean;
-        stale?: boolean;
-        error?: string;
-      }>;
-      slashCommands: (sessionId: string) => Promise<{
-        commands: Array<{ name: string; description?: string; argumentHint?: string }>;
-        error?: string;
-      }>;
-      modelsCacheGet: () => Promise<{
-        models: ModelInfo[];
-        updatedAt?: number;
-        authoritative?: boolean;
-        stale?: boolean;
-        error?: string;
-      }>;
-      modelsCacheRevalidate: (options?: { cwd?: string }) => Promise<{
-        models: ModelInfo[];
-        updatedAt?: number;
-        authoritative?: boolean;
-        stale?: boolean;
-        error?: string;
-      }>;
-      mcpStatus: (sessionId: string) => Promise<{ servers: McpServerStatus[]; error?: string }>;
-      mcpReconnect: (sessionId: string, serverName: string) => Promise<IpcResult & { restarted?: boolean }>;
-      revertFiles: (sessionId: string, checkpointId: string) => Promise<IpcResult>;
-      restartSession: (sessionId: string, mcpServers?: McpServerConfig[], cwd?: string, effort?: ClaudeEffort, model?: string, claudeCodexBridgeEnabled?: boolean) => Promise<IpcResult & { restarted?: boolean }>;
       readFile: (filePath: string) => Promise<{ content?: string; error?: string }>;
       getDroppedFilePath: (file: File) => string;
       renameFile: (oldPath: string, newPath: string) => Promise<IpcResult>;
@@ -176,74 +119,7 @@ declare global {
         engine?: EngineId,
         sessionId?: string,
       ) => Promise<{ title?: string; error?: string }>;
-      /** Fired when Claude calls the `codex_delegate` bridge tool and a visible Codex pane must be opened. */
-      onCodexDelegationRequest: (callback: (request: {
-        id: string;
-        prompt: string;
-        cwd?: string;
-        claudeSessionId?: string;
-      }) => void) => () => void;
-      /** Report the delegated Codex turn result back to the waiting Claude MCP tool call. */
-      completeCodexDelegation: (result: {
-        id: string;
-        ok: boolean;
-        content: string;
-        codexSessionId?: string;
-        error?: string;
-      }) => Promise<IpcResult>;
-      log: (label: string, data: unknown) => void;
-      onEvent: (callback: (event: ClaudeEvent & { _sessionId: string }) => void) => () => void;
       onUpstreamRequest: (callback: (event: UpstreamRequestEvent) => void) => () => void;
-      onStderr: (callback: (data: { data: string; _sessionId: string }) => void) => () => void;
-      onExit: (callback: (data: { code: number | null; _sessionId: string; error?: string }) => void) => () => void;
-      onPermissionRequest: (
-        callback: (data: {
-          _sessionId: string;
-          requestId: string;
-          toolName: string;
-          toolInput: Record<string, unknown>;
-          toolUseId: string;
-          suggestions?: PermissionUpdate[];
-          decisionReason?: string;
-        }) => void,
-      ) => () => void;
-      respondPermission: (
-        sessionId: string,
-        requestId: string,
-        behavior: AppPermissionBehavior,
-        toolUseId: string,
-        toolInput: Record<string, unknown>,
-        newPermissionMode?: string,
-        updatedPermissions?: unknown[],
-      ) => Promise<IpcResult>;
-      setPermissionMode: (
-        sessionId: string,
-        permissionMode: string,
-      ) => Promise<IpcResult>;
-      setModel: (
-        sessionId: string,
-        model?: string,
-      ) => Promise<IpcResult>;
-      setThinking: (
-        sessionId: string,
-        thinkingEnabled: boolean,
-      ) => Promise<IpcResult>;
-      version: () => Promise<{ version?: string | null; error?: string }>;
-      binaryStatus: () => Promise<{ installed: boolean; installing: boolean }>;
-      binaryInfo: () => Promise<{
-        path?: string | null;
-        origin?: "custom" | "env" | "known" | "path" | "sdk-fallback" | "none";
-        source?: "builtin" | "auto" | "managed" | "custom";
-        version?: string | null;
-        gitBash?: {
-          required: boolean;
-          ready: boolean;
-          path: string | null;
-          message: string | null;
-        };
-        error?: string;
-      }>;
-      downloadUpdate: () => Promise<{ version?: string | null; error?: string }>;
       projects: {
         list: () => Promise<Project[]>;
         create: (spaceId?: string) => Promise<Project | null>;
@@ -395,12 +271,12 @@ declare global {
       };
       acp: {
         log: (label: string, data: unknown) => void;
-        start: (options: { agentId: string; cwd: string; mcpServers?: McpServerConfig[] }) => Promise<ACPStartResult>;
+        start: (options: { agentId: string; cwd: string; mcpServers?: McpServerConfig[]; initialConfigOptions?: ACPConfigOption[] }) => Promise<ACPStartResult>;
         authenticate: (sessionId: string, methodId: string) => Promise<ACPAuthenticateResult>;
-        prompt: (sessionId: string, text: string, images?: unknown[]) => Promise<IpcResult>;
+        prompt: (sessionId: string, text: string, images?: unknown[]) => Promise<ACPPromptResult>;
         stop: (sessionId: string) => Promise<IpcResult>;
         reloadSession: (sessionId: string, mcpServers?: McpServerConfig[], cwd?: string) => Promise<IpcResult & { supportsLoad?: boolean }>;
-        reviveSession: (options: { agentId: string; cwd: string; sessionId?: string; agentSessionId?: string; mcpServers?: McpServerConfig[] }) => Promise<{ sessionId?: string; agentSessionId?: string; usedLoad?: boolean; configOptions?: ACPConfigOption[]; mcpStatuses?: ACPStatusInfo[]; error?: string }>;
+        reviveSession: (options: { agentId: string; cwd: string; sessionId?: string; agentSessionId?: string; mcpServers?: McpServerConfig[]; initialConfigOptions?: ACPConfigOption[] }) => Promise<ACPReviveResult>;
         cancel: (sessionId: string) => Promise<IpcResult>;
         abortPendingStart: () => Promise<{ ok?: boolean }>;
         respondPermission: (sessionId: string, requestId: string, optionId: string) => Promise<IpcResult>;
@@ -411,82 +287,13 @@ declare global {
         onEvent: (callback: (data: ACPSessionEvent) => void) => () => void;
         onPermissionRequest: (callback: (data: ACPPermissionEvent) => void) => () => void;
         onTurnComplete: (callback: (data: ACPTurnCompleteEvent) => void) => () => void;
-        onExit: (callback: (data: { _sessionId: string; code: number | null; error?: string }) => void) => () => void;
-      };
-      codex: {
-        log: (label: string, data: unknown) => void;
-        start: (options: { cwd: string; model?: string; permissionMode?: string; approvalPolicy?: string; sandbox?: "read-only" | "workspace-write" | "danger-full-access"; personality?: string; collaborationMode?: CollaborationMode }) =>
-          Promise<{
-            sessionId?: string;
-            threadId?: string;
-            rolloutPath?: string;
-            models?: CodexModel[];
-            selectedModel?: string;
-            account?: unknown;
-            needsAuth?: boolean;
-            error?: string;
-          }>;
-        send: (sessionId: string, text: string, images?: CodexImageInput[], effort?: string, collaborationMode?: CollaborationMode, mentions?: CodexMentionInput[]) =>
-          Promise<{ turnId?: string; error?: string }>;
-        stop: (sessionId: string) => Promise<void>;
-        interrupt: (sessionId: string) => Promise<{ error?: string }>;
-        respondApproval: (sessionId: string, rpcId: string | number, decision: string, acceptSettings?: unknown) =>
-          Promise<IpcResult>;
-        respondUserInput: (
-          sessionId: string,
-          rpcId: string | number,
-          answers: Record<string, { answers: string[] }>,
-        ) => Promise<IpcResult>;
-        respondServerRequestError: (
-          sessionId: string,
-          rpcId: string | number,
-          code: number,
-          message: string,
-        ) => Promise<IpcResult>;
-        compact: (sessionId: string) => Promise<{ error?: string }>;
-        listSkills: (sessionId: string) => Promise<{
-          skills: SkillsListEntry[];
-          error?: string;
-        }>;
-        listApps: (sessionId: string) => Promise<{
-          apps: AppInfo[];
-          error?: string;
-        }>;
-        listCommands: (cwd: string) => Promise<{
-          skills: SkillsListEntry[];
-          apps: AppInfo[];
-          error?: string;
-        }>;
-        listCommandApps: (cwd: string) => Promise<{
-          apps: AppInfo[];
-          error?: string;
-        }>;
-        listModels: () => Promise<{ models: CodexModel[]; error?: string }>;
-        authStatus: () => Promise<{ account: unknown; requiresOpenaiAuth: boolean }>;
-        login: (sessionId: string, type: "apiKey" | "chatgpt", apiKey?: string) => Promise<unknown>;
-        resume: (options: { cwd: string; threadId: string; rolloutPath?: string; model?: string; permissionMode?: string; approvalPolicy?: string; sandbox?: "read-only" | "workspace-write" | "danger-full-access" }) =>
-          Promise<{ sessionId?: string; threadId?: string; rolloutPath?: string; error?: string }>;
-        setModel: (sessionId: string, model: string) => Promise<{ error?: string }>;
-        setPermissionMode: (sessionId: string, permissionMode: string) => Promise<{ ok?: boolean; permissionMode?: string; error?: string }>;
-        version: () => Promise<{ version?: string; error?: string }>;
-        binaryStatus: () => Promise<{ installed: boolean; downloading: boolean }>;
-        binaryInfo: () => Promise<{
-          path?: string | null;
-          origin?: "env" | "managed" | "known" | "path" | "bundled" | "custom" | "none";
-          version?: string | null;
-          hasBundled?: boolean;
-          hasManaged?: boolean;
-          error?: string;
-        }>;
-        downloadUpdate: () => Promise<{ version?: string | null; error?: string }>;
-        onEvent: (callback: (data: CodexSessionEvent) => void) => () => void;
-        onApprovalRequest: (callback: (data: CodexServerRequest) => void) => () => void;
-        onExit: (callback: (data: CodexExitEvent) => void) => () => void;
+        onTurnTransportError: (callback: (data: ACPTransportErrorEvent) => void) => () => void;
+        onExit: (callback: (data: { _sessionId: string; code: number | null; turnId?: string; error?: string; errorCode?: string }) => void) => () => void;
       };
       mcp: {
-        list: (projectId: string) => Promise<McpServerConfig[]>;
-        add: (projectId: string, server: McpServerConfig) => Promise<IpcResult>;
-        remove: (projectId: string, name: string) => Promise<IpcResult>;
+        list: () => Promise<McpServerConfig[]>;
+        add: (server: McpServerConfig) => Promise<IpcResult>;
+        remove: (name: string) => Promise<IpcResult>;
         authenticate: (serverName: string, serverUrl: string) => Promise<IpcResult>;
         authStatus: (serverName: string) => Promise<{ hasToken: boolean; expiresAt?: number }>;
         probe: (servers: McpServerConfig[]) => Promise<Array<{ name: string; status: "connected" | "needs-auth" | "failed"; error?: string }>>;
@@ -494,7 +301,7 @@ declare global {
       plugins: {
         skills: {
           search: (query: string) => Promise<CatalogResult<SkillCatalogItem> | { error: string }>;
-          listInstalled: (projectPath?: string | null) => Promise<
+          listInstalled: () => Promise<
             { items: InstalledSkillRecord[] } | { error: string }
           >;
           install: (request: SkillInstallRequest) => Promise<
@@ -505,6 +312,7 @@ declare global {
         };
         mcp: {
           list: (query: string) => Promise<CatalogResult<McpCatalogItem> | { error: string }>;
+          listInstalled: () => Promise<{ items: InstalledMcpRecord[] } | { error: string }>;
           install: (request: McpCatalogInstallRequest) => Promise<McpCatalogInstallResult>;
         };
       };
@@ -513,12 +321,17 @@ declare global {
         save: (agent: InstalledAgent) => Promise<IpcResult>;
         delete: (id: string) => Promise<IpcResult>;
         updateCachedConfig: (agentId: string, configOptions: ACPConfigOption[]) => Promise<{ ok?: boolean }>;
+        updateCachedSlashCommands: (agentId: string, commands: SlashCommand[]) => Promise<{ ok?: boolean }>;
         /** Batch-check if binary-only agents are installed on the system PATH. */
         checkBinaries: (
           agents: Array<{ id: string; binary: Record<string, { cmd: string; args?: string[] }> }>,
         ) => Promise<Record<string, { path: string; args?: string[] } | null>>;
         /** Preferred ACP registry platform keys for the current machine. */
         getPlatformKeys: () => Promise<string[]>;
+        /** Resolved PATH and version details for the supported Pi runtime pair. */
+        getPiRuntimeStatus: () => Promise<PiRuntimeStatus>;
+        /** Local-only Pi command catalog for drafts; does not start an ACP process. */
+        listPiDraftCommands: (cwd: string) => Promise<{ commands: SlashCommand[] }>;
       };
       settings: {
         get: () => Promise<AppSettings>;
@@ -538,6 +351,8 @@ declare global {
         reconnect: () => Promise<{ ok: boolean; error?: string }>;
         /** Continue a WeChat conversation from the desktop (relays the reply to WeChat). */
         send: (args: { sessionId: string; text: string }) => Promise<{ ok: boolean; error?: string }>;
+        /** Cancel the active Pi ACP turn owned by this WeChat session. */
+        cancel: (args: { sessionId: string }) => Promise<{ ok: boolean; error?: string }>;
         /** Subscribe to bridge events (qrcode, login status, state, activity, session-upsert). */
         onEvent: (callback: (event: WeChatBridgeEvent) => void) => () => void;
       };

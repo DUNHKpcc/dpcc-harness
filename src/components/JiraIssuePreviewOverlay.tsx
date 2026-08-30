@@ -1,6 +1,6 @@
 /**
  * Jira issue preview overlay with morphing animation.
- * Mirrors FilePreviewOverlay's FLIP animation pattern.
+ * Uses a FLIP animation pattern for opening issue details.
  */
 
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
@@ -19,7 +19,7 @@ import type { JiraIssue, JiraComment } from "@shared/types/jira";
 
 const REMARK_PLUGINS = [remarkGfm];
 
-// ── Overlay dimensions (same as FilePreviewOverlay) ──
+// ── Overlay dimensions ──
 
 const OVERLAY_WIDTH = 800;
 const OVERLAY_MAX_HEIGHT_VH = 85;

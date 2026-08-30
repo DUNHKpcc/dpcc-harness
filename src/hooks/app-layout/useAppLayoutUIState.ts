@@ -13,7 +13,6 @@ export function useAppLayoutUIState(input: UseAppLayoutUIStateInput) {
     () => localStorage.getItem(WELCOME_COMPLETED_KEY) === "true",
   );
   const [grabbedElements, setGrabbedElements] = useState<GrabbedElement[]>([]);
-  const [previewFile, setPreviewFile] = useState<{ path: string; sourceRect: DOMRect } | null>(null);
 
   useEffect(() => {
     if (!input.isNativeGlass) return;
@@ -50,14 +49,6 @@ export function useAppLayoutUIState(input: UseAppLayoutUIStateInput) {
     setGrabbedElements([]);
   }, []);
 
-  const handlePreviewFile = useCallback((filePath: string, sourceRect: DOMRect) => {
-    setPreviewFile({ path: filePath, sourceRect });
-  }, []);
-
-  const handleClosePreview = useCallback(() => {
-    setPreviewFile(null);
-  }, []);
-
   return {
     windowFocused,
     welcomeCompleted,
@@ -67,8 +58,5 @@ export function useAppLayoutUIState(input: UseAppLayoutUIStateInput) {
     clearGrabbedElements,
     handleElementGrab,
     handleRemoveGrabbedElement,
-    previewFile,
-    handlePreviewFile,
-    handleClosePreview,
   };
 }

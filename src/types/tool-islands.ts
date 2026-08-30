@@ -38,6 +38,10 @@ export interface ToolIslandMemory {
   lastTopStackIndex?: number | null;
   /** Fraction this tool column occupied when it was last open in the top dock. */
   lastWidthFraction?: number;
+  /** Fraction this tool occupied inside its top-row stack. */
+  lastTopStackFraction?: number;
+  /** Fraction this tool occupied inside the bottom dock. */
+  lastBottomWidthFraction?: number;
 }
 
 // ── Drag state (shared by both split-view and single-chat) ──

@@ -30,7 +30,7 @@ export interface TaskCompletion {
  * Shared store for event-driven background agent tracking.
  *
  * Only tracks BACKGROUND (async) agents — foreground agents use the
- * existing parentToolMap/subagentSteps system in useClaude.
+ * existing parentToolMap/subagentSteps system used by the historical task UI.
  *
  * Registration: eagerly from task_started (pending), confirmed from
  * tool_result with isAsync: true. Foreground agents cleaned up via

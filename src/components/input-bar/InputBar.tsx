@@ -15,6 +15,7 @@ import {
   Mic,
   MicOff,
   Paperclip,
+  Plus,
   Square,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -32,17 +33,12 @@ import type {
   ContextUsage,
   InstalledAgent,
   ACPConfigOption,
-  ModelInfo,
   AcpPermissionBehavior,
-  ClaudeEffort,
   EngineId,
   SlashCommand,
 } from "@/types";
 import { BOTTOM_CHAT_MAX_WIDTH_CLASS } from "@/lib/layout/constants";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
-import { resolveClaudePickerValue, resolveModelValue, formatClaudeModelLabel } from "@/lib/model-utils";
-import { getClaudeEffortOptions, resolveClaudeEffort } from "@/lib/engine/claude-effort";
-import { getCodexNativeCommands } from "@/lib/engine/command-prewarm";
 import { isImeComposing } from "@/lib/utils";
 // Lazy-loaded: the annotation editor pulls in konva/react-konva (~10MB) and is
 // only needed when the user edits an attached screenshot. Keep it out of the
@@ -52,7 +48,7 @@ const ImageAnnotationEditor = lazy(() =>
     default: m.ImageAnnotationEditor,
   })),
 );
-import { PERMISSION_MODES, TOOLBAR_BTN } from "./constants";
+import { TOOLBAR_BTN } from "./constants";
 import {
   readFileAsBase64,
   isAcceptedImage,
@@ -62,7 +58,6 @@ import {
   extractEditableContent,
   getAvailableSlashCommands,
   isClearCommandText,
-  parseSlashCommandText,
   parseDroppedUrls,
   buildFileReferenceMessage,
   splitComposerFiles,
@@ -71,7 +66,7 @@ import { ContextGauge } from "./ContextGauge";
 import { AttachmentPreview } from "./AttachmentPreview";
 import { EnginePickerDropdown } from "./EnginePickerDropdown";
 import { ModelThinkingDropdown } from "./ModelThinkingDropdown";
-import { EngineControls, PermissionDropdown, AcpBehaviorDropdown } from "./EngineControls";
+import { AcpBehaviorDropdown } from "./EngineControls";
 import { MentionPicker } from "./MentionPicker";
 import { useMentionAutocomplete } from "./useMentionAutocomplete";
 import { CommandPicker } from "./CommandPicker";
@@ -82,14 +77,6 @@ export interface InputBarProps {
   onClear?: () => void | Promise<void>;
   onStop: () => void;
   isProcessing: boolean;
-  model: string;
-  claudeEffort: ClaudeEffort;
-  planMode: boolean;
-  permissionMode: string;
-  onModelChange: (model: string) => void;
-  onClaudeModelEffortChange: (model: string, effort: ClaudeEffort) => void;
-  onPlanModeChange: (enabled: boolean) => void;
-  onPermissionModeChange: (mode: string) => void;
   projectPath?: string;
   contextUsage?: ContextUsage | null;
   isCompacting?: boolean;
@@ -104,25 +91,12 @@ export interface InputBarProps {
   onACPConfigChange?: (configId: string, value: string) => void;
   acpPermissionBehavior?: AcpPermissionBehavior;
   onAcpPermissionBehaviorChange?: (behavior: AcpPermissionBehavior) => void;
-  supportedModels?: ModelInfo[];
-  codexModelsLoadingMessage?: string | null;
-  /** Codex reasoning effort -- per-model configurable effort level */
-  codexEffort?: string;
-  onCodexEffortChange?: (effort: string) => void;
-  /** Codex models carry their supported effort levels -- passed through for the effort dropdown */
-  codexModelData?: Array<{
-    id: string;
-    supportedReasoningEfforts: Array<{
-      reasoningEffort: string;
-      description: string;
-    }>;
-    defaultReasoningEffort: string;
-    isDefault?: boolean;
-  }>;
   /** Non-null when session is active (not draft) -- engine is locked and cross-engine agents show "Opens new chat" */
   lockedEngine?: EngineId | null;
   /** Non-null when an ACP session is active -- switching to a different ACP agent opens new chat */
   lockedAgentId?: string | null;
+  /** Existing persisted sessions can be displayed without owning a live runtime. */
+  readOnlyReason?: "legacy" | "invalid" | null;
   /** Number of messages currently queued for sending */
   queuedCount?: number;
   /** Grabbed elements from browser inspector, displayed as context cards */
@@ -138,14 +112,6 @@ export const InputBar = memo(function InputBar({
   onClear,
   onStop,
   isProcessing,
-  model,
-  claudeEffort,
-  planMode,
-  permissionMode,
-  onModelChange,
-  onClaudeModelEffortChange,
-  onPlanModeChange,
-  onPermissionModeChange,
   projectPath,
   contextUsage,
   isCompacting,
@@ -159,13 +125,9 @@ export const InputBar = memo(function InputBar({
   onACPConfigChange,
   acpPermissionBehavior,
   onAcpPermissionBehaviorChange,
-  supportedModels,
-  codexModelsLoadingMessage,
-  codexEffort,
-  onCodexEffortChange,
-  codexModelData,
   lockedEngine,
   lockedAgentId,
+  readOnlyReason,
   queuedCount = 0,
   grabbedElements,
   onRemoveGrabbedElement,
@@ -179,7 +141,7 @@ export const InputBar = memo(function InputBar({
   const [fileAttachments, setFileAttachments] = useState<FileAttachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [editingAttachment, setEditingAttachment] = useState<ImageAttachment | null>(null);
-  const [nativeCommandMenu, setNativeCommandMenu] = useState<"model" | "permissions" | null>(null);
+  const [nativeCommandMenu, setNativeCommandMenu] = useState<"model" | null>(null);
 
   // Deep folder confirmation
   const [showDeepFolderConfirm, setShowDeepFolderConfirm] = useState(false);
@@ -209,95 +171,17 @@ export const InputBar = memo(function InputBar({
   });
 
   // ── Derived engine state ──
-  const activeEngine = lockedEngine ?? selectedAgent?.engine ?? "claude";
+  const activeEngine = lockedEngine ?? selectedAgent?.engine ?? "acp";
   const isACPAgent = activeEngine === "acp";
-  const isCodexAgent = activeEngine === "codex";
-  const isAwaitingAcpOptions = isACPAgent && !!acpConfigOptionsLoading;
-
-  const codexNativeCommands = useMemo(
-    () => isCodexAgent ? getCodexNativeCommands(lockedEngine === "codex") : [],
-    [isCodexAgent, lockedEngine],
-  );
+  const effectiveReadOnlyReason = readOnlyReason ?? (!isACPAgent ? "legacy" : null);
+  const isReadOnly = effectiveReadOnlyReason !== null;
+  const isRuntimeACP = isACPAgent && !isReadOnly;
+  const isAwaitingAcpOptions = isRuntimeACP && !!acpConfigOptionsLoading;
 
   const availableSlashCommands = useMemo(
-    () => getAvailableSlashCommands([
-      ...codexNativeCommands,
-      ...(slashCommands ?? []),
-    ]),
-    [codexNativeCommands, slashCommands],
+    () => getAvailableSlashCommands(slashCommands ?? []),
+    [slashCommands],
   );
-
-  // ── Derived model state ──
-  const modelList = supportedModels?.length
-    ? supportedModels.map((m) => ({
-        id: m.value,
-        label: m.displayName,
-        description: m.description,
-      }))
-    : [];
-  const modelsLoading = modelList.length === 0;
-  const modelsLoadingText = isCodexAgent
-    ? (codexModelsLoadingMessage?.trim() || t("model.loadingCodex"))
-    : t("model.loading");
-  const resolvedModelId = !isACPAgent && !isCodexAgent
-    ? resolveClaudePickerValue(model, supportedModels ?? [])
-    : resolveModelValue(model, supportedModels ?? []);
-  const preferredModelId = resolvedModelId ?? model;
-  const selectedModel = modelList.find((m) => m.id === preferredModelId) ?? (
-    preferredModelId
-      ? { id: preferredModelId, label: preferredModelId, description: "" }
-      : modelList[0]
-  );
-  const selectedModelId = selectedModel?.id ?? preferredModelId;
-
-  // Claude effort
-  const claudeCurrentModel = supportedModels?.find((m) => m.value === selectedModelId);
-  // For Claude, prefer a friendly versioned label (e.g. "Sonnet 4.6") over the
-  // bare family name returned by the SDK as displayName.
-  const selectedModelDisplayLabel = !isACPAgent && !isCodexAgent && claudeCurrentModel
-    ? formatClaudeModelLabel(claudeCurrentModel)
-    : (selectedModel?.label ?? "");
-  const claudeEffortOptions = getClaudeEffortOptions(
-    claudeCurrentModel,
-    supportedModels ?? [],
-  );
-  const claudeActiveEffort = claudeEffortOptions.includes(claudeEffort)
-    ? claudeEffort
-    : (claudeEffortOptions.includes("high") ? "high" : (claudeEffortOptions[0] ?? "high"));
-  const handleModelSelect = useCallback((nextModel: string) => {
-    if (isACPAgent || isCodexAgent) {
-      onModelChange(nextModel);
-      return;
-    }
-
-    const nextEffort = resolveClaudeEffort(nextModel, supportedModels ?? [], claudeEffort);
-    if (!nextEffort) {
-      onModelChange(nextModel);
-      return;
-    }
-    onClaudeModelEffortChange(nextModel, nextEffort);
-  }, [
-    claudeEffort,
-    isACPAgent,
-    isCodexAgent,
-    onClaudeModelEffortChange,
-    onModelChange,
-    supportedModels,
-  ]);
-
-  // Codex effort
-  const codexCurrentModel = codexModelData?.find((m) => m.id === selectedModelId)
-    ?? codexModelData?.find((m) => m.isDefault)
-    ?? codexModelData?.[0];
-  const supportedModelCodexEfforts = supportedModels
-    ?.find((m) => m.value === selectedModelId)
-    ?.supportedEffortLevels
-    ?.map((effort) => ({ reasoningEffort: effort, description: "" }))
-    ?? [];
-  const codexEffortOptions = codexCurrentModel?.supportedReasoningEfforts ?? supportedModelCodexEfforts;
-  const codexActiveEffort = codexEffortOptions.some((opt) => opt.reasoningEffort === codexEffort)
-    ? codexEffort
-    : codexCurrentModel?.defaultReasoningEffort ?? codexEffort ?? "medium";
 
   // ── Mention & command autocomplete ──
 
@@ -317,76 +201,6 @@ export const InputBar = memo(function InputBar({
     },
     [mention.closeMentions, command.setShowCommands, setComposerHasContent],
   );
-
-  const handleCodexNativeCommand = useCallback(async (
-    text: string,
-    el: HTMLDivElement,
-  ): Promise<boolean> => {
-    if (!isCodexAgent) return false;
-
-    const parsed = parseSlashCommandText(text);
-    if (!parsed) return false;
-    const command = codexNativeCommands.find((candidate) => candidate.name === parsed.name);
-    if (!command) return false;
-    if (command.disabled) return true;
-
-    switch (command.name) {
-      case "new":
-        if (parsed.argument || !onClear) return false;
-        await onClear();
-        break;
-      case "compact":
-        if (parsed.argument || !onCompact) return false;
-        await onCompact();
-        break;
-      case "model": {
-        const requestedModel = parsed.argument.toLowerCase();
-        const selected = requestedModel
-          ? modelList.find((option) => (
-              option.id.toLowerCase() === requestedModel
-              || option.label.toLowerCase() === requestedModel
-            ))
-          : undefined;
-        if (selected) {
-          handleModelSelect(selected.id);
-        } else {
-          setNativeCommandMenu("model");
-        }
-        break;
-      }
-      case "permissions": {
-        const requestedMode = parsed.argument.toLowerCase();
-        const selected = requestedMode
-          ? PERMISSION_MODES.find((option) => option.id.toLowerCase() === requestedMode)
-          : undefined;
-        if (selected) {
-          onPermissionModeChange(selected.id);
-        } else {
-          setNativeCommandMenu("permissions");
-        }
-        break;
-      }
-      case "plan":
-        if (parsed.argument) return false;
-        onPlanModeChange(true);
-        break;
-      default:
-        return false;
-    }
-
-    clearComposer(el);
-    return true;
-  }, [
-    clearComposer,
-    codexNativeCommands,
-    handleModelSelect,
-    isCodexAgent,
-    modelList,
-    onClear,
-    onCompact,
-    onPermissionModeChange,
-    onPlanModeChange,
-  ]);
 
   // ── Image attachments ──
 
@@ -566,6 +380,7 @@ export const InputBar = memo(function InputBar({
     const trimmed = fullText.trim();
     const hasGrabs = (grabbedElements?.length ?? 0) > 0;
     if (
+      isReadOnly ||
       isAwaitingAcpOptions ||
       (!trimmed && attachments.length === 0 && fileAttachments.length === 0 && !hasGrabs) ||
       isSending
@@ -578,15 +393,6 @@ export const InputBar = memo(function InputBar({
       } finally {
         clearComposer(el);
       }
-      return;
-    }
-
-    const canRunNativeCommand =
-      attachments.length === 0
-      && fileAttachments.length === 0
-      && !hasGrabs
-      && mentionPaths.length === 0;
-    if (canRunNativeCommand && await handleCodexNativeCommand(trimmed, el)) {
       return;
     }
 
@@ -622,11 +428,11 @@ export const InputBar = memo(function InputBar({
     attachments,
     fileAttachments,
     isAwaitingAcpOptions,
+    isReadOnly,
     isSending,
     projectPath,
     onClear,
     grabbedElements,
-    handleCodexNativeCommand,
     performSend,
     clearComposer,
   ]);
@@ -839,8 +645,9 @@ export const InputBar = memo(function InputBar({
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (isReadOnly) return;
     setIsDragging(true);
-  }, []);
+  }, [isReadOnly]);
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -858,6 +665,7 @@ export const InputBar = memo(function InputBar({
       e.preventDefault();
       e.stopPropagation();
       setIsDragging(false);
+      if (isReadOnly) return;
 
       const dt = e.dataTransfer;
       if (!dt) return;
@@ -886,7 +694,7 @@ export const InputBar = memo(function InputBar({
       if (imageFiles.length > 0) addImageFiles(imageFiles);
       if (otherFiles.length > 0) addFileAttachments(otherFiles);
     },
-    [addImageFiles, addFileAttachments, setComposerHasContent],
+    [addImageFiles, addFileAttachments, isReadOnly, setComposerHasContent],
   );
 
   const handleFileInputChange = useCallback(
@@ -905,17 +713,22 @@ export const InputBar = memo(function InputBar({
 
   const placeholderText = isCompacting
     ? t("placeholder.compacting")
-    : isAwaitingAcpOptions
-      ? t("placeholder.loadingAgentOptions")
-      : isProcessing
-        ? t("placeholder.responding", { name: selectedAgent?.name ?? "Claude" })
-        : availableSlashCommands.length > 0
-          ? t("placeholder.askWithCommands")
-          : t("placeholder.ask");
+    : effectiveReadOnlyReason === "invalid"
+      ? t("placeholder.invalidSession")
+      : isReadOnly
+        ? t("placeholder.readOnly")
+        : isAwaitingAcpOptions
+          ? t("placeholder.loadingAgentOptions")
+          : isProcessing
+            ? t("placeholder.responding", { name: selectedAgent?.name ?? "Pi" })
+            : availableSlashCommands.length > 0
+              ? t("placeholder.askWithCommands")
+              : t("placeholder.ask");
 
   // ── Send button disabled state ──
 
   const sendDisabled =
+    isReadOnly ||
     isAwaitingAcpOptions ||
     ((!hasContent &&
       attachments.length === 0 &&
@@ -929,6 +742,7 @@ export const InputBar = memo(function InputBar({
         ref={fileInputRef}
         type="file"
         multiple
+        disabled={isReadOnly}
         className="hidden"
         onChange={handleFileInputChange}
       />
@@ -989,7 +803,7 @@ export const InputBar = memo(function InputBar({
             )}
             <div
               ref={editableRef}
-              contentEditable
+              contentEditable={!isReadOnly}
               onInput={handleEditableInput}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
@@ -1004,7 +818,7 @@ export const InputBar = memo(function InputBar({
               autoCorrect="off"
               autoCapitalize="off"
               data-gramm="false"
-              aria-disabled={isAwaitingAcpOptions}
+              aria-disabled={isReadOnly || isAwaitingAcpOptions}
               suppressContentEditableWarning
             />
           </div>
@@ -1047,6 +861,7 @@ export const InputBar = memo(function InputBar({
               size="xs"
               className={TOOLBAR_BTN}
               onClick={() => fileInputRef.current?.click()}
+              disabled={isReadOnly}
               title={t("voice.attachImage")}
             >
               <Paperclip className="size-3.5" />
@@ -1060,7 +875,7 @@ export const InputBar = memo(function InputBar({
                     variant="ghost"
                     size="xs"
                     onClick={speech.toggle}
-                    disabled={speech.isModelLoading || speech.isTranscribing}
+                    disabled={isReadOnly || speech.isModelLoading || speech.isTranscribing}
                     className={`rounded-lg font-normal transition-colors duration-150 ${
                       speech.isListening
                         ? "text-red-400 bg-red-500/10 recording-pulse hover:bg-red-500/15"
@@ -1123,24 +938,18 @@ export const InputBar = memo(function InputBar({
               onManageACPs={onManageACPs}
             />
 
-            {!isACPAgent && (
-              <>
-                <span
-                  className="mx-0.5 h-3.5 w-px shrink-0 bg-border/20"
-                  aria-hidden="true"
-                />
-                <EngineControls
-                  isCodexAgent={isCodexAgent}
-                  isACPAgent={isACPAgent}
-                  isProcessing={isProcessing}
-                  permissionMode={permissionMode}
-                  onPermissionModeChange={onPermissionModeChange}
-                  planMode={planMode}
-                  onPlanModeChange={onPlanModeChange}
-                  acpPermissionBehavior={acpPermissionBehavior}
-                  onAcpPermissionBehaviorChange={onAcpPermissionBehaviorChange}
-                />
-              </>
+            {isReadOnly && onClear && (
+              <Button
+                variant="ghost"
+                size="xs"
+                className={`${TOOLBAR_BTN} shrink-0 text-amber-600 dark:text-amber-300`}
+                onClick={() => void onClear()}
+                disabled={isProcessing}
+                title={t("engine.createPiChat")}
+              >
+                <Plus className="size-3.5" />
+                {t("engine.createPiChat")}
+              </Button>
             )}
           </div>
 
@@ -1173,33 +982,27 @@ export const InputBar = memo(function InputBar({
 
       {/* Sunken meta row -- model + thinking, permission, context usage */}
       <div className="pointer-events-auto mt-1.5 flex items-center gap-1 px-1 text-xs text-muted-foreground/80">
-        <ModelThinkingDropdown
-          open={nativeCommandMenu === "model"}
-          onOpenChange={(open) => {
-            setNativeCommandMenu((current) => (
-              open ? "model" : current === "model" ? null : current
-            ));
-          }}
-          isProcessing={isProcessing}
-          isACPAgent={isACPAgent}
-          isCodexAgent={isCodexAgent}
-          selectedModelId={selectedModelId}
-          selectedModelLabel={selectedModelDisplayLabel}
-          modelList={modelList}
-          modelsLoading={modelsLoading}
-          modelsLoadingText={modelsLoadingText}
-          onModelChange={handleModelSelect}
-          claudeEffortOptions={claudeEffortOptions}
-          claudeActiveEffort={claudeActiveEffort as ClaudeEffort}
-          onClaudeModelEffortChange={onClaudeModelEffortChange}
-          codexEffortOptions={codexEffortOptions}
-          codexActiveEffort={codexActiveEffort ?? "medium"}
-          onCodexEffortChange={onCodexEffortChange}
-          acpConfigOptions={acpConfigOptions}
-          acpConfigOptionsLoading={acpConfigOptionsLoading}
-          onACPConfigChange={onACPConfigChange}
-        />
-        {isACPAgent ? (
+        {isRuntimeACP ? (
+          <ModelThinkingDropdown
+            open={nativeCommandMenu === "model"}
+            onOpenChange={(open) => {
+              setNativeCommandMenu((current) => (
+                open ? "model" : current === "model" ? null : current
+              ));
+            }}
+            isProcessing={isProcessing}
+            acpConfigOptions={acpConfigOptions}
+            acpConfigOptionsLoading={acpConfigOptionsLoading}
+            onACPConfigChange={onACPConfigChange}
+          />
+        ) : (
+          <span className="px-1 text-[11px] text-amber-700 dark:text-amber-300">
+            {t(effectiveReadOnlyReason === "invalid"
+              ? "engine.invalidReadOnly"
+              : "engine.legacyReadOnly")}
+          </span>
+        )}
+        {isRuntimeACP ? (
           onAcpPermissionBehaviorChange && (
             <AcpBehaviorDropdown
               acpPermissionBehavior={acpPermissionBehavior}
@@ -1207,19 +1010,7 @@ export const InputBar = memo(function InputBar({
               disabled={isProcessing}
             />
           )
-        ) : (
-          <PermissionDropdown
-            open={nativeCommandMenu === "permissions"}
-            onOpenChange={(open) => {
-              setNativeCommandMenu((current) => (
-                open ? "permissions" : current === "permissions" ? null : current
-              ));
-            }}
-            permissionMode={permissionMode}
-            onPermissionModeChange={onPermissionModeChange}
-            showDetails={isCodexAgent}
-          />
-        )}
+        ) : null}
         {contextUsage && contextUsage.contextWindow > 0 && onCompact && (
           <ContextGauge
             contextUsage={contextUsage}

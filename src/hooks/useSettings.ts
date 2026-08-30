@@ -258,7 +258,7 @@ function writeProjectLayoutState(pid: string, next: ProjectLayoutState): void {
   projectLayoutCache.set(pid, cloneProjectLayoutState(next));
 }
 
-export function useSettings(projectId: string | null, engine: EngineId = "claude"): Settings {
+export function useSettings(projectId: string | null, engine: EngineId = "acp"): Settings {
   const pid = projectId ?? "__none__";
 
   // ── Global settings ──

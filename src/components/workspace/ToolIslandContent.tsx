@@ -29,7 +29,6 @@ export interface ToolIslandContentProps {
   // Session / project context
   projectPath: string | undefined;
   projectRoot: string | undefined;
-  projectId: string | null;
   sessionId: string | null;
   messages: UIMessage[];
   activeEngine: EngineId | undefined;
@@ -49,8 +48,6 @@ export interface ToolIslandContentProps {
 
   // Panel-specific callbacks
   onElementGrab?: (element: GrabbedElement) => void;
-  onScrollToToolCall?: (messageId: string) => void;
-  onPreviewFile?: (path: string, rect: DOMRect) => void;
   collapsedRepos: Set<string>;
   onToggleRepoCollapsed: (path: string) => void;
   // MCP panel
@@ -67,7 +64,6 @@ export function ToolIslandContent({
   headerControls,
   projectPath,
   projectRoot,
-  projectId,
   sessionId,
   messages,
   activeEngine,
@@ -83,8 +79,6 @@ export function ToolIslandContent({
   onCloseTerminal,
   resolvedTheme,
   onElementGrab,
-  onScrollToToolCall,
-  onPreviewFile,
   collapsedRepos,
   onToggleRepoCollapsed,
   mcpServerStatuses,
@@ -135,7 +129,6 @@ export function ToolIslandContent({
           messages={messages}
           cwd={projectPath}
           activeEngine={activeEngine}
-          onScrollToToolCall={onScrollToToolCall}
           enabled={true}
           headerControls={headerControls}
         />
@@ -145,14 +138,12 @@ export function ToolIslandContent({
         <ProjectFilesPanel
           cwd={projectPath}
           enabled={true}
-          onPreviewFile={onPreviewFile}
           headerControls={headerControls}
         />
       );
     case "mcp":
       return (
         <McpPanel
-          projectId={projectId}
           runtimeStatuses={mcpServerStatuses}
           isPreliminary={isActiveSessionPane ? mcpStatusPreliminary : false}
           hasLiveSession={hasLiveSession}

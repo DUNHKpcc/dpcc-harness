@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AccountOverview } from "@shared/types/account";
 import type { AccountAuthSnapshot } from "@shared/types/account-auth";
 
@@ -18,15 +18,26 @@ interface TestWindowBounds {
   height: number;
 }
 
+const baselineSignalListeners = new Map<NodeJS.Signals, Set<NodeJS.SignalsListener>>([
+  ["SIGINT", new Set(process.listeners("SIGINT"))],
+  ["SIGTERM", new Set(process.listeners("SIGTERM"))],
+]);
+
+function removeMainModuleSignalListeners(): void {
+  for (const [signal, baseline] of baselineSignalListeners) {
+    for (const listener of process.listeners(signal)) {
+      if (!baseline.has(listener)) process.removeListener(signal, listener);
+    }
+  }
+}
+
 interface MainState {
   requestSingleInstanceLockReturn: boolean;
   appWhenReady: Promise<void>;
   appQuitCalls: number;
   dialogCalls: number;
   dialogResponses: number[];
-  claudeActiveTurnCount: number;
   acpActiveTurnCount: number;
-  codexActiveTurnCount: number;
   appEventHandlers: MockEventMap;
   ipcMainEventHandlers: MockEventMap;
   browserWindows: FakeBrowserWindow[];
@@ -99,9 +110,7 @@ const state = vi.hoisted<MainState>(() => ({
   appQuitCalls: 0,
   dialogCalls: 0,
   dialogResponses: [],
-  claudeActiveTurnCount: 0,
   acpActiveTurnCount: 0,
-  codexActiveTurnCount: 0,
   appEventHandlers: {},
   ipcMainEventHandlers: {},
   browserWindows: [],
@@ -134,9 +143,7 @@ function resetState(): void {
   state.appQuitCalls = 0;
   state.dialogCalls = 0;
   state.dialogResponses = [];
-  state.claudeActiveTurnCount = 0;
   state.acpActiveTurnCount = 0;
-  state.codexActiveTurnCount = 0;
   state.appEventHandlers = {};
   state.ipcMainEventHandlers = {};
   state.browserWindows = [];
@@ -619,14 +626,6 @@ vi.mock("./lib/prerelease-check", () => ({
   initPreReleaseCheck: vi.fn(),
 }));
 
-vi.mock("./lib/claude-codex-bridge-controller", () => ({
-  createClaudeCodexBridgeController: vi.fn(() => ({
-    start: vi.fn(() => Promise.resolve()),
-    stop: vi.fn(),
-  })),
-  setClaudeCodexBridgeController: vi.fn(),
-}));
-
 vi.mock("./lib/safe-send", () => ({
   safeSend: vi.fn((_getter: unknown, channel: string, payload?: unknown) => {
     state.safeSendCalls.push({ channel, payload });
@@ -688,12 +687,6 @@ vi.mock("./ipc/files", () => ({
   readMultiple: vi.fn(),
 }));
 
-vi.mock("./ipc/claude-sessions", () => ({
-  register: vi.fn(),
-  stopAll: vi.fn(),
-  getActiveTurnCount: vi.fn(() => state.claudeActiveTurnCount),
-}));
-
 vi.mock("./ipc/title-gen", () => ({
   register: vi.fn(),
 }));
@@ -715,12 +708,6 @@ vi.mock("./ipc/acp-sessions", () => ({
   register: vi.fn(),
   stopAll: vi.fn(),
   getActiveTurnCount: vi.fn(() => state.acpActiveTurnCount),
-}));
-
-vi.mock("./ipc/codex-sessions", () => ({
-  register: vi.fn(),
-  stopAll: vi.fn(),
-  getActiveTurnCount: vi.fn(() => state.codexActiveTurnCount),
 }));
 
 vi.mock("./ipc/mcp", () => ({
@@ -813,7 +800,12 @@ function markWindowActivationReady(): void {
 
 describe("main lifecycle / tray navigation", () => {
   beforeEach(() => {
+    removeMainModuleSignalListeners();
     resetState();
+  });
+
+  afterEach(() => {
+    removeMainModuleSignalListeners();
   });
 
   it("restores, shows and focuses existing window when second instance starts", async () => {
@@ -899,7 +891,7 @@ describe("main lifecycle / tray navigation", () => {
       height: 700,
       minWidth: 600,
     });
-  });
+  }, 15_000);
 
   it("clamps restored bounds into the current display work area", async () => {
     await loadMainModule({
@@ -983,7 +975,7 @@ describe("main lifecycle / tray navigation", () => {
 
   it("keeps running work alive when the macOS close button hides the window", async () => {
     await loadMainModule({ platform: "darwin" });
-    state.claudeActiveTurnCount = 1;
+    state.acpActiveTurnCount = 1;
     const window = state.browserWindows[0];
     expect(window).toBeTruthy();
     window?.emit("ready-to-show");
@@ -1025,7 +1017,7 @@ describe("main lifecycle / tray navigation", () => {
 
   it("requires confirmation before quitting with an active Agent task", async () => {
     await loadMainModule({ platform: "darwin" });
-    state.claudeActiveTurnCount = 1;
+    state.acpActiveTurnCount = 1;
     const beforeQuit = state.appEventHandlers["before-quit"]?.[0];
     expect(beforeQuit).toBeTypeOf("function");
 
@@ -1050,7 +1042,7 @@ describe("main lifecycle / tray navigation", () => {
 
   it("confirms and flushes persistence before a macOS update install", async () => {
     await loadMainModule({ platform: "darwin" });
-    state.claudeActiveTurnCount = 1;
+    state.acpActiveTurnCount = 1;
     state.dialogResponses.push(0);
     expect(state.prepareForUpdateInstall).toBeTypeOf("function");
 
@@ -1069,7 +1061,7 @@ describe("main lifecycle / tray navigation", () => {
 
   it("cancels a macOS update install before persistence shutdown", async () => {
     await loadMainModule({ platform: "darwin" });
-    state.claudeActiveTurnCount = 1;
+    state.acpActiveTurnCount = 1;
     state.dialogResponses.push(1);
 
     await expect(state.prepareForUpdateInstall?.()).resolves.toBe(false);
@@ -1080,16 +1072,12 @@ describe("main lifecycle / tray navigation", () => {
 
   it("cleans up Agent processes from the macOS will-quit path", async () => {
     await loadMainModule({ platform: "darwin" });
-    const claudeSessions = await import("./ipc/claude-sessions");
     const acpSessions = await import("./ipc/acp-sessions");
-    const codexSessions = await import("./ipc/codex-sessions");
     const wechat = await import("./ipc/wechat");
 
     state.appEventHandlers["will-quit"]?.[0]?.();
 
-    expect(claudeSessions.stopAll).toHaveBeenCalled();
     expect(acpSessions.stopAll).toHaveBeenCalled();
-    expect(codexSessions.stopAll).toHaveBeenCalled();
     expect(wechat.stopBridge).toHaveBeenCalled();
   });
 
@@ -1196,9 +1184,7 @@ describe("main lifecycle / tray navigation", () => {
     });
     await Promise.resolve();
     await Promise.resolve();
-    state.claudeActiveTurnCount = 1;
     state.acpActiveTurnCount = 2;
-    state.codexActiveTurnCount = 3;
     state.terminalRecords.set("terminal-1", { exited: false, pty: {} });
     state.terminalRecords.set("terminal-2", { exited: true, pty: {} });
     state.tray?.emit("click");
@@ -1208,7 +1194,7 @@ describe("main lifecycle / tray navigation", () => {
     };
     expect(nativeMenu.template).toEqual(expect.arrayContaining([
       expect.objectContaining({ label: "DPCC User", sublabel: "d***@example.com" }),
-      expect.objectContaining({ label: "6 Agent, 1 Terminal" }),
+      expect.objectContaining({ label: "2 Agent, 1 Terminal" }),
       expect.objectContaining({ label: "Recent work" }),
       expect.objectContaining({ label: "Subscription: Pro", sublabel: "Active" }),
       expect.objectContaining({

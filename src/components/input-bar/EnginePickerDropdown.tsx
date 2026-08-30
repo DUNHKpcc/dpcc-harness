@@ -11,9 +11,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { BUILTIN_PI_AGENT, BUILTIN_PI_AGENT_ID } from "@/types";
 import type { EngineId, InstalledAgent } from "@/types";
 import { AgentIcon } from "@/components/AgentIcon";
-import { ENGINE_ICONS, getAgentIcon } from "@/lib/engine-icons";
+import { getAgentIcon } from "@/lib/engine-icons";
 import { TOOLBAR_BTN } from "./constants";
 
 interface AgentPickerDropdownProps {
@@ -37,7 +38,7 @@ export const EnginePickerDropdown = memo(function EnginePickerDropdown({
   onManageACPs,
 }: AgentPickerDropdownProps) {
   const { t } = useTranslation("input");
-  const currentAgentId = selectedAgent?.id ?? "claude-code";
+  const currentAgentId = selectedAgent?.id ?? BUILTIN_PI_AGENT_ID;
 
   const willOpenNewChat = (agent: InstalledAgent) => {
     if (lockedEngine == null) return false;
@@ -54,7 +55,7 @@ export const EnginePickerDropdown = memo(function EnginePickerDropdown({
     return (
       <DropdownMenuItem
         key={agent.id}
-        onClick={() => onAgentChange(agent.engine === "claude" ? null : agent)}
+        onClick={() => onAgentChange(agent)}
         className={isCurrent ? "bg-accent" : ""}
       >
         <AgentIcon icon={getAgentIcon(agent)} size={16} className="shrink-0" />
@@ -70,10 +71,8 @@ export const EnginePickerDropdown = memo(function EnginePickerDropdown({
     );
   };
 
-  const firstPartyAgents = agents.filter(
-    (agent) => agent.engine === "claude" || agent.engine === "codex",
-  );
-  const acpAgents = agents.filter((agent) => agent.engine === "acp");
+  const firstPartyAgents = agents.filter((agent) => agent.engine === "acp" && agent.builtIn);
+  const acpAgents = agents.filter((agent) => agent.engine === "acp" && !agent.builtIn);
 
   return (
     <DropdownMenu>
@@ -85,7 +84,7 @@ export const EnginePickerDropdown = memo(function EnginePickerDropdown({
           disabled={isProcessing}
         >
           <AgentIcon
-            icon={selectedAgent ? getAgentIcon(selectedAgent) : ENGINE_ICONS.claude}
+            icon={getAgentIcon(selectedAgent ?? BUILTIN_PI_AGENT)}
             size={14}
             className="shrink-0"
           />

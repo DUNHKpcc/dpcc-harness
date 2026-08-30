@@ -1,6 +1,6 @@
 import { startTransition, useCallback, useRef } from "react";
 import { toast } from "sonner";
-import type { ChatSession, PersistedSession, Project, ACPConfigOption } from "@/types";
+import type { ChatSession, PersistedSession, Project, ACPConfigOption, SlashCommand } from "@/types";
 import { suppressNextSessionCompletion } from "../../lib/notification-utils";
 import { capture } from "../../lib/analytics/analytics";
 import { toastText } from "../../lib/toast-i18n";
@@ -8,9 +8,16 @@ import { bgAgentStore } from "../../lib/background/agent-store";
 import {
   DRAFT_ID,
   DEFAULT_PERMISSION_MODE,
-  getEffectiveClaudePermissionMode,
 } from "./types";
 import type { SharedSessionRefs, SharedSessionSetters, EngineHooks, StartOptions } from "./types";
+import {
+  getSessionRuntimeDisposition,
+  normalizeNewSessionIdentity,
+} from "@shared/lib/session-runtime";
+import {
+  getAgentCachedConfigOptions,
+  getAgentCachedSlashCommands,
+} from "@shared/lib/acp-config-cache";
 
 interface UseSessionCrudParams {
   refs: SharedSessionRefs;
@@ -22,8 +29,6 @@ interface UseSessionCrudParams {
   saveCurrentSession: () => Promise<void>;
   seedBackgroundStore: () => void;
   // From draft materialization
-  prewarmDraftSession: (projectId: string, options?: StartOptions) => void;
-  abandonEagerSession: (reason?: string) => void;
   abandonDraftAcpSession: (reason?: string) => void;
   // From session cache
   cacheSessionPayload: (data: PersistedSession) => void;
@@ -54,8 +59,6 @@ export function useSessionCrud({
   getProjectCwd,
   saveCurrentSession,
   seedBackgroundStore,
-  prewarmDraftSession,
-  abandonEagerSession,
   abandonDraftAcpSession,
   cacheSessionPayload,
   consumeCachedSessionPayload,
@@ -81,6 +84,7 @@ export function useSessionCrud({
   const {
     activeSessionIdRef,
     sessionsRef,
+    installedAgentsRef,
     liveSessionIdsRef,
     backgroundStoreRef,
     draftProjectIdRef,
@@ -96,53 +100,26 @@ export function useSessionCrud({
 
   const switchRequestIdRef = useRef(0);
 
-  const clearSessionPlanMode = useCallback((session: ChatSession) => {
-    const normalizedPermissionMode = session.permissionMode?.trim() || DEFAULT_PERMISSION_MODE;
-
-    setSessions((prev) => prev.map((entry) => (
-      entry.id === session.id && entry.planMode
-        ? { ...entry, planMode: false }
-        : entry
-    )));
-
-    window.claude.sessions.load(session.projectId, session.id).then((data) => {
-      if (!data?.planMode) return;
-      return window.claude.sessions.save({ ...data, planMode: false });
-    }).catch(() => { /* session may have been deleted */ });
-
-    if ((session.engine ?? "claude") !== "claude" || !liveSessionIdsRef.current.has(session.id)) {
-      return;
-    }
-
-    const effectiveMode = getEffectiveClaudePermissionMode({
-      permissionMode: normalizedPermissionMode,
-      planMode: false,
-    });
-    window.claude.setPermissionMode(session.id, effectiveMode).then((result) => {
-      if (result?.error) {
-        toast.error(toastText("session.planModeUpdateFailed"), { description: result.error });
-      }
-    }).catch((err) => {
-      const message = err instanceof Error ? err.message : String(err);
-      toast.error(toastText("session.planModeUpdateFailed"), { description: message });
-    });
-  }, [liveSessionIdsRef, setSessions]);
-
   // ── Create a new session (draft) ──
 
   const createSession = useCallback(
     async (projectId: string, options?: StartOptions) => {
-      abandonEagerSession("new_draft");
       abandonDraftAcpSession("new_draft");
       acpAgentIdRef.current = null;
       acpAgentSessionIdRef.current = null;
       setAcpMcpStatuses([]);
       seedBackgroundStore();
       void saveCurrentSession();
-      const draftOptions = options ?? {};
-      const draftEngine = draftOptions.engine ?? "claude";
-      // The eager startup path can resolve before React publishes this draft.
-      // Prime the refs first so its target guards see the new session identity.
+      const requestedOptions = options ?? {};
+      const identity = normalizeNewSessionIdentity(requestedOptions);
+      const draftOptions: StartOptions = {
+        ...requestedOptions,
+        engine: identity.engine,
+        agentId: identity.agentId,
+        effort: undefined,
+      };
+      const draftEngine = identity.engine;
+      // Publish the logical draft immediately. No ACP process exists until send.
       startOptionsRef.current = draftOptions;
       draftProjectIdRef.current = projectId;
       activeSessionIdRef.current = DRAFT_ID;
@@ -153,8 +130,10 @@ export function useSessionCrud({
       setInitialConfigOptions(
         draftEngine === "acp" ? (options?.cachedConfigOptions ?? []) : [],
       );
-      setInitialSlashCommands([]);
-      setAcpConfigOptionsLoading(draftEngine === "acp");
+      setInitialSlashCommands(
+        draftEngine === "acp" ? (options?.cachedSlashCommands ?? []) : [],
+      );
+      setAcpConfigOptionsLoading(false);
       setInitialPermission(null);
       setInitialRawAcpPermission(null);
       // Explicitly clear ACP state — when activeSessionId is already DRAFT_ID,
@@ -165,9 +144,8 @@ export function useSessionCrud({
       // Remove any leftover pending DRAFT_ID session from a previous failed ACP start
       setSessions((prev) => prev.filter(s => s.id !== DRAFT_ID).map((s) => ({ ...s, isActive: false })));
 
-      prewarmDraftSession(projectId, draftOptions);
     },
-    [saveCurrentSession, seedBackgroundStore, abandonEagerSession, abandonDraftAcpSession, prewarmDraftSession],
+    [saveCurrentSession, seedBackgroundStore, abandonDraftAcpSession],
   );
 
   // ── Switch to an existing session ──
@@ -177,7 +155,6 @@ export function useSessionCrud({
       if (id === activeSessionIdRef.current) return;
       const requestId = ++switchRequestIdRef.current;
 
-      abandonEagerSession("switch_session");
       abandonDraftAcpSession("switch_session");
       acpAgentIdRef.current = null;
       acpAgentSessionIdRef.current = null;
@@ -186,16 +163,38 @@ export function useSessionCrud({
 
       const session = sessionsRef.current.find((s) => s.id === id);
       if (!session) return;
-      clearSessionPlanMode(session);
+      const disposition = getSessionRuntimeDisposition({
+        engine: session.invalidEngine ?? session.engine,
+        agentId: session.agentId,
+      });
+      const nextEngine = disposition.kind === "runtime"
+        ? "acp"
+        : disposition.kind === "legacy-read-only"
+          ? disposition.engine
+          // `StartOptions.engine` cannot encode an unknown persisted value.
+          // Use the sole runtime enum only as a neutral display value; the
+          // disposition guard keeps this record detached and read-only.
+          : "acp";
+      const cachedConfigOptions = disposition.kind === "runtime"
+        ? getAgentCachedConfigOptions(installedAgentsRef.current, disposition.agentId)
+        : [];
+      const cachedSlashCommands = disposition.kind === "runtime"
+        ? getAgentCachedSlashCommands(installedAgentsRef.current, disposition.agentId)
+        : [];
       setStartOptions((prev) => ({
         ...prev,
-        engine: session.engine ?? "claude",
+        engine: nextEngine,
         model: session.model,
-        effort: session.effort,
+        effort: disposition.kind === "runtime" ? undefined : session.effort,
         permissionMode: session.permissionMode,
-        planMode: false,
-        agentId: session.agentId,
+        planMode: !!session.planMode,
+        agentId: disposition.kind === "runtime" ? disposition.agentId : undefined,
+        cachedConfigOptions,
+        cachedSlashCommands,
       }));
+      setInitialConfigOptions(cachedConfigOptions);
+      setInitialSlashCommands(cachedSlashCommands);
+      setAcpConfigOptionsLoading(false);
 
       // Switch to the correct space for this session's project — ensures that
       // clicking a permission toast (or any cross-space navigation) lands in the right space
@@ -227,7 +226,9 @@ export function useSessionCrud({
           });
           setInitialPermission(bgState.pendingPermission);
           setInitialRawAcpPermission(bgState.rawAcpPermission);
-          setInitialSlashCommands(bgState.slashCommands ?? []);
+          setInitialSlashCommands(
+            bgState.slashCommands?.length ? bgState.slashCommands : cachedSlashCommands,
+          );
           setActiveSessionId(id);
           setDraftProjectId(null);
           setSessions((prev) =>
@@ -240,7 +241,7 @@ export function useSessionCrud({
 
       const cachedData = consumeCachedSessionPayload(id);
       if (cachedData) {
-        applyLoadedSession(id, { ...cachedData, planMode: false });
+        applyLoadedSession(id, cachedData);
         return;
       }
 
@@ -248,16 +249,15 @@ export function useSessionCrud({
       const data = await window.claude.sessions.load(session.projectId, id);
       if (requestId !== switchRequestIdRef.current) return;
       if (data) {
-        cacheSessionPayload({ ...data, planMode: false });
+        cacheSessionPayload(data);
         const restored = consumeCachedSessionPayload(id);
         if (restored) {
-          applyLoadedSession(id, { ...restored, planMode: false });
+          applyLoadedSession(id, restored);
         }
       }
     },
     [
       abandonDraftAcpSession,
-      abandonEagerSession,
       applyLoadedSession,
       cacheSessionPayload,
       consumeCachedSessionPayload,
@@ -265,6 +265,8 @@ export function useSessionCrud({
       seedBackgroundStore,
       setActiveSessionId,
       setDraftProjectId,
+      setAcpConfigOptionsLoading,
+      setInitialConfigOptions,
       setInitialMessages,
       setInitialMeta,
       setInitialPermission,
@@ -309,12 +311,8 @@ export function useSessionCrud({
       if (liveSessionIdsRef.current.has(id)) {
         suppressNextSessionCompletion(id);
         try {
-          if (session.engine === "codex") {
-            await window.claude.codex.stop(id);
-          } else if (session.engine === "acp") {
+          if (session.engine === "acp") {
             await window.claude.acp.stop(id);
-          } else {
-            await window.claude.stop(id, "session_delete");
           }
         } catch (err) {
           console.warn("[deleteSession] Failed to stop live transport:", err);
@@ -367,7 +365,6 @@ export function useSessionCrud({
   // ── Deselect the active session ──
 
   const deselectSession = useCallback(async () => {
-    abandonEagerSession("deselect");
     abandonDraftAcpSession("deselect");
     seedBackgroundStore();
     void saveCurrentSession();
@@ -379,7 +376,7 @@ export function useSessionCrud({
     setInitialRawAcpPermission(null);
     // Filter out any leftover DRAFT_ID placeholder from a pending ACP start
     setSessions((prev) => prev.filter(s => s.id !== DRAFT_ID).map((s) => ({ ...s, isActive: false })));
-  }, [saveCurrentSession, seedBackgroundStore, abandonEagerSession, abandonDraftAcpSession]);
+  }, [saveCurrentSession, seedBackgroundStore, abandonDraftAcpSession]);
 
   // ── Import a Claude Code session ──
 
@@ -454,54 +451,60 @@ export function useSessionCrud({
 
   // ── Switch draft engine/agent ──
 
-  const setDraftAgent = useCallback((draftEngine: string, agentId: string, cachedConfigOptions?: ACPConfigOption[], model?: string) => {
-    const prevEngine = startOptionsRef.current.engine ?? "claude";
+  const setDraftAgent = useCallback((
+    draftEngine: string,
+    agentId: string,
+    cachedConfigOptions?: ACPConfigOption[],
+    model?: string,
+    cachedSlashCommands?: SlashCommand[],
+  ) => {
+    const prevEngine = startOptionsRef.current.engine ?? "acp";
+    const identity = normalizeNewSessionIdentity({ engine: draftEngine, agentId });
+    const normalizedEngine = identity.engine;
+    const normalizedAgentId = identity.agentId;
     const prevAgentId = startOptionsRef.current.agentId;
     const normalizedModel = typeof model === "string" ? model.trim() : "";
-    const engineChanged = prevEngine !== draftEngine;
-    const agentChanged = prevAgentId !== agentId;
+    const engineChanged = prevEngine !== normalizedEngine;
+    const agentChanged = prevAgentId !== normalizedAgentId;
     const modelChanged = (startOptionsRef.current.model ?? "") !== normalizedModel;
     const targetChanged = engineChanged || agentChanged || modelChanged;
     if (targetChanged) {
       ++draftGenerationRef.current;
     }
     if (engineChanged) {
-      capture("engine_switched", { from_engine: prevEngine, to_engine: draftEngine });
+      capture("engine_switched", { from_engine: prevEngine, to_engine: normalizedEngine });
     }
 
-    if (prevEngine === "claude" && (draftEngine !== "claude" || agentChanged || modelChanged)) {
-      // Changing a Claude draft's target invalidates its eager session too.
-      abandonEagerSession("engine_switch");
-    }
-    if (prevEngine === "acp" && (draftEngine !== "acp" || agentChanged)) {
+    if (prevEngine === "acp" && (normalizedEngine !== "acp" || agentChanged)) {
       abandonDraftAcpSession("engine_switch");
     }
 
-    const shouldPrewarm = engineChanged
-      || (draftEngine === "claude" && (agentChanged || modelChanged))
-      || (draftEngine === "acp" && agentChanged);
-    const shouldResetCommands = engineChanged
-      || (draftEngine !== "codex" && shouldPrewarm);
+    const shouldRefreshCache = engineChanged || agentChanged || modelChanged;
+    const shouldResetCommands = engineChanged || shouldRefreshCache;
     if (shouldResetCommands) {
       setInitialSlashCommands([]);
     }
 
     const nextOptions: StartOptions = {
       ...startOptionsRef.current,
-      engine: draftEngine as StartOptions["engine"],
-      agentId,
+      engine: normalizedEngine,
+      agentId: normalizedAgentId,
       model: normalizedModel || undefined,
+      effort: undefined,
+      cachedConfigOptions,
+      cachedSlashCommands,
     };
-    // Keep async prewarm guards aligned before React publishes the new draft.
+    // Keep the first-send snapshot aligned before React publishes the draft.
     startOptionsRef.current = nextOptions;
     setStartOptions(nextOptions);
 
-    if (!shouldPrewarm || !draftProjectIdRef.current) return;
-    if (draftEngine === "acp") {
+    if (!shouldRefreshCache || !draftProjectIdRef.current) return;
+    if (normalizedEngine === "acp") {
       setInitialConfigOptions(cachedConfigOptions ?? []);
+      setInitialSlashCommands(cachedSlashCommands ?? []);
+      setAcpConfigOptionsLoading(false);
     }
-    prewarmDraftSession(draftProjectIdRef.current, nextOptions);
-  }, [abandonEagerSession, abandonDraftAcpSession, prewarmDraftSession]);
+  }, [abandonDraftAcpSession]);
 
   return {
     createSession,

@@ -11,10 +11,8 @@ interface UseBackgroundAgentsOptions {
 /**
  * Subscribes to the BackgroundAgentStore for the active session.
  *
- * Background agents are tracked via SDK task lifecycle events
- * (task_started → task_progress → task_notification) that flow
- * through useClaude / BackgroundSessionStore into bgAgentStore.
- * No file polling — all progress is event-driven.
+ * Retains read-only access to historical background-agent data. Pi ACP does
+ * not create entries in this legacy store.
  */
 export function useBackgroundAgents({ sessionId }: UseBackgroundAgentsOptions) {
   // Keep sessionId in a ref so the subscribe/getSnapshot closures
@@ -39,17 +37,7 @@ export function useBackgroundAgents({ sessionId }: UseBackgroundAgentsOptions) {
     [],
   );
 
-  const stopAgent = useCallback(
-    async (agentId: string, taskId: string) => {
-      const sid = sessionIdRef.current;
-      if (!sid) return;
-      bgAgentStore.setAgentStopping(sid, agentId);
-      await window.claude.stopTask(sid, taskId);
-    },
-    [],
-  );
-
-  return { agents, dismissAgent, stopAgent };
+  return { agents, dismissAgent };
 }
 
 // Module-level stable subscribe function — avoids re-subscription on every render.

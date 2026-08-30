@@ -1,4 +1,4 @@
-import type { InstalledAgent } from "@/types";
+import type { AcpPermissionBehavior, InstalledAgent } from "@/types";
 
 // ── Step definitions ──
 
@@ -29,8 +29,8 @@ export interface AppearanceStepProps extends WizardStepProps {
 }
 
 export interface PermissionsStepProps extends WizardStepProps {
-  permissionMode: string;
-  onPermissionModeChange: (mode: string) => void;
+  permissionBehavior: AcpPermissionBehavior;
+  onPermissionBehaviorChange: (behavior: AcpPermissionBehavior) => void;
 }
 
 export interface ProjectStepProps extends WizardStepProps {
@@ -45,7 +45,7 @@ export interface AgentsStepProps extends WizardStepProps {
 }
 
 export interface ReadyStepProps {
-  permissionMode: string;
+  permissionBehavior: AcpPermissionBehavior;
   onComplete: () => void;
 }
 
@@ -55,15 +55,15 @@ export interface ReadyStepProps {
 
 export const PERMISSION_MODES = [
   {
-    id: "default",
+    id: "ask",
     icon: "Shield" as const,
   },
   {
-    id: "acceptEdits",
+    id: "auto_accept",
     icon: "ShieldCheck" as const,
   },
   {
-    id: "bypassPermissions",
+    id: "allow_all",
     icon: "ShieldOff" as const,
   },
 ] as const;

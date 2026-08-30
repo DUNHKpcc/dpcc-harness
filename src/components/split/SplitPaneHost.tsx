@@ -16,6 +16,7 @@ import {
   releaseSplitPaneStateSnapshot,
   retainSplitPaneStateSnapshot,
 } from "@/lib/split-pane-state";
+import { getSessionRuntimeDisposition } from "@shared/lib/session-runtime";
 
 interface SplitPaneHostRenderData {
   session: ChatSession | null;
@@ -44,15 +45,22 @@ export function SplitPaneHost({
   const [publishReadyId, setPublishReadyId] = useState<string | null>(null);
 
   const readySession = loader.readyId ? loader.session : null;
-  const activeEngine: EngineId = readySession?.engine ?? "claude";
+  const disposition = readySession
+    ? getSessionRuntimeDisposition({
+        engine: readySession.invalidEngine ?? readySession.engine,
+        agentId: readySession.agentId,
+      })
+    : null;
+  const activeEngine: EngineId = disposition?.kind === "legacy-read-only"
+    ? disposition.engine
+    : "acp";
+  const runtimeEnabled = disposition?.kind === "runtime";
   const paneState = useSessionPane({
     activeSessionId: loader.readyId,
     activeEngine,
-    claudeSessionId: activeEngine === "claude" ? loader.readyId : null,
-    acpSessionId: activeEngine === "acp" ? loader.readyId : null,
-    codexSessionId: activeEngine === "codex" ? loader.readyId : null,
-    codexSessionModel: activeEngine === "codex" ? readySession?.model : undefined,
-    codexPlanModeEnabled: activeEngine === "codex" ? !!readySession?.planMode : false,
+    runtimeEnabled,
+    runtimeAvailable: loader.runtimeAvailable,
+    acpSessionId: runtimeEnabled ? loader.readyId : null,
     initialMessages: loader.initialMessages,
     initialMeta: loader.initialMeta,
     initialPermission: loader.initialPermission,
@@ -61,11 +69,7 @@ export function SplitPaneHost({
     initialRawAcpPermission: loader.initialRawAcpPermission,
     acpPermissionBehavior,
   });
-  const slashCommands = activeEngine === "codex"
-    ? paneState.codex.slashCommands
-    : activeEngine === "acp"
-      ? paneState.acp.slashCommands
-      : paneState.claude.slashCommands;
+  const slashCommands = paneState.acp.slashCommands;
 
   useEffect(() => {
     setPublishReadyId(null);
@@ -77,20 +81,12 @@ export function SplitPaneHost({
     const frame = requestAnimationFrame(() => {
       const latest = loader.claimLatest?.();
       if (latest) {
-        if (activeEngine === "acp") {
-          paneState.acp.hydrate(
-            latest.initialMessages,
-            latest.initialMeta,
-            latest.initialPermission,
-            latest.initialRawAcpPermission,
-          );
-        } else {
-          paneState.engine.hydrate(
-            latest.initialMessages,
-            latest.initialMeta,
-            latest.initialPermission,
-          );
-        }
+        paneState.acp.hydrate(
+          latest.initialMessages,
+          latest.initialMeta,
+          latest.initialPermission,
+          latest.initialRawAcpPermission,
+        );
       }
       if (reportNotifications) {
         markSplitPaneRoutingReady(readyId);
@@ -106,7 +102,7 @@ export function SplitPaneHost({
         releaseSplitPaneStateSnapshot(readyId);
       }
     };
-  }, [loader.claimLatest, loader.readyId, paneState.engine.hydrate, reportNotifications]);
+  }, [loader.claimLatest, loader.readyId, paneState.acp.hydrate, reportNotifications]);
 
   useEffect(() => {
     if (
@@ -129,8 +125,8 @@ export function SplitPaneHost({
       requestLog: paneState.requestLog,
       contextUsage: paneState.contextUsage,
       pendingPermission: paneState.pendingPermission,
-      rawAcpPermission: activeEngine === "acp" ? paneState.acp.rawPermission : null,
-      configOptions: activeEngine === "acp" ? paneState.acp.configOptions : [],
+      rawAcpPermission: paneState.acp.rawPermission,
+      configOptions: paneState.acp.configOptions,
       slashCommands,
     });
   }, [

@@ -34,7 +34,7 @@ function hasSameOrderedValues<T>(left: readonly T[], right: readonly T[]): boole
  * Internally subscribes to the Zustand store with fine-grained selectors,
  * then reassembles the same `Settings` object that consumers expect.
  */
-export function useSettingsCompat(projectId: string | null, engine: EngineId = "claude"): Settings {
+export function useSettingsCompat(projectId: string | null, engine: EngineId = "acp"): Settings {
   const pid = projectId ?? "__none__";
 
   // ── Global state (single shallow subscription) ──

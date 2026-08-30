@@ -38,25 +38,25 @@
   },
   "permissionsStep": {
     "title": "你的规则",
-    "subtitle": "设置赋予 Claude 多大的自由度，随时可更改。",
+    "subtitle": "设置赋予 Pi 多大的自由度，随时可更改。",
     "modes": {
-      "default": {
+      "ask": {
         "label": "编辑前询问",
-        "description": "Claude 在修改文件或运行命令前会请求确认。"
+        "description": "Pi 在修改文件或运行命令前会请求确认。"
       },
-      "acceptEdits": {
-        "label": "自动接受编辑",
-        "description": "文件编辑自动批准，命令仍需确认。"
+      "auto_accept": {
+        "label": "自动接受",
+        "description": "Pi 会自动批准当前会话中的每次工具调用。"
       },
-      "bypassPermissions": {
+      "allow_all": {
         "label": "全部允许",
-        "description": "所有操作自动执行，不再提示。"
+        "description": "Pi 会自动批准工具，并在支持时使用始终允许。"
       }
     }
   },
   "accountStep": {
     "title": "DPCC API",
-    "subtitle": "连接你的 DPCC API 账户，让 Claude 跑起来，并随时查看余额。",
+    "subtitle": "连接你的 DPCC API 账户，让 Pi 跑起来，并随时查看余额。",
     "gatewayLabel": "网关密钥",
     "gatewayUrlPlaceholder": "https://origin-api.dpccgaming.xyz",
     "tokenPlaceholder": "令牌（sk-…）",
@@ -66,7 +66,7 @@
     "accessTokenPlaceholder": "系统访问令牌",
     "connect": "连接",
     "skipForNow": "暂时跳过",
-    "gatewayHint": "仅需网关密钥即可 —— Claude 即刻可用，余额也会自动显示。",
+    "gatewayHint": "仅需网关密钥即可 —— Pi 即刻可用，余额也会自动显示。",
     "claudeKeyLabel": "Claude 密钥（sk-）",
     "codexKeyLabel": "Codex 密钥（sk-，可选）"
   },
@@ -79,7 +79,7 @@
   "agentsStep": {
     "title": "连接智能体",
     "subtitle": "浏览商店，一键添加 ACP 智能体。",
-    "builtIn": "Claude Code 与 Codex 已内置。"
+    "builtIn": "Pi 已内置，同时仍可添加自定义 ACP agent。"
   },
   "tourStep": {
     "title": "内置功能一览",

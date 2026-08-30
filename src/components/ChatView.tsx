@@ -144,8 +144,6 @@ interface ChatMessageRowProps {
   assistantTurnDividerLabels: Map<string, string>;
   continuationIds: Set<string>;
   sendNextId?: string | null;
-  onRevert?: (checkpointId: string) => void;
-  onFullRevert?: (checkpointId: string) => void;
   onSendQueuedNow?: (messageId: string) => void;
   onUnqueueQueuedMessage?: (messageId: string) => void;
 }
@@ -157,8 +155,6 @@ const ChatMessageRow = memo(function ChatMessageRow({
   assistantTurnDividerLabels,
   continuationIds,
   sendNextId,
-  onRevert,
-  onFullRevert,
   onSendQueuedNow,
   onUnqueueQueuedMessage,
 }: ChatMessageRowProps) {
@@ -240,8 +236,6 @@ const ChatMessageRow = memo(function ChatMessageRow({
         assistantTurnDividerLabel={assistantTurnDividerLabels.get(msg.id)}
         isContinuation={continuationIds.has(msg.id)}
         isSendNextQueued={sendNextId === msg.id}
-        onRevert={onRevert}
-        onFullRevert={onFullRevert}
         onSendQueuedNow={onSendQueuedNow}
         onUnqueueQueued={onUnqueueQueuedMessage}
       />
@@ -254,8 +248,6 @@ const ChatMessageRow = memo(function ChatMessageRow({
   prev.assistantTurnDividerLabels === next.assistantTurnDividerLabels &&
   prev.continuationIds === next.continuationIds &&
   prev.sendNextId === next.sendNextId &&
-  prev.onRevert === next.onRevert &&
-  prev.onFullRevert === next.onFullRevert &&
   prev.onSendQueuedNow === next.onSendQueuedNow &&
   prev.onUnqueueQueuedMessage === next.onUnqueueQueuedMessage,
 );
@@ -270,8 +262,6 @@ interface ChatViewProps {
   scrollToMessageId?: string;
   onScrolledToMessage?: () => void;
   sessionId?: string;
-  onRevert?: (checkpointId: string) => void;
-  onFullRevert?: (checkpointId: string) => void;
   onTopScrollProgress?: (progress: number) => void;
   onSendQueuedNow?: (messageId: string) => void;
   onUnqueueQueuedMessage?: (messageId: string) => void;
@@ -327,15 +317,13 @@ export const ChatView = memo(function ChatView(props: ChatViewProps) {
               transition={{ delay: 0.2, duration: 0.4, ease: [0.22, 0.68, 0, 1] }}
             >
               {agents.map((agent) => {
-                const isSelected = agent.engine === "claude"
-                  ? selectedAgent == null || selectedAgent.engine === "claude"
-                  : selectedAgent?.id === agent.id;
+                const isSelected = selectedAgent?.id === agent.id;
 
                 return (
                   <button
                     key={agent.id}
                     title={agent.name}
-                    onClick={() => handleAgentChange(agent.engine === "claude" ? null : agent)}
+                    onClick={() => handleAgentChange(agent)}
                     className={`rounded-full p-2 transition-all ${
                       isSelected
                         ? "bg-foreground/[0.06] ring-1 ring-foreground/[0.08] scale-110"
@@ -367,7 +355,7 @@ export const ChatView = memo(function ChatView(props: ChatViewProps) {
 
 function ChatViewContent({
   messages, isProcessing, showThinking, extraBottomPadding, scrollToMessageId, onScrolledToMessage,
-  sessionId, onRevert, onFullRevert, onTopScrollProgress,
+  sessionId, onTopScrollProgress,
   onSendQueuedNow, onUnqueueQueuedMessage, sendNextId,
 }: ChatViewProps) {
   // ── Display preferences from Zustand store (only those used directly in ChatViewContent) ──
@@ -879,8 +867,6 @@ function ChatViewContent({
                 assistantTurnDividerLabels={assistantTurnDividerLabels}
                 continuationIds={continuationIds}
                 sendNextId={sendNextId}
-                onRevert={onRevert}
-                onFullRevert={onFullRevert}
                 onSendQueuedNow={onSendQueuedNow}
                 onUnqueueQueuedMessage={onUnqueueQueuedMessage}
               />

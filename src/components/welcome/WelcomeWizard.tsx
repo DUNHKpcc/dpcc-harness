@@ -13,13 +13,14 @@ import { ProjectStep } from "./ProjectStep";
 import { AgentsStep } from "./AgentsStep";
 import { FeatureTourStep } from "./FeatureTourStep";
 import { ReadyStep } from "./ReadyStep";
+import type { AcpPermissionBehavior } from "@/types";
 
 // ── Props ──
 
 interface WelcomeWizardProps {
   glassSupported: boolean;
-  permissionMode: string;
-  onPermissionModeChange: (mode: string) => void;
+  permissionBehavior: AcpPermissionBehavior;
+  onPermissionBehaviorChange: (behavior: AcpPermissionBehavior) => void;
   onCreateProject: () => void;
   hasProjects: boolean;
   onComplete: () => void;
@@ -44,8 +45,8 @@ const stepVariants = {
 
 export function WelcomeWizard({
   glassSupported,
-  permissionMode,
-  onPermissionModeChange,
+  permissionBehavior,
+  onPermissionBehaviorChange,
   onCreateProject,
   hasProjects,
   onComplete,
@@ -165,8 +166,8 @@ export function WelcomeWizard({
               {stepId === "permissions" && (
                 <PermissionsStep
                   {...stepProps}
-                  permissionMode={permissionMode}
-                  onPermissionModeChange={onPermissionModeChange}
+                  permissionBehavior={permissionBehavior}
+                  onPermissionBehaviorChange={onPermissionBehaviorChange}
                 />
               )}
               {stepId === "project" && (
@@ -187,7 +188,7 @@ export function WelcomeWizard({
               {stepId === "tour" && <FeatureTourStep {...stepProps} />}
               {stepId === "ready" && (
                 <ReadyStep
-                  permissionMode={permissionMode}
+                  permissionBehavior={permissionBehavior}
                   onComplete={finish}
                 />
               )}

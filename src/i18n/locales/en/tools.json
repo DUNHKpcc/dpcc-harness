@@ -27,6 +27,12 @@
     "indexing": "Indexing…",
     "empty": "Accessed files will appear here"
   },
+  "filePreview": {
+    "selectFile": "Select a file from the list to preview",
+    "readError": "Unable to read file",
+    "lines_one": "{{count}} line",
+    "lines_other": "{{count}} lines"
+  },
   "projectFiles": {
     "title": "Project Files",
     "noProject": "No project selected",

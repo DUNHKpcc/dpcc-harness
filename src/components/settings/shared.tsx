@@ -4,8 +4,7 @@
  * AppearanceSettings, NotificationsSettings, and AboutSettings.
  */
 
-import { memo } from "react";
-import type { LucideIcon } from "lucide-react";
+import { memo, type ComponentType } from "react";
 import {
   Select,
   SelectContent,
@@ -44,7 +43,7 @@ export const SettingsSection = memo(function SettingsSection({
   children,
   first,
 }: {
-  icon?: LucideIcon;
+  icon?: ComponentType<{ className?: string }>;
   label: string;
   children: React.ReactNode;
   /** When true, omits the top border (used for the first section in a panel). */

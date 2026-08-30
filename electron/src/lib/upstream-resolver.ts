@@ -3,14 +3,15 @@
  *
  * Each source is selected in Settings → Current Config:
  *   - default — the DPCC official upstream (origin-api.dpccgaming.xyz) + the DPCC account key
- *   - local — the user's current Claude Code / Codex / Pi CLI configuration
+ *   - local — the user's current CLI configuration (Pi for live sessions;
+ *             legacy Claude/Codex readers remain for stored settings only)
  *   - gateway — the in-app custom third-party gateway (Settings → Engines)
  *
  * The DPCC default replaces the engine's own login / cloud auth entirely. New
  * installs default to DPCC; local CLI and third-party gateway are opt-in
  * selections so the UI source and the session spawn behavior stay aligned.
  *
- * Consumers: session spawn env (claude-gateway-env, codex-sessions), the
+ * Consumers: ACP session spawn env and the
  * "Current Config" panel (effective-cli-config), and upstream model listing
  * (cc-config:models).
  */
@@ -173,7 +174,7 @@ function resolveGatewayCodexUpstream(): CodexUpstream {
   const c = getAppSetting("codexGateway");
   return {
     // Leave the name empty when unset so each consumer applies its own fallback
-    // (codex-sessions → "PccAgent Gateway"; the Current Config view → "—").
+    // (the ACP session path → "PccAgent Gateway"; the Current Config view → "—").
     tier: "gateway",
     providerName: c.name.trim(),
     baseUrl: c.baseUrl.trim(),

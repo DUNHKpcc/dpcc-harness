@@ -11,18 +11,6 @@ describe("current config settings utilities", () => {
     expect(shouldApplyConfigSourceRefresh(1, 2)).toBe(false);
   });
 
-  it("builds an engine-scoped settings patch for Claude config source changes", () => {
-    expect(buildConfigSourcePatch("claude", "local")).toEqual({
-      claudeCliConfigSource: "local",
-    });
-  });
-
-  it("builds an engine-scoped settings patch for Codex config source changes", () => {
-    expect(buildConfigSourcePatch("codex", "gateway")).toEqual({
-      codexCliConfigSource: "gateway",
-    });
-  });
-
   it("builds an engine-scoped settings patch for Pi config source changes", () => {
     expect(buildConfigSourcePatch("pi", "gateway")).toEqual({
       piCliConfigSource: "gateway",

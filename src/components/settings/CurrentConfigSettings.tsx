@@ -1,7 +1,8 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Server, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { PiLogo } from "@/components/PiLogo";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { SettingsHeader, SettingsSection, SettingsSelect } from "@/components/settings/shared";
@@ -152,7 +153,7 @@ function EngineCard({
 }) {
   const { t } = useTranslation("settings");
   return (
-    <SettingsSection icon={Server} label={label} first={first}>
+    <SettingsSection icon={PiLogo} label={label} first={first}>
       <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="min-w-0 text-xs text-muted-foreground">
           {t(`currentConfig.sourceDesc.${engine.source}`)}
@@ -197,8 +198,6 @@ export const CurrentConfigSettings = memo(function CurrentConfigSettings() {
   const { t } = useTranslation("settings");
   const [data, setData] = useState<EffectiveCliConfig | null>(null);
   const [models, setModels] = useState<EffectiveCliModels | null>(null);
-  const [claudeConfigSource, setClaudeConfigSource] = useState<CliConfigSource>("default");
-  const [codexConfigSource, setCodexConfigSource] = useState<CliConfigSource>("default");
   const [piConfigSource, setPiConfigSource] = useState<CliConfigSource>("default");
   const [refreshing, setRefreshing] = useState(false);
   const [savingSource, setSavingSource] = useState<ConfigSourceEngine | null>(null);
@@ -218,8 +217,6 @@ export const CurrentConfigSettings = memo(function CurrentConfigSettings() {
       if (!shouldApplyConfigSourceRefresh(requestId, refreshRequestIdRef.current)) return;
       setData(cfg);
       setModels(mdl);
-      setClaudeConfigSource(settings?.claudeCliConfigSource ?? settings?.cliConfigSource ?? "default");
-      setCodexConfigSource(settings?.codexCliConfigSource ?? settings?.cliConfigSource ?? "default");
       setPiConfigSource(settings?.piCliConfigSource ?? "default");
     } finally {
       if (shouldApplyConfigSourceRefresh(requestId, refreshRequestIdRef.current)) {
@@ -229,11 +226,7 @@ export const CurrentConfigSettings = memo(function CurrentConfigSettings() {
   }, []);
 
   const updateConfigSource = useCallback(async (engine: ConfigSourceEngine, source: CliConfigSource) => {
-    const sourceState = {
-      claude: { value: claudeConfigSource, set: setClaudeConfigSource },
-      codex: { value: codexConfigSource, set: setCodexConfigSource },
-      pi: { value: piConfigSource, set: setPiConfigSource },
-    }[engine];
+    const sourceState = { value: piConfigSource, set: setPiConfigSource };
     const previousSource = sourceState.value;
     const setSource = sourceState.set;
     setSource(source);
@@ -248,13 +241,13 @@ export const CurrentConfigSettings = memo(function CurrentConfigSettings() {
     } finally {
       setSavingSource(null);
     }
-  }, [claudeConfigSource, codexConfigSource, piConfigSource, refresh, t]);
+  }, [piConfigSource, refresh, t]);
 
   useEffect(() => {
     void refresh();
 
-    // The effective config derives from app settings AND external CLI config
-    // files (~/.claude, ~/.codex). Refetch on both triggers so the panel never
+    // The effective Pi config derives from app settings and the external Pi
+    // CLI directory. Refetch on both triggers so the panel never
     // shows stale values (B8): in-app settings changes push `settings.onChanged`,
     // while out-of-band edits (or settings.json edited outside the app) are
     // picked up when the window regains focus.
@@ -293,24 +286,6 @@ export const CurrentConfigSettings = memo(function CurrentConfigSettings() {
         <div className="px-6 py-4">
           {data && (
             <>
-              <EngineCard
-                label={t("currentConfig.claude")}
-                engine={data.claude}
-                showProvider={false}
-                models={models?.claude}
-                selectedSource={claudeConfigSource}
-                savingSource={savingSource === "claude"}
-                onSourceChange={(source) => void updateConfigSource("claude", source)}
-              />
-              <EngineCard
-                label={t("currentConfig.codex")}
-                engine={data.codex}
-                showProvider
-                models={models?.codex}
-                selectedSource={codexConfigSource}
-                savingSource={savingSource === "codex"}
-                onSourceChange={(source) => void updateConfigSource("codex", source)}
-              />
               <EngineCard
                 label={t("currentConfig.pi")}
                 engine={data.pi}

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   appendUpstreamRequestRecord,
   getUpstreamRequestCount,
+  getUpstreamRequestTokenTotal,
   RECENT_UPSTREAM_REQUEST_LIMIT,
   upsertUpstreamRequestRecord,
 } from "../upstream-requests";
@@ -10,8 +11,8 @@ import type { UpstreamRequestRecord } from "@/types";
 function createRecord(index: number): UpstreamRequestRecord {
   return {
     id: `request-${index}`,
-    engine: "claude",
-    model: "claude-sonnet-4-5",
+    engine: "acp",
+    model: "pi/default",
     status: "completed",
     startedAt: index,
     completedAt: index + 1,
@@ -55,5 +56,17 @@ describe("upstream request helpers", () => {
     expect(completed.requestLog).toEqual([
       expect.objectContaining({ id: pending.id, status: "completed", completedAt: 10 }),
     ]);
+  });
+
+  it("returns unavailable usage distinctly and avoids double-counting reasoning tokens", () => {
+    expect(getUpstreamRequestTokenTotal(createRecord(1))).toBeUndefined();
+    expect(getUpstreamRequestTokenTotal({
+      ...createRecord(2),
+      inputTokens: 100,
+      outputTokens: 20,
+      cacheReadTokens: 10,
+      cacheCreationTokens: 5,
+      reasoningOutputTokens: 7,
+    })).toBe(135);
   });
 });

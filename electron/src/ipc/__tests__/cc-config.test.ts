@@ -88,7 +88,7 @@ describe("cc-config IPC", () => {
     mockFetchUpstreamModels.mockResolvedValue({ models: ["claude-model"], error: null });
   });
 
-  it("does not fetch local Codex provider models when no token is available to PccAgent", async () => {
+  it("lists only Pi models and never probes removed Claude/Codex runtimes", async () => {
     const { register } = await loadModule();
     register();
 
@@ -96,11 +96,18 @@ describe("cc-config IPC", () => {
     expect(modelsHandler).toBeDefined();
     const result = await modelsHandler!();
 
-    expect(mockFetchUpstreamModels).toHaveBeenCalledTimes(1);
-    expect(mockFetchUpstreamModels).toHaveBeenCalledWith("https://api.dpcc.example", "sk-claude");
+    expect(mockResolveClaudeUpstream).not.toHaveBeenCalled();
+    expect(mockResolveCodexUpstream).not.toHaveBeenCalled();
+    expect(mockFetchUpstreamModels).not.toHaveBeenCalled();
+    expect(mockResolvePiUpstream).toHaveBeenCalledTimes(1);
+    expect(mockListPiUpstreamModels).toHaveBeenCalledWith({
+      tier: "local",
+      providers: [],
+      model: "",
+    });
     expect(result).toEqual({
-      claude: { source: "default", models: ["claude-model"], error: null },
-      codex: { source: "local", models: [], error: "local_provider_unreadable" },
+      claude: { source: "default", models: [], error: null },
+      codex: { source: "default", models: [], error: null },
       pi: { source: "local", models: [], error: "local_provider_unreadable" },
     });
   });

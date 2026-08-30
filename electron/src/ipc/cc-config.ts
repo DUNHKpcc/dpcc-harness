@@ -1,7 +1,7 @@
 import { ipcMain } from "electron";
 import { reportError } from "../lib/error-utils";
 import { resolveEffectiveCliConfig } from "../lib/effective-cli-config";
-import { resolveClaudeUpstream, resolveCodexUpstream, resolvePiUpstream } from "../lib/upstream-resolver";
+import { resolvePiUpstream } from "../lib/upstream-resolver";
 import { fetchUpstreamModels } from "../lib/upstream-models";
 import { listPiUpstreamModels } from "../lib/pi-acp-config";
 import type {
@@ -9,7 +9,6 @@ import type {
   EffectiveEngineConfig,
   EffectiveCliModels,
   EffectiveModelList,
-  EffectiveConfigSource,
 } from "@shared/types/cc-config";
 
 const EMPTY_ENGINE: EffectiveEngineConfig = {
@@ -19,19 +18,6 @@ const EMPTY_ENGINE: EffectiveEngineConfig = {
   maskedToken: null,
   model: null,
 };
-
-/** List the models available on one engine's effective upstream. */
-async function listEngineModels(
-  source: EffectiveConfigSource,
-  baseUrl: string,
-  token: string,
-): Promise<EffectiveModelList> {
-  if (source === "local" && !token) {
-    return { source, models: [], error: "local_provider_unreadable" };
-  }
-  const { models, error } = await fetchUpstreamModels(baseUrl, token);
-  return { source, models, error };
-}
 
 export function register(): void {
   ipcMain.handle("cc-config:effective", async (): Promise<EffectiveCliConfig> => {
@@ -43,24 +29,19 @@ export function register(): void {
     }
   });
 
-  // All models PccAgent can pull from each engine's effective upstream (gateway
-  // or DPCC default) — drives the Current Config model list.
+  // Only Pi is a live runtime. The empty legacy lists remain in the response
+  // shape so older renderer builds can still read the IPC payload safely.
   ipcMain.handle("cc-config:models", async (): Promise<EffectiveCliModels> => {
     try {
-      const claudeU = resolveClaudeUpstream();
-      const codexU = resolveCodexUpstream();
       const piU = resolvePiUpstream();
-      const [claude, codex, piResult] = await Promise.all([
-        listEngineModels(claudeU.tier, claudeU.baseUrl, claudeU.token),
-        listEngineModels(codexU.tier, codexU.baseUrl, codexU.apiKey),
-        listPiUpstreamModels(piU),
-      ]);
+      const piResult = await listPiUpstreamModels(piU);
       const pi: EffectiveModelList = {
         source: piU.tier,
         models: piResult.models,
         error: piResult.error,
       };
-      return { claude, codex, pi };
+      const empty: EffectiveModelList = { source: "default", models: [], error: null };
+      return { claude: { ...empty }, codex: { ...empty }, pi };
     } catch (err) {
       reportError("CC_CONFIG:MODELS_ERR", err);
       const empty: EffectiveModelList = { source: "default", models: [], error: "internal_error" };

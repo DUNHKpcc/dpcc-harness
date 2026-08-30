@@ -7,8 +7,7 @@ import { migrateLegacyAccountCredentials } from "../lib/account-credential-store
 import { reportError } from "../lib/error-utils";
 import { reclaimMacDockFocus } from "../lib/macos-dock-focus";
 import { safeSend } from "../lib/safe-send";
-import { stopDesktopAccountSessions as stopClaudeDesktopAccountSessions } from "./claude-sessions";
-import { stopDesktopAccountSessions as stopCodexDesktopAccountSessions } from "./codex-sessions";
+import { stopAll as stopAcpSessions } from "./acp-sessions";
 
 let coordinator: AccountAuthorizationCoordinator | null = null;
 let mainWindowGetter: (() => BrowserWindow | null) | null = null;
@@ -56,10 +55,7 @@ function createCoordinator(): AccountAuthorizationCoordinator {
     },
     undefined,
     undefined,
-    (reason) => {
-      stopClaudeDesktopAccountSessions(reason);
-      stopCodexDesktopAccountSessions(reason);
-    },
+    () => stopAcpSessions(),
   );
 }
 

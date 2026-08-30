@@ -2,20 +2,16 @@
  * Resolves the config PccAgent actually applies when starting sessions — the
  * "effective" view shown in Settings → Current Config.
  *
- * Source options mirror the session spawn logic (see upstream-resolver):
+ * Source options mirror the Pi ACP spawn logic (see upstream-resolver):
  *  - default: the DPCC official upstream (origin-api.dpccgaming.xyz) + the DPCC account key
- *  - local: the user's current Claude Code / Codex / Pi CLI configuration
+ *  - local: the user's current Pi CLI configuration
  *  - gateway: the in-app custom third-party gateway
  *
  * The "default" tier routes to the DPCC upstream, so it carries a real base URL
  * + (masked) token. Current Config lets the user choose local or gateway instead.
  */
 
-import {
-  resolveClaudeUpstream,
-  resolveCodexUpstream,
-  resolvePiUpstream,
-} from "./upstream-resolver";
+import { resolvePiUpstream } from "./upstream-resolver";
 import type {
   EffectiveCliConfig,
   EffectiveEngineConfig,
@@ -27,28 +23,6 @@ function maskSecret(value: string | null | undefined): string | null {
   if (!v) return null;
   if (v.length <= 8) return "•".repeat(v.length);
   return `${v.slice(0, 4)}${"•".repeat(Math.min(8, v.length - 8))}${v.slice(-4)}`;
-}
-
-function resolveClaude(): EffectiveEngineConfig {
-  const u = resolveClaudeUpstream();
-  return {
-    source: u.tier,
-    providerName: null,
-    baseUrl: u.baseUrl || null,
-    maskedToken: maskSecret(u.token),
-    model: u.model || null,
-  };
-}
-
-function resolveCodex(): EffectiveEngineConfig {
-  const u = resolveCodexUpstream();
-  return {
-    source: u.tier,
-    providerName: u.providerName || null,
-    baseUrl: u.baseUrl || null,
-    maskedToken: maskSecret(u.apiKey),
-    model: u.model || null,
-  };
 }
 
 function resolvePi(): EffectiveEngineConfig {
@@ -73,5 +47,14 @@ function resolvePi(): EffectiveEngineConfig {
 }
 
 export function resolveEffectiveCliConfig(): EffectiveCliConfig {
-  return { claude: resolveClaude(), codex: resolveCodex(), pi: resolvePi() };
+  // Keep the legacy-shaped fields in the IPC response for one compatibility
+  // cycle, but never resolve or probe their removed runtimes.
+  const empty: EffectiveEngineConfig = {
+    source: "default",
+    providerName: null,
+    baseUrl: null,
+    maskedToken: null,
+    model: null,
+  };
+  return { claude: { ...empty }, codex: { ...empty }, pi: resolvePi() };
 }

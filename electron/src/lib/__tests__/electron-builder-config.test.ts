@@ -28,45 +28,12 @@ function readIcoSizes(filePath: string): number[] {
   });
 }
 
-function makeResourcesDir(...triples: string[]): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "builder-config-test-"));
-  tempDirs.push(root);
-  const vendorDir = path.join(root, "codex-vendor");
-  for (const triple of triples) {
-    fs.mkdirSync(path.join(vendorDir, triple), { recursive: true });
-  }
-  return root;
-}
-
 function makePortableGitResourcesDir(...targets: string[]): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "builder-config-test-"));
   tempDirs.push(root);
   const portableGitDir = path.join(root, "portable-git");
   for (const target of targets) {
     fs.mkdirSync(path.join(portableGitDir, target), { recursive: true });
-  }
-  return root;
-}
-
-function makeClaudeSdkResourcesDir(...packages: string[]): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "builder-config-test-"));
-  tempDirs.push(root);
-  const scopeDir = path.join(root, "app.asar.unpacked", "node_modules", "@anthropic-ai");
-  for (const packageName of packages) {
-    fs.mkdirSync(path.join(scopeDir, packageName), { recursive: true });
-    fs.writeFileSync(path.join(scopeDir, packageName, packageName.includes("win32") ? "claude.exe" : "claude"), "binary");
-  }
-  return root;
-}
-
-function makeClaudeSdkAsarTemp(...packages: string[]): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "builder-config-test-"));
-  tempDirs.push(root);
-  const scopeDir = path.join(root, "node_modules", "@anthropic-ai");
-  for (const packageName of packages) {
-    fs.mkdirSync(path.join(scopeDir, packageName), { recursive: true });
-    fs.writeFileSync(path.join(scopeDir, packageName, "package.json"), "{}");
-    fs.writeFileSync(path.join(scopeDir, packageName, packageName.includes("win32") ? "claude.exe" : "claude"), "binary");
   }
   return root;
 }
@@ -127,29 +94,34 @@ afterEach(() => {
 });
 
 describe("electron-builder config", () => {
-  it("declares every latest Claude SDK native package for electron-builder discovery", () => {
+  it("replaces Claude and Codex runtimes with exact bundled Pi dependencies", () => {
     const packageJson = JSON.parse(fs.readFileSync(
       path.resolve(__dirname, "../../../../package.json"),
       "utf8",
     )) as {
       dependencies: Record<string, string>;
+      scripts: Record<string, string>;
       optionalDependencies?: Record<string, string>;
+      pnpm?: { overrides?: Record<string, string> };
     };
-    const sdkVersion = packageJson.dependencies["@anthropic-ai/claude-agent-sdk"].replace(/^\^/, "");
-    const expectedPackages = [
-      "darwin-arm64",
-      "darwin-x64",
-      "linux-arm64",
-      "linux-arm64-musl",
-      "linux-x64",
-      "linux-x64-musl",
-      "win32-arm64",
-      "win32-x64",
-    ].map((target) => `@anthropic-ai/claude-agent-sdk-${target}`);
 
-    expect(packageJson.optionalDependencies).toMatchObject(Object.fromEntries(
-      expectedPackages.map((packageName) => [packageName, sdkVersion]),
-    ));
+    expect(packageJson.dependencies).not.toHaveProperty("@anthropic-ai/claude-agent-sdk");
+    expect(packageJson.dependencies).not.toHaveProperty("@anthropic-ai/sdk");
+    expect(packageJson.optionalDependencies ?? {}).toEqual({});
+    expect(packageJson.scripts).not.toHaveProperty("bundle:codex");
+    expect(packageJson.dependencies).toMatchObject({
+      "@earendil-works/pi-coding-agent": "0.84.1",
+      "pi-acp": "0.0.33",
+      "pi-mcp-adapter": "2.31.0",
+    });
+    expect(packageJson.pnpm?.overrides).toMatchObject({
+      "@earendil-works/pi-agent-core": "0.84.1",
+      "@earendil-works/pi-ai": "0.84.1",
+      "@earendil-works/pi-client": "0.84.1",
+      "@earendil-works/pi-protocol": "0.84.1",
+      "@earendil-works/pi-telemetry": "0.84.1",
+      "@earendil-works/pi-tui": "0.84.1",
+    });
   });
 
   it("does not expose test helpers in production config loads", () => {
@@ -206,6 +178,64 @@ describe("electron-builder config", () => {
     expect(fs.existsSync(path.join(repoRoot, "public", "icon.png"))).toBe(true);
   });
 
+  it("ships the offline Pi launcher and unpacks its native runtime assets", async () => {
+    const config = await import("../../../../electron-builder.config.js");
+    const runtimeResource = {
+      from: "build/pi-runtime",
+      to: "pi-runtime",
+      filter: ["**/*"],
+    };
+
+    expect(config.default.extraResources).toContainEqual(runtimeResource);
+    expect(config.default.asarUnpack).toEqual(expect.arrayContaining([
+      "node_modules/**/@earendil-works/pi-tui/native/**/*.node",
+      "node_modules/**/@mariozechner/clipboard-*/**/*.node",
+      "node_modules/**/@napi-rs/keyring-*/**/*.node",
+      "node_modules/**/@silvia-odwyer/photon-node/**/*.wasm",
+    ]));
+
+    const unixLauncher = path.join(repoRoot, "build", "pi-runtime", "bin", "pi");
+    const windowsLauncher = path.join(repoRoot, "build", "pi-runtime", "bin", "pi.cmd");
+    expect(fs.statSync(unixLauncher).isFile()).toBe(true);
+    expect(fs.statSync(unixLauncher).mode & 0o111).not.toBe(0);
+    expect(fs.statSync(windowsLauncher).isFile()).toBe(true);
+    expect(fs.readFileSync(unixLauncher, "utf8")).not.toMatch(/\b(?:node|npx|pi-acp)\b/);
+    expect(fs.readFileSync(windowsLauncher, "utf8")).not.toMatch(/\b(?:node|npx|pi-acp)\b/i);
+    expect(fs.readFileSync(unixLauncher, "utf8")).toContain("PCC_AGENT_PI_MCP_EXTENSION");
+    expect(fs.readFileSync(unixLauncher, "utf8")).toContain('--extension "$PCC_AGENT_PI_MCP_EXTENSION"');
+    expect(fs.readFileSync(unixLauncher, "utf8")).toContain('--skill "$PCC_AGENT_PI_PROJECT_SKILLS"');
+    expect(fs.readFileSync(windowsLauncher, "utf8")).toContain('--skill "%PCC_AGENT_PI_PROJECT_SKILLS%"');
+    expect(fs.readFileSync(unixLauncher, "utf8")).not.toContain("--approve");
+    expect(fs.readFileSync(windowsLauncher, "utf8")).not.toContain("--approve");
+    expect(fs.existsSync(path.join(repoRoot, "build", "pi-runtime", "extensions", "pcc-mcp.ts"))).toBe(true);
+    expect(config.__test.asarRepackUnpackPattern).toContain("**/*.node");
+    expect(config.__test.asarRepackUnpackPattern).toContain("**/*.wasm");
+  });
+
+  it("preserves native unpack metadata when afterPack rebuilds app.asar", async () => {
+    const config = await import("../../../../electron-builder.config.js");
+    const asar = await import("@electron/asar");
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "builder-config-test-"));
+    tempDirs.push(root);
+    const source = path.join(root, "source");
+    const archive = path.join(root, "app.asar");
+    const nativePath = path.join(source, "node_modules", "fixture", "addon.node");
+    const wasmPath = path.join(source, "node_modules", "fixture", "runtime.wasm");
+    const jsPath = path.join(source, "node_modules", "fixture", "index.js");
+    for (const filePath of [nativePath, wasmPath, jsPath]) {
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      fs.writeFileSync(filePath, "fixture");
+    }
+
+    await asar.createPackageWithOptions(source, archive, {
+      unpack: config.__test.asarRepackUnpackPattern,
+    });
+
+    expect(asar.statFile(archive, "node_modules/fixture/addon.node").unpacked).toBe(true);
+    expect(asar.statFile(archive, "node_modules/fixture/runtime.wasm").unpacked).toBe(true);
+    expect(asar.statFile(archive, "node_modules/fixture/index.js").unpacked).toBeFalsy();
+  });
+
   it("packages the native menu bar source image on macOS only", async () => {
     const config = await import("../../../../electron-builder.config.js");
     const traySource = {
@@ -252,48 +282,6 @@ describe("electron-builder config", () => {
     expect(extraResources.some((entry) => entry.to === "portable-git")).toBe(false);
   });
 
-  it("maps Windows arm64 builds to a bundled Codex vendor triple", async () => {
-    const config = await import("../../../../electron-builder.config.js");
-
-    expect(config.__test.codexTripleForBuild("win32", 3)).toBe("aarch64-pc-windows-msvc");
-  });
-
-  it("keeps only the Windows x64 Codex vendor triple during win32 x64 packaging", async () => {
-    const config = await import("../../../../electron-builder.config.js");
-    const resourcesDir = makeResourcesDir(
-      "aarch64-apple-darwin",
-      "x86_64-pc-windows-msvc",
-      "aarch64-pc-windows-msvc",
-    );
-
-    config.__test.stripForeignCodexTriples(resourcesDir, {
-      electronPlatformName: "win32",
-      arch: 1,
-    });
-
-    expect(fs.readdirSync(path.join(resourcesDir, "codex-vendor")).sort()).toEqual([
-      "x86_64-pc-windows-msvc",
-    ]);
-  });
-
-  it("keeps only the Windows arm64 Codex vendor triple during win32 arm64 packaging", async () => {
-    const config = await import("../../../../electron-builder.config.js");
-    const resourcesDir = makeResourcesDir(
-      "aarch64-apple-darwin",
-      "x86_64-pc-windows-msvc",
-      "aarch64-pc-windows-msvc",
-    );
-
-    config.__test.stripForeignCodexTriples(resourcesDir, {
-      electronPlatformName: "win32",
-      arch: 3,
-    });
-
-    expect(fs.readdirSync(path.join(resourcesDir, "codex-vendor")).sort()).toEqual([
-      "aarch64-pc-windows-msvc",
-    ]);
-  });
-
   it("keeps PortableGit only for Windows x64 packaging", async () => {
     const config = await import("../../../../electron-builder.config.js");
     const resourcesDir = makePortableGitResourcesDir("win32-x64", "win32-arm64");
@@ -336,61 +324,11 @@ describe("electron-builder config", () => {
     ]);
   });
 
-  it("unpacks the latest platform-package Claude SDK binary instead of legacy cli.js", async () => {
+  it("does not package Claude SDK or Codex vendor resources", async () => {
     const config = await import("../../../../electron-builder.config.js");
 
-    expect(config.default.asarUnpack).toContain("node_modules/@anthropic-ai/claude-agent-sdk-*/claude*");
-    expect(config.default.asarUnpack).not.toContain("node_modules/@anthropic-ai/claude-agent-sdk/cli.js");
-    expect(config.default.asarUnpack).not.toContain("node_modules/@anthropic-ai/claude-agent-sdk/vendor/**");
-  });
-
-  it("keeps only the target Claude SDK native package in each packed app", async () => {
-    const config = await import("../../../../electron-builder.config.js");
-    const resourcesDir = makeClaudeSdkResourcesDir(
-      "claude-agent-sdk-darwin-arm64",
-      "claude-agent-sdk-darwin-x64",
-      "claude-agent-sdk-win32-x64",
-    );
-
-    config.__test.stripForeignClaudeSdkPackages(resourcesDir, {
-      electronPlatformName: "darwin",
-      arch: 3,
-    });
-
-    expect(fs.readdirSync(path.join(
-      resourcesDir,
-      "app.asar.unpacked",
-      "node_modules",
-      "@anthropic-ai",
-    ))).toEqual(["claude-agent-sdk-darwin-arm64"]);
-  });
-
-  it("keeps target metadata but excludes native binaries from the repacked asar", async () => {
-    const config = await import("../../../../electron-builder.config.js");
-    const tempDir = makeClaudeSdkAsarTemp(
-      "claude-agent-sdk-darwin-arm64",
-      "claude-agent-sdk-darwin-x64",
-    );
-
-    config.__test.pruneClaudeSdkPackagesFromAsarTemp(tempDir, {
-      electronPlatformName: "darwin",
-      arch: 3,
-    });
-
-    const targetDir = path.join(
-      tempDir,
-      "node_modules",
-      "@anthropic-ai",
-      "claude-agent-sdk-darwin-arm64",
-    );
-    expect(fs.existsSync(path.join(targetDir, "package.json"))).toBe(true);
-    expect(fs.existsSync(path.join(targetDir, "claude"))).toBe(false);
-    expect(fs.existsSync(path.join(
-      tempDir,
-      "node_modules",
-      "@anthropic-ai",
-      "claude-agent-sdk-darwin-x64",
-    ))).toBe(false);
+    expect(config.default.asarUnpack.some((entry: string) => entry.includes("@anthropic-ai"))).toBe(false);
+    expect(config.default.extraResources.some((entry: { to?: string }) => entry.to === "codex-vendor")).toBe(false);
   });
 
   it("removes PortableGit from non-Windows packages", async () => {

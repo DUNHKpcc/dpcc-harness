@@ -69,4 +69,38 @@ describe("release artifact configuration", () => {
     expect(workflow).toContain('gh release create "$TAG"');
     expect(workflow).toContain("needs: [prepare-release, test, ensure-release]");
   });
+
+  it("keeps the full Pi quality workflow required and reused by releases", () => {
+    const qualityWorkflow = fs.readFileSync(
+      path.join(repoRoot, ".github/workflows/quality.yml"),
+      "utf8",
+    );
+    const releaseWorkflow = fs.readFileSync(
+      path.join(repoRoot, ".github/workflows/build.yml"),
+      "utf8",
+    );
+
+    expect(qualityWorkflow).toContain("name: quality");
+    expect(qualityWorkflow).toContain("workflow_call:");
+    expect(qualityWorkflow).toContain("pull_request:");
+    expect(qualityWorkflow).toContain("node-version: 22.19.0");
+    expect(qualityWorkflow).toContain("pnpm install --frozen-lockfile");
+    for (const command of [
+      "pnpm test",
+      "pnpm typecheck",
+      "pnpm build",
+      "pnpm docs:check",
+      "pnpm test-map:check",
+      "pnpm test:pi-integration",
+      "pnpm test:electron-recovery",
+      "pnpm pi:runtime:check",
+      "electron-builder --config electron-builder.config.js",
+      "pnpm package:smoke",
+      "git diff --check",
+    ]) {
+      expect(qualityWorkflow).toContain(command);
+    }
+    expect(qualityWorkflow).not.toMatch(/continue-on-error:\s*true/);
+    expect(releaseWorkflow).toContain("uses: ./.github/workflows/quality.yml");
+  });
 });

@@ -3,8 +3,18 @@ import path from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { app } from "electron";
-import type { InstalledAgent, BinaryCheckResult } from "@shared/types/registry";
+import {
+  BUILTIN_PI_AGENT,
+  BUILTIN_PI_AGENT_ID,
+  type InstalledAgent,
+  type BinaryCheckResult,
+} from "@shared/types/registry";
 import type { ACPConfigOption } from "@shared/types/acp";
+import type { SlashCommand } from "@shared/types/engine";
+import {
+  normalizeCachedAcpConfigOptions,
+  normalizeCachedAcpSlashCommands,
+} from "@shared/lib/acp-config-cache";
 
 // Re-export shared types so existing consumers importing from this file still work
 export type { InstalledAgent, BinaryCheckResult } from "@shared/types/registry";
@@ -12,27 +22,10 @@ export type { EngineId } from "@shared/types/engine";
 
 const execFileAsync = promisify(execFile);
 
-const BUILTIN_CLAUDE: InstalledAgent = {
-  id: "claude-code",
-  name: "Claude Code",
-  engine: "claude",
-  builtIn: true,
-  icon: "brain",
-};
-
-const BUILTIN_CODEX: InstalledAgent = {
-  id: "codex",
-  name: "Codex",
-  engine: "codex",
-  builtIn: true,
-  icon: "zap",
-};
-
-const BUILTIN_IDS = new Set([BUILTIN_CLAUDE.id, BUILTIN_CODEX.id]);
+export const BUILTIN_IDS = new Set<string>([BUILTIN_PI_AGENT_ID]);
 
 const agents = new Map<string, InstalledAgent>();
-agents.set(BUILTIN_CLAUDE.id, BUILTIN_CLAUDE);
-agents.set(BUILTIN_CODEX.id, BUILTIN_CODEX);
+agents.set(BUILTIN_PI_AGENT.id, { ...BUILTIN_PI_AGENT });
 
 function getConfigPath(): string {
   return path.join(app.getPath("userData"), "pcc-agent-data", "agents.json");
@@ -41,8 +34,30 @@ function getConfigPath(): string {
 export function loadUserAgents(): void {
   try {
     const data = JSON.parse(fs.readFileSync(getConfigPath(), "utf-8"));
+    if (!Array.isArray(data)) return;
     for (const agent of data) {
-      if (!BUILTIN_IDS.has(agent.id)) agents.set(agent.id, agent);
+      if (agent?.id === BUILTIN_PI_AGENT_ID) {
+        const cachedConfigOptions = normalizeCachedAcpConfigOptions(agent.cachedConfigOptions);
+        const cachedSlashCommands = normalizeCachedAcpSlashCommands(agent.cachedSlashCommands);
+        agents.set(BUILTIN_PI_AGENT_ID, {
+          ...BUILTIN_PI_AGENT,
+          ...(cachedConfigOptions.length > 0 ? { cachedConfigOptions } : {}),
+          ...(cachedSlashCommands.length > 0 ? { cachedSlashCommands } : {}),
+        });
+        continue;
+      }
+      // Legacy Claude/Codex definitions remain on disk for rollback and data
+      // compatibility, but are not activated as new runtimes.
+      if (
+        agent
+        && typeof agent === "object"
+        && !BUILTIN_IDS.has(agent.id)
+        && agent.engine === "acp"
+        && typeof agent.id === "string"
+        && typeof agent.name === "string"
+      ) {
+        agents.set(agent.id, agent as InstalledAgent);
+      }
     }
   } catch {
     /* no config yet */
@@ -60,7 +75,8 @@ export function listAgents(): InstalledAgent[] {
 export function saveAgent(agent: InstalledAgent): void {
   if (BUILTIN_IDS.has(agent.id)) return; // Protect built-in agents
   if (!agent.id?.trim() || !agent.name?.trim()) throw new Error("Agent must have id and name");
-  if (agent.engine === "acp" && !agent.binary?.trim()) throw new Error("ACP agents require a binary");
+  if (agent.engine !== "acp") throw new Error("Only ACP agents can be installed");
+  if (!agent.binary?.trim()) throw new Error("ACP agents require a binary");
   agents.set(agent.id, agent);
   persistUserAgents();
 }
@@ -74,16 +90,39 @@ export function deleteAgent(id: string): void {
 /** Update only the cached config options for an agent (fire-and-forget from renderer) */
 export function updateCachedConfig(id: string, configOptions: ACPConfigOption[]): void {
   const agent = agents.get(id);
-  if (!agent || agent.builtIn) return;
-  agent.cachedConfigOptions = configOptions;
+  if (!agent) return;
+  agents.set(id, {
+    ...agent,
+    cachedConfigOptions: normalizeCachedAcpConfigOptions(configOptions),
+  });
+  persistUserAgents();
+}
+
+export function updateCachedSlashCommands(id: string, commands: SlashCommand[]): void {
+  const agent = agents.get(id);
+  if (!agent) return;
+  agents.set(id, {
+    ...agent,
+    cachedSlashCommands: normalizeCachedAcpSlashCommands(commands),
+  });
   persistUserAgents();
 }
 
 function persistUserAgents(): void {
+  const builtInPi = agents.get(BUILTIN_PI_AGENT_ID);
+  const cachedPiConfig = normalizeCachedAcpConfigOptions(builtInPi?.cachedConfigOptions);
+  const cachedPiCommands = normalizeCachedAcpSlashCommands(builtInPi?.cachedSlashCommands);
   const userAgents = listAgents().filter((a) => !a.builtIn);
+  const persistedAgents = cachedPiConfig.length > 0 || cachedPiCommands.length > 0
+    ? [{
+        ...BUILTIN_PI_AGENT,
+        ...(cachedPiConfig.length > 0 ? { cachedConfigOptions: cachedPiConfig } : {}),
+        ...(cachedPiCommands.length > 0 ? { cachedSlashCommands: cachedPiCommands } : {}),
+      }, ...userAgents]
+    : userAgents;
   const dir = path.dirname(getConfigPath());
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(getConfigPath(), JSON.stringify(userAgents, null, 2));
+  fs.writeFileSync(getConfigPath(), JSON.stringify(persistedAgents, null, 2));
 }
 
 // ── Binary detection helpers ──

@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -50,6 +50,36 @@ function assertPackagedRenderer(asarPath) {
     }
   }
 
+  const bundledRuntimeEntries = [
+    "node_modules/@earendil-works/pi-coding-agent/package.json",
+    "node_modules/@earendil-works/pi-coding-agent/dist/cli.js",
+    "node_modules/pi-acp/package.json",
+    "node_modules/pi-acp/dist/index.js",
+    "node_modules/pi-mcp-adapter/package.json",
+    "node_modules/pi-mcp-adapter/index.ts",
+  ];
+  for (const requiredEntry of bundledRuntimeEntries) {
+    if (!entrySet.has(requiredEntry)) {
+      throw new Error(`${asarPath} is missing bundled runtime entry ${requiredEntry}`);
+    }
+  }
+  const piPackage = JSON.parse(asar
+    .extractFile(asarPath, toAsarLookupEntry(bundledRuntimeEntries[0]))
+    .toString("utf8"));
+  const piAcpPackage = JSON.parse(asar
+    .extractFile(asarPath, toAsarLookupEntry(bundledRuntimeEntries[2]))
+    .toString("utf8"));
+  const piMcpAdapterPackage = JSON.parse(asar
+    .extractFile(asarPath, toAsarLookupEntry(bundledRuntimeEntries[4]))
+    .toString("utf8"));
+  if (
+    piPackage.version !== "0.84.1"
+    || piAcpPackage.version !== "0.0.33"
+    || piMcpAdapterPackage.version !== "2.31.0"
+  ) {
+    throw new Error(`${asarPath} contains unsupported bundled Pi runtime versions`);
+  }
+
   const icon = asar.extractFile(asarPath, toAsarLookupEntry("dist/icon.png"));
   if (icon.length < 24 || icon.subarray(1, 4).toString("ascii") !== "PNG") {
     throw new Error(`${asarPath} contains an invalid dist/icon.png`);
@@ -94,7 +124,23 @@ function assertPackagedRenderer(asarPath) {
     throw new Error(`${asarPath} is missing extraResources/pcc-agent-logo.png`);
   }
 
-  return { asarPath, extraResourcesLogo };
+  const piRuntimeLauncher = path.join(
+    path.dirname(asarPath),
+    "pi-runtime",
+    "bin",
+    platformForAppRoot(appRootForAsar(asarPath)) === "win32" ? "pi.cmd" : "pi",
+  );
+  const piRuntimeNotices = path.join(path.dirname(asarPath), "pi-runtime", "THIRD_PARTY_NOTICES.md");
+  const piMcpBridge = path.join(path.dirname(asarPath), "pi-runtime", "extensions", "pcc-mcp.ts");
+  if (
+    !fs.existsSync(piRuntimeLauncher)
+    || !fs.existsSync(piRuntimeNotices)
+    || !fs.existsSync(piMcpBridge)
+  ) {
+    throw new Error(`${asarPath} is missing bundled Pi extraResources`);
+  }
+
+  return { asarPath, extraResourcesLogo, piRuntimeLauncher };
 }
 
 function appRootForAsar(asarPath) {
@@ -133,6 +179,34 @@ function findExecutable(appRoot) {
     throw new Error(`Could not find the packaged executable in ${appRoot}`);
   }
   return executable;
+}
+
+function findHeadlessRuntimeHost(executable, appRoot) {
+  if (platformForAppRoot(appRoot) !== "darwin") return executable;
+
+  const helperName = `${path.basename(executable)} Helper`;
+  const helperContents = path.join(
+    appRoot,
+    "Contents",
+    "Frameworks",
+    `${helperName}.app`,
+    "Contents",
+  );
+  const helperExecutable = path.join(helperContents, "MacOS", helperName);
+  const infoPlist = path.join(helperContents, "Info.plist");
+  if (!fs.existsSync(helperExecutable) || !fs.existsSync(infoPlist)) {
+    throw new Error(`${appRoot} is missing its headless Electron Helper runtime`);
+  }
+
+  const plistResult = spawnSync(
+    "/usr/bin/plutil",
+    ["-extract", "LSUIElement", "raw", "-o", "-", infoPlist],
+    { encoding: "utf8" },
+  );
+  if (plistResult.status !== 0 || plistResult.stdout.trim() !== "true") {
+    throw new Error(`${helperName} must set LSUIElement=true so Pi never creates a Dock app`);
+  }
+  return helperExecutable;
 }
 
 function runPackagedApp(executable, appRoot, extraResourcesLogo) {
@@ -190,6 +264,11 @@ function runPackagedApp(executable, appRoot, extraResourcesLogo) {
           || result.terminalShellOptionCount < 2
           || typeof result.terminalAutoShellPath !== "string"
           || !path.isAbsolute(result.terminalAutoShellPath)
+          || result.piRuntime?.source !== "bundled"
+          || result.piRuntime?.offlineReady !== true
+          || result.piRuntime?.pi?.actualVersion !== "0.84.1"
+          || result.piRuntime?.piAcp?.actualVersion !== "0.0.33"
+          || result.piRuntime?.piMcpAdapter?.actualVersion !== "2.31.0"
         ) {
           throw new Error(
             `Packaged app smoke check failed (code=${code}): ${result.error ?? "invalid result"}\n${stdout}\n${stderr}`,
@@ -210,6 +289,53 @@ function runPackagedApp(executable, appRoot, extraResourcesLogo) {
       } finally {
         fs.rmSync(tempDir, { recursive: true, force: true });
       }
+    });
+  });
+}
+
+function runPackagedPiVersion(runtimeHost, asarPath, launcherPath) {
+  const piEntry = path.join(
+    asarPath,
+    "node_modules",
+    "@earendil-works",
+    "pi-coding-agent",
+    "dist",
+    "cli.js",
+  );
+  const child = spawn(launcherPath, ["--version"], {
+    cwd: path.dirname(launcherPath),
+    env: {
+      ...process.env,
+      ELECTRON_RUN_AS_NODE: "1",
+      PCC_AGENT_PI_RUNTIME_HOST: runtimeHost,
+      PCC_AGENT_PI_ENTRY: piEntry,
+      PATH: "",
+    },
+    shell: process.platform === "win32",
+    stdio: ["ignore", "pipe", "pipe"],
+    windowsHide: true,
+  });
+
+  return new Promise((resolve, reject) => {
+    let output = "";
+    child.stdout.on("data", (chunk) => { output += chunk; });
+    child.stderr.on("data", (chunk) => { output += chunk; });
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      reject(new Error("Packaged bundled Pi version check timed out"));
+    }, 60_000);
+    child.once("error", (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.once("exit", (code) => {
+      clearTimeout(timer);
+      const version = output.trim();
+      if (code !== 0 || version !== "0.84.1") {
+        reject(new Error(`Packaged bundled Pi failed offline launch (code=${code}, output=${version})`));
+        return;
+      }
+      resolve(version);
     });
   });
 }
@@ -236,10 +362,16 @@ if (!runtimeCandidate) {
 }
 
 const executable = findExecutable(runtimeCandidate.appRoot);
+const runtimeHost = findHeadlessRuntimeHost(executable, runtimeCandidate.appRoot);
 const result = await runPackagedApp(
   executable,
   runtimeCandidate.appRoot,
   runtimeCandidate.extraResourcesLogo,
+);
+const bundledPiVersion = await runPackagedPiVersion(
+  runtimeHost,
+  runtimeCandidate.asarPath,
+  runtimeCandidate.piRuntimeLauncher,
 );
 
 console.log(
@@ -250,4 +382,5 @@ console.log(`  extraResources logo: ${result.extraResourcesLogoUrl}`);
 console.log(
   `  terminal shells: ${result.terminalShellOptionCount} option(s), auto=${result.terminalAutoShellPath}`,
 );
+console.log(`  bundled Pi: ${bundledPiVersion} (offline launcher via ${path.basename(runtimeHost)})`);
 console.log("  production welcome replay: triggered");

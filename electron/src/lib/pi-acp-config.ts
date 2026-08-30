@@ -1,8 +1,7 @@
 import crypto from "crypto";
 import fs from "fs";
+import os from "os";
 import path from "path";
-import { execFile } from "child_process";
-import { promisify } from "util";
 import { getDataDir } from "./data-dir";
 import { fetchUpstreamModels } from "./upstream-models";
 import {
@@ -17,14 +16,29 @@ import {
   type PiProviderUpstream,
   type PiUpstream,
 } from "./upstream-resolver";
-import type { InstalledAgent } from "@shared/types/registry";
+import {
+  BUILTIN_PI_AGENT_ID,
+  type InstalledAgent,
+} from "@shared/types/registry";
+import {
+  bundledPiEnvironment,
+  resolveBundledPiRuntime,
+} from "./bundled-pi-runtime";
 
-const execFileAsync = promisify(execFile);
-
-const PI_ACP_REGISTRY_ID = "pi-acp";
 const PI_DPCC_CLAUDE_ENV_KEY = "PCC_AGENT_PI_DPCC_CLAUDE_KEY";
 const PI_DPCC_CODEX_ENV_KEY = "PCC_AGENT_PI_DPCC_CODEX_KEY";
 const PI_GATEWAY_ENV_KEY = "PCC_AGENT_PI_GATEWAY_KEY";
+const PI_MCP_EXTENSION_ENV_KEY = "PCC_AGENT_PI_MCP_EXTENSION";
+const PI_MCP_CONFIG_ENV_KEY = "PCC_AGENT_PI_MCP_CONFIG";
+const PI_MCP_ADAPTER_ENV_KEY = "PCC_AGENT_PI_MCP_ADAPTER";
+const PI_GLOBAL_SKILLS_ENV_KEY = "PCC_AGENT_PI_GLOBAL_SKILLS";
+const PI_PROJECT_SKILLS_ENV_KEY = "PCC_AGENT_PI_PROJECT_SKILLS";
+
+function piRuntimeError(code: string, message: string): Error & { code: string } {
+  const error = new Error(message) as Error & { code: string };
+  error.code = code;
+  return error;
+}
 
 const PI_PROVIDER_CREDENTIAL_KEYS = new Set([
   "AI_GATEWAY_API_KEY",
@@ -91,15 +105,39 @@ const PI_PROVIDER_ROUTING_KEYS = new Set([
   "GOOGLE_CLOUD_PROJECT",
   "OPENAI_BASE_URL",
   "OPENAI_MODEL",
+  PI_MCP_EXTENSION_ENV_KEY,
+  PI_MCP_CONFIG_ENV_KEY,
+  PI_MCP_ADAPTER_ENV_KEY,
+  PI_GLOBAL_SKILLS_ENV_KEY,
+  PI_PROJECT_SKILLS_ENV_KEY,
   "PI_CODING_AGENT_DIR",
 ]);
 
-interface PiAcpLaunchDefinition {
+export interface PiLaunchMcpServer {
+  name: string;
+  command?: string;
+  args?: string[];
+  env?: Array<{ name: string; value: string }>;
+  url?: string;
+  headers?: Array<{ name: string; value: string }>;
+}
+
+export interface PreparePiAcpLaunchOptions {
+  cwd?: string;
+  mcpServers?: PiLaunchMcpServer[];
+}
+
+export interface PiAcpLaunchDefinition {
   binary: string;
   args?: string[];
   env?: NodeJS.ProcessEnv;
   name: string;
   replaceEnvironment?: boolean;
+  adapterVersion?: string;
+  piVersion?: string;
+  mcpAdapterVersion?: string;
+  runtimeSource?: "bundled";
+  cleanup?: () => void;
 }
 
 interface PiProviderCatalog {
@@ -121,7 +159,7 @@ function providerEnvKey(providerId: string): string {
     case PI_GATEWAY_PROVIDER_ID:
       return PI_GATEWAY_ENV_KEY;
     default:
-      throw new Error(`Unsupported Pi provider: ${providerId}`);
+      throw piRuntimeError("pi_provider_unsupported", `Unsupported Pi provider: ${providerId}`);
   }
 }
 
@@ -164,7 +202,7 @@ async function fetchProviderCatalogs(upstream: PiUpstream): Promise<{
   };
 }
 
-/** Live model list used by Current Config. DPCC succeeds only when both key catalogs succeed. */
+/** 抓dpcc上游models */
 export async function listPiUpstreamModels(
   upstream = resolvePiUpstream(),
 ): Promise<PiModelListResult> {
@@ -173,7 +211,7 @@ export async function listPiUpstreamModels(
     models: error
       ? []
       : catalogs.flatMap(({ provider, models }) =>
-          models.map((modelId) => qualifyModel(provider.id, modelId))),
+        models.map((modelId) => qualifyModel(provider.id, modelId))),
     error,
   };
 }
@@ -204,7 +242,7 @@ function selectDefaultModel(
     available.values().next().value ?? "",
   ];
   const selected = candidates.find((candidate) => available.has(candidate));
-  if (!selected) throw new Error("Pi upstream has no available models.");
+  if (!selected) throw piRuntimeError("pi_model_unavailable", "Pi upstream has no available models.");
   const separator = selected.indexOf("/");
   return {
     provider: selected.slice(0, separator),
@@ -221,6 +259,121 @@ function writeFileAtomic(filePath: string, contents: string): void {
   } catch {
     // Windows and some managed filesystems do not expose POSIX file modes.
   }
+}
+
+function keyValuePairsToRecord(
+  values: Array<{ name: string; value: string }> | undefined,
+): Record<string, string> {
+  return Object.fromEntries((values ?? []).map(({ name, value }) => [name, value]));
+}
+
+function buildPiMcpConfig(servers: PiLaunchMcpServer[]): Record<string, unknown> {
+  const mcpServers: Record<string, Record<string, unknown>> = Object.create(null) as Record<
+    string,
+    Record<string, unknown>
+  >;
+  for (const server of servers) {
+    const name = server.name.trim();
+    if (!name || Object.prototype.hasOwnProperty.call(mcpServers, name)) {
+      throw piRuntimeError("pi_mcp_config_invalid", "Pi MCP server names must be non-empty and unique.");
+    }
+
+    const command = server.command?.trim();
+    const url = server.url?.trim();
+    if (command) {
+      const env = keyValuePairsToRecord(server.env);
+      mcpServers[name] = {
+        command,
+        args: server.args ?? [],
+        ...(Object.keys(env).length > 0 ? { env } : {}),
+      };
+      continue;
+    }
+    if (url) {
+      const headers = keyValuePairsToRecord(server.headers);
+      mcpServers[name] = {
+        url,
+        ...(Object.keys(headers).length > 0 ? { headers } : {}),
+      };
+      continue;
+    }
+    throw piRuntimeError("pi_mcp_config_invalid", `Pi MCP server "${name}" has no transport.`);
+  }
+
+  return {
+    settings: {
+      sampling: false,
+      elicitation: false,
+      notifyOnStartupConnect: false,
+    },
+    mcpServers,
+  };
+}
+
+function preparePiMcpEnvironment(
+  runtime: ReturnType<typeof resolveBundledPiRuntime>,
+  options: PreparePiAcpLaunchOptions,
+): { env: NodeJS.ProcessEnv; cleanup?: () => void } {
+  const servers = options.mcpServers ?? [];
+  if (servers.length === 0) {
+    return {
+      env: {
+        [PI_MCP_EXTENSION_ENV_KEY]: "",
+        [PI_MCP_CONFIG_ENV_KEY]: "",
+        [PI_MCP_ADAPTER_ENV_KEY]: "",
+      },
+    };
+  }
+  if (!options.cwd || !path.isAbsolute(options.cwd)) {
+    throw piRuntimeError("pi_mcp_config_invalid", "Pi MCP configuration requires an absolute session cwd.");
+  }
+
+  const configDirectory = path.join(getDataDir(), "pi-mcp");
+  fs.mkdirSync(configDirectory, { recursive: true, mode: 0o700 });
+  const configPath = path.join(configDirectory, `${process.pid}-${crypto.randomUUID()}.json`);
+  writeFileAtomic(configPath, `${JSON.stringify(buildPiMcpConfig(servers), null, 2)}\n`);
+
+  let cleaned = false;
+  return {
+    env: {
+      [PI_MCP_EXTENSION_ENV_KEY]: runtime.piMcpBridgePath,
+      [PI_MCP_CONFIG_ENV_KEY]: configPath,
+      [PI_MCP_ADAPTER_ENV_KEY]: runtime.piMcpAdapter.entryPath,
+    },
+    cleanup: () => {
+      if (cleaned) return;
+      cleaned = true;
+      fs.rmSync(configPath, { force: true });
+    },
+  };
+}
+
+function preparePiSkillEnvironment(cwd?: string): NodeJS.ProcessEnv {
+  const globalSkillsPath = path.join(os.homedir(), ".agents", "skills");
+  const projectSkillsPath = cwd && path.isAbsolute(cwd)
+    ? path.join(cwd, ".agents", "skills")
+    : null;
+  const env: NodeJS.ProcessEnv = {
+    [PI_GLOBAL_SKILLS_ENV_KEY]: "",
+    [PI_PROJECT_SKILLS_ENV_KEY]: "",
+  };
+  try {
+    if (fs.statSync(globalSkillsPath).isDirectory()) {
+      env[PI_GLOBAL_SKILLS_ENV_KEY] = globalSkillsPath;
+    }
+  } catch {
+    // No global Skills are installed for this Pi session.
+  }
+  if (projectSkillsPath) {
+    try {
+      if (fs.statSync(projectSkillsPath).isDirectory()) {
+        env[PI_PROJECT_SKILLS_ENV_KEY] = projectSkillsPath;
+      }
+    } catch {
+      // No project Skills are installed for this Pi session.
+    }
+  }
+  return env;
 }
 
 function preparePiAgentDirectory(
@@ -272,11 +425,11 @@ function preparePiAgentDirectory(
           name: `${modelId} (${provider.name})`,
           ...(upstream.tier === "default"
             ? {
-                reasoning: reasoningProfile ? piThinking !== null : true,
-                input: ["text", "image"],
-                ...(thinkingLevelMap ? { thinkingLevelMap } : {}),
-                ...(compat ? { compat } : {}),
-              }
+              reasoning: reasoningProfile ? piThinking !== null : true,
+              input: ["text", "image"],
+              ...(thinkingLevelMap ? { thinkingLevelMap } : {}),
+              ...(compat ? { compat } : {}),
+            }
             : {}),
         };
       }),
@@ -296,7 +449,7 @@ function preparePiAgentDirectory(
 /** Build a child-only environment so local Pi provider credentials cannot leak into managed sources. */
 function buildIsolatedPiEnvironment(
   baseEnv: NodeJS.ProcessEnv,
-  agentEnv: Record<string, string> | undefined,
+  agentEnv: NodeJS.ProcessEnv | undefined,
   upstream: PiUpstream,
   agentDir: string,
   piCommand: string,
@@ -316,104 +469,95 @@ function buildIsolatedPiEnvironment(
   return env;
 }
 
-function stripQuotes(value: string): string {
-  return value.trim().replace(/^(["'])(.*)\1$/, "$2");
+export function isOfficialPiAcpAgent(
+  agent: Pick<InstalledAgent, "id" | "engine" | "builtIn" | "registryId">,
+): boolean {
+  return agent.id === BUILTIN_PI_AGENT_ID
+    && agent.engine === "acp"
+    && agent.builtIn === true
+    && agent.registryId?.trim() === BUILTIN_PI_AGENT_ID;
 }
 
-function quotePosixArg(value: string): string {
-  return `'${value.replace(/'/g, `'"'"'`)}'`;
-}
-
-async function resolveExecutable(command: string): Promise<string | null> {
-  const candidate = stripQuotes(command);
-  if (!candidate) return null;
-  if (path.isAbsolute(candidate) || /[\\/]/.test(candidate)) {
-    try {
-      fs.accessSync(candidate, process.platform === "win32" ? fs.constants.F_OK : fs.constants.X_OK);
-      return candidate;
-    } catch {
-      return null;
-    }
+function e2ePiCommandOverride(): string | undefined {
+  if (process.env.HARNSS_E2E_MODE !== "acp-recovery") return undefined;
+  const candidate = process.env.PI_ACP_PI_COMMAND?.trim();
+  if (!candidate || !path.isAbsolute(candidate)) {
+    throw piRuntimeError("pi_e2e_command_invalid", "Pi recovery E2E requires an absolute fixture command.");
   }
-  if (!/^[A-Za-z0-9._-]+$/.test(candidate)) return null;
-
   try {
-    const locator = process.platform === "win32" ? "where" : "which";
-    const { stdout } = await execFileAsync(locator, [candidate]);
-    const found = stdout.split(/\r?\n/).map((line) => line.trim()).find(Boolean);
-    if (found) return found;
+    fs.accessSync(candidate, process.platform === "win32" ? fs.constants.F_OK : fs.constants.X_OK);
   } catch {
-    // GUI-launched apps may not inherit the user's login-shell PATH.
+    throw piRuntimeError("pi_e2e_command_invalid", "Pi recovery E2E fixture command is unavailable.");
   }
-
-  if (process.platform !== "win32") {
-    const shell = process.env.SHELL?.trim() || "/bin/zsh";
-    try {
-      const { stdout } = await execFileAsync(shell, ["-lc", `command -v ${quotePosixArg(candidate)}`]);
-      return stdout.split(/\r?\n/).map((line) => line.trim()).find((line) => path.isAbsolute(line)) ?? null;
-    } catch {
-      return null;
-    }
-  }
-  return null;
+  return candidate;
 }
 
-export function isOfficialPiAcpAgent(agent: Pick<InstalledAgent, "engine" | "registryId">): boolean {
-  return agent.engine === "acp" && agent.registryId?.trim() === PI_ACP_REGISTRY_ID;
-}
-
-function adapterCommand(agent: InstalledAgent): { command: string; args?: string[] } {
-  const usesRegistryNpx = agent.binary?.trim().toLowerCase() === "npx"
-    && /^pi-acp(?:@|$)/i.test(agent.args?.[0]?.trim() ?? "");
-  return usesRegistryNpx
-    ? { command: "pi-acp", args: agent.args?.slice(1) }
-    : { command: agent.binary?.trim() ?? "", args: agent.args };
-}
-
-/** Prepare only the official Pi ACP adapter. Installation remains entirely user-managed. */
-export async function preparePiAcpLaunch(agent: InstalledAgent): Promise<PiAcpLaunchDefinition> {
-  const adapter = adapterCommand(agent);
-  const resolvedAdapter = await resolveExecutable(adapter.command);
-  if (!resolvedAdapter) {
-    throw new Error("Pi ACP adapter was not found. Install pi-acp and ensure the pi-acp command is available on PATH.");
-  }
-  const configuredPiCommand = agent.env?.PI_ACP_PI_COMMAND || process.env.PI_ACP_PI_COMMAND || "pi";
-  const resolvedPiCommand = await resolveExecutable(configuredPiCommand);
-  if (!resolvedPiCommand) {
-    throw new Error("Pi CLI was not found. Install @earendil-works/pi-coding-agent and ensure the pi command is available on PATH.");
-  }
+/** Prepare the protected built-in Pi runtime without consulting PATH or npx. */
+export async function preparePiAcpLaunch(
+  agent: InstalledAgent,
+  options: PreparePiAcpLaunchOptions = {},
+): Promise<PiAcpLaunchDefinition> {
+  const runtime = resolveBundledPiRuntime();
+  const piCommand = e2ePiCommandOverride() ?? runtime.piCommandPath;
+  const runtimeEnv = bundledPiEnvironment(runtime, piCommand);
+  const skillEnv = preparePiSkillEnvironment(options.cwd);
 
   const upstream = resolvePiUpstream();
+  const baseLaunch = {
+    binary: runtime.hostPath,
+    args: [runtime.piAcp.entryPath],
+    name: agent.name,
+    adapterVersion: runtime.piAcp.actualVersion ?? agent.registryVersion,
+    piVersion: runtime.pi.actualVersion ?? undefined,
+    mcpAdapterVersion: runtime.piMcpAdapter.actualVersion ?? undefined,
+    runtimeSource: "bundled" as const,
+  };
   if (upstream.tier === "local") {
+    const mcp = preparePiMcpEnvironment(runtime, options);
     return {
-      binary: resolvedAdapter,
-      args: adapter.args,
-      env: { ...agent.env, PI_ACP_PI_COMMAND: resolvedPiCommand },
-      name: agent.name,
+      ...baseLaunch,
+      env: { ...agent.env, ...runtimeEnv, ...skillEnv, ...mcp.env },
+      cleanup: mcp.cleanup,
     };
   }
-
+  //如果dpcc上游没有返回url和key
   if (upstream.providers.some((provider) => !provider.baseUrl.trim() || !provider.apiKey.trim())) {
-    throw new Error(`Pi ${upstream.tier === "default" ? "DPCC" : "gateway"} configuration is incomplete.`);
+    throw piRuntimeError(
+      "pi_config_incomplete",
+      `Pi ${upstream.tier === "default" ? "DPCC" : "gateway"} configuration is incomplete.`,
+    );
   }
 
   const catalogResult = upstream.tier === "default"
     ? await fetchProviderCatalogs(upstream)
     : { catalogs: gatewayCatalogs(upstream), error: null };
   if (catalogResult.error) {
-    throw new Error(`Pi ${upstream.tier === "default" ? "DPCC" : "gateway"} model catalog is unavailable: ${catalogResult.error}`);
+    throw piRuntimeError(
+      "pi_catalog_unavailable",
+      `Pi ${upstream.tier === "default" ? "DPCC" : "gateway"} model catalog is unavailable: ${catalogResult.error}`,
+    );
   }
   if (catalogResult.catalogs.some(({ models }) => models.length === 0)) {
-    throw new Error("Pi gateway has no configured models.");
+    throw piRuntimeError("pi_catalog_missing", "Pi gateway has no configured models.");
   }
 
   const selected = selectDefaultModel(upstream, catalogResult.catalogs, cachedPiModel(agent));
   const agentDir = preparePiAgentDirectory(upstream, catalogResult.catalogs, selected);
+  const mcp = preparePiMcpEnvironment(runtime, options);
   return {
-    binary: resolvedAdapter,
-    args: adapter.args,
-    env: buildIsolatedPiEnvironment(process.env, agent.env, upstream, agentDir, resolvedPiCommand),
-    name: agent.name,
+    ...baseLaunch,
+    env: {
+      ...buildIsolatedPiEnvironment(
+        process.env,
+        { ...agent.env, ...runtimeEnv },
+        upstream,
+        agentDir,
+        piCommand,
+      ),
+      ...skillEnv,
+      ...mcp.env,
+    },
     replaceEnvironment: true,
+    cleanup: mcp.cleanup,
   };
 }

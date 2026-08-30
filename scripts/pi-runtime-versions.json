@@ -1,0 +1,63 @@
+{
+  "contract": "pi-runtime-reproducibility",
+  "validatedAt": "2026-08-29",
+  "distribution": {
+    "mode": "bundled",
+    "host": "electron-run-as-node",
+    "packageSource": "pnpm-lock.yaml",
+    "integrityRequired": true,
+    "firstRunDownload": false,
+    "systemPathPolicy": "ignored"
+  },
+  "node": {
+    "minimum": "22.19.0"
+  },
+  "platforms": [
+    "darwin-arm64",
+    "darwin-x64",
+    "linux-arm64",
+    "linux-x64",
+    "win32-x64"
+  ],
+  "binaries": {
+    "pi": {
+      "package": "@earendil-works/pi-coding-agent",
+      "version": "0.84.1",
+      "binary": "pi",
+      "entry": "dist/cli.js",
+      "bundled": true
+    },
+    "pi-acp": {
+      "package": "pi-acp",
+      "version": "0.0.33",
+      "binary": "pi-acp",
+      "entry": "dist/index.js",
+      "bundled": true
+    }
+  },
+  "extensions": {
+    "pi-mcp-adapter": {
+      "package": "pi-mcp-adapter",
+      "version": "2.31.0",
+      "entry": "index.ts",
+      "bundled": true
+    }
+  },
+  "piFamily": {
+    "version": "0.84.1",
+    "packages": [
+      "@earendil-works/pi-agent-core",
+      "@earendil-works/pi-ai",
+      "@earendil-works/pi-client",
+      "@earendil-works/pi-protocol",
+      "@earendil-works/pi-telemetry",
+      "@earendil-works/pi-tui"
+    ]
+  },
+  "libraries": {
+    "@agentclientprotocol/sdk": {
+      "version": "0.15.0",
+      "source": "pnpm-lock.yaml"
+    }
+  }
+}

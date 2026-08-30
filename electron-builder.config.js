@@ -17,43 +17,7 @@ const KEEP_ENTRIES = new Set([
   "electron",     // tsup-compiled main/preload (electron/dist/)
   "node_modules", // production dependencies (already filtered by electron-builder)
 ]);
-
-// The bundled Codex vendor dir (build/codex-vendor/) may contain multiple arch
-// triples when a single electron-builder invocation packs more than one arch
-// (e.g. mac arm64+x64). extraResources copies the whole dir into every arch's
-// app identically, so each packed app would carry both binaries (~225 MB each).
-// In afterPack we know which arch was just packed and strip the others.
-// Arch enum (electron-builder): ia32=0, x64=1, armv7l=2, arm64=3, universal=4.
-function codexTripleForBuild(platformName, archEnum) {
-  const platform = platformName === "mas" ? "darwin" : platformName;
-  const arch = archEnum === 3 ? "arm64" : archEnum === 1 ? "x64" : null;
-  if (!arch) return null;
-  const key = `${platform}-${arch}`;
-  const map = {
-    "darwin-arm64": "aarch64-apple-darwin",
-    "darwin-x64": "x86_64-apple-darwin",
-    "win32-x64": "x86_64-pc-windows-msvc",
-    "win32-arm64": "aarch64-pc-windows-msvc",
-    "linux-x64": "x86_64-unknown-linux-gnu",
-    "linux-arm64": "aarch64-unknown-linux-gnu",
-  };
-  return map[key] ?? null;
-}
-
-function stripForeignCodexTriples(resourcesDir, context) {
-  const codexVendorDir = path.join(resourcesDir, "codex-vendor");
-  if (!fs.existsSync(codexVendorDir)) return;
-
-  const wantTriple = codexTripleForBuild(context.electronPlatformName, context.arch);
-  if (!wantTriple) return;
-
-  for (const entry of fs.readdirSync(codexVendorDir)) {
-    if (entry !== wantTriple) {
-      console.log(`  • afterPack: stripping non-target Codex triple ${entry}`);
-      fs.rmSync(path.join(codexVendorDir, entry), { recursive: true, force: true });
-    }
-  }
-}
+const ASAR_REPACK_UNPACK_PATTERN = "{**/node_modules/node-pty/**,**/node_modules/electron-liquid-glass/**,**/*.node,**/*.wasm,**/*.dll,**/*.dylib,**/*.so}";
 
 function portableGitTargetForBuild(platformName, archEnum) {
   const platform = platformName === "mas" ? "darwin" : platformName;
@@ -78,49 +42,6 @@ function stripForeignPortableGitResources(resourcesDir, context) {
       console.log(`  • afterPack: stripping non-target PortableGit ${entry}`);
       fs.rmSync(path.join(portableGitDir, entry), { recursive: true, force: true });
     }
-  }
-}
-
-function claudeSdkPackageForBuild(platformName, archEnum) {
-  const platform = platformName === "mas" ? "darwin" : platformName;
-  const arch = archEnum === 3 ? "arm64" : archEnum === 1 ? "x64" : null;
-  if (!arch || !["darwin", "win32", "linux"].includes(platform)) return null;
-  return `claude-agent-sdk-${platform}-${arch}`;
-}
-
-function stripForeignClaudeSdkPackages(resourcesDir, context) {
-  const scopeDir = path.join(resourcesDir, "app.asar.unpacked", "node_modules", "@anthropic-ai");
-  if (!fs.existsSync(scopeDir)) return;
-
-  const wantPackage = claudeSdkPackageForBuild(context.electronPlatformName, context.arch);
-  if (!wantPackage) return;
-
-  for (const entry of fs.readdirSync(scopeDir)) {
-    if (entry.startsWith("claude-agent-sdk-") && entry !== wantPackage) {
-      console.log(`  • afterPack: stripping non-target Claude SDK package ${entry}`);
-      fs.rmSync(path.join(scopeDir, entry), { recursive: true, force: true });
-    }
-  }
-}
-
-function pruneClaudeSdkPackagesFromAsarTemp(tmpDir, context) {
-  const scopeDir = path.join(tmpDir, "node_modules", "@anthropic-ai");
-  if (!fs.existsSync(scopeDir)) return;
-
-  const wantPackage = claudeSdkPackageForBuild(context.electronPlatformName, context.arch);
-  if (!wantPackage) return;
-  const binaryName = context.electronPlatformName === "win32" ? "claude.exe" : "claude";
-
-  for (const entry of fs.readdirSync(scopeDir)) {
-    if (!entry.startsWith("claude-agent-sdk-")) continue;
-    const packageDir = path.join(scopeDir, entry);
-    if (entry !== wantPackage) {
-      fs.rmSync(packageDir, { recursive: true, force: true });
-      continue;
-    }
-    // Keep package.json in ASAR so Node can resolve the package, while the
-    // executable remains only in app.asar.unpacked where spawn() can use it.
-    fs.rmSync(path.join(packageDir, binaryName), { force: true });
   }
 }
 
@@ -206,8 +127,8 @@ function extraResourcesConfig() {
       to: "pcc-agent-logo.png",
     },
     {
-      from: "build/codex-vendor",
-      to: "codex-vendor",
+      from: "build/pi-runtime",
+      to: "pi-runtime",
       filter: ["**/*"],
     },
   ];
@@ -228,8 +149,6 @@ async function afterPackHook(context) {
     ? path.join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`, "Contents", "Resources")
     : path.join(context.appOutDir, "resources");
 
-  // Drop the codex binaries for arches other than the one just packed.
-  stripForeignCodexTriples(resourcesDir, context);
   stripForeignPortableGitResources(resourcesDir, context);
   const unpackedRoot = path.join(resourcesDir, "app.asar.unpacked");
 
@@ -238,7 +157,6 @@ async function afterPackHook(context) {
     pruneNodePtyForWindowsX64(unpackedRoot, context);
     pruneOnnxRuntimeForWindowsX64(unpackedRoot, context);
     pruneSharpForWindowsX64(unpackedRoot, context);
-    stripForeignClaudeSdkPackages(resourcesDir, context);
     return;
   }
 
@@ -268,7 +186,6 @@ async function afterPackHook(context) {
     }
   }
 
-  pruneClaudeSdkPackagesFromAsarTemp(tmpDir, context);
   // ASAR extraction reads entries from app.asar.unpacked. Prune both trees
   // only after extraction so the archive can be reconstructed successfully.
   pruneNodePtyForWindowsX64(unpackedRoot, context);
@@ -280,10 +197,11 @@ async function afterPackHook(context) {
 
   console.log("  \u2022 afterPack: repacking asar...");
   fs.rmSync(asarPath, { force: true });
-  await asar.createPackage(tmpDir, asarPath);
+  fs.rmSync(unpackedRoot, { recursive: true, force: true });
+  await asar.createPackageWithOptions(tmpDir, asarPath, {
+    unpack: ASAR_REPACK_UNPACK_PATTERN,
+  });
   fs.rmSync(tmpDir, { recursive: true, force: true });
-  stripForeignClaudeSdkPackages(resourcesDir, context);
-
   // Log final size for visibility
   const finalSize = fs.statSync(asarPath).size;
   const mb = (finalSize / 1024 / 1024).toFixed(1);
@@ -325,20 +243,16 @@ module.exports = {
   asarUnpack: [
     "node_modules/node-pty/**",
     "node_modules/electron-liquid-glass/**",
-    "node_modules/@anthropic-ai/claude-agent-sdk-*/claude*",
-    "node_modules/@anthropic-ai/claude-agent-sdk/manifest*.json",
+    "node_modules/**/@earendil-works/pi-tui/native/**/*.node",
+    "node_modules/**/@mariozechner/clipboard-*/**/*.node",
+    "node_modules/**/@napi-rs/keyring-*/**/*.node",
+    "node_modules/**/@silvia-odwyer/photon-node/**/*.wasm",
   ],
 
   npmRebuild: shouldRebuildNativeDeps(),
   nodeGypRebuild: false,
   includePdb: false,
 
-  // --- Bundled Codex binary ---
-  // build/codex-vendor/<triple>/ is populated by scripts/bundle-codex.js before
-  // packaging. Copied alongside the app (outside the asar — native binaries can't
-  // run from inside an asar). The afterPack hook strips non-target arch triples.
-  // If the dir is absent (e.g. local dev build without bundling), this is a no-op
-  // and Codex falls back to its npm auto-download path at runtime.
   extraResources: extraResourcesConfig(),
 
   afterPack: afterPackHook,
@@ -451,18 +365,14 @@ module.exports = {
 if (process.env.NODE_ENV === "test" || process.env.VITEST) {
   Object.defineProperty(module.exports, "__test", {
     value: {
-      codexTripleForBuild,
-      stripForeignCodexTriples,
       portableGitTargetForBuild,
       stripForeignPortableGitResources,
-      claudeSdkPackageForBuild,
-      stripForeignClaudeSdkPackages,
-      pruneClaudeSdkPackagesFromAsarTemp,
       pruneNodePtyForWindowsX64,
       pruneOnnxRuntimeForWindowsX64,
       pruneSharpForWindowsX64,
       extraResourcesConfig,
       shouldRebuildNativeDeps,
+      asarRepackUnpackPattern: ASAR_REPACK_UNPACK_PATTERN,
     },
   });
 }

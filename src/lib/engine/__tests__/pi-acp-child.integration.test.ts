@@ -1,4 +1,5 @@
 import fsp from "node:fs/promises";
+import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   classifyAcpTurn,
@@ -31,34 +32,35 @@ interface IntegrationHarness {
 
 const workspaces: string[] = [];
 
-async function waitForScenarioObservation(
+function readStartupInfo(result: Record<string, unknown>): string | undefined {
+  const meta = result._meta;
+  if (!meta || typeof meta !== "object" || Array.isArray(meta)) return undefined;
+  const piAcp = (meta as Record<string, unknown>).piAcp;
+  if (!piAcp || typeof piAcp !== "object" || Array.isArray(piAcp)) return undefined;
+  const startupInfo = (piAcp as Record<string, unknown>).startupInfo;
+  return typeof startupInfo === "string" && startupInfo ? startupInfo : undefined;
+}
+
+async function waitForStartupInfo(
   connection: PiAcpConnection,
-  updateStart: number,
-  mode: "normal" | "retry-only" | "retry-then-success",
+  startupInfo: string | undefined,
 ) {
+  if (!startupInfo) return;
   const deadline = Date.now() + 5_000;
-  let observation = createAcpTurnObservation();
 
   while (Date.now() < deadline) {
-    observation = createAcpTurnObservation();
-    for (const update of connection.sessionUpdates.slice(updateStart)) {
-      observeAcpTurnUpdate(observation, update, {
-        isPi: true,
-        adapterVersion: "0.0.33",
-      });
-    }
-
-    const receivedExpectedUpdates = mode === "retry-only"
-      ? observation.retryNoticeCount >= 2
-      : observation.meaningfulTextLength > 0;
-    if (receivedExpectedUpdates) return observation;
+    const received = connection.sessionUpdates.some((update) => {
+      if (!update || typeof update !== "object" || Array.isArray(update)) return false;
+      const content = (update as Record<string, unknown>).content;
+      if (!content || typeof content !== "object" || Array.isArray(content)) return false;
+      return (content as Record<string, unknown>).text === startupInfo;
+    });
+    if (received) return;
 
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
 
-  throw new Error(
-    `fixture_session_updates_timeout:${mode}:${connection.sessionUpdates.length - updateStart}`,
-  );
+  throw new Error("fixture_startup_info_timeout");
 }
 
 async function loadHarness(): Promise<IntegrationHarness> {
@@ -72,6 +74,14 @@ async function runScenario(mode: "normal" | "retry-only" | "retry-then-success")
   const harness = await loadHarness();
   const paths = await harness.createWorkspaceRoot();
   workspaces.push(paths.root);
+  await Promise.all([
+    fsp.writeFile(
+      path.join(paths.agentDir, "settings.json"),
+      JSON.stringify({ quietStartup: false }, null, 2),
+      "utf8",
+    ),
+    fsp.writeFile(path.join(paths.workspace, "AGENTS.md"), "# Fixture context\n", "utf8"),
+  ]);
   const connection = harness.spawnPiAcp(paths, mode === "retry-only" ? "" : mode);
   if (connection.missing) throw new Error("pi_acp_missing");
 
@@ -86,6 +96,7 @@ async function runScenario(mode: "normal" | "retry-only" | "retry-then-success")
       mcpServers: [],
     });
     expect(typeof created.sessionId).toBe("string");
+    await waitForStartupInfo(connection, readStartupInfo(created));
 
     const promptText = mode === "retry-only"
       ? "fixture:retry-only classify the real adapter output"
@@ -96,10 +107,13 @@ async function runScenario(mode: "normal" | "retry-only" | "retry-then-success")
       prompt: [{ type: "text", text: promptText }],
     });
 
-    // The ACP response and session/update notifications use separate messages.
-    // Busy Linux runners can resolve the prompt before stdout delivers the
-    // final update, so wait for this scenario's complete observable signal.
-    const observation = await waitForScenarioObservation(connection, updateStart, mode);
+    const observation = createAcpTurnObservation();
+    for (const update of connection.sessionUpdates.slice(updateStart)) {
+      observeAcpTurnUpdate(observation, update, {
+        isPi: true,
+        adapterVersion: "0.0.33",
+      });
+    }
     return classifyAcpTurn({
       stopReason: result.stopReason,
       isPi: true,

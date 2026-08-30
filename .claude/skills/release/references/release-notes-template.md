@@ -9,7 +9,7 @@
 - Examples:
   - `v0.21.0 — Virtualized Chat, Mermaid Diagrams & Deep Folder Tagging`
   - `v0.15.0 — Slash Commands, Tool Grouping & Project Files`
-  - `v0.14.0 — Codex Engine Config, Auth Flow & Settings Refresh`
+  - `v0.14.0 — Pi Runtime Config, Auth Flow & Settings Refresh`
   - `v0.13.1 — Windows Compatibility Fixes`
 
 ## Audience & Tone
@@ -18,7 +18,7 @@
 
 - ✅ "Long conversations are dramatically faster now"
 - ❌ "Replaced `content-visibility: auto` with `@tanstack/react-virtual` windowing"
-- ✅ "When Claude draws a diagram, it now actually renders as a visual diagram"
+- ✅ "When Pi draws a diagram, it now actually renders as a visual diagram"
 - ❌ "Mermaid fenced code blocks render as SVG via async `mermaid.render()` with LRU cache"
 - ✅ "Type `/clear` in the composer and hit Enter to open a fresh chat"
 - ❌ "Added `LOCAL_CLEAR_COMMAND` slash command with `source: 'local'` that calls `onClear()` callback"
@@ -86,7 +86,7 @@ Short paragraph explaining what changed and why users care.
 Long conversations are dramatically faster now. We replaced the old rendering approach with a proper virtualized list — only the messages you can actually see are rendered at any time. Scrolling is smoother, switching sessions is snappier, and the app uses less memory overall.
 
 ### 📊 Mermaid Diagrams
-When Claude draws a diagram using a mermaid code block, it now actually renders as a visual diagram — flowcharts, sequence diagrams, pie charts, git graphs, and more. Diagrams adapt to your light/dark theme automatically. While Claude is still typing, you see the raw source; once the message is complete, the diagram appears.
+When Pi draws a diagram using a mermaid code block, it now actually renders as a visual diagram — flowcharts, sequence diagrams, pie charts, git graphs, and more. Diagrams adapt to your light/dark theme automatically. While Pi is still typing, you see the raw source; once the message is complete, the diagram appears.
 
 ### 📂 Deep Folder Inclusion (`@#`)
 You can now use `@#foldername` in the composer to include the full contents of a folder — not just the file tree, but every file inside it. Regular `@folder` still gives you the structure overview. If the folder is large, PccAgent will warn you before sending.

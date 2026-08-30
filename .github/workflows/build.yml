@@ -36,25 +36,7 @@ jobs:
           fi
 
   test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install
-
-      - name: Run tests
-        run: pnpm test
+    uses: ./.github/workflows/quality.yml
 
   ensure-release:
     needs: [prepare-release, test]
@@ -101,9 +83,6 @@ jobs:
 
       - name: Build app
         run: pnpm build
-
-      - name: Bundle Codex (darwin arm64 + x64)
-        run: node scripts/bundle-codex.js --triples aarch64-apple-darwin,x86_64-apple-darwin
 
       - name: Package (mac arm64 + x64)
         env:
@@ -182,9 +161,6 @@ jobs:
 
       - name: Build app
         run: pnpm build
-
-      - name: Bundle Codex (win x64)
-        run: node scripts/bundle-codex.js --triples x86_64-pc-windows-msvc
 
       - name: Bundle PortableGit (win x64)
         run: node scripts/bundle-portable-git.js --platform win32 --arch x64
@@ -311,9 +287,6 @@ jobs:
 
       - name: Build app
         run: pnpm build
-
-      - name: Bundle Codex (linux x64 + arm64)
-        run: node scripts/bundle-codex.js --triples x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu
 
       - name: Package (linux x64)
         run: >

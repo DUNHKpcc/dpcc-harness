@@ -43,13 +43,21 @@ If the working tree is completely clean (nothing to release), tell the user and 
    - `patch` → `MAJOR.MINOR.(PATCH+1)`
 5. If `$ARGUMENTS` is empty or invalid, ask the user which bump type they want
 
-### Check for SDK updates
+### Validate bundled Pi runtime pins
 
 ```bash
-npm view @anthropic-ai/Codex-agent-sdk version
+pnpm pi:runtime:check
+npm view @earendil-works/pi-coding-agent version
+npm view pi-acp version
+npm view pi-mcp-adapter version
 ```
 
-Compare with the version in `package.json` under `dependencies["@anthropic-ai/Codex-agent-sdk"]` (strip the `^` prefix for comparison). If a newer version exists, update the dependency version (keep the `^` prefix) and tell the user.
+Compare `package.json`, `pnpm-lock.yaml`, and `scripts/pi-runtime-versions.json`.
+The built-in Pi packages must remain exact, mutually compatible pins. If npm has a
+newer version, report it but do not silently upgrade it during an ordinary app
+version bump. A Pi runtime upgrade is a separately reviewed change that must
+update the manifest, lockfile, third-party notice, integration fixtures, and
+packaging contracts together.
 
 ### Apply changes
 
@@ -71,11 +79,34 @@ Compare with the version in `package.json` under `dependencies["@anthropic-ai/Co
    ```bash
    git add package.json src/lib/release-history.ts src/i18n/locales/en/settings.json src/i18n/locales/zh/settings.json
    ```
-5. If the SDK was updated, also run:
+5. If the user separately approved a bundled Pi runtime update, also run:
    ```bash
    pnpm install
-   git add package.json pnpm-lock.yaml
+   pnpm pi:runtime:check
+   pnpm test:pi-integration
+   pnpm test:electron-recovery
+   git add package.json pnpm-lock.yaml scripts/pi-runtime-versions.json build/pi-runtime/THIRD_PARTY_NOTICES.md
    ```
+
+### Run release gates
+
+Do not commit or tag until every applicable local non-packaging gate passes:
+
+```bash
+pnpm docs:check
+pnpm test-map:check
+pnpm test
+pnpm typecheck
+pnpm build
+pnpm pi:runtime:check
+pnpm test:pi-integration
+pnpm test:electron-recovery
+git diff --check
+```
+
+Do not run `electron-builder` or a local packaging command unless the user
+explicitly requests local packaging. Release packaging is verified by the
+macOS, Windows, and Linux CI jobs.
 
 ## Step 3: Commit
 
@@ -89,8 +120,6 @@ feat: short summary (2-4 key themes)
 - Change description 1
 - Change description 2
 - ...
-
-Co-Authored-By: Codex Opus 4.6 (1M context) <noreply@anthropic.com>
 ```
 
 Use `fix:` instead of `feat:` if all changes are bug fixes.
@@ -99,16 +128,12 @@ Use `fix:` instead of `feat:` if all changes are bug fixes.
 
 ```
 chore: bump version to X.Y.Z
-
-Co-Authored-By: Codex Opus 4.6 (1M context) <noreply@anthropic.com>
 ```
 
-If the SDK was also updated:
+If a bundled Pi runtime upgrade was also approved and included:
 
 ```
-chore: bump version to X.Y.Z and update Codex-agent-sdk to A.B.C
-
-Co-Authored-By: Codex Opus 4.6 (1M context) <noreply@anthropic.com>
+chore: bump version to X.Y.Z and update bundled Pi runtime
 ```
 
 ### Always use a HEREDOC
@@ -116,8 +141,6 @@ Co-Authored-By: Codex Opus 4.6 (1M context) <noreply@anthropic.com>
 ```bash
 git commit -m "$(cat <<'EOF'
 <message here>
-
-Co-Authored-By: Codex Opus 4.6 (1M context) <noreply@anthropic.com>
 EOF
 )"
 ```
@@ -172,7 +195,11 @@ Output the release URL when done so the user can verify.
 ## Important Notes
 
 - **Never skip reading the full diff** in Step 1. Every line matters.
-- The `Co-Authored-By` trailer is **mandatory** on every commit.
+- Do not add a synthetic `Co-Authored-By` trailer. Preserve a real existing
+  trailer only when the user explicitly asks for it.
+- Pi is the only built-in live Agent. Release notes must not describe
+  Claude/Codex runtime support as current functionality; mention those names
+  only for legacy-session compatibility or migration.
 - Repo: `https://github.com/DUNHKpcc/dpcc-harness`
 - Main branch: `master`
 - Changelog URL format: `https://github.com/DUNHKpcc/dpcc-harness/compare/v{prev}...v{current}`

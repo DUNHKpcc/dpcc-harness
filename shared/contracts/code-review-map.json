@@ -42,15 +42,146 @@
       ]
     },
     {
+      "contract": "pi-acp-turn-outcome",
+      "sources": [
+        "shared/types/acp.ts",
+        "shared/lib/acp-turn.ts",
+        "shared/lib/error-utils.ts",
+        "electron/src/ipc/acp-sessions.ts",
+        "electron/src/lib/upstream-request-tracker.ts",
+        "src/hooks/useACP.ts",
+        "src/lib/background/acp-handler.ts",
+        "src/lib/background/session-store.ts",
+        "src/hooks/session/useSessionRevival.ts",
+        "src/hooks/session/useSessionPersistence.ts",
+        "src/types/session.ts"
+      ],
+      "tests": [
+        "src/lib/shared-error-utils.test.ts",
+        "src/lib/__tests__/error-utils.test.ts",
+        "src/lib/engine/__tests__/acp-turn.test.ts",
+        "src/lib/engine/__tests__/acp-utils.test.ts",
+        "src/lib/engine/__tests__/pi-acp-child.integration.test.ts",
+        "electron/src/ipc/__tests__/acp-sessions.test.ts",
+        "electron/src/lib/__tests__/acp-renderer-bridge.test.ts",
+        "electron/src/lib/upstream-request-tracker.test.ts",
+        "src/lib/background/acp-handler.test.ts",
+        "src/lib/session/session-recovery.test.ts",
+        "scripts/test-pi-acp-integration.mjs",
+        "scripts/test-electron-acp-recovery.mjs"
+      ]
+    },
+    {
+      "contract": "pi-only-runtime",
+      "sources": [
+        "shared/types/engine.ts",
+        "shared/types/registry.ts",
+        "shared/lib/session-runtime.ts",
+        "shared/lib/session-persistence.ts",
+        "electron/src/lib/agent-registry.ts",
+        "electron/src/lib/effective-cli-config.ts",
+        "electron/src/lib/bundled-pi-runtime.ts",
+        "electron/src/lib/pi-acp-config.ts",
+        "src/lib/background/agent-store-utils.ts",
+        "src/lib/engine/acp-agent-updates.ts",
+        "src/components/welcome/shared.ts",
+        "src/hooks/app-layout/session-utils.ts",
+        "src/hooks/session/useSessionLifecycle.ts",
+        "src/hooks/session/useSessionRevival.ts",
+        "src/hooks/session/useSessionRestart.ts"
+      ],
+      "tests": [
+        "src/components/welcome/shared.test.ts",
+        "src/lib/session/__tests__/session-runtime.test.ts",
+        "electron/src/lib/__tests__/agent-registry.test.ts",
+        "electron/src/lib/__tests__/effective-cli-config.test.ts",
+        "electron/src/lib/pi-acp-config.test.ts",
+        "src/lib/engine/__tests__/acp-agent-updates.test.ts"
+      ]
+    },
+    {
+      "contract": "pi-runtime-reproducibility",
+      "sources": [
+        "scripts/pi-runtime-versions.json",
+        "scripts/check-pi-runtime.mjs",
+        "scripts/fixtures/pi-doctor-catalog.json",
+        "package.json",
+        "pnpm-lock.yaml",
+        "electron-builder.config.js",
+        "tsup.electron.config.ts",
+        "build/pi-runtime/bin/pi",
+        "build/pi-runtime/bin/pi.cmd",
+        "build/pi-runtime/extensions/pcc-mcp.ts",
+        "electron/src/lib/bundled-pi-runtime.ts",
+        "electron/src/lib/pi-runtime-status.ts",
+        "electron/src/ipc/agent-registry.ts",
+        "src/components/settings/EngineSettings.tsx",
+        ".github/workflows/quality.yml"
+      ],
+      "tests": [
+        "electron/src/lib/__tests__/pi-runtime-doctor.test.ts",
+        "electron/src/lib/__tests__/pi-runtime-status.test.ts",
+        "electron/src/lib/__tests__/bundled-pi-runtime.test.ts",
+        "electron/src/lib/__tests__/electron-builder-config.test.ts",
+        "electron/src/lib/__tests__/release-artifacts.test.ts",
+        "scripts/test-pi-acp-integration.mjs",
+        "scripts/test-pi-native-integration.mjs",
+        "scripts/fixtures/pi-native-mcp-fixture.mjs",
+        "scripts/fixtures/pi-native-provider-fixture.mjs",
+        "scripts/test-electron-acp-recovery.mjs"
+      ]
+    },
+    {
+      "contract": "pi-plugin-install-routing",
+      "sources": [
+        "shared/types/plugins.ts",
+        "electron/src/lib/skill-installer.ts",
+        "electron/src/lib/plugin-catalog.ts",
+        "electron/src/ipc/plugins.ts",
+        "src/components/plugins/SkillsCatalog.tsx",
+        "src/components/plugins/McpCatalog.tsx",
+        "electron/src/lib/pi-acp-config.ts",
+        "electron/src/ipc/acp-sessions.ts",
+        "build/pi-runtime/bin/pi",
+        "build/pi-runtime/bin/pi.cmd",
+        "build/pi-runtime/extensions/pcc-mcp.ts"
+      ],
+      "tests": [
+        "electron/src/lib/__tests__/skill-installer.test.ts",
+        "electron/src/lib/__tests__/plugin-catalog.test.ts",
+        "electron/src/lib/pi-acp-config.test.ts",
+        "electron/src/ipc/__tests__/acp-sessions.test.ts",
+        "electron/src/lib/__tests__/electron-builder-config.test.ts",
+        "scripts/test-pi-native-integration.mjs"
+      ]
+    },
+    {
       "contract": "credential-rejection-session-stop",
       "sources": [
         "electron/src/lib/account-auth-rejection.ts",
-        "electron/src/ipc/claude-sessions.ts",
-        "electron/src/ipc/codex-sessions.ts"
+        "electron/src/ipc/account-auth.ts",
+        "electron/src/ipc/acp-sessions.ts"
       ],
       "tests": [
         "electron/src/lib/account-auth-flow.test.ts",
         "electron/src/lib/account-auth-flow.integration.test.ts"
+      ]
+    },
+    {
+      "contract": "wechat-pi-acp-runtime",
+      "sources": [
+        "shared/types/wechat.ts",
+        "electron/src/lib/wechat/router.ts",
+        "electron/src/lib/wechat/session-sink.ts",
+        "electron/src/lib/wechat/bridge.ts",
+        "electron/src/lib/wechat/adapters/types.ts",
+        "electron/src/lib/wechat/adapters/pi-acp-adapter.ts",
+        "src/lib/session/wechat-continue.ts"
+      ],
+      "tests": [
+        "electron/src/lib/wechat/router.pi.test.ts",
+        "electron/src/lib/wechat/session-sink.pi.test.ts",
+        "electron/src/lib/wechat/adapters/pi-acp-adapter.test.ts"
       ]
     }
   ]

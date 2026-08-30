@@ -59,21 +59,20 @@ body:
         - Background Agents
         - UI / Layout / Design
         - Build / Installation
-        - New Engine Support
+        - ACP Agent Support
         - Other
 
   - type: dropdown
     id: engine
     attributes:
-      label: Relevant Engine
-      description: Is this feature specific to a particular AI engine?
+      label: Relevant Agent
+      description: Is this feature specific to a particular ACP agent?
       multiple: true
       options:
-        - Claude (Anthropic SDK)
-        - ACP (Agent Client Protocol)
-        - Codex
-        - All engines
-        - Not engine-specific
+        - Pi (built-in ACP agent)
+        - Custom ACP agent
+        - All ACP agents
+        - Not agent-specific
 
   - type: dropdown
     id: priority

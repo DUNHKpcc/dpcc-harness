@@ -1,0 +1,81 @@
+name: quality
+
+on:
+  workflow_call:
+  pull_request:
+  push:
+    branches:
+      - master
+
+jobs:
+  quality:
+    name: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      CI: "true"
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
+      TZ: Asia/Shanghai
+      PI_RUNTIME_DOCTOR_CATALOG: ${{ github.workspace }}/scripts/fixtures/pi-doctor-catalog.json
+      PI_RUNTIME_DOCTOR_CREDENTIAL_PRESENT: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.19.0
+          cache: pnpm
+
+      - name: Install Linux runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential python3 libsecret-1-dev libnotify-dev xvfb
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests
+        run: pnpm test
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build
+        run: pnpm build
+
+      - name: Documentation check
+        run: pnpm docs:check
+
+      - name: Test map check
+        run: pnpm test-map:check
+
+      - name: Pi integration check
+        run: pnpm test:pi-integration
+
+      - name: Pi recovery check
+        run: xvfb-run -a pnpm test:electron-recovery
+
+      - name: Pi runtime check
+        run: pnpm pi:runtime:check
+
+      - name: Package Linux app
+        # The repository keeps packaging rules in electron-builder.config.js
+        # rather than package.json. Keep the smoke target tied to that exact
+        # configuration and its release/<version> output directory. Native
+        # modules were already rebuilt for Electron by the install hook; skip a
+        # second rebuild so the macOS-only liquid-glass package is never probed.
+        run: pnpm exec electron-builder --config electron-builder.config.js --config.npmRebuild=false --linux --dir --publish never
+
+      - name: Smoke check packaged app
+        run: xvfb-run -a pnpm package:smoke -- "release/$(node -p \"require('./package.json').version\")"
+
+      - name: Diff check
+        run: git diff --check

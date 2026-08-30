@@ -45,3 +45,7 @@ Closes #
 - [ ] User-generated content containers have `wrap-break-word`
 - [ ] New shared types go in `shared/types/`, not `src/types/`
 - [ ] Large components/hooks are decomposed into sub-components/sub-hooks if needed
+- [ ] Agent-facing changes target ACP/Pi and do not add a Claude/Codex live runtime path
+- [ ] Built-in Pi remains bundled, offline-capable, PATH-independent, and lazy-started
+- [ ] Pi branding uses the official logo; legacy names appear only in migration/history UI
+- [ ] Runtime/session/MCP changes pass `pnpm test:pi-integration` and `pnpm test:electron-recovery`

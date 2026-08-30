@@ -53,14 +53,14 @@ body:
   - type: dropdown
     id: engine
     attributes:
-      label: AI Engine
-      description: Which engine were you using when the bug occurred?
+      label: Agent Runtime
+      description: Which runtime context were you using when the bug occurred?
       multiple: true
       options:
-        - Claude (Anthropic SDK)
-        - ACP (Agent Client Protocol)
-        - Codex
-        - Not engine-specific
+        - Pi (built-in ACP agent)
+        - Custom ACP agent
+        - Legacy Claude/Codex session (read-only)
+        - Not runtime-specific
     validations:
       required: true
 

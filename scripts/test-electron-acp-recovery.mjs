@@ -370,8 +370,15 @@ async function runPair(scenario) {
     }
 
     if (scenario === "crash") terminateProcess(first, "SIGKILL", false);
-    else terminateProcess(first, "SIGTERM", true);
-    firstExit = await firstExitPromise;
+    else terminateProcess(first, "SIGTERM", false);
+    firstExit = await Promise.race([
+      firstExitPromise,
+      new Promise((resolve) => setTimeout(() => resolve(null), 10_000)),
+    ]);
+    if (!firstExit) {
+      terminateProcess(first, "SIGKILL", true);
+      throw Object.assign(new Error("First Electron process did not exit after the restart signal."), { code: "electron_recovery_first_exit" });
+    }
     if (scenario === "success" && firstExit.code !== 0 && firstExit.signal == null) {
       throw Object.assign(new Error(`First Electron process exited abnormally (code=${firstExit.code})`), { code: "electron_recovery_first_exit" });
     }

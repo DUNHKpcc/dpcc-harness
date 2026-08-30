@@ -5,6 +5,7 @@ const STORAGE_KEY = "harnss-file-browser-list-width";
 const DEFAULT_LIST_WIDTH = 360;
 const MIN_LIST_WIDTH = 280;
 const MIN_PREVIEW_WIDTH = 240;
+const RESIZE_HANDLE_WIDTH = 8;
 
 function getStoredWidth(): number {
   const stored = Number(window.localStorage.getItem(STORAGE_KEY));
@@ -29,7 +30,10 @@ export function useFileBrowserResize() {
     bindDocumentMouseDrag(
       (moveEvent) => {
         const containerWidth = contentRef.current?.clientWidth ?? window.innerWidth;
-        const maxWidth = Math.max(MIN_LIST_WIDTH, containerWidth - MIN_PREVIEW_WIDTH);
+        const maxWidth = Math.max(
+          MIN_LIST_WIDTH,
+          containerWidth - MIN_PREVIEW_WIDTH - RESIZE_HANDLE_WIDTH,
+        );
         const nextWidth = Math.max(
           MIN_LIST_WIDTH,
           Math.min(maxWidth, startWidth - (moveEvent.clientX - startX)),
@@ -50,6 +54,7 @@ export function useFileBrowserResize() {
     handleResizeStart,
     contentStyle: {
       "--file-browser-list-width": `${listWidth}px`,
+      "--file-browser-list-min-width": `${MIN_LIST_WIDTH}px`,
     } as CSSProperties,
   };
 }

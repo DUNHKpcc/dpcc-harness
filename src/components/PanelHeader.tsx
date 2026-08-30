@@ -37,7 +37,7 @@ export function PanelHeader({
       <div className={`flex items-center gap-1.5 ${className}`}>
         {iconNode ?? (Icon && <Icon className={`h-3 w-3 shrink-0 ${iconClass}`} />)}
         <span className="min-w-0 truncate whitespace-nowrap text-[10px] font-semibold tracking-wider text-muted-foreground/70 uppercase">{label}</span>
-        {children && <div className="ms-auto flex items-center gap-1">{children}</div>}
+        {children && <div className="ms-auto flex shrink-0 items-center gap-1">{children}</div>}
       </div>
       {separator && (
         <div className="mx-2">

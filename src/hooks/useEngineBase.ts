@@ -1,5 +1,5 @@
 /**
- * useEngineBase — shared foundation for all engine hooks (useClaude, useACP, useCodex).
+ * useEngineBase — shared foundation for the live ACP engine hook.
  *
  * Provides the 8 common state variables, reset effect on sessionId change,
  * and rAF-based streaming flush scheduling. Each engine hook calls this

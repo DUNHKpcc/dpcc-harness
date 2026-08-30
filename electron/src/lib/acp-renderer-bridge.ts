@@ -1,6 +1,7 @@
 export type AcpRendererChannel =
   | "acp:event"
-  | "acp:turn_complete";
+  | "acp:turn_complete"
+  | "acp:turn_transport_error";
 
 export interface AcpRendererDelivery {
   channel: AcpRendererChannel;

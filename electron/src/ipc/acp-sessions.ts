@@ -5,12 +5,22 @@ import crypto from "crypto";
 import path from "path";
 import { log } from "../lib/logger";
 import { safeSend } from "../lib/safe-send";
-import { startUtilityRequest } from "../lib/upstream-request-tracker";
+import {
+  mergeUtilityRequestUsage,
+  startUtilityRequest,
+  utilityRequestUsageFromAcp,
+  type UtilityRequestUsage,
+} from "../lib/upstream-request-tracker";
+import {
+  capturePiAcpTurnSnapshot,
+  readPiAcpTurnUsage,
+  type PiAcpTurnSnapshot,
+} from "../lib/pi-acp-turn-usage";
 import { getAgent } from "../lib/agent-registry";
 import { killProcessTree } from "../lib/process-tree";
 import type { InstalledAgent } from "../lib/agent-registry";
 import { getMcpAuthHeaders } from "../lib/mcp-oauth-flow";
-import { extractErrorMessage, reportError } from "../lib/error-utils";
+import { extractErrorDetails, extractErrorMessage, reportError } from "../lib/error-utils";
 import { reclaimMacDockFocus } from "../lib/macos-dock-focus";
 import { normalizeSessionCwd } from "../lib/session-cwd";
 import {
@@ -49,9 +59,25 @@ async function getACP() {
 
 import { resolveACPFilePath, applyReadRange, ACP_CLIENT_CAPABILITIES } from "@shared/lib/acp-helpers";
 import type { ACPTextFileParams } from "@shared/lib/acp-helpers";
+import {
+  classifyAcpTurn,
+  createAcpTurnObservation,
+  isPiStartupBanner,
+  isSupportedPiAcpAdapterVersion,
+  observeAcpTurnUpdate,
+  toAcpPiTurnOutcome,
+  type ACPTurnObservation,
+} from "@shared/lib/acp-turn";
 import { normalizeMcpStdioServer } from "@shared/lib/mcp-config";
+import { normalizeCachedAcpConfigOptions } from "@shared/lib/acp-config-cache";
 import type { McpServerInput } from "@shared/lib/mcp-config";
-import type { ACPAuthMethod, ACPAuthenticateResult, ACPConfigOption } from "@shared/types/acp";
+import type {
+  ACPPiTurnOutcome,
+  ACPAuthMethod,
+  ACPAuthenticateResult,
+  ACPConfigOption,
+  ACPErrorDetails,
+} from "@shared/types/acp";
 
 type ACPReadTextFileParams = ACPTextFileParams & { content?: string; line?: number | null; limit?: number | null };
 type ACPWriteTextFileParams = ACPTextFileParams & { content: string };
@@ -74,6 +100,50 @@ async function acpWriteTextFile(params: ACPWriteTextFileParams): Promise<{ fileP
 const ACP_INIT_TIMEOUT_MS = 15000;
 const ACP_START_TIMEOUT_MS = 20000;
 const ACP_AUTH_TIMEOUT_MS = 120000;
+const DEFAULT_ACP_PROMPT_INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000;
+
+export function resolveAcpPromptInactivityTimeoutMs(value = process.env.PCC_AGENT_ACP_PROMPT_INACTIVITY_TIMEOUT_MS): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 100
+    ? Math.floor(parsed)
+    : DEFAULT_ACP_PROMPT_INACTIVITY_TIMEOUT_MS;
+}
+
+export function withAcpPromptInactivityTimeout<T>(
+  operation: Promise<T>,
+  getLastActivityAt: () => number,
+  timeoutMs = resolveAcpPromptInactivityTimeoutMs(),
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let settled = false;
+
+    const finish = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      callback();
+    };
+    const check = () => {
+      if (settled) return;
+      const remaining = timeoutMs - Math.max(0, Date.now() - getLastActivityAt());
+      if (remaining <= 0) {
+        finish(() => reject(taggedAcpError(
+          "acp_prompt_timeout",
+          `ACP prompt produced no activity for ${timeoutMs}ms.`,
+        )));
+        return;
+      }
+      timer = setTimeout(check, Math.min(remaining, 1_000));
+    };
+
+    operation.then(
+      (value) => finish(() => resolve(value)),
+      (error) => finish(() => reject(error)),
+    );
+    check();
+  });
+}
 
 interface ACPSessionEntry {
   process: ChildProcess;
@@ -91,6 +161,8 @@ interface ACPSessionEntry {
     cwd: string;
     mcpServers: McpServer[];
     sourceServers: McpServerInput[];
+    cachedConfigOptions?: ACPConfigOption[];
+    requestedConfigOptions?: ACPConfigOption[];
   };
   /** True while session/load is in-flight — suppresses history replay notifications from reaching the renderer */
   isReloading: boolean;
@@ -98,6 +170,8 @@ interface ACPSessionEntry {
   utilitySessionIds?: Set<string>;
   /** Text accumulator buffers for utility sessions, keyed by ACP sessionId */
   utilityTextBuffers?: Map<string, string>;
+  /** Canonical observations for utility sessions, keyed by ACP sessionId. */
+  utilityObservations?: Map<string, ACPTurnObservation>;
   /** Last actionable stderr error line observed from the ACP agent process */
   lastStderrError?: string;
   /** Prevents agents such as Pi from receiving concurrent prompts on one connection. */
@@ -108,9 +182,99 @@ interface ACPSessionEntry {
   hasUserPromptStarted?: boolean;
   /** User prompts currently running or queued on this ACP connection. */
   activeUserPrompts?: number;
+  /** True only for the built-in Pi adapter; its retry diagnostics need interpretation. */
+  isOfficialPi?: boolean;
+  /** Versions captured at launch for compatibility decisions and telemetry. */
+  adapterVersion?: string;
+  piVersion?: string;
+  mcpAdapterVersion?: string;
+  /** Terminal turn IDs already emitted to protect against duplicate cleanup paths. */
+  terminalTurnIds?: Set<string>;
+  /** Bounded, redacted stderr tail retained for the active session. */
+  stderrTail?: string;
+  /** Observation for the user turn currently being settled. */
+  currentTurn?: AcpTurnState;
+  /** Includes queued turns, not only the turn currently inside connection.prompt(). */
+  turnStates?: Map<string, AcpTurnState>;
+}
+
+type AcpTurnFinish = NonNullable<ReturnType<typeof startUtilityRequest>>;
+
+interface AcpTurnState {
+  turnId: string;
+  startedAt: number;
+  lastActivityAt: number;
+  observation: ACPTurnObservation;
+  stderrError?: string;
+  finishRequest?: AcpTurnFinish;
+  piUsageSnapshot?: PiAcpTurnSnapshot;
+  settled: boolean;
+  cancelRequested: boolean;
+  outcome?: ACPPiTurnOutcome;
+  transportError?: ACPErrorDetails;
+  rejectTransport?: (error: ACPErrorDetails) => void;
+}
+
+function withAcpTurnTransportSignal<T>(operation: Promise<T>, state: AcpTurnState): Promise<T> {
+  const transport = new Promise<never>((_resolve, reject) => {
+    state.rejectTransport = (error) => reject(taggedAcpError(error.code, error.message));
+  });
+  return Promise.race([operation, transport]).finally(() => {
+    state.rejectTransport = undefined;
+  });
+}
+
+function signalAcpTurnTransportFailure(state: AcpTurnState, error: ACPErrorDetails): void {
+  state.rejectTransport?.(error);
+}
+
+function acpCancellationSignal(): ACPErrorDetails {
+  return {
+    code: "acp_cancelled",
+    message: "ACP turn cancelled.",
+    source: "acp",
+    stage: "prompt",
+    retryable: true,
+  };
 }
 
 export const acpSessions = new Map<string, ACPSessionEntry>();
+
+/**
+ * Small, secret-free runtime view used by the explicit Electron recovery E2E.
+ * Keep this separate from the session persistence schema: a child PID is
+ * diagnostic process state, not user data.
+ */
+export function getAcpRecoveryRuntimeSnapshot(): Array<{
+  internalId: string;
+  agentSessionId?: string;
+  pid?: number;
+  activeUserPrompts: number;
+  currentTurnId?: string;
+  isOfficialPi: boolean;
+  adapterVersion?: string;
+  piVersion?: string;
+  mcpAdapterVersion?: string;
+}> {
+  return [...acpSessions.values()].map((entry) => ({
+    internalId: entry.internalId,
+    ...(entry.acpSessionId ? { agentSessionId: entry.acpSessionId } : {}),
+    ...(entry.process.pid ? { pid: entry.process.pid } : {}),
+    activeUserPrompts: entry.activeUserPrompts ?? 0,
+    ...(entry.currentTurn?.turnId ? { currentTurnId: entry.currentTurn.turnId } : {}),
+    isOfficialPi: entry.isOfficialPi === true,
+    ...(entry.adapterVersion ? { adapterVersion: entry.adapterVersion } : {}),
+    ...(entry.piVersion ? { piVersion: entry.piVersion } : {}),
+    ...(entry.mcpAdapterVersion ? { mcpAdapterVersion: entry.mcpAdapterVersion } : {}),
+  }));
+}
+
+export function terminateAcpRecoveryRuntime(internalId: string): boolean {
+  const entry = acpSessions.get(internalId);
+  if (!entry) return false;
+  killProcessTree(entry.process, "SIGKILL");
+  return true;
+}
 
 export function getActiveTurnCount(): number {
   const activeSessions = [...acpSessions.values()].filter(
@@ -143,6 +307,21 @@ export function shouldSuppressAcpSessionUpdate(
 // where events arrive before useACP's listener is subscribed
 const configBuffer = new Map<string, unknown[]>();
 
+export function getAcpModelFromConfigOptions(
+  configOptions: readonly ACPConfigOption[] | undefined,
+): string | undefined {
+  const value = configOptions
+    ?.find((option) => option.id === "model" || option.category === "model")
+    ?.currentValue;
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+export function getAcpSessionModel(sessionId: string): string | undefined {
+  return getAcpModelFromConfigOptions(
+    configBuffer.get(sessionId) as ACPConfigOption[] | undefined,
+  );
+}
+
 // Buffer latest available commands per session — same lifecycle as configBuffer
 const commandsBuffer = new Map<string, unknown[]>();
 
@@ -157,6 +336,165 @@ function deliverToAcpRenderer(
   rendererBridge.deliver(sessionId, { channel, payload }, (delivery) => {
     safeSend(getMainWindow, delivery.channel, delivery.payload);
   });
+}
+
+function emitAcpTurnOutcome(
+  getMainWindow: () => BrowserWindow | null,
+  entry: ACPSessionEntry,
+  outcome: ReturnType<typeof toAcpPiTurnOutcome>,
+  usage: { inputTokens?: number; outputTokens?: number } | null,
+): boolean {
+  const terminalTurnIds = entry.terminalTurnIds ??= new Set<string>();
+  if (terminalTurnIds.has(outcome.turnId)) return false;
+  terminalTurnIds.add(outcome.turnId);
+  // Keep the set bounded for long-lived sessions.
+  if (terminalTurnIds.size > 128) {
+    const oldest = terminalTurnIds.values().next().value as string | undefined;
+    if (oldest) terminalTurnIds.delete(oldest);
+  }
+
+  const payload = {
+    _sessionId: entry.internalId,
+    turnId: outcome.turnId,
+    status: outcome.status,
+    ...(outcome.status !== "failed" ? { stopReason: outcome.stopReason } : {}),
+    ...(outcome.status === "failed" ? { error: outcome.error } : {}),
+    ...(outcome.status === "completed" ? { usage: outcome.usage ?? usage } : {}),
+    outcome,
+    outcomeDelivered: true as const,
+  };
+  deliverToAcpRenderer(getMainWindow, entry.internalId, "acp:turn_complete", payload);
+  return true;
+}
+
+function emitAcpTransportError(
+  getMainWindow: () => BrowserWindow | null,
+  entry: ACPSessionEntry,
+  turnId: string,
+  error: ReturnType<typeof buildAcpErrorDetails>,
+): boolean {
+  const terminalTurnIds = entry.terminalTurnIds ??= new Set<string>();
+  if (terminalTurnIds.has(turnId)) return false;
+  terminalTurnIds.add(turnId);
+  if (terminalTurnIds.size > 128) {
+    const oldest = terminalTurnIds.values().next().value as string | undefined;
+    if (oldest) terminalTurnIds.delete(oldest);
+  }
+  deliverToAcpRenderer(getMainWindow, entry.internalId, "acp:turn_transport_error", {
+    _sessionId: entry.internalId,
+    turnId,
+    status: "transport_error" as const,
+    error,
+    outcomeDelivered: false as const,
+  });
+  return true;
+}
+
+function finishAcpTurnRequest(
+  state: AcpTurnState,
+  success: boolean,
+  usage?: UtilityRequestUsage,
+  failure?: { code?: string; message?: string; status?: "failed" | "cancelled" },
+): void {
+  state.finishRequest?.(success, usage, failure);
+}
+
+function toCanonicalAcpUsage(
+  usage: UtilityRequestUsage | null | undefined,
+): { inputTokens?: number; outputTokens?: number } | null {
+  if (
+    usage?.inputTokens === undefined
+    && usage?.outputTokens === undefined
+  ) {
+    return null;
+  }
+  return {
+    ...(usage.inputTokens !== undefined ? { inputTokens: usage.inputTokens } : {}),
+    ...(usage.outputTokens !== undefined ? { outputTokens: usage.outputTokens } : {}),
+  };
+}
+
+function settleAcpTurnOutcome(
+  getMainWindow: () => BrowserWindow | null,
+  entry: ACPSessionEntry,
+  state: AcpTurnState,
+  outcome: ACPPiTurnOutcome,
+  usage: UtilityRequestUsage | null,
+): boolean {
+  if (state.settled) return false;
+  state.settled = true;
+  state.outcome = outcome;
+  emitAcpTurnOutcome(
+    getMainWindow,
+    entry,
+    outcome,
+    toCanonicalAcpUsage(usage),
+  );
+  finishAcpTurnRequest(
+    state,
+    outcome.status === "completed",
+    usage ?? undefined,
+    outcome.status === "failed"
+      ? { code: outcome.error.code, message: outcome.error.message, status: "failed" }
+      : outcome.status === "cancelled"
+        ? { code: "acp_cancelled", message: "ACP turn cancelled.", status: "cancelled" }
+        : undefined,
+  );
+  return true;
+}
+
+function settleAcpTurnTransportError(
+  getMainWindow: () => BrowserWindow | null,
+  entry: ACPSessionEntry,
+  state: AcpTurnState,
+  error: ACPErrorDetails,
+): boolean {
+  if (state.settled) return false;
+  state.settled = true;
+  state.transportError = error;
+  finishAcpTurnRequest(state, false, undefined, {
+    code: error.code,
+    message: error.message,
+    status: "failed",
+  });
+  return emitAcpTransportError(getMainWindow, entry, state.turnId, error);
+}
+
+function settleAcpTurnCancelled(
+  getMainWindow: () => BrowserWindow | null,
+  entry: ACPSessionEntry,
+  state: AcpTurnState,
+): boolean {
+  return settleAcpTurnOutcome(
+    getMainWindow,
+    entry,
+    state,
+    { status: "cancelled", turnId: state.turnId, stopReason: "cancelled" },
+    null,
+  );
+}
+
+function buildAcpChildExitError(
+  entry: ACPSessionEntry,
+  options: { code?: number | null; signal?: NodeJS.Signals | null; spawnError?: unknown; stderrError?: unknown } = {},
+): ACPErrorDetails {
+  const suffix = options.spawnError
+    ? extractErrorMessage(options.spawnError)
+    : `code=${options.code ?? "null"}, signal=${options.signal ?? "null"}`;
+  const stderrMessage = options.stderrError !== undefined
+    ? extractErrorMessage(options.stderrError)
+    : entry.lastStderrError;
+  return buildAcpErrorDetails(
+    new Error(
+      stderrMessage || `ACP child exited before the active turn settled (${suffix}).`,
+    ),
+    {
+      code: options.spawnError ? "acp_child_error" : "acp_child_exit",
+      source: "acp",
+      stage: "prompt",
+      retryable: true,
+    },
+  );
 }
 
 // Track in-flight acp:start so the renderer can abort during npx download / protocol init.
@@ -199,14 +537,20 @@ export function resolveAcpRuntimeSessionId(
 type AcpAnalyticsProperties = {
   acp_agent: string;
   acp_agent_source: "registry" | "custom";
-  acp_agent_launch_method: "npx" | "binary" | "unknown";
+  acp_agent_launch_method: "bundled" | "npx" | "binary" | "unknown";
   acp_agent_registry_id?: string;
   acp_agent_registry_version?: string;
 };
 
 function buildAcpAnalyticsProperties(agent: InstalledAgent): AcpAnalyticsProperties {
   const registryId = agent.registryId?.trim();
-  const launchMethod = agent.binary === "npx" ? "npx" : agent.binary ? "binary" : "unknown";
+  const launchMethod = registryId === "pi-acp"
+    ? "bundled"
+    : agent.binary === "npx"
+      ? "npx"
+      : agent.binary
+        ? "binary"
+        : "unknown";
 
   if (registryId) {
     return {
@@ -318,14 +662,16 @@ export async function buildAcpMcpServers(
   return resolved.filter((server): server is McpServer => server != null);
 }
 
-/** Merge configOptions from session response, event buffer, and unstable models API. */
-function resolveConfigOptions(
+/** Merge live config sources first, then use the agent cache as a display-safe fallback. */
+export function resolveConfigOptions(
   sessionResult: { configOptions?: unknown[] | null } & LegacyAcpSessionConfiguration,
   internalId: string,
   logLabel: string,
+  cachedConfigOptions?: unknown,
 ): unknown[] {
   const fromResponse = (sessionResult.configOptions ?? []) as unknown[];
   const fromEvents = (configBuffer.get(internalId) ?? []) as unknown[];
+  const fromCache = normalizeCachedAcpConfigOptions(cachedConfigOptions);
   let configOptions = fromResponse.length ? fromResponse : fromEvents;
 
   // Fallback: synthesize stable selectors from the legacy unstable models/modes API.
@@ -336,9 +682,111 @@ function resolveConfigOptions(
     }
   }
 
+  if (configOptions.length === 0) {
+    configOptions = fromCache;
+  }
+
   if (configOptions.length) configBuffer.set(internalId, configOptions);
-  log(logLabel, `${configOptions.length} config options (response=${fromResponse.length}, buffered=${fromEvents.length}, models=${sessionResult.models?.availableModels?.length ?? 0}, modes=${sessionResult.modes?.availableModes?.length ?? 0})`);
+  log(logLabel, `${configOptions.length} config options (response=${fromResponse.length}, buffered=${fromEvents.length}, models=${sessionResult.models?.availableModels?.length ?? 0}, modes=${sessionResult.modes?.availableModes?.length ?? 0}, cached=${fromCache.length})`);
   return configOptions;
+}
+
+function acpConfigOptionHasValue(option: ACPConfigOption, value: string): boolean {
+  return option.options.some((candidate) => (
+    "options" in candidate
+      ? candidate.options.some((nested) => nested.value === value)
+      : candidate.value === value
+  ));
+}
+
+/**
+ * Apply draft/dormant cache selections after session/new or session/load.
+ * The runtime catalog stays authoritative: stale values are skipped and the
+ * returned live catalog replaces the renderer cache.
+ */
+export async function reconcileInitialAcpConfigOptions(
+  liveConfigOptions: ACPConfigOption[],
+  requestedConfigOptions: unknown,
+  apply: (configId: string, value: string) => Promise<ACPConfigOption[] | undefined>,
+  onError?: (configId: string, value: string, error: unknown) => void,
+): Promise<ACPConfigOption[]> {
+  const requested = normalizeCachedAcpConfigOptions(requestedConfigOptions)
+    .slice()
+    .sort((left, right) => Number(right.id === "model") - Number(left.id === "model"));
+  let current = liveConfigOptions;
+
+  for (const wanted of requested) {
+    const live = current.find((option) => option.id === wanted.id);
+    if (!live || !acpConfigOptionHasValue(live, wanted.currentValue)) continue;
+    try {
+      const updated = await apply(wanted.id, wanted.currentValue);
+      if (updated?.length) current = updated;
+    } catch (error) {
+      onError?.(wanted.id, wanted.currentValue, error);
+    }
+  }
+
+  return current;
+}
+
+async function setAcpSessionConfigValue(
+  sessionId: string,
+  session: ACPSessionEntry,
+  configId: string,
+  value: string,
+  logLabel: string,
+): Promise<ACPConfigOption[] | undefined> {
+  if (!session.acpSessionId) {
+    throw new Error(buildAuthRequiredError(session.agentName, session.authMethods));
+  }
+  const acpSessionId = session.acpSessionId;
+  const conn = session.connection;
+
+  try {
+    const result = await conn.setSessionConfigOption({
+      sessionId: acpSessionId,
+      configId,
+      value,
+    });
+    log(logLabel, `session=${sessionId.slice(0, 8)} ${configId}=${value} OK (via setSessionConfigOption)`);
+    const updated = reconcileSuccessfulAcpConfigUpdate(
+      result.configOptions as ACPConfigOption[] | undefined,
+      configBuffer.get(sessionId) as ACPConfigOption[] | undefined,
+      configId,
+      value,
+    );
+    if (updated) configBuffer.set(sessionId, updated);
+    if (isLegacyModeConfig(configId, updated)) session.pendingModeValue = undefined;
+    return updated;
+  } catch (configError) {
+    const buffered = configBuffer.get(sessionId) as ACPConfigOption[] | undefined;
+
+    if (configId === "model") {
+      log(logLabel, `session=${sessionId.slice(0, 8)} setSessionConfigOption failed, trying unstable_setSessionModel...`);
+      await conn.unstable_setSessionModel({
+        sessionId: acpSessionId,
+        modelId: value,
+      });
+      log(logLabel, `session=${sessionId.slice(0, 8)} model=${value} OK (via unstable_setSessionModel)`);
+      const updated = updateAcpConfigCurrentValue(buffered, configId, value);
+      if (updated) configBuffer.set(sessionId, updated);
+      return updated;
+    }
+
+    if (isLegacyModeConfig(configId, buffered)) {
+      log(logLabel, `session=${sessionId.slice(0, 8)} setSessionConfigOption failed, trying setSessionMode...`);
+      await conn.setSessionMode({
+        sessionId: acpSessionId,
+        modeId: value,
+      });
+      log(logLabel, `session=${sessionId.slice(0, 8)} ${configId}=${value} OK (via setSessionMode)`);
+      const updated = updateAcpConfigCurrentValue(buffered, configId, value);
+      if (updated) configBuffer.set(sessionId, updated);
+      session.pendingModeValue = undefined;
+      return updated;
+    }
+    throw configError;
+  }
 }
 
 interface AcpConnectionResult {
@@ -382,10 +830,36 @@ async function finalizePendingAcpSession(
   sessionResult: { sessionId: string; configOptions?: unknown[] | null } & LegacyAcpSessionConfiguration,
   sourceServers: McpServerInput[],
   logLabel: string,
+  cachedConfigOptions?: unknown,
+  requestedConfigOptions?: unknown,
 ): Promise<ACPAuthenticateResult> {
   entry.acpSessionId = sessionResult.sessionId;
   entry.pendingStartRequest = undefined;
-  const configOptions = resolveConfigOptions(sessionResult, entry.internalId, logLabel);
+  const resolvedConfigOptions = resolveConfigOptions(
+    sessionResult,
+    entry.internalId,
+    logLabel,
+    cachedConfigOptions,
+  ) as ACPConfigOption[];
+  const configOptions = await reconcileInitialAcpConfigOptions(
+    resolvedConfigOptions,
+    requestedConfigOptions,
+    (configId, value) => setAcpSessionConfigValue(
+      entry.internalId,
+      entry,
+      configId,
+      value,
+      `${logLabel}_CONFIG`,
+    ),
+    (configId, value, error) => {
+      reportError(`${logLabel}_CONFIG`, error, {
+        engine: "acp",
+        sessionId: entry.internalId,
+        configId,
+        value,
+      });
+    },
+  );
   return {
     ok: true,
     sessionId: entry.internalId,
@@ -406,6 +880,141 @@ interface AcpLaunchDefinition {
   env?: NodeJS.ProcessEnv;
   name: string;
   replaceEnvironment?: boolean;
+  isOfficialPi?: boolean;
+  adapterVersion?: string;
+  piVersion?: string;
+  mcpAdapterVersion?: string;
+  cleanup?: () => void;
+}
+
+const MAX_ACP_STDERR_TAIL = 4_000;
+const MAX_ACP_ERROR_MESSAGE = 2_000;
+
+function clipAcpText(value: string, max = MAX_ACP_ERROR_MESSAGE): string {
+  const trimmed = value.trim();
+  return trimmed.length > max ? `${trimmed.slice(0, max)}...` : trimmed;
+}
+
+function sanitizeAcpStderr(value: string): string {
+  return clipAcpText(value
+    .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "")
+    .replace(/((?:authorization|proxy-authorization)\s*[:=]\s*)(?:bearer|basic)\s+[^\s,;"]+/gi, "$1[REDACTED]")
+    .replace(/((?:api[-_]?key|access[-_]?token|refresh[-_]?token|password|secret)\s*[:=]\s*)[^\s,;&]+/gi, "$1[REDACTED]")
+    .replace(/(https?:\/\/)([^\s/@]+):([^\s/@]+)@/gi, "$1[REDACTED]@"));
+}
+
+function appendStderrTail(previous: string | undefined, next: string): string {
+  const combined = previous ? `${previous}\n${next}` : next;
+  return combined.length > MAX_ACP_STDERR_TAIL
+    ? combined.slice(-MAX_ACP_STDERR_TAIL)
+    : combined;
+}
+
+function buildAcpErrorDetails(
+  err: unknown,
+  options: {
+    code?: string;
+    source?: "harnss" | "acp" | "pi" | "upstream";
+    stage?: "spawn" | "initialize" | "authenticate" | "prompt" | "settle" | "persist";
+    retryable?: boolean;
+    fallbackMessage?: string;
+  } = {},
+) {
+  const extracted = extractErrorDetails(err);
+  const message = clipAcpText(extracted.message || options.fallbackMessage || "ACP operation failed.");
+  return {
+    code: options.code ?? (typeof extracted.code === "string" ? extracted.code : "acp_transport_error"),
+    message,
+    source: options.source ?? "acp",
+    stage: options.stage ?? "prompt",
+    retryable: options.retryable ?? true,
+    ...(extracted.cause ? { cause: clipAcpText(extracted.cause, 1_000) } : {}),
+  } as const;
+}
+
+function taggedAcpError(code: string, message: string, cause?: unknown): Error & { code: string; cause?: unknown } {
+  const error = new Error(message) as Error & { code: string; cause?: unknown };
+  error.code = code;
+  if (cause !== undefined) error.cause = cause;
+  return error;
+}
+
+export function buildAcpPromptTransportErrorDetails(
+  err: unknown,
+  options: { isOfficialPi: boolean; stderrMessage?: string },
+): ACPErrorDetails {
+  const extracted = extractErrorDetails(err);
+  const message = options.stderrMessage || extracted.message;
+  const upstreamEvidence = /(?:\b401\b|\b403\b|\b429\b|unauthorized|rate.?limit|provider|api\s+error|connection\s+(?:failed|reset|refused))/i.test(message);
+  const piChildExit = options.isOfficialPi && /pi process exited\s*\(code=/i.test(extracted.message);
+  const protocolError = /(?:invalid\s+(?:json|protocol)|json-rpc|unsupported\s+protocol)/i.test(extracted.message);
+  const extractedStableCode = typeof extracted.code === "string"
+    && /^(?:acp|pi|harnss|upstream)_/.test(extracted.code)
+    ? extracted.code
+    : undefined;
+  const code = extractedStableCode
+    ? extractedStableCode
+    : piChildExit
+      ? "pi_child_exit"
+      : options.stderrMessage
+        ? upstreamEvidence ? "pi_upstream_error" : "pi_runtime_error"
+        : protocolError
+          ? "acp_protocol_error"
+          : "acp_prompt_transport_error";
+  const source: ACPErrorDetails["source"] = code.includes("upstream") || upstreamEvidence
+    ? "upstream"
+    : code.startsWith("pi_")
+      ? "pi"
+      : "acp";
+  return buildAcpErrorDetails(
+    options.stderrMessage ? new Error(options.stderrMessage) : err,
+    {
+      code,
+      source,
+      stage: "prompt",
+      retryable: code !== "acp_protocol_error",
+    },
+  );
+}
+
+export function buildAcpLifecycleErrorDetails(
+  err: unknown,
+  fallbackCode: string,
+  fallbackStage: ACPErrorDetails["stage"],
+): ACPErrorDetails {
+  const extracted = extractErrorDetails(err);
+  const code = typeof extracted.code === "string" ? extracted.code : fallbackCode;
+  const configurationFailure = code === "pi_runtime_host_missing"
+    || code === "pi_bundled_wrapper_missing"
+    || code === "pi_bundled_package_missing"
+    || code === "pi_acp_bundled_package_missing"
+    || code === "pi_mcp_bundled_package_missing"
+    || code === "pi_mcp_bridge_missing"
+    || code === "pi_bundled_version_mismatch"
+    || code === "pi_acp_bundled_version_mismatch"
+    || code === "pi_mcp_bundled_version_mismatch"
+    || code === "pi_mcp_config_invalid"
+    || code === "pi_e2e_command_invalid"
+    || code === "pi_config_incomplete"
+    || code === "pi_catalog_unavailable"
+    || code === "pi_catalog_missing"
+    || code === "pi_model_unavailable"
+    || code === "pi_provider_unsupported";
+  const stage = configurationFailure || code === "acp_child_error"
+    ? "spawn"
+    : fallbackStage;
+  return buildAcpErrorDetails(err, {
+    code,
+    source: code.startsWith("pi_") ? "pi" : "acp",
+    stage,
+    retryable: !configurationFailure,
+  });
+}
+
+export function supportsInProcessMcpReload(
+  session: Pick<ACPSessionEntry, "supportsLoadSession" | "isOfficialPi">,
+): boolean {
+  return session.supportsLoadSession && session.isOfficialPi !== true;
 }
 
 async function createAcpConnection(
@@ -425,45 +1034,134 @@ async function createAcpConnection(
     shell: shouldUseWindowsShellForAcpBinary(agentDef.binary),
     windowsHide: true,
   });
+  let launchArtifactsCleaned = false;
+  const cleanupLaunchArtifacts = () => {
+    if (launchArtifactsCleaned) return;
+    launchArtifactsCleaned = true;
+    agentDef.cleanup?.();
+  };
+  proc.once("exit", cleanupLaunchArtifacts);
+  proc.once("error", cleanupLaunchArtifacts);
+  log(
+    logLabel,
+    `Launched ${agentDef.name} host=${path.basename(agentDef.binary)} pid=${proc.pid ?? "pending"}`
+      + ` piAcp=${agentDef.adapterVersion ?? "custom"}`
+      + ` pi=${agentDef.piVersion ?? "n/a"}`
+      + ` piMcp=${agentDef.mcpAdapterVersion ?? "n/a"}`,
+  );
   reclaimMacDockFocus(getMainWindow, "acp-start");
   onSpawn?.(internalId, proc);
+  let startupProcessError: unknown;
+  let startupStderrTail: string | undefined;
+  let startupStderrError: string | undefined;
+
+  const settleActiveTurns = (
+    entry: ACPSessionEntry,
+    error: ACPErrorDetails | ((state: AcpTurnState) => ACPErrorDetails),
+  ): string | undefined => {
+    let firstTurnId: string | undefined;
+    for (const state of entry.turnStates?.values() ?? []) {
+      if (state.settled) continue;
+      firstTurnId ??= state.turnId;
+      if (state.cancelRequested) {
+        settleAcpTurnCancelled(getMainWindow, entry, state);
+        signalAcpTurnTransportFailure(state, acpCancellationSignal());
+      } else {
+        const details = typeof error === "function" ? error(state) : error;
+        settleAcpTurnTransportError(
+          getMainWindow,
+          entry,
+          state,
+          details,
+        );
+        signalAcpTurnTransportFailure(state, details);
+      }
+    }
+    return firstTurnId;
+  };
 
   // Process lifecycle handlers
   proc.on("error", (err) => {
+    startupProcessError = err;
     log(logLabel, `ERROR: spawn failed: ${err.message}`);
+    const entry = acpSessions.get(internalId);
+    const error = entry
+      ? buildAcpChildExitError(entry, { spawnError: err })
+      : buildAcpErrorDetails(err, {
+        code: "acp_child_error",
+        source: "acp",
+        stage: "spawn",
+        retryable: false,
+      });
+    const turnId = entry ? settleActiveTurns(entry, error) : undefined;
     safeSend(getMainWindow, "acp:exit", {
       _sessionId: internalId,
       code: 1,
-      error: `Failed to start agent: ${err.message}`,
+      ...(turnId ? { turnId } : {}),
+      error: error.message,
+      errorCode: error.code,
     });
-    acpSessions.get(internalId)?.operationCoordinator?.close(`ACP process failed to start: ${err.message}`);
+    entry?.operationCoordinator?.close(`ACP process failed to start: ${err.message}`);
     acpSessions.delete(internalId);
     configBuffer.delete(internalId);
     commandsBuffer.delete(internalId);
-    rendererBridge.close(internalId, `ACP process failed to start: ${err.message}`);
+    rendererBridge.close(internalId, error.message);
   });
 
   proc.stderr?.on("data", (chunk: Buffer) => {
     const raw = chunk.toString().trim();
-    log("ACP_STDERR", `session=${internalId.slice(0, 8)} ${raw}`);
-    const cleaned = raw.replace(/\x1b\[[0-9;]*m/g, "");
+    if (!raw) return;
+    const cleaned = sanitizeAcpStderr(raw);
+    startupStderrTail = appendStderrTail(startupStderrTail, cleaned);
+    log("ACP_STDERR", {
+      session: internalId.slice(0, 8),
+      tail: cleaned,
+    });
     const turnError = cleaned.match(/Unhandled error during turn:\s*(.+)$/)?.[1]?.trim();
-    const parsed = turnError || (/\bERROR\b/i.test(cleaned) ? cleaned : undefined);
+    const parsed = turnError || (/(?:\bERROR\b|\berror\b|\bfailed\b|\btimeout\b|\bunauthorized\b|\bconnection\b)/i.test(cleaned)
+      ? cleaned
+      : undefined);
     if (!parsed) return;
+    startupStderrError = parsed;
     const entry = acpSessions.get(internalId);
-    if (entry) entry.lastStderrError = parsed;
+    if (entry) {
+      entry.stderrTail = appendStderrTail(entry.stderrTail, cleaned);
+      entry.lastStderrError = parsed;
+      if (entry.currentTurn) {
+        entry.currentTurn.stderrError = parsed;
+        entry.currentTurn.lastActivityAt = Date.now();
+      }
+    }
   });
 
-  proc.on("exit", (code) => {
+  proc.on("exit", (code, signal) => {
     // Guard: session may already be deleted by the "error" handler (ENOENT race)
     if (!acpSessions.has(internalId)) return;
     const entry = acpSessions.get(internalId)!;
-    log("ACP_EXIT", `session=${internalId.slice(0, 8)} code=${code} total_events=${entry.eventCounter}`);
+    log("ACP_EXIT", `session=${internalId.slice(0, 8)} code=${code} signal=${signal ?? "null"} total_events=${entry.eventCounter}`);
+    const activeTurn = [...(entry.turnStates?.values() ?? [])].find((state) => !state.settled);
+    const turnId = activeTurn
+      ? settleActiveTurns(entry, (state) => buildAcpChildExitError(entry, {
+        code,
+        signal,
+        stderrError: state.stderrError,
+      }))
+      : undefined;
+    const exitError = activeTurn ? buildAcpChildExitError(entry, {
+      code,
+      signal,
+      stderrError: activeTurn.stderrError,
+    }) : undefined;
     for (const [, resolver] of entry.pendingPermissions) {
       resolver.resolve({ outcome: { outcome: "cancelled" } });
     }
     entry.pendingPermissions.clear();
-    safeSend(getMainWindow, "acp:exit", { _sessionId: internalId, code });
+    safeSend(getMainWindow, "acp:exit", {
+      _sessionId: internalId,
+      code,
+      ...(turnId ? { turnId } : {}),
+      ...(exitError ? { error: exitError.message, errorCode: exitError.code } : {}),
+    });
     acpSessions.delete(internalId);
     configBuffer.delete(internalId);
     commandsBuffer.delete(internalId);
@@ -486,8 +1184,15 @@ async function createAcpConnection(
 
       // Utility session events: accumulate text, skip renderer forwarding
       if (entry?.utilitySessionIds?.has(acpSessionId)) {
+        const observation = entry.utilityObservations?.get(acpSessionId);
+        const observed = observation
+          ? observeAcpTurnUpdate(observation, update, {
+            isPi: entry.isOfficialPi,
+            adapterVersion: entry.adapterVersion,
+          })
+          : { diagnostic: false };
         const eventKind = (update as { sessionUpdate: string }).sessionUpdate;
-        if (eventKind === "agent_message_chunk") {
+        if (eventKind === "agent_message_chunk" && !observed.diagnostic) {
           const text = (update as { content?: { text?: string } }).content?.text ?? "";
           if (text && entry.utilityTextBuffers) {
             const current = entry.utilityTextBuffers.get(acpSessionId) ?? "";
@@ -506,6 +1211,46 @@ async function createAcpConnection(
       const eventKind = update?.sessionUpdate as string;
       if (eventKind === "tool_call" || eventKind === "tool_call_update") {
         log("ACP_EVENT_FULL", update);
+      }
+
+      const messageText = eventKind === "agent_message_chunk"
+        ? (update as { content?: { text?: unknown } }).content?.text
+        : undefined;
+      if (
+        entry?.isOfficialPi === true
+        && isSupportedPiAcpAdapterVersion(entry.adapterVersion)
+        && typeof messageText === "string"
+        && isPiStartupBanner(messageText)
+      ) {
+        log("ACP_PI_STARTUP", {
+          session: internalId.slice(0, 8),
+          adapterVersion: entry.adapterVersion,
+          piVersion: entry.piVersion,
+          mcpAdapterVersion: entry.mcpAdapterVersion,
+        });
+        return;
+      }
+
+      // Pi emits automatic retry status as agent text. It is transport
+      // diagnostics, not an assistant answer, so observe it for outcome
+      // classification and keep it out of persisted chat content.
+      if (entry?.currentTurn && entry.acpSessionId === acpSessionId) {
+        entry.currentTurn.lastActivityAt = Date.now();
+        const observed = observeAcpTurnUpdate(entry.currentTurn.observation, update, {
+          isPi: entry.isOfficialPi,
+          adapterVersion: entry.adapterVersion,
+        });
+        if (observed.diagnostic) {
+          log("ACP_PI_RETRY", {
+            session: internalId.slice(0, 8),
+            turnId: entry.currentTurn.turnId,
+            adapterVersion: entry.adapterVersion,
+            piVersion: entry.piVersion,
+            mcpAdapterVersion: entry.mcpAdapterVersion,
+            retryNoticeCount: entry.currentTurn.observation.retryNoticeCount,
+          });
+          return;
+        }
       }
 
       // session/new may emit unsolicited welcome text before the ACP-side
@@ -612,10 +1357,31 @@ async function createAcpConnection(
 
   // Protocol initialization
   log(logLabel, `Initializing protocol...`);
-  const initResult = await withTimeout(connection.initialize({
-    protocolVersion: acp.PROTOCOL_VERSION,
-    clientCapabilities: ACP_CLIENT_CAPABILITIES,
-  }), ACP_INIT_TIMEOUT_MS, `${agentDef.name} ACP initialize`);
+  let initResult: Awaited<ReturnType<ClientSideConnection["initialize"]>>;
+  try {
+    initResult = await withTimeout(connection.initialize({
+      protocolVersion: acp.PROTOCOL_VERSION,
+      clientCapabilities: ACP_CLIENT_CAPABILITIES,
+    }), ACP_INIT_TIMEOUT_MS, `${agentDef.name} ACP initialize`);
+  } catch (err) {
+    if (startupProcessError) {
+      throw taggedAcpError(
+        "acp_child_error",
+        extractErrorMessage(startupProcessError),
+        err,
+      );
+    }
+    if (startupStderrError) {
+      throw taggedAcpError(
+        "acp_initialize_stderr",
+        startupStderrError,
+        startupStderrTail && startupStderrTail !== startupStderrError
+          ? startupStderrTail
+          : err,
+      );
+    }
+    throw taggedAcpError("acp_initialize_failed", extractErrorMessage(err), err);
+  }
   const supportsLoadSession = initResult.agentCapabilities?.loadSession === true;
   const authMethods = normalizeAcpAuthMethods((initResult as Record<string, unknown>).authMethods);
   log(logLabel, `Initialized protocol v${initResult.protocolVersion} for ${agentDef.name} (loadSession=${supportsLoadSession}, authMethods=${authMethods.length})`);
@@ -623,13 +1389,22 @@ async function createAcpConnection(
   return { proc, connection, pendingPermissions, internalId, supportsLoadSession, authMethods };
 }
 
-async function resolveAcpLaunchDefinition(agent: InstalledAgent): Promise<AcpLaunchDefinition> {
-  if (isOfficialPiAcpAgent(agent)) return preparePiAcpLaunch(agent);
+async function resolveAcpLaunchDefinition(
+  agent: InstalledAgent,
+  options?: { cwd: string; mcpServers: McpServer[] },
+): Promise<AcpLaunchDefinition> {
+  if (isOfficialPiAcpAgent(agent)) {
+    return {
+      ...(await preparePiAcpLaunch(agent, options)),
+      isOfficialPi: true,
+    };
+  }
   return {
     binary: agent.binary?.trim() ?? "",
     args: agent.args,
     env: agent.env,
     name: agent.name,
+    isOfficialPi: false,
   };
 }
 
@@ -640,7 +1415,12 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     log(`ACP_UI:${label}`, data);
   });
 
-  ipcMain.handle("acp:start", async (_event, options: { agentId: string; cwd: string; mcpServers?: McpServerInput[] }) => {
+  ipcMain.handle("acp:start", async (_event, options: {
+    agentId: string;
+    cwd: string;
+    mcpServers?: McpServerInput[];
+    initialConfigOptions?: ACPConfigOption[];
+  }) => {
     const cwd = normalizeSessionCwd(options.cwd);
     log("ACP_SPAWN", `acp:start called with agentId=${options.agentId} cwd=${cwd}`);
 
@@ -648,18 +1428,32 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     if (!agentDef || agentDef.engine !== "acp") {
       const err = `Agent "${options.agentId}" not found or not an ACP agent`;
       log("ACP_SPAWN", `ERROR: ${err}`);
-      return { error: err };
+      const errorDetails = buildAcpErrorDetails(new Error(err), {
+        code: "acp_agent_not_found",
+        source: "harnss",
+        stage: "spawn",
+        retryable: false,
+      });
+      return { error: errorDetails.message, errorDetails };
     }
     if (!agentDef.binary) {
       const err = `Agent "${options.agentId}" has no binary configured`;
       log("ACP_SPAWN", `ERROR: ${err}`);
-      return { error: err };
+      const errorDetails = buildAcpErrorDetails(new Error(err), {
+        code: "acp_binary_missing",
+        source: "harnss",
+        stage: "spawn",
+        retryable: false,
+      });
+      return { error: errorDetails.message, errorDetails };
     }
 
     let connResult: AcpConnectionResult | null = null;
+    let launchDef: AcpLaunchDefinition | undefined;
     const analyticsProperties = buildAcpAnalyticsProperties(agentDef);
     try {
-      const launchDef = await resolveAcpLaunchDefinition(agentDef);
+      const acpMcpServers = await buildAcpMcpServers(options.mcpServers ?? []);
+      launchDef = await resolveAcpLaunchDefinition(agentDef, { cwd, mcpServers: acpMcpServers });
       connResult = await createAcpConnection(
         launchDef,
         getMainWindow,
@@ -670,7 +1464,6 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       );
       const { proc, connection, pendingPermissions, internalId, supportsLoadSession, authMethods } = connResult;
 
-      const acpMcpServers = await buildAcpMcpServers(options.mcpServers ?? []);
       const entry: ACPSessionEntry = {
         process: proc,
         connection,
@@ -686,8 +1479,16 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
           cwd,
           mcpServers: acpMcpServers,
           sourceServers: options.mcpServers ?? [],
+          cachedConfigOptions: normalizeCachedAcpConfigOptions(agentDef.cachedConfigOptions),
+          requestedConfigOptions: normalizeCachedAcpConfigOptions(options.initialConfigOptions),
         },
         isReloading: false,
+        isOfficialPi: launchDef.isOfficialPi === true,
+        adapterVersion: launchDef.adapterVersion,
+        piVersion: launchDef.piVersion,
+        mcpAdapterVersion: launchDef.mcpAdapterVersion,
+        terminalTurnIds: new Set(),
+        turnStates: new Map(),
       };
       acpSessions.set(internalId, entry);
 
@@ -701,7 +1502,14 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       // Startup succeeded — clear the pending tracker before returning
       pendingStartProcess = null;
 
-      return await finalizePendingAcpSession(entry, sessionResult, options.mcpServers ?? [], "ACP_SPAWN");
+      return await finalizePendingAcpSession(
+        entry,
+        sessionResult,
+        options.mcpServers ?? [],
+        "ACP_SPAWN",
+        agentDef.cachedConfigOptions,
+        options.initialConfigOptions,
+      );
     } catch (err) {
       const authMethods = connResult?.authMethods ?? [];
       const authRequiredMethods = extractAuthRequired(err, authMethods);
@@ -739,18 +1547,41 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         return { cancelled: true };
       }
 
-      const msg = reportError("ACP_SPAWN", err, { engine: "acp", ...analyticsProperties });
-      return { error: msg };
+      const errorDetails = buildAcpLifecycleErrorDetails(err, "acp_start_failed", "initialize");
+      reportError("ACP_SPAWN", err, {
+        engine: "acp",
+        ...analyticsProperties,
+        stage: errorDetails.stage,
+        errorCode: errorDetails.code,
+        surfacedError: errorDetails.message,
+        adapterVersion: launchDef?.adapterVersion,
+        piVersion: launchDef?.piVersion,
+        mcpAdapterVersion: launchDef?.mcpAdapterVersion,
+        mcpServerCount: options.mcpServers?.length ?? 0,
+      });
+      return { error: errorDetails.message, errorDetails };
     }
   });
 
   ipcMain.handle("acp:authenticate", async (_event, { sessionId, methodId }: { sessionId: string; methodId: string }) => {
     const session = acpSessions.get(sessionId);
     if (!session) {
-      return { error: "ACP session not found." };
+      const errorDetails = buildAcpErrorDetails(new Error("ACP session not found."), {
+        code: "acp_session_not_found",
+        source: "harnss",
+        stage: "authenticate",
+        retryable: false,
+      });
+      return { error: errorDetails.message, errorDetails };
     }
     if (!session.pendingStartRequest) {
-      return { error: "ACP session does not need authentication." };
+      const errorDetails = buildAcpErrorDetails(new Error("ACP session does not need authentication."), {
+        code: "acp_auth_not_required",
+        source: "harnss",
+        stage: "authenticate",
+        retryable: false,
+      });
+      return { error: errorDetails.message, errorDetails };
     }
 
     try {
@@ -760,16 +1591,19 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         `${session.agentName} ACP authenticate(${methodId})`,
       );
 
+      const pendingStartRequest = session.pendingStartRequest;
       const sessionResult = await withTimeout(session.connection.newSession({
-        cwd: session.pendingStartRequest.cwd,
-        mcpServers: session.pendingStartRequest.mcpServers,
+        cwd: pendingStartRequest.cwd,
+        mcpServers: pendingStartRequest.mcpServers,
       }), ACP_START_TIMEOUT_MS, `${session.agentName} ACP session/new after authenticate`);
 
       const finalized = await finalizePendingAcpSession(
         session,
         sessionResult,
-        session.pendingStartRequest.sourceServers,
+        pendingStartRequest.sourceServers,
         "ACP_AUTH",
+        pendingStartRequest.cachedConfigOptions,
+        pendingStartRequest.requestedConfigOptions,
       );
 
       return finalized;
@@ -789,8 +1623,19 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       const message = extractErrorMessage(err);
       const guidance = getAuthGuidance(session.agentName, session.authMethods);
       const error = guidance ? `${message} ${guidance}` : message;
-      log("ACP_AUTH", error);
-      return { error };
+      const errorDetails = buildAcpErrorDetails(new Error(error), {
+        code: "acp_auth_failed",
+        source: "acp",
+        stage: "authenticate",
+        retryable: true,
+      });
+      log("ACP_AUTH", {
+        session: sessionId.slice(0, 8),
+        stage: errorDetails.stage,
+        errorCode: errorDetails.code,
+        error: errorDetails.message,
+      });
+      return { error: errorDetails.message, errorDetails };
     }
   });
 
@@ -803,23 +1648,76 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     sessionId?: string; // Stable dpcc-side session ID from the persisted sidebar entry
     agentSessionId?: string; // ACP-side session ID from previous run
     mcpServers?: McpServerInput[];
+    initialConfigOptions?: ACPConfigOption[];
   }) => {
     const cwd = normalizeSessionCwd(options.cwd);
     log("ACP_REVIVE", `agentId=${options.agentId} agentSessionId=${options.agentSessionId?.slice(0, 12) ?? "none"} cwd=${cwd}`);
 
     const agentDef = getAgent(options.agentId);
     if (!agentDef || agentDef.engine !== "acp" || !agentDef.binary) {
-      return { error: `Agent "${options.agentId}" not found or not an ACP agent` };
+      const errorDetails = buildAcpErrorDetails(
+        new Error(`Agent "${options.agentId}" not found or not an ACP agent`),
+        {
+          code: "acp_agent_not_found",
+          source: "harnss",
+          stage: "spawn",
+          retryable: false,
+        },
+      );
+      return { error: errorDetails.message, errorDetails };
     }
+
+    const reconcileRequestedConfig = (
+      sessionId: string,
+      entry: ACPSessionEntry,
+      liveConfigOptions: ACPConfigOption[],
+    ) => reconcileInitialAcpConfigOptions(
+      liveConfigOptions,
+      options.initialConfigOptions,
+      (configId, value) => setAcpSessionConfigValue(
+        sessionId,
+        entry,
+        configId,
+        value,
+        "ACP_REVIVE_CONFIG",
+      ),
+      (configId, value, error) => {
+        reportError("ACP_REVIVE_CONFIG", error, {
+          engine: "acp",
+          sessionId,
+          configId,
+          value,
+        });
+      },
+    );
 
     const requestedInternalId = options.sessionId?.trim();
     const existing = requestedInternalId ? acpSessions.get(requestedInternalId) : undefined;
     if (requestedInternalId && existing) {
       if (!existing.acpSessionId) {
-        return { error: "ACP session is still starting and cannot be revived yet." };
+        const errorDetails = buildAcpErrorDetails(
+          new Error("ACP session is still starting and cannot be revived yet."),
+          {
+            code: "acp_session_start_pending",
+            source: "harnss",
+            stage: "initialize",
+            retryable: true,
+          },
+        );
+        return { error: errorDetails.message, errorDetails };
       }
       rendererBridge.detach(requestedInternalId);
-      const configOptions = (configBuffer.get(requestedInternalId) ?? []) as unknown[];
+      const resolvedConfigOptions = resolveConfigOptions(
+        {},
+        requestedInternalId,
+        "ACP_REVIVE",
+        agentDef.cachedConfigOptions,
+      ) as ACPConfigOption[];
+      const configOptions = await reconcileRequestedConfig(
+        requestedInternalId,
+        existing,
+        resolvedConfigOptions,
+      );
       log("ACP_REVIVE", `Reusing live transport session=${requestedInternalId.slice(0, 8)} agentSession=${existing.acpSessionId.slice(0, 12)}`);
       return {
         sessionId: requestedInternalId,
@@ -832,9 +1730,11 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
 
     let connResult: AcpConnectionResult | null = null;
     let spawnedProcess: ChildProcess | null = null;
+    let launchDef: AcpLaunchDefinition | undefined;
     const analyticsProperties = buildAcpAnalyticsProperties(agentDef);
     try {
-      const launchDef = await resolveAcpLaunchDefinition(agentDef);
+      const acpMcpServers = await buildAcpMcpServers(options.mcpServers ?? []);
+      launchDef = await resolveAcpLaunchDefinition(agentDef, { cwd, mcpServers: acpMcpServers });
       connResult = await createAcpConnection(
         launchDef,
         getMainWindow,
@@ -846,30 +1746,47 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       );
       const { proc, connection, pendingPermissions, internalId, supportsLoadSession, authMethods } = connResult;
 
-      const acpMcpServers = await buildAcpMcpServers(options.mcpServers ?? []);
-
       let acpSessionId: string;
       let usedLoad = false;
       let configOptions: unknown[] = [];
 
       if (supportsLoadSession && options.agentSessionId) {
         // Restore full context — suppress history replay from reaching the renderer
-        const entry: ACPSessionEntry = { process: proc, connection, acpSessionId: options.agentSessionId, internalId, analyticsProperties, eventCounter: 0, pendingPermissions, cwd, supportsLoadSession, agentName: agentDef.name, authMethods, isReloading: true };
+        const entry: ACPSessionEntry = { process: proc, connection, acpSessionId: options.agentSessionId, internalId, analyticsProperties, eventCounter: 0, pendingPermissions, cwd, supportsLoadSession, agentName: agentDef.name, authMethods, isReloading: true, isOfficialPi: launchDef.isOfficialPi === true, adapterVersion: launchDef.adapterVersion, piVersion: launchDef.piVersion, mcpAdapterVersion: launchDef.mcpAdapterVersion, terminalTurnIds: new Set(), turnStates: new Map() };
         acpSessions.set(internalId, entry);
         const loadResult = await withTimeout(connection.loadSession({ sessionId: options.agentSessionId, cwd, mcpServers: acpMcpServers }), ACP_START_TIMEOUT_MS, `${agentDef.name} ACP session/load`);
         entry.isReloading = false;
         acpSessionId = options.agentSessionId;
         usedLoad = true;
-        configOptions = (loadResult.configOptions ?? configBuffer.get(internalId) ?? []) as unknown[];
-        if (configOptions.length) configBuffer.set(internalId, configOptions);
+        const resolvedConfigOptions = resolveConfigOptions(
+          loadResult as typeof loadResult & LegacyAcpSessionConfiguration,
+          internalId,
+          "ACP_REVIVE",
+          agentDef.cachedConfigOptions,
+        ) as ACPConfigOption[];
+        configOptions = await reconcileRequestedConfig(
+          internalId,
+          entry,
+          resolvedConfigOptions,
+        );
         log("ACP_REVIVE", `loadSession OK, session=${acpSessionId.slice(0, 12)} configOptions=${configOptions.length}`);
       } else {
         // Fall back to fresh session — UI messages already restored from disk
         const sessionResult = await withTimeout(connection.newSession({ cwd, mcpServers: acpMcpServers }), ACP_START_TIMEOUT_MS, `${agentDef.name} ACP session/new`);
         acpSessionId = sessionResult.sessionId;
-        const entry: ACPSessionEntry = { process: proc, connection, acpSessionId, internalId, analyticsProperties, eventCounter: 0, pendingPermissions, cwd, supportsLoadSession, agentName: agentDef.name, authMethods, isReloading: false };
+        const entry: ACPSessionEntry = { process: proc, connection, acpSessionId, internalId, analyticsProperties, eventCounter: 0, pendingPermissions, cwd, supportsLoadSession, agentName: agentDef.name, authMethods, isReloading: false, isOfficialPi: launchDef.isOfficialPi === true, adapterVersion: launchDef.adapterVersion, piVersion: launchDef.piVersion, mcpAdapterVersion: launchDef.mcpAdapterVersion, terminalTurnIds: new Set(), turnStates: new Map() };
         acpSessions.set(internalId, entry);
-        configOptions = resolveConfigOptions(sessionResult, internalId, "ACP_REVIVE");
+        const resolvedConfigOptions = resolveConfigOptions(
+          sessionResult,
+          internalId,
+          "ACP_REVIVE",
+          agentDef.cachedConfigOptions,
+        ) as ACPConfigOption[];
+        configOptions = await reconcileRequestedConfig(
+          internalId,
+          entry,
+          resolvedConfigOptions,
+        );
         log("ACP_REVIVE", `newSession fallback, session=${acpSessionId.slice(0, 12)}`);
       }
 
@@ -885,8 +1802,19 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
         commandsBuffer.delete(connResult.internalId);
         rendererBridge.close(connResult.internalId, "ACP session revival failed.");
       }
-      const msg = reportError("ACP_REVIVE", err, { engine: "acp", ...analyticsProperties });
-      return { error: msg };
+      const errorDetails = buildAcpLifecycleErrorDetails(err, "acp_revive_failed", "initialize");
+      reportError("ACP_REVIVE", err, {
+        engine: "acp",
+        ...analyticsProperties,
+        stage: errorDetails.stage,
+        errorCode: errorDetails.code,
+        surfacedError: errorDetails.message,
+        adapterVersion: launchDef?.adapterVersion,
+        piVersion: launchDef?.piVersion,
+        mcpAdapterVersion: launchDef?.mcpAdapterVersion,
+        mcpServerCount: options.mcpServers?.length ?? 0,
+      });
+      return { error: errorDetails.message, errorDetails };
     }
   });
 
@@ -905,10 +1833,30 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     const session = acpSessions.get(sessionId);
     if (!session) {
       log("ACP_SEND", `ERROR: session ${sessionId?.slice(0, 8)} not found`);
-      return { error: "Session not found" };
+      return {
+        ok: false as const,
+        status: "transport_error" as const,
+        error: buildAcpErrorDetails(new Error("ACP session not found."), {
+          code: "acp_session_not_found",
+          source: "harnss",
+          stage: "prompt",
+          retryable: false,
+        }),
+        outcomeDelivered: false as const,
+      };
     }
     if (!session.acpSessionId) {
-      return { error: buildAuthRequiredError(session.agentName, session.authMethods) };
+      return {
+        ok: false as const,
+        status: "transport_error" as const,
+        error: buildAcpErrorDetails(new Error(buildAuthRequiredError(session.agentName, session.authMethods)), {
+          code: "acp_auth_required",
+          source: "acp",
+          stage: "authenticate",
+          retryable: false,
+        }),
+        outcomeDelivered: false as const,
+      };
     }
     const acpSessionId = session.acpSessionId;
 
@@ -917,7 +1865,17 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     } catch (err) {
       const message = extractErrorMessage(err);
       log("ACP_SEND", `ERROR: renderer not ready for session=${sessionId.slice(0, 8)}: ${message}`);
-      return { error: message };
+      return {
+        ok: false as const,
+        status: "transport_error" as const,
+        error: buildAcpErrorDetails(err, {
+          code: "acp_renderer_not_attached",
+          source: "harnss",
+          stage: "prompt",
+          retryable: true,
+        }),
+        outcomeDelivered: false as const,
+      };
     }
 
     log("ACP_SEND", `session=${sessionId.slice(0, 8)} text=${text.slice(0, 500)} images=${images?.length ?? 0}`);
@@ -930,45 +1888,175 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     }
     prompt.push({ type: "text", text });
 
-    let finishRequest: ReturnType<typeof startUtilityRequest>;
+    const turnId = crypto.randomUUID();
+    const turnState: AcpTurnState = {
+      turnId,
+      startedAt: Date.now(),
+      lastActivityAt: Date.now(),
+      observation: createAcpTurnObservation(),
+      stderrError: undefined as string | undefined,
+      settled: false,
+      cancelRequested: false,
+    };
+    session.turnStates ??= new Map<string, AcpTurnState>();
+    session.turnStates.set(turnId, turnState);
     session.activeUserPrompts = (session.activeUserPrompts ?? 0) + 1;
     try {
-      session.lastStderrError = undefined;
       session.hasUserPromptStarted = true;
-      finishRequest = startUtilityRequest(
+      turnState.finishRequest = startUtilityRequest(
         (requestEvent) => safeSend(getMainWindow, "usage:upstream-request", requestEvent),
         sessionId,
         "acp",
         "prompt",
+        { id: `acp-turn-${turnId}`, turnId, model: getAcpSessionModel(sessionId) },
       );
-      const result = await getAcpSessionOperationCoordinator(session).runUserPrompt(() => (
-        session.connection.prompt({
-          sessionId: acpSessionId,
-          prompt,
-        })
-      ));
-
-      log("ACP_TURN_COMPLETE", `session=${sessionId.slice(0, 8)} stopReason=${result.stopReason} usage=${JSON.stringify(result.usage ?? null)}`);
-      finishRequest?.(true, {
-        inputTokens: result.usage?.inputTokens,
-        outputTokens: result.usage?.outputTokens,
+      log("ACP_TURN_START", {
+        session: sessionId.slice(0, 8),
+        turnId,
+        agentId: session.analyticsProperties.acp_agent,
+        adapterVersion: session.adapterVersion,
+        piVersion: session.piVersion,
+        mcpAdapterVersion: session.mcpAdapterVersion,
       });
-
-      deliverToAcpRenderer(getMainWindow, sessionId, "acp:turn_complete", {
-        _sessionId: sessionId,
-        stopReason: result.stopReason,
-        usage: result.usage,
+      const settled = await getAcpSessionOperationCoordinator(session).runUserPrompt(async () => {
+        session.lastStderrError = undefined;
+        session.currentTurn = turnState;
+        try {
+          if (session.isOfficialPi) {
+            turnState.piUsageSnapshot = await capturePiAcpTurnSnapshot(acpSessionId);
+          }
+          const result = await withAcpPromptInactivityTimeout(
+            withAcpTurnTransportSignal(
+              session.connection.prompt({
+                sessionId: acpSessionId,
+                prompt,
+              }),
+              turnState,
+            ),
+            () => turnState.lastActivityAt,
+          );
+          const outcome = classifyAcpTurn({
+            stopReason: result.stopReason,
+            isPi: session.isOfficialPi,
+            adapterVersion: session.adapterVersion,
+            observation: turnState.observation,
+            stderrError: turnState.stderrError ?? session.lastStderrError,
+          });
+          return { result, outcome };
+        } finally {
+          if (session.currentTurn === turnState) session.currentTurn = undefined;
+        }
       });
+      const { result, outcome } = settled;
+      const piUsage = turnState.piUsageSnapshot
+        ? await readPiAcpTurnUsage(turnState.piUsageSnapshot)
+        : undefined;
+      const usage = mergeUtilityRequestUsage(
+        utilityRequestUsageFromAcp(result.usage, getAcpSessionModel(sessionId)),
+        piUsage,
+      ) ?? null;
+      const canonicalUsage = toCanonicalAcpUsage(usage);
+      const canonicalOutcome = toAcpPiTurnOutcome(outcome, turnId, canonicalUsage);
+      log("ACP_TURN_COMPLETE", {
+        session: sessionId.slice(0, 8),
+        turnId,
+        agentId: session.analyticsProperties.acp_agent,
+        adapterVersion: session.adapterVersion,
+        piVersion: session.piVersion,
+        mcpAdapterVersion: session.mcpAdapterVersion,
+        stage: canonicalOutcome.status === "failed" ? canonicalOutcome.error.stage : "settle",
+        status: outcome.status,
+        stopReason: outcome.stopReason ?? result.stopReason,
+        errorCode: canonicalOutcome.status === "failed" ? canonicalOutcome.error.code : undefined,
+        errorSource: canonicalOutcome.status === "failed" ? canonicalOutcome.error.source : undefined,
+        retryNoticeCount: turnState.observation.retryNoticeCount,
+        meaningfulTextLength: turnState.observation.meaningfulTextLength,
+        toolCallCount: turnState.observation.toolCallCount,
+        durationMs: Math.max(0, Date.now() - turnState.startedAt),
+        model: usage?.model,
+        usage,
+      });
+      if (turnState.settled) {
+        if (turnState.outcome) {
+          return turnState.outcome.status === "failed"
+            ? { ok: false as const, outcome: turnState.outcome, outcomeDelivered: true as const }
+            : { ok: true as const, outcome: turnState.outcome, outcomeDelivered: true as const };
+        }
+        if (turnState.transportError) {
+          return {
+            ok: false as const,
+            status: "transport_error" as const,
+            turnId,
+            error: turnState.transportError,
+            outcomeDelivered: false as const,
+          };
+        }
+      }
+      settleAcpTurnOutcome(getMainWindow, session, turnState, canonicalOutcome, usage);
 
-      return { ok: true };
+      if (canonicalOutcome.status === "failed") {
+        return { ok: false as const, outcome: canonicalOutcome, outcomeDelivered: true as const };
+      }
+      return { ok: true as const, outcome: canonicalOutcome, outcomeDelivered: true as const };
     } catch (err) {
-      finishRequest?.(false);
-      const msg = extractErrorMessage(err);
-      const surfacedError = msg === "Internal error" && session.lastStderrError ? session.lastStderrError : msg;
-      reportError("ACP_PROMPT_ERR", err, { engine: "acp", sessionId, surfacedError });
-      return { error: surfacedError };
+      if (turnState.settled) {
+        if (turnState.outcome) {
+          return turnState.outcome.status === "failed"
+            ? { ok: false as const, outcome: turnState.outcome, outcomeDelivered: true as const }
+            : { ok: true as const, outcome: turnState.outcome, outcomeDelivered: true as const };
+        }
+        if (turnState.transportError) {
+          return {
+            ok: false as const,
+            status: "transport_error" as const,
+            turnId,
+            error: turnState.transportError,
+            outcomeDelivered: false as const,
+          };
+        }
+      }
+      if (turnState.cancelRequested) {
+        settleAcpTurnCancelled(getMainWindow, session, turnState);
+        return {
+          ok: true as const,
+          outcome: turnState.outcome ?? { status: "cancelled" as const, turnId, stopReason: "cancelled" as const },
+          outcomeDelivered: true as const,
+        };
+      }
+      const stderrMessage = turnState.stderrError || session.lastStderrError;
+      const errorDetails = buildAcpPromptTransportErrorDetails(err, {
+        isOfficialPi: session.isOfficialPi === true,
+        ...(stderrMessage ? { stderrMessage } : {}),
+      });
+      reportError("ACP_PROMPT_ERR", err, {
+        engine: "acp",
+        sessionId,
+        turnId,
+        surfacedError: errorDetails.message,
+        errorCode: errorDetails.code,
+        adapterVersion: session.adapterVersion,
+        piVersion: session.piVersion,
+        mcpAdapterVersion: session.mcpAdapterVersion,
+      });
+      settleAcpTurnTransportError(getMainWindow, session, turnState, errorDetails);
+      signalAcpTurnTransportFailure(turnState, errorDetails);
+      if (errorDetails.code === "acp_prompt_timeout") {
+        log("ACP_TURN_TIMEOUT", {
+          session: sessionId.slice(0, 8),
+          turnId,
+          inactivityTimeoutMs: resolveAcpPromptInactivityTimeoutMs(),
+        });
+        void session.connection.cancel({ sessionId: acpSessionId })
+          .catch(() => undefined)
+          .finally(() => killProcessTree(session.process));
+        const forceStop = setTimeout(() => killProcessTree(session.process), 500);
+        forceStop.unref?.();
+      }
+      return { ok: false as const, status: "transport_error" as const, turnId, error: errorDetails, outcomeDelivered: false as const };
     } finally {
+      if (session.currentTurn === turnState) session.currentTurn = undefined;
       session.activeUserPrompts = Math.max(0, (session.activeUserPrompts ?? 1) - 1);
+      session.turnStates?.delete(turnId);
     }
   });
 
@@ -1000,6 +2088,13 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       return { ok: true };
     }
     log("ACP_STOP", `session=${sessionId.slice(0, 8)} killing pid=${session.process.pid} total_events=${session.eventCounter}`);
+    for (const state of session.turnStates?.values() ?? []) {
+      if (!state.settled) {
+        state.cancelRequested = true;
+        settleAcpTurnCancelled(getMainWindow, session, state);
+        signalAcpTurnTransportFailure(state, acpCancellationSignal());
+      }
+    }
     // Drain pending permissions before killing
     for (const [, resolver] of session.pendingPermissions) {
       resolver.resolve({ outcome: { outcome: "cancelled" } });
@@ -1027,8 +2122,11 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       log("ACP_RELOAD", `ERROR: session ${sessionId?.slice(0, 8)} not found`);
       return { error: "Session not found" };
     }
-    if (!session.supportsLoadSession) {
-      log("ACP_RELOAD", `session=${sessionId.slice(0, 8)} agent does not support session/load, falling back to restart`);
+    if (!supportsInProcessMcpReload(session)) {
+      const reason = session.isOfficialPi
+        ? "built-in Pi MCP configuration is process-scoped"
+        : "agent does not support session/load";
+      log("ACP_RELOAD", `session=${sessionId.slice(0, 8)} ${reason}, falling back to restart`);
       return { supportsLoad: false };
     }
     if (!session.acpSessionId) {
@@ -1079,6 +2177,13 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       resolver.resolve({ outcome: { outcome: "cancelled" } });
     }
     session.pendingPermissions.clear();
+    for (const state of session.turnStates?.values() ?? []) {
+      state.cancelRequested = true;
+    }
+    const cancelledQueued = session.operationCoordinator?.cancelQueuedUserPrompts() ?? 0;
+    if (cancelledQueued > 0) {
+      log("ACP_CANCEL", `session=${sessionId.slice(0, 8)} rejected ${cancelledQueued} queued user prompt(s)`);
+    }
     if (!session.acpSessionId) {
       return { ok: true };
     }
@@ -1103,66 +2208,16 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
     if (!session.acpSessionId) {
       return { error: buildAuthRequiredError(session.agentName, session.authMethods) };
     }
-    const acpSessionId = session.acpSessionId;
     log("ACP_CONFIG", `session=${sessionId.slice(0, 8)} setting ${configId}=${value}`);
     try {
-      const conn = session.connection;
-
-      // Try the stable config option API first
-      try {
-        const result = await conn.setSessionConfigOption({
-          sessionId: acpSessionId,
-          configId,
-          value,
-        });
-        log("ACP_CONFIG", `session=${sessionId.slice(0, 8)} ${configId}=${value} OK (via setSessionConfigOption)`);
-        const updated = reconcileSuccessfulAcpConfigUpdate(
-          result.configOptions as ACPConfigOption[] | undefined,
-          configBuffer.get(sessionId) as ACPConfigOption[] | undefined,
-          configId,
-          value,
-        );
-        if (updated) configBuffer.set(sessionId, updated);
-        if (isLegacyModeConfig(configId, updated)) session.pendingModeValue = undefined;
-        return { configOptions: updated };
-      } catch (configErr) {
-        const buffered = configBuffer.get(sessionId) as ACPConfigOption[] | undefined;
-
-        // Older agents expose model/mode state without the stable config method.
-        if (configId === "model") {
-          log("ACP_CONFIG", `session=${sessionId.slice(0, 8)} setSessionConfigOption failed, trying unstable_setSessionModel...`);
-          await conn.unstable_setSessionModel({
-            sessionId: acpSessionId,
-            modelId: value,
-          });
-          log("ACP_CONFIG", `session=${sessionId.slice(0, 8)} model=${value} OK (via unstable_setSessionModel)`);
-
-          // Update the synthesized config option in the buffer
-          const updated = updateAcpConfigCurrentValue(buffered, configId, value);
-          if (updated) {
-            configBuffer.set(sessionId, updated);
-            return { configOptions: updated };
-          }
-          return {};
-        }
-
-        if (isLegacyModeConfig(configId, buffered)) {
-          log("ACP_CONFIG", `session=${sessionId.slice(0, 8)} setSessionConfigOption failed, trying setSessionMode...`);
-          await conn.setSessionMode({
-            sessionId: acpSessionId,
-            modeId: value,
-          });
-          log("ACP_CONFIG", `session=${sessionId.slice(0, 8)} ${configId}=${value} OK (via setSessionMode)`);
-          const updated = updateAcpConfigCurrentValue(buffered, configId, value);
-          if (updated) {
-            configBuffer.set(sessionId, updated);
-            session.pendingModeValue = undefined;
-            return { configOptions: updated };
-          }
-          return {};
-        }
-        throw configErr;
-      }
+      const updated = await setAcpSessionConfigValue(
+        sessionId,
+        session,
+        configId,
+        value,
+        "ACP_CONFIG",
+      );
+      return { configOptions: updated };
     } catch (err) {
       const errMsg = reportError("ACP_CONFIG_ERR", err, { engine: "acp", sessionId, configId });
       return { error: errMsg };
@@ -1204,6 +2259,18 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
 export function stopAll(): void {
   for (const [sessionId, entry] of acpSessions) {
     log("CLEANUP", `Stopping ACP session ${sessionId.slice(0, 8)}`);
+    for (const state of entry.turnStates?.values() ?? []) {
+      if (state.settled) continue;
+      state.cancelRequested = true;
+      state.settled = true;
+      state.outcome = { status: "cancelled", turnId: state.turnId, stopReason: "cancelled" };
+      finishAcpTurnRequest(state, false, undefined, {
+        code: "acp_cancelled",
+        message: "ACP turn cancelled.",
+        status: "cancelled",
+      });
+      signalAcpTurnTransportFailure(state, acpCancellationSignal());
+    }
     entry.operationCoordinator?.close("ACP application shutdown.");
     killProcessTree(entry.process);
   }

@@ -3,7 +3,7 @@ import type { ChatSession, UIMessage } from "@/types";
 import { buildPersistedSession, toChatSession } from "../records";
 
 describe("session records", () => {
-  it("keeps folder, pin, and branch metadata when hydrating sidebar sessions", () => {
+  it("keeps resume identity and sidebar metadata when hydrating sessions", () => {
     const session = toChatSession({
       id: "session-1",
       projectId: "project-1",
@@ -15,11 +15,15 @@ describe("session records", () => {
       folderId: "folder-1",
       pinned: true,
       branch: "feature/test",
+      agentId: "pi-acp",
+      agentSessionId: "pi-session-1",
     }, false);
 
     expect(session.folderId).toBe("folder-1");
     expect(session.pinned).toBe(true);
     expect(session.branch).toBe("feature/test");
+    expect(session.agentId).toBe("pi-acp");
+    expect(session.agentSessionId).toBe("pi-session-1");
     expect(session.isActive).toBe(false);
   });
 

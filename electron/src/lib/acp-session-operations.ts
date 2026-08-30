@@ -28,6 +28,19 @@ export class AcpSessionOperationCoordinator {
     return this.enqueue(this.utilityQueue, operation, false, waitForFirstUserPrompt);
   }
 
+  cancelQueuedUserPrompts(reason = "ACP turn cancelled."): number {
+    const error = new Error(reason);
+    const queued = this.userQueue.splice(0);
+    for (const operation of queued) {
+      if (operation.settlesFirstUserPrompt) {
+        this.firstUserPromptSettled = true;
+      }
+      operation.reject(error);
+    }
+    this.drain();
+    return queued.length;
+  }
+
   close(reason = "ACP session closed."): void {
     if (this.closedError) return;
     this.closedError = new Error(reason);

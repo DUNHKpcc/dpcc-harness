@@ -16,6 +16,7 @@ export function mergeRegistryAgentUpdate(
     ...next,
     id: existing.id,
     cachedConfigOptions: existing.cachedConfigOptions,
+    cachedSlashCommands: existing.cachedSlashCommands,
   };
 }
 
@@ -27,7 +28,9 @@ export function planAcpAgentUpdates(
   const registryById = new Map(registryAgents.map((agent) => [agent.id, agent]));
 
   return installedAgents.flatMap((installedAgent) => {
-    if (installedAgent.engine !== "acp" || !installedAgent.registryId) return [];
+    if (installedAgent.builtIn || installedAgent.engine !== "acp" || !installedAgent.registryId) {
+      return [];
+    }
 
     const registryAgent = registryById.get(installedAgent.registryId);
     if (!registryAgent || !hasUpdate(installedAgent, registryAgent)) return [];

@@ -1,6 +1,7 @@
-/**
- * Pure session persistence helpers shared between Electron and CLI.
- */
+/** Pure session persistence helpers shared between Electron and CLI. */
+
+import { isPersistedEngineId } from "./session-runtime";
+import type { PersistedEngineId } from "../types/engine";
 
 export interface SessionMeta {
   id: string;
@@ -16,7 +17,9 @@ export interface SessionMeta {
   totalCost?: number;
   upstreamRequestCount?: number;
   requestLog?: unknown[];
-  engine?: "claude" | "acp" | "codex";
+  engine?: PersistedEngineId;
+  /** Raw engine value retained for a visible, fail-closed data error. */
+  invalidEngine?: string;
   codexThreadId?: string;
   codexRolloutPath?: string;
   /** Which folder this chat belongs to (undefined = root level). */
@@ -27,6 +30,8 @@ export interface SessionMeta {
   branch?: string;
   /** Agent ID — which agent was used for this session. */
   agentId?: string;
+  /** ACP-side session identity required to resume the same agent session. */
+  agentSessionId?: string;
   /** Set on a Codex session opened by a Claude `codex_delegate` tool call. */
   delegatedFromSessionId?: string;
   /** Origin of the session — undefined/"desktop" = normal UI, "wechat" = WeChat bridge. */
@@ -53,6 +58,8 @@ export function getLastUserMessageTimestamp(
  * Extract a SessionMeta from a raw session data object.
  */
 export function extractSessionMeta(data: Record<string, unknown>, lastMessageAt: number): SessionMeta {
+  const rawEngine = data.engine;
+  const engine = isPersistedEngineId(rawEngine) ? rawEngine : undefined;
   return {
     id: data.id as string,
     projectId: data.projectId as string,
@@ -66,13 +73,15 @@ export function extractSessionMeta(data: Record<string, unknown>, lastMessageAt:
     totalCost: (data.totalCost as number) || 0,
     upstreamRequestCount: typeof data.upstreamRequestCount === "number" ? data.upstreamRequestCount : undefined,
     requestLog: Array.isArray(data.requestLog) ? data.requestLog : [],
-    engine: data.engine as SessionMeta["engine"],
+    ...(engine ? { engine } : {}),
+    ...(rawEngine !== undefined && !engine ? { invalidEngine: String(rawEngine) } : {}),
     codexThreadId: data.codexThreadId as string | undefined,
     codexRolloutPath: data.codexRolloutPath as string | undefined,
     folderId: data.folderId as string | undefined,
     pinned: data.pinned as boolean | undefined,
     branch: data.branch as string | undefined,
     agentId: data.agentId as string | undefined,
+    agentSessionId: data.agentSessionId as string | undefined,
     delegatedFromSessionId: data.delegatedFromSessionId as string | undefined,
     source: data.source === "wechat" ? "wechat" : undefined,
     wechatUserId: data.wechatUserId as string | undefined,

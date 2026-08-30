@@ -1,4 +1,4 @@
-import type { ACPSessionEvent } from "@/types";
+import type { ACPSessionEvent, ACPTurnCompleteEvent, ACPTransportErrorEvent } from "@/types";
 import type { InternalState } from "./session-store";
 import {
   mergeToolInput as acpMergeToolInput,
@@ -7,9 +7,30 @@ import {
   deriveToolName,
 } from "@/lib/engine/acp-adapter";
 import { extractTaskSubagentSteps, getTaskStatus, isTaskToolName } from "@/lib/engine/acp-task-adapter";
-import { nextId } from "@/lib/message-factory";
+import { createSystemMessage, nextId } from "@/lib/message-factory";
+import { markInFlightToolCallsFailed } from "@/lib/chat/in-flight-tools";
 
-// ── Shared ACP streaming helpers (also used by Codex handler) ──
+const MAX_TERMINAL_ACP_TURN_IDS = 128;
+
+/**
+ * Terminal notifications can be replayed during pane handoff, and an older
+ * notification can arrive after a newer turn has already settled. A single
+ * `lastTurnId` check is not sufficient for that ordering, so retain a small
+ * bounded set of all recently applied IDs.
+ */
+function markAcpTurnTerminal(state: InternalState, turnId: string | undefined): boolean {
+  if (!turnId) return true;
+  if (state.terminalAcpTurnIdSet.has(turnId)) return false;
+  state.terminalAcpTurnIdSet.add(turnId);
+  while (state.terminalAcpTurnIdSet.size > MAX_TERMINAL_ACP_TURN_IDS) {
+    const oldest = state.terminalAcpTurnIdSet.values().next().value;
+    if (!oldest) break;
+    state.terminalAcpTurnIdSet.delete(oldest);
+  }
+  return true;
+}
+
+// ── Shared ACP streaming helpers ──
 
 /** Ensure a streaming assistant message exists for delta accumulation. */
 export function ensureACPStreamingMsg(state: InternalState): void {
@@ -59,7 +80,6 @@ export function handleACPEvent(state: InternalState, event: ACPSessionEvent): vo
 
   switch (update.sessionUpdate) {
     case "agent_message_chunk": {
-      closePendingACPTools(state);
       if (update.content?.type === "text" && update.content.text) {
         // If an ACP task has inner tools running, accumulate text as task content
         if (state.activeTask?.hasInnerTools) {
@@ -79,7 +99,6 @@ export function handleACPEvent(state: InternalState, event: ACPSessionEvent): vo
       break;
     }
     case "agent_thought_chunk": {
-      closePendingACPTools(state);
       if (update.content?.type === "text" && update.content.text) {
         ensureACPStreamingMsg(state);
         const target = state.messages.find(m => m.id === state.currentStreamingMsgId);
@@ -88,7 +107,6 @@ export function handleACPEvent(state: InternalState, event: ACPSessionEvent): vo
       break;
     }
     case "tool_call": {
-      closePendingACPTools(state);
       finalizeACPStreamingMsg(state);
       const msgId = `tool-${update.toolCallId}`;
       if (!state.messages.some(m => m.id === msgId)) {
@@ -225,9 +243,33 @@ export function handleACPEvent(state: InternalState, event: ACPSessionEvent): vo
  * Handle ACP turn completion — finalize streaming, close tools, reset processing.
  * Returns true so the caller knows to fire onProcessingChange.
  */
-export function handleACPTurnComplete(state: InternalState): void {
+export function handleACPTurnComplete(state: InternalState, event?: ACPTurnCompleteEvent): boolean {
+  if (!markAcpTurnTerminal(state, event?.turnId)) return false;
   finalizeACPStreamingMsg(state);
-  closePendingACPTools(state);
+  if (event?.status === "failed") {
+    const reason = event.error?.message || "ACP prompt failed.";
+    state.messages = markInFlightToolCallsFailed(state.messages, reason);
+    state.messages.push(createSystemMessage(`ACP prompt error: ${reason}`, true));
+  } else if (event?.status === "cancelled") {
+    // A cancelled turn is terminal but not successful. Keep interrupted tools
+    // visibly failed instead of closing them as completed.
+    state.messages = markInFlightToolCallsFailed(state.messages, "Agent turn cancelled.");
+  } else {
+    closePendingACPTools(state);
+  }
   state.activeTask = null;
   state.isProcessing = false;
+  return true;
+}
+
+/** Handle a transport failure for a turn that never produced a canonical outcome. */
+export function handleACPTransportError(state: InternalState, event: ACPTransportErrorEvent): boolean {
+  if (!markAcpTurnTerminal(state, event.turnId)) return false;
+  const reason = event.error.message || "ACP prompt transport failed.";
+  finalizeACPStreamingMsg(state);
+  state.messages = markInFlightToolCallsFailed(state.messages, reason);
+  state.messages.push(createSystemMessage(`ACP prompt error: ${reason}`, true));
+  state.activeTask = null;
+  state.isProcessing = false;
+  return true;
 }

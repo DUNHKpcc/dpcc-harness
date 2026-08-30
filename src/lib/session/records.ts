@@ -1,7 +1,7 @@
 import type { SessionMeta as SessionListItem } from "@shared/lib/session-persistence";
 import type { ChatSession, ClaudeEffort, ContextUsage, PersistedSession, UIMessage, UpstreamRequestRecord } from "@/types";
 import { getUpstreamRequestCount, trimUpstreamRequestLog } from "@/lib/usage/upstream-requests";
-import { finalizeInterruptedMessages } from "@/lib/chat/in-flight-tools";
+import { normalizeInterruptedSession } from "@shared/lib/session-recovery";
 
 const VALID_EFFORTS = new Set<string>(["low", "medium", "high", "xhigh", "max"]);
 function toClaudeEffort(value: string | undefined): ClaudeEffort | undefined {
@@ -30,12 +30,14 @@ export function toChatSession(
     requestLog,
     isActive,
     engine: session.engine,
+    invalidEngine: session.invalidEngine,
     codexThreadId: session.codexThreadId,
     codexRolloutPath: session.codexRolloutPath,
     folderId: session.folderId,
     pinned: session.pinned,
     branch: session.branch,
     agentId: session.agentId,
+    agentSessionId: session.agentSessionId,
     delegatedFromSessionId: session.delegatedFromSessionId,
     source: session.source,
     wechatUserId: session.wechatUserId,
@@ -58,7 +60,7 @@ export function buildPersistedSession(
     createdAt: session.createdAt,
     messages,
     model: session.model,
-    effort: session.effort,
+    ...(session.engine !== "acp" && session.effort ? { effort: session.effort } : {}),
     permissionMode: session.permissionMode,
     planMode: session.planMode,
     totalCost,
@@ -66,12 +68,18 @@ export function buildPersistedSession(
     requestLog: recentRequestLog,
     contextUsage,
     engine: session.engine,
+    invalidEngine: session.invalidEngine,
     folderId: session.folderId,
     pinned: session.pinned,
     branch: session.branch,
     ...(session.agentId ? { agentId: session.agentId } : {}),
     ...(session.agentSessionId ? { agentSessionId: session.agentSessionId } : {}),
-    ...(session.delegatedFromSessionId ? { delegatedFromSessionId: session.delegatedFromSessionId } : {}),
+    // New Pi sessions are first-class ACP sessions, not Claude-to-Codex
+    // delegation children. Preserve this legacy field only when re-saving an
+    // old non-ACP record for compatibility.
+    ...(session.engine !== "acp" && session.delegatedFromSessionId
+      ? { delegatedFromSessionId: session.delegatedFromSessionId }
+      : {}),
     ...(session.engine === "codex" && session.codexThreadId ? { codexThreadId: session.codexThreadId } : {}),
     ...(session.engine === "codex" && session.codexRolloutPath ? { codexRolloutPath: session.codexRolloutPath } : {}),
     ...(session.source ? { source: session.source } : {}),
@@ -82,6 +90,5 @@ export function buildPersistedSession(
 export function normalizePersistedSessionForDisplay(
   session: PersistedSession,
 ): PersistedSession {
-  const messages = finalizeInterruptedMessages(session.messages ?? []);
-  return messages === session.messages ? session : { ...session, messages };
+  return normalizeInterruptedSession(session);
 }

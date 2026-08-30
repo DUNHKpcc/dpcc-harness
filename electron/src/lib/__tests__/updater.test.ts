@@ -388,7 +388,12 @@ describe("checkForUpdates", () => {
     await checkForUpdates("failing");
     // Tried both the github and mirror feeds before giving up.
     expect(mockAutoUpdater.checkForUpdates).toHaveBeenCalledTimes(2);
-    expect(log).toHaveBeenCalledWith("UPDATER_ERR", expect.stringContaining("network"));
+    const errorCall = (log as Mock).mock.calls.find(([label]) => label === "UPDATER_ERR");
+    expect(errorCall?.[1]).toEqual(expect.objectContaining({
+      reason: "failing",
+      sources: "github,mirror",
+      error: expect.objectContaining({ message: "network" }),
+    }));
   });
 
   it("falls back to the mirror feed when the primary github feed fails", async () => {

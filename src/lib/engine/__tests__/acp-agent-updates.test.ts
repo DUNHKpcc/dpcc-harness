@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import type { ACPConfigOption, InstalledAgent, RegistryAgent } from "@/types";
+import {
+  BUILTIN_PI_AGENT,
+  type ACPConfigOption,
+  type InstalledAgent,
+  type RegistryAgent,
+} from "@/types";
 import type { BinaryCheckResult } from "@/lib/engine/acp-agent-registry";
 import {
   mergeRegistryAgentUpdate,
@@ -134,10 +139,20 @@ describe("planAcpAgentUpdates", () => {
     expect(updates[0]?.next.binary).toBe("/opt/homebrew/bin/binary-agent");
     expect(updates[0]?.next.args).toEqual(["serve"]);
   });
+
+  it("does not update the bundled Pi from the external Agent registry", () => {
+    const registry = [makeRegistryAgent({ id: "pi-acp", version: "99.0.0" })];
+
+    expect(planAcpAgentUpdates(
+      [{ ...BUILTIN_PI_AGENT, registryVersion: "0.0.33" }],
+      registry,
+      {},
+    )).toEqual([]);
+  });
 });
 
 describe("registryAgentToDefinition", () => {
-  it("registers Pi ACP as a user-installed PATH command instead of npx", () => {
+  it("does not replace bundled Pi with a registry or PATH command", () => {
     const definition = registryAgentToDefinition(makeRegistryAgent({
       id: "pi-acp",
       distribution: {
@@ -148,11 +163,6 @@ describe("registryAgentToDefinition", () => {
       },
     }));
 
-    expect(definition).toMatchObject({
-      id: "pi-acp",
-      binary: "pi-acp",
-      args: ["--adapter-flag"],
-      registryId: "pi-acp",
-    });
+    expect(definition).toBeNull();
   });
 });

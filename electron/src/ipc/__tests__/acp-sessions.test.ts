@@ -1,12 +1,101 @@
 import { describe, expect, it, vi } from "vitest";
 import { AcpSessionOperationCoordinator } from "../../lib/acp-session-operations";
 import {
+  buildAcpLifecycleErrorDetails,
   buildAcpMcpServers,
+  buildAcpPromptTransportErrorDetails,
+  reconcileInitialAcpConfigOptions,
+  resolveConfigOptions,
   resolveAcpRuntimeSessionId,
+  resolveAcpPromptInactivityTimeoutMs,
   selectAcpStartCleanupProcess,
   shouldSuppressAcpSessionUpdate,
   shouldUseWindowsShellForAcpBinary,
+  supportsInProcessMcpReload,
+  withAcpPromptInactivityTimeout,
 } from "../acp-sessions";
+
+vi.mock("../../lib/logger", () => ({ log: vi.fn() }));
+
+describe("buildAcpLifecycleErrorDetails", () => {
+  it("preserves stable Pi preflight codes without leaking credentials", () => {
+    const error = Object.assign(
+      new Error("Bundled Pi missing; authorization: Bearer secret-value"),
+      { code: "pi_bundled_package_missing" },
+    );
+
+    expect(buildAcpLifecycleErrorDetails(error, "acp_start_failed", "initialize"))
+      .toEqual(expect.objectContaining({
+        code: "pi_bundled_package_missing",
+        source: "pi",
+        stage: "spawn",
+        retryable: false,
+        message: "Bundled Pi missing; authorization: Bearer [REDACTED]",
+      }));
+  });
+
+  it("uses the operation fallback for untagged transport failures", () => {
+    expect(buildAcpLifecycleErrorDetails(
+      new Error("initialize failed"),
+      "acp_revive_failed",
+      "initialize",
+    )).toEqual(expect.objectContaining({
+      code: "acp_revive_failed",
+      source: "acp",
+      stage: "initialize",
+      retryable: true,
+    }));
+  });
+});
+
+describe("ACP prompt transport failures", () => {
+  it("keeps child exit, upstream stderr and protocol failures distinguishable", () => {
+    expect(buildAcpPromptTransportErrorDetails(
+      new Error("pi process exited (code=17, signal=null)"),
+      { isOfficialPi: true },
+    )).toEqual(expect.objectContaining({
+      code: "pi_child_exit",
+      source: "pi",
+      stage: "prompt",
+    }));
+    expect(buildAcpPromptTransportErrorDetails(
+      Object.assign(new Error("Internal error"), { code: "ECONNRESET" }),
+      { isOfficialPi: true, stderrMessage: "provider HTTP 429 rate limit" },
+    )).toEqual(expect.objectContaining({
+      code: "pi_upstream_error",
+      source: "upstream",
+      stage: "prompt",
+    }));
+    expect(buildAcpPromptTransportErrorDetails(
+      new Error("invalid JSON-RPC response"),
+      { isOfficialPi: false },
+    )).toEqual(expect.objectContaining({
+      code: "acp_protocol_error",
+      source: "acp",
+      retryable: false,
+    }));
+  });
+
+  it("fails a prompt after the configured inactivity window", async () => {
+    vi.useFakeTimers();
+    try {
+      const startedAt = Date.now();
+      const pending = new Promise<never>(() => undefined);
+      const result = withAcpPromptInactivityTimeout(pending, () => startedAt, 100);
+      const rejection = expect(result).rejects.toMatchObject({ code: "acp_prompt_timeout" });
+
+      await vi.advanceTimersByTimeAsync(101);
+      await rejection;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("uses the pinned production timeout when an override is invalid", () => {
+    expect(resolveAcpPromptInactivityTimeoutMs("not-a-number")).toBe(15 * 60 * 1000);
+    expect(resolveAcpPromptInactivityTimeoutMs("250")).toBe(250);
+  });
+});
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -25,6 +114,101 @@ describe("resolveAcpRuntimeSessionId", () => {
   it("generates an ID for a brand-new ACP session", () => {
     expect(resolveAcpRuntimeSessionId(undefined, () => "generated-session"))
       .toBe("generated-session");
+  });
+});
+
+describe("resolveConfigOptions", () => {
+  const cachedOption = {
+    id: "model",
+    name: "Model",
+    category: "model",
+    type: "select" as const,
+    currentValue: "cached/model",
+    options: [{ value: "cached/model", name: "Cached Model" }],
+  };
+
+  it("uses the agent cache when a revived runtime returns no selectors", () => {
+    expect(resolveConfigOptions(
+      {},
+      "revive-cache-fallback",
+      "ACP_REVIVE_TEST",
+      [cachedOption],
+    )).toEqual([cachedOption]);
+  });
+
+  it("keeps live runtime selectors authoritative over the cache", () => {
+    const liveOption = {
+      ...cachedOption,
+      currentValue: "live/model",
+      options: [{ value: "live/model", name: "Live Model" }],
+    };
+
+    expect(resolveConfigOptions(
+      { configOptions: [liveOption] },
+      "revive-live-precedence",
+      "ACP_REVIVE_TEST",
+      [cachedOption],
+    )).toEqual([liveOption]);
+  });
+
+  it("applies cached model before thinking and returns the runtime-corrected catalog", async () => {
+    const thoughtOption = {
+      id: "thought_level",
+      name: "Thinking",
+      category: "thought_level",
+      type: "select" as const,
+      currentValue: "low",
+      options: [
+        { value: "low", name: "Low" },
+        { value: "high", name: "High" },
+      ],
+    };
+    const liveOptions = [{
+      ...cachedOption,
+      currentValue: "live/model-a",
+      options: [
+        { value: "live/model-a", name: "Model A" },
+        { value: "live/model-b", name: "Model B" },
+      ],
+    }, thoughtOption];
+    const requestedOptions = [{ ...thoughtOption, currentValue: "high" }, {
+      ...liveOptions[0],
+      currentValue: "live/model-b",
+    }];
+    const calls: string[] = [];
+    let appliedOptions = liveOptions;
+
+    const result = await reconcileInitialAcpConfigOptions(
+      liveOptions,
+      requestedOptions,
+      async (configId, value) => {
+        calls.push(`${configId}=${value}`);
+        appliedOptions = appliedOptions.map((option) => (
+          option.id === configId ? { ...option, currentValue: value } : option
+        ));
+        return appliedOptions;
+      },
+    );
+
+    expect(calls).toEqual(["model=live/model-b", "thought_level=high"]);
+    expect(result.find((option) => option.id === "model")?.currentValue).toBe("live/model-b");
+    expect(result.find((option) => option.id === "thought_level")?.currentValue).toBe("high");
+  });
+
+  it("skips stale cached values that the live runtime no longer advertises", async () => {
+    const apply = vi.fn();
+    const result = await reconcileInitialAcpConfigOptions(
+      [{
+        ...cachedOption,
+        currentValue: "live/model",
+        options: [{ value: "live/model", name: "Live Model" }],
+      }],
+      [cachedOption],
+      apply,
+    );
+
+    expect(apply).not.toHaveBeenCalled();
+    expect(result[0].currentValue).toBe("live/model");
   });
 });
 
@@ -57,6 +241,23 @@ describe("selectAcpStartCleanupProcess", () => {
 
   it("prefers the connected process after connection setup returned", () => {
     expect(selectAcpStartCleanupProcess({ proc: connectedProcess }, { id: "pending", process: pendingProcess })).toBe(connectedProcess);
+  });
+});
+
+describe("supportsInProcessMcpReload", () => {
+  it("forces built-in Pi to restart so its process-scoped MCP config is applied", () => {
+    expect(supportsInProcessMcpReload({
+      supportsLoadSession: true,
+      isOfficialPi: true,
+    })).toBe(false);
+    expect(supportsInProcessMcpReload({
+      supportsLoadSession: true,
+      isOfficialPi: false,
+    })).toBe(true);
+    expect(supportsInProcessMcpReload({
+      supportsLoadSession: false,
+      isOfficialPi: false,
+    })).toBe(false);
   });
 });
 
@@ -141,6 +342,23 @@ describe("AcpSessionOperationCoordinator", () => {
 
     await expect(utility).rejects.toThrow("transport stopped");
     expect(operation).not.toHaveBeenCalled();
+  });
+
+  it("rejects queued user turns without closing the session", async () => {
+    const coordinator = new AcpSessionOperationCoordinator();
+    const firstTurn = deferred<void>();
+    const secondOperation = vi.fn(async () => "second");
+
+    const first = coordinator.runUserPrompt(() => firstTurn.promise);
+    const second = coordinator.runUserPrompt(secondOperation);
+
+    expect(coordinator.cancelQueuedUserPrompts()).toBe(1);
+    await expect(second).rejects.toThrow("ACP turn cancelled");
+    expect(secondOperation).not.toHaveBeenCalled();
+
+    firstTurn.resolve();
+    await expect(first).resolves.toBeUndefined();
+    await expect(coordinator.runUserPrompt(async () => "third")).resolves.toBe("third");
   });
 });
 

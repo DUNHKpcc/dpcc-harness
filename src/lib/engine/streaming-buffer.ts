@@ -27,7 +27,7 @@ export function mergeStreamingChunk(current: string, incoming: string): string {
 
 /**
  * Lightweight streaming buffer for engines that don't use SDK content block events
- * (ACP and Codex). Accumulates text and thinking chunks with a simple append API.
+ * ACP agents. Accumulates text and thinking chunks with a simple append API.
  */
 export class SimpleStreamingBuffer {
   messageId: string | null = null;

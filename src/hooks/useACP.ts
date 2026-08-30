@@ -14,6 +14,7 @@ import type {
   ACPConfigOption,
   ACPAvailableCommandsUpdate,
   ACPAuthMethod,
+  ACPTransportErrorEvent,
 } from "@/types";
 import { ACPStreamingBuffer, normalizeToolInput, normalizeToolResult, deriveToolName, mergeToolInput, pickAutoResponseOption } from "@/lib/engine/acp-adapter";
 import { extractTaskSubagentSteps, getTaskStatus, isTaskToolName } from "@/lib/engine/acp-task-adapter";
@@ -25,6 +26,8 @@ import { toastText } from "@/lib/toast-i18n";
 import { markInFlightToolCallsFailed } from "@/lib/chat/in-flight-tools";
 import { useEngineBase } from "./useEngineBase";
 import { normalizeAcpCommands } from "../lib/engine/command-prewarm";
+import { getAcpPromptTransportErrorMessage, hasAcpPromptTransportEvent } from "@shared/lib/acp-turn";
+import { updateCachedAcpConfigValue } from "@shared/lib/acp-config-cache";
 
 interface UseACPOptions {
   sessionId: string | null;
@@ -38,6 +41,19 @@ interface UseACPOptions {
   initialRawAcpPermission?: ACPPermissionEvent | null;
   /** Client-side ACP permission behavior — controls auto-response to permission requests */
   acpPermissionBehavior?: AcpPermissionBehavior;
+}
+
+const MAX_TERMINAL_TURN_IDS = 128;
+
+function rememberTerminalTurn(turnIds: Set<string>, turnId: string): boolean {
+  if (turnIds.has(turnId)) return false;
+  turnIds.add(turnId);
+  while (turnIds.size > MAX_TERMINAL_TURN_IDS) {
+    const oldest = turnIds.values().next().value;
+    if (!oldest) break;
+    turnIds.delete(oldest);
+  }
+  return true;
 }
 
 /** Renderer-side ACP log — forwarded to main process log file as [ACP_UI:TAG] */
@@ -57,6 +73,7 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
     requestLog, setRequestLog,
     pendingPermission, setPendingPermission,
     contextUsage, setContextUsage,
+    isCompacting,
     sessionIdRef,
     scheduleFlush: scheduleRaf,
     cancelPendingFlush,
@@ -83,6 +100,7 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
   /** Track the active ACP task/subagent tool so inner tool_calls + text are routed into its card. */
   const activeTaskRef = useRef<{ msgId: string; toolCallId: string; hasInnerTools: boolean; textBuffer: string } | null>(null);
   const acpPermissionRef = useRef<ACPPermissionEvent | null>(null);
+  const terminalTurnIdsRef = useRef(new Set<string>());
   // Track latest permission behavior to avoid stale closures in event listeners
   const acpPermissionBehaviorRef = useRef<AcpPermissionBehavior>(acpPermissionBehavior ?? "ask");
   acpPermissionBehaviorRef.current = acpPermissionBehavior ?? "ask";
@@ -100,6 +118,7 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
   useEffect(() => {
     acpPermissionRef.current = initialRawAcpPermission ?? null;
     activeTaskRef.current = null;
+    terminalTurnIdsRef.current.clear();
     setConfigOptions(initialConfigOptions ?? []);
     setConfigOptionsLoading(false);
     setSlashCommands(initialSlashCommands ?? []);
@@ -203,8 +222,6 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
     const kind = update.sessionUpdate;
 
     if (kind === "agent_message_chunk" || kind === "agent_thought_chunk") {
-      // Agent moved on to generating text — close any pending tools
-      closePendingTools();
       const content = update.content as { type: string; text?: string } | undefined;
       if (content?.type === "text" && content.text) {
         // If an ACP task has inner tools running, accumulate text as task content
@@ -226,7 +243,6 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
         scheduleFlush();
       }
     } else if (kind === "tool_call") {
-      closePendingTools();
       finalizeStreamingMessage();
       const tc = update as Extract<typeof update, { sessionUpdate: "tool_call" }>;
       const toolName = deriveToolName(tc.title, tc.kind, tc.rawInput);
@@ -341,11 +357,11 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
             subagentSteps: (m.subagentSteps ?? []).map(step =>
               step.toolUseId === tcu.toolCallId
                 ? {
-                    ...step,
-                    toolInput: mergeToolInput(step.toolInput, tcu.rawInput, tcu.kind, tcu.locations) ?? step.toolInput,
-                    toolResult: result ?? step.toolResult ?? { status: "completed" },
-                    toolError: tcu.status === "failed",
-                  }
+                  ...step,
+                  toolInput: mergeToolInput(step.toolInput, tcu.rawInput, tcu.kind, tcu.locations) ?? step.toolInput,
+                  toolResult: result ?? step.toolResult ?? { status: "completed" },
+                  toolError: tcu.status === "failed",
+                }
                 : step
             ),
           };
@@ -397,9 +413,9 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
       acpLog("MODE_UPDATE", { modeId: cm.currentModeId });
       setConfigOptions(prev => prev.map((option) => (
         option.id === "thought_level"
-        || option.id === "mode"
-        || option.category === "thought_level"
-        || option.category === "mode"
+          || option.id === "mode"
+          || option.category === "thought_level"
+          || option.category === "mode"
           ? { ...option, currentValue: cm.currentModeId }
           : option
       )));
@@ -411,7 +427,7 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
       const p = update as Extract<typeof update, { sessionUpdate: "plan" }>;
       acpLog("PLAN", { entryCount: p.entries?.length });
     }
-  }, [closePendingTools, ensureStreamingMessage, finalizeStreamingMessage, scheduleFlush]);
+  }, [ensureStreamingMessage, finalizeStreamingMessage, scheduleFlush]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -509,26 +525,71 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
 
     const unsubTurnComplete = window.claude.acp.onTurnComplete((data: ACPTurnCompleteEvent) => {
       if (data._sessionId !== sessionIdRef.current) return;
-      acpLog("TURN_COMPLETE", { stopReason: data.stopReason });
+      if (!rememberTerminalTurn(terminalTurnIdsRef.current, data.turnId)) return;
+      acpLog("TURN_COMPLETE", {
+        turnId: data.turnId,
+        status: data.status,
+        stopReason: data.stopReason,
+        errorCode: data.error?.code,
+      });
       finalizeStreamingMessage();
-      closePendingTools();
+      if (data.status === "failed") {
+        const message = data.error?.message || "ACP prompt failed.";
+        failPendingTools(message);
+        pushSystemError(`ACP prompt error: ${message}`);
+      } else if (data.status === "cancelled") {
+        // Cancellation is terminal, but it is not success: an interrupted
+        // tool must never be rendered as completed.
+        failPendingTools("Agent turn cancelled.");
+      } else {
+        closePendingTools();
+      }
       setIsProcessing(false);
     });
 
-    const unsubExit = window.claude.acp.onExit((data: { _sessionId: string; code: number | null; error?: string }) => {
+    const unsubTurnTransportError = window.claude.acp.onTurnTransportError((data: ACPTransportErrorEvent) => {
+      if (data._sessionId !== sessionIdRef.current) return;
+      if (!rememberTerminalTurn(terminalTurnIdsRef.current, data.turnId)) return;
+      const message = data.error.message || "ACP prompt transport failed.";
+      acpLog("TURN_TRANSPORT_ERROR", {
+        turnId: data.turnId,
+        code: data.error.code,
+        stage: data.error.stage,
+      });
+      finalizeStreamingMessage();
+      failPendingTools(message);
+      pushSystemError(`ACP prompt error: ${message}`);
+      setIsProcessing(false);
+    });
+
+    const unsubExit = window.claude.acp.onExit((data: { _sessionId: string; code: number | null; turnId?: string; error?: string; errorCode?: string }) => {
       if (data._sessionId !== sessionIdRef.current) return;
       acpLog("SESSION_EXIT", { code: data.code, error: data.error });
       setIsConnected(false);
       setIsProcessing(false);
-      // Show error message in UI if session exited with error
-      if (data.code !== 0 && data.code !== null) {
-        const errorDetail = data.error || `Agent process exited with code ${data.code}`;
-        failPendingTools(errorDetail);
-        setMessages((prev) => [
-          ...prev,
-          createSystemMessage(errorDetail, true),
-        ]);
-      }
+      acpPermissionRef.current = null;
+      setPendingPermission(null);
+
+      // Main emits a canonical terminal/transport event before `acp:exit`
+      // whenever it can. If that event was already applied, the exit is only
+      // lifecycle cleanup. Otherwise an exit tied to an active turn is itself
+      // the final fallback and must not silently look successful, even with
+      // exit code 0.
+      if (data.turnId && !rememberTerminalTurn(terminalTurnIdsRef.current, data.turnId)) return;
+      const isAbnormalExit = data.code !== 0 && data.code !== null;
+      if (!data.turnId && !isAbnormalExit && !data.error) return;
+
+      const errorDetail = data.error
+        || (data.turnId
+          ? "ACP agent exited before the active turn completed."
+          : `Agent process exited with code ${data.code}`);
+      const message = data.errorCode
+        ? `ACP process error [${data.errorCode}]: ${errorDetail}`
+        : errorDetail;
+      finalizeStreamingMessage();
+      activeTaskRef.current = null;
+      failPendingTools(errorDetail);
+      pushSystemError(message);
     });
 
     // All listeners are now installed. This atomically releases any startup
@@ -549,10 +610,10 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
       });
 
     return () => {
-      unsubEvent(); unsubPermission(); unsubTurnComplete(); unsubExit();
+      unsubEvent(); unsubPermission(); unsubTurnComplete(); unsubTurnTransportError(); unsubExit();
       cancelPendingFlush();
     };
-  }, [closePendingTools, failPendingTools, finalizeStreamingMessage, handleSessionUpdate, initialConfigOptions, sessionId]);
+  }, [closePendingTools, failPendingTools, finalizeStreamingMessage, handleSessionUpdate, initialConfigOptions, pushSystemError, sessionId]);
 
   const send = useCallback(async (text: string, images?: ImageAttachment[], displayText?: string) => {
     if (!sessionId) return;
@@ -562,15 +623,16 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
     setIsProcessing(true);
     try {
       const result = await window.claude.acp.prompt(sessionId, text, images);
-      if (result?.error) {
-        acpLog("SEND_ERROR", { session: sessionId.slice(0, 8), error: result.error });
+      const promptError = getAcpPromptTransportErrorMessage(result);
+      if (promptError && !hasAcpPromptTransportEvent(result)) {
+        acpLog("SEND_ERROR", { session: sessionId.slice(0, 8), error: promptError });
         if (sessionIdRef.current === targetSessionId) {
-          pushSystemError(`ACP prompt error: ${result.error}`);
+          pushSystemError(`ACP prompt error: ${promptError}`);
           setIsProcessing(false);
         } else {
           publishSessionSendFailure(
             targetSessionId,
-            `ACP prompt error: ${result.error}`,
+            `ACP prompt error: ${promptError}`,
           );
         }
       }
@@ -595,15 +657,16 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
     setIsProcessing(true);
     try {
       const result = await window.claude.acp.prompt(targetSessionId, text, images);
-      if (result?.error) {
-        acpLog("SEND_RAW_ERROR", { session: targetSessionId.slice(0, 8), error: result.error });
+      const promptError = getAcpPromptTransportErrorMessage(result);
+      if (promptError && !hasAcpPromptTransportEvent(result)) {
+        acpLog("SEND_RAW_ERROR", { session: targetSessionId.slice(0, 8), error: promptError });
         if (sessionIdRef.current === targetSessionId) {
-          pushSystemError(`ACP prompt error: ${result.error}`);
+          pushSystemError(`ACP prompt error: ${promptError}`);
           setIsProcessing(false);
         } else {
           publishSessionSendFailure(
             targetSessionId,
-            `ACP prompt error: ${result.error}`,
+            `ACP prompt error: ${promptError}`,
           );
         }
       }
@@ -690,7 +753,12 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
   }, [sessionId, pendingPermission]);
 
   const setConfig = useCallback(async (configId: string, value: string) => {
-    if (!sessionId) return;
+    // Draft and dormant sessions intentionally have no ACP transport. Keep the
+    // cached selector interactive and apply this value when the runtime starts.
+    if (!sessionId) {
+      setConfigOptions((previous) => updateCachedAcpConfigValue(previous, configId, value));
+      return;
+    }
     acpLog("CONFIG_SET", { session: sessionId.slice(0, 8), configId, value });
     setConfigOptionsLoading(true);
     try {
@@ -752,6 +820,7 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
     upstreamRequestCount, setUpstreamRequestCount,
     requestLog, setRequestLog,
     contextUsage,
+    isCompacting,
     send, sendRaw, stop, interrupt, compact,
     pendingPermission, respondPermission,
     rawPermission: acpPermissionRef.current,

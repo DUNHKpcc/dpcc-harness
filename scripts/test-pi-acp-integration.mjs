@@ -142,6 +142,11 @@ function collectTextFromUpdate(update) {
   return content.text;
 }
 
+function readStartupInfo(result) {
+  const startupInfo = result?._meta?.piAcp?.startupInfo;
+  return typeof startupInfo === "string" && startupInfo ? startupInfo : null;
+}
+
 function summarizeTurnText(textChunks) {
   return textChunks.join("").trim();
 }
@@ -182,9 +187,10 @@ export async function createWorkspaceRoot() {
   const workspace = path.join(root, "workspace");
   await Promise.all([home, agentDir, sessionDir, workspace].map(ensureDir));
   await writeFile(path.join(workspace, "README.md"), "# Fixture workspace\n");
+  await writeFile(path.join(workspace, "AGENTS.md"), "# Fixture context\n");
   await writeFile(
     path.join(agentDir, "settings.json"),
-    JSON.stringify({ quietStartup: true }, null, 2),
+    JSON.stringify({ quietStartup: false }, null, 2),
   );
   return { root, home, agentDir, sessionDir, workspace };
 }
@@ -427,6 +433,15 @@ async function waitForCondition(predicate, label, timeoutMs = 5_000) {
   throw codedError("timeout", `${label} timed out after ${timeoutMs}ms`, { label, timeoutMs });
 }
 
+async function waitForStartupInfo(connection, result) {
+  const startupInfo = readStartupInfo(result);
+  if (!startupInfo) return;
+  await waitForCondition(
+    () => connection.sessionUpdates.some((update) => collectTextFromUpdate(update) === startupInfo),
+    "session startup info",
+  );
+}
+
 async function initializeFixtureSession(connection, paths, clientName) {
   const initializeResult = await connection.request("initialize", {
     protocolVersion: ACP_PROTOCOL_VERSION,
@@ -444,6 +459,7 @@ async function initializeFixtureSession(connection, paths, clientName) {
     mcpServers: [],
   });
   assertCondition(session?.sessionId, "protocol_error", "session/new did not return a sessionId", { session });
+  await waitForStartupInfo(connection, session);
   return session;
 }
 
@@ -486,8 +502,10 @@ async function runAcpScenario(paths, { mode, promptText, usePromptMarker = false
       mcpServers: [],
     });
     assertCondition(newSessionResult?.sessionId, "protocol_error", "session/new did not return a sessionId", { newSessionResult });
+    await waitForStartupInfo(connection, newSessionResult);
 
     const sessionId = loadSessionId ?? newSessionResult.sessionId;
+    const turnUpdateStart = connection.sessionUpdates.length;
     const promptResult = await connection.request("session/prompt", {
       sessionId,
       prompt: [
@@ -498,7 +516,8 @@ async function runAcpScenario(paths, { mode, promptText, usePromptMarker = false
       ],
     });
 
-    const rawAssistantChunks = connection.sessionUpdates.map(collectTextFromUpdate).filter(Boolean);
+    const turnUpdates = connection.sessionUpdates.slice(turnUpdateStart);
+    const rawAssistantChunks = turnUpdates.map(collectTextFromUpdate).filter(Boolean);
     const visibleAssistantChunks = stripRetryNotices(rawAssistantChunks);
     const visibleAssistantText = summarizeTurnText(visibleAssistantChunks);
     const rawAssistantText = summarizeTurnText(rawAssistantChunks);

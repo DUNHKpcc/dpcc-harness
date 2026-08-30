@@ -58,6 +58,42 @@ function readText(filePath) {
   try { return fs.readFileSync(filePath, "utf8"); } catch { return ""; }
 }
 
+function readLogTail(filePath, replacements, maxChars = 12_000) {
+  let value = readText(filePath);
+  for (const [source, replacement] of replacements) {
+    if (source) value = value.split(source).join(replacement);
+  }
+  return value.slice(-maxChars);
+}
+
+function latestMainLogPath() {
+  const logsDir = path.join(repoRoot, "logs");
+  try {
+    return fs.readdirSync(logsDir)
+      .filter((name) => /^main-\d+\.log$/.test(name))
+      .map((name) => {
+        const filePath = path.join(logsDir, name);
+        return { filePath, mtimeMs: fs.statSync(filePath).mtimeMs };
+      })
+      .sort((a, b) => b.mtimeMs - a.mtimeMs)[0]?.filePath ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function collectFailureDiagnostics(workspace, electronLogPath) {
+  const replacements = [
+    [workspace.paths.root, "<workspace>"],
+    [repoRoot, "<repo>"],
+    [workspace.paths.home, "<home>"],
+  ];
+  const mainLogPath = latestMainLogPath();
+  return {
+    electronLogTail: readLogTail(electronLogPath, replacements),
+    mainLogTail: mainLogPath ? readLogTail(mainLogPath, replacements) : "",
+  };
+}
+
 function buildArtifactStatus() {
   return REQUIRED_ARTIFACTS.map((filePath) => ({ path: filePath, exists: fs.existsSync(filePath) }));
 }
@@ -305,6 +341,8 @@ function printResult(result, json) {
 
 async function runPair(scenario) {
   const workspace = createWorkspace(scenario);
+  const firstLogPath = path.join(workspace.paths.logs, "first.log");
+  const resumeLogPath = path.join(workspace.paths.logs, "resume.log");
   let first = null;
   let second = null;
   let firstExit = null;
@@ -317,7 +355,7 @@ async function runPair(scenario) {
       `--test-result-path=${workspace.paths.result}`,
       `--test-scenario=${scenario}`,
     ];
-    first = spawnElectron({ env: { ...workspace.env, HARNSS_E2E_PHASE: "first" }, args: commonArgs, logPath: path.join(workspace.paths.logs, "first.log") });
+    first = spawnElectron({ env: { ...workspace.env, HARNSS_E2E_PHASE: "first" }, args: commonArgs, logPath: firstLogPath });
     const firstExitPromise = waitForExit(first);
     firstResult = await waitForResult(workspace.paths.result, first, ["ready_for_restart", "ready_for_crash"], DEFAULT_TIMEOUT_MS);
     const runtime = firstResult.first?.runtime;
@@ -346,7 +384,7 @@ async function runPair(scenario) {
       HARNSS_E2E_SESSION_ID: firstResult.sessionId,
       HARNSS_E2E_AGENT_SESSION_ID: firstResult.agentSessionId,
     };
-    second = spawnElectron({ env: resumeEnv, args: [...commonArgs, "--test-phase=resume"], logPath: path.join(workspace.paths.logs, "resume.log") });
+    second = spawnElectron({ env: resumeEnv, args: [...commonArgs, "--test-phase=resume"], logPath: resumeLogPath });
     const secondExitPromise = waitForExit(second);
     const secondResult = await waitForResult(workspace.paths.result, second, ["ok"], DEFAULT_TIMEOUT_MS);
     secondExit = await Promise.race([secondExitPromise, new Promise((resolve) => setTimeout(() => resolve(null), 10_000))]);
@@ -374,6 +412,7 @@ async function runPair(scenario) {
   } catch (error) {
     if (first && first.exitCode === null && first.signalCode === null) terminateProcess(first, "SIGKILL", true);
     if (second && second.exitCode === null && second.signalCode === null) terminateProcess(second, "SIGKILL", true);
+    await new Promise((resolve) => setTimeout(resolve, 250));
     return {
       scenario,
       ok: false,
@@ -382,7 +421,8 @@ async function runPair(scenario) {
       firstExit,
       secondExit,
       workspaceRoot: workspace.paths.root,
-      logs: { first: path.join(workspace.paths.logs, "first.log"), second: path.join(workspace.paths.logs, "resume.log") },
+      logs: { first: firstLogPath, second: resumeLogPath },
+      diagnostics: collectFailureDiagnostics(workspace, second ? resumeLogPath : firstLogPath),
     };
   } finally {
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -392,6 +432,7 @@ async function runPair(scenario) {
 
 async function runOnePhaseFailureScenario(scenario) {
   const workspace = createWorkspace(scenario);
+  const logPath = path.join(workspace.paths.logs, `${scenario}.log`);
   let child = null;
   let childExit = null;
   let succeeded = false;
@@ -404,7 +445,7 @@ async function runOnePhaseFailureScenario(scenario) {
     child = spawnElectron({
       env: { ...workspace.env, HARNSS_E2E_PHASE: "first" },
       args,
-      logPath: path.join(workspace.paths.logs, `${scenario}.log`),
+      logPath,
     });
     const exitPromise = waitForExit(child);
     const result = await waitForResult(workspace.paths.result, child, ["ok"], DEFAULT_TIMEOUT_MS);
@@ -433,6 +474,7 @@ async function runOnePhaseFailureScenario(scenario) {
     };
   } catch (error) {
     if (child && child.exitCode === null && child.signalCode === null) terminateProcess(child, "SIGKILL", true);
+    await new Promise((resolve) => setTimeout(resolve, 250));
     return {
       scenario,
       ok: false,
@@ -440,7 +482,8 @@ async function runOnePhaseFailureScenario(scenario) {
       message: error instanceof Error ? error.message : String(error),
       firstExit: childExit,
       workspaceRoot: workspace.paths.root,
-      logs: { first: path.join(workspace.paths.logs, `${scenario}.log`) },
+      logs: { first: logPath },
+      diagnostics: collectFailureDiagnostics(workspace, logPath),
     };
   } finally {
     await new Promise((resolve) => setTimeout(resolve, 100));

@@ -192,6 +192,7 @@ export function buildAcpRecoveryRendererUrl(config: AcpRecoveryE2EConfig): strin
   const e2e = window.__harnssE2e;
   const state = { updates: [], completions: [], transports: [], exits: [], requests: [] };
   const RETRY_TEXT = /^(?:Retrying\\.\\.\\.|Retrying\\s*\\(attempt\\s+\\d+\\/\\d+,\\s*waiting\\s+\\d+s\\)\\.\\.\\.|Retry finished,\\s*resuming\\.)$/i;
+  const trace = (stage) => console.log("[acp-recovery-e2e] " + stage);
 
   const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const textOf = (update) => update && update.sessionUpdate === "agent_message_chunk"
@@ -251,6 +252,7 @@ export function buildAcpRecoveryRendererUrl(config: AcpRecoveryE2EConfig): strin
   const userMessage = (content) => ({ id: "e2e-user-" + Date.now(), role: "user", content, timestamp: Date.now() });
   const assistantMessage = (content) => ({ id: "e2e-assistant-" + Date.now(), role: "assistant", content, timestamp: Date.now(), isStreaming: false });
   const startAndAttach = async (agentSessionId) => {
+    trace("startAndAttach:start phase=" + config.phase);
     let result;
     if (config.phase === "resume") {
       result = await api.acp.reviveSession({
@@ -266,12 +268,15 @@ export function buildAcpRecoveryRendererUrl(config: AcpRecoveryE2EConfig): strin
     if (!result || result.error || !result.sessionId) {
       throw new Error((result && result.error) || "ACP session did not start or revive.");
     }
+    trace("startAndAttach:session-ready");
     const attach = await api.acp.attachRenderer(result.sessionId);
     if (attach && attach.error) throw new Error(attach.error);
+    trace("startAndAttach:renderer-attached");
     return result;
   };
 
   const assertPiRuntimeStatus = async () => {
+    trace("runtime-status:start");
     const runtimeStatus = await api.agents.getPiRuntimeStatus();
     if (runtimeStatus?.source !== "bundled" || runtimeStatus.offlineReady !== true) {
       throw new Error("Pi runtime status IPC did not report an offline-ready bundled runtime.");
@@ -285,12 +290,15 @@ export function buildAcpRecoveryRendererUrl(config: AcpRecoveryE2EConfig): strin
         throw new Error("Pi runtime status IPC did not report a compatible bundled entry.");
       }
     }
+    trace("runtime-status:ready");
   };
 
   const runFirstSuccess = async () => {
     const started = await startAndAttach();
     resetTurnState();
+    trace("first-success:prompt-start");
     const promptResult = await api.acp.prompt(started.sessionId, "fixture:normal e2e success");
+    trace("first-success:prompt-settled");
     const completion = await waitFor(() => latestCompletion(started.sessionId), "completed turn");
     if (completion.status !== "completed" || !promptResult || promptResult.ok !== true) {
       throw new Error("The successful turn did not produce a completed canonical outcome.");
@@ -324,6 +332,7 @@ export function buildAcpRecoveryRendererUrl(config: AcpRecoveryE2EConfig): strin
       agentSessionId: started.agentSessionId,
       first: { runtime, persistedMessageCount: persisted.messages.length, requestLog },
     });
+    trace("first-success:result-written");
   };
 
   const runFirstCrash = async () => {
@@ -569,6 +578,7 @@ export function buildAcpRecoveryRendererUrl(config: AcpRecoveryE2EConfig): strin
   };
 
   const run = async () => {
+    trace("run:start phase=" + config.phase + " scenario=" + config.scenario);
     await assertPiRuntimeStatus();
     if (config.phase === "resume") {
       await runResume();

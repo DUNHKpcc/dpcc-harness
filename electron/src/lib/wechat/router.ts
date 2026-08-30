@@ -1,327 +1,263 @@
+import crypto from "node:crypto";
 import os from "node:os";
+import { extractErrorDetails } from "../error-utils";
 import { log } from "../logger";
-import type { ILinkClient } from "./ilink-client";
 import type { CLIAdapter } from "./adapters/types";
+import type { ILinkClient } from "./ilink-client";
 import type { WeChatSessionSink } from "./session-sink";
 import type { WeixinMessage } from "./types";
-import type { WeChatBridgeConfig, WeChatBridgeEvent, WeChatTool, WeChatPermissionMode } from "@shared/types/wechat";
+import type {
+  WeChatBridgeConfig,
+  WeChatBridgeEvent,
+  WeChatPermissionMode,
+} from "@shared/types/wechat";
 
-const TOOL_ALIASES: Record<string, WeChatTool> = {
-  claude: "claude",
-  cc: "claude",
-  codex: "codex",
-  cx: "codex",
-};
+const LEGACY_ALIASES = new Set(["claude", "cc", "codex", "cx"]);
+const LEGACY_MIGRATION_MESSAGE = "Claude Code/Codex 微信 runtime 已移除，请使用 @pi 或直接发送消息。";
 
 interface UserState {
-  /** Per-user engine override (sticky after an @mention or /switch). */
-  defaultTool?: WeChatTool;
-  /** Engine-specific resume ids so each user keeps their own conversation. */
-  resumeIds: Partial<Record<WeChatTool, string>>;
-  /** Permission mode the user's Codex thread was created in (gates `--last` resume). */
-  codexResumeMode?: WeChatPermissionMode;
-  /** Per-user model override (via /model), falls back to the global config model. */
+  resumeId?: string;
   model?: string;
-  /** Per-user permission-mode override (via /mode), falls back to the global config. */
   permissionMode?: WeChatPermissionMode;
 }
 
 interface ActiveTask {
   abort: AbortController;
-  tool: WeChatTool;
+  pccSessionId?: string;
 }
 
-/**
- * Routes inbound WeChat messages to the right CLI adapter and ships replies back.
- * One in-flight run per (user, tool); per-user conversation continuity via resume.
- */
+/** Routes each WeChat user to an isolated, resumable Pi ACP conversation. */
 export class WeChatRouter {
   private readonly active = new Map<string, ActiveTask>();
   private readonly userStates = new Map<string, UserState>();
-  /**
-   * Who ran Codex most recently. `codex exec resume --last` resumes the globally
-   * newest thread (Codex has no per-user notion), so we only let a user resume
-   * when they were the last to touch Codex — otherwise they'd grab another user's
-   * thread. Best-effort isolation for the (unsafe) allow-all multi-user case.
-   */
-  private lastCodexUid: string | null = null;
 
   constructor(
     private readonly ilink: ILinkClient,
-    private readonly adapters: Record<WeChatTool, CLIAdapter>,
+    private readonly adapter: CLIAdapter,
     private readonly getConfig: () => WeChatBridgeConfig,
     private readonly emit: (event: WeChatBridgeEvent) => void,
     private readonly sink: WeChatSessionSink,
   ) {}
 
   start(): void {
-    this.hydrateFromSink();
-    this.ilink.onMessage((msg, text, refText) => {
-      this.handle(msg, text, refText).catch((err) => log("WECHAT_ROUTER", `路由异常: ${(err as Error).message}`));
+    for (const record of this.sink.allRecords()) {
+      if (record.resumeId) this.getUserState(record.userId).resumeId = record.resumeId;
+    }
+    this.ilink.onMessage((message, text, refText) => {
+      this.handle(message, text, refText).catch((err) => {
+        const details = extractErrorDetails(err);
+        log("WECHAT_ROUTER", { error: details, context: "route" });
+      });
     });
   }
 
-  /** Restore per-user resume ids from disk so a restart can continue threads. */
-  private hydrateFromSink(): void {
-    for (const rec of this.sink.allRecords()) {
-      if (!rec.resumeId) continue;
-      const state = this.getUserState(rec.userId);
-      state.resumeIds[rec.tool] = rec.resumeId;
-      if (rec.tool === "codex" && rec.codexResumeMode) state.codexResumeMode = rec.codexResumeMode;
-    }
-  }
-
-  /**
-   * Continue a WeChat conversation from the desktop: runs the same engine turn
-   * (resuming context), streams events to the UI, and ships the reply back to
-   * the WeChat user — making the desktop a second terminal on the same thread.
-   */
   async runFromDesktop(pccSessionId: string, text: string): Promise<{ ok: boolean; error?: string }> {
-    const rec = this.sink.getRecordBySessionId(pccSessionId);
-    if (!rec) return { ok: false, error: "找不到对应的微信会话" };
-    const { userId, tool } = rec;
-    if (this.active.has(`${userId}:${tool}`)) {
-      return { ok: false, error: `${this.adapters[tool].displayName} 正在运行中，请稍候` };
-    }
+    const record = this.sink.getRecordBySessionId(pccSessionId);
+    if (!record) return { ok: false, error: "找不到可继续的 Pi 微信会话" };
+    if (this.active.has(record.userId)) return { ok: false, error: "Pi 正在运行中，请稍候" };
     const trimmed = text.trim();
     if (!trimmed) return { ok: false, error: "消息为空" };
 
-    // Fire-and-forget: events stream to the renderer, the reply goes to WeChat.
-    this.exec(userId, tool, trimmed, this.getConfig()).catch((err) =>
-      log("WECHAT_ROUTER", `桌面续聊失败: ${(err as Error).message}`),
-    );
+    void this.exec(record.userId, trimmed, this.getConfig()).catch((err) => {
+      const details = extractErrorDetails(err);
+      log("WECHAT_ROUTER", { error: details, context: "desktop" });
+    });
     return { ok: true };
   }
 
-  /** Abort every in-flight run (shutdown / stop). */
+  cancelFromDesktop(pccSessionId: string): { ok: boolean; error?: string } {
+    const record = this.sink.getRecordBySessionId(pccSessionId);
+    if (!record) return { ok: false, error: "找不到可取消的 Pi 微信会话" };
+    const task = this.active.get(record.userId);
+    if (!task) return { ok: false, error: "当前没有正在运行的任务" };
+    task.abort.abort();
+    return { ok: true };
+  }
+
   stop(): void {
-    const seen = new Set<AbortController>();
-    for (const task of this.active.values()) {
-      if (!seen.has(task.abort)) {
-        seen.add(task.abort);
-        task.abort.abort();
-      }
-    }
+    for (const task of this.active.values()) task.abort.abort();
     this.active.clear();
   }
 
-  private getUserState(uid: string): UserState {
-    let state = this.userStates.get(uid);
+  private getUserState(userId: string): UserState {
+    let state = this.userStates.get(userId);
     if (!state) {
-      state = { resumeIds: {} };
-      this.userStates.set(uid, state);
+      state = {};
+      this.userStates.set(userId, state);
     }
     return state;
   }
 
-  private resolveTool(uid: string, config: WeChatBridgeConfig): WeChatTool {
-    return this.getUserState(uid).defaultTool ?? config.defaultTool;
-  }
-
-  /**
-   * Decide the resume id to hand the adapter, and claim the global Codex `--last`
-   * slot for this user. Claude resumes by a real per-session id (always safe).
-   * Codex `--last` is global, so it only resumes when this user ran Codex last AND
-   * the permission mode is unchanged — preventing both cross-user thread leakage
-   * and silently keeping a looser sandbox after the mode was tightened.
-   */
-  private resolveResumeId(
-    uid: string,
-    tool: WeChatTool,
-    state: UserState,
-    mode: WeChatPermissionMode,
-  ): string | undefined {
-    const stored = state.resumeIds[tool];
-    if (tool !== "codex") return stored;
-
-    const canResume = !!stored && this.lastCodexUid === uid && state.codexResumeMode === mode;
-    // This run becomes the newest Codex thread whether it resumes or starts fresh.
-    this.lastCodexUid = uid;
-    return canResume ? stored : undefined;
-  }
-
-  private async handle(msg: WeixinMessage, text: string, refText: string): Promise<void> {
-    const uid = msg.from_user_id;
+  private async handle(message: WeixinMessage, text: string, refText: string): Promise<void> {
+    const userId = message.from_user_id;
     const config = this.getConfig();
-
-    // Access gate: empty allowlist = allow all (surfaced as unsafe in the UI).
-    if (config.allowedUsers.length > 0 && !config.allowedUsers.includes(uid)) {
-      this.emit({ type: "activity", level: "warn", message: `拒绝未授权用户 ${uid.slice(0, 12)}…` });
+    if (config.allowedUsers.length > 0 && !config.allowedUsers.includes(userId)) {
+      this.emit({ type: "activity", level: "warn", message: `拒绝未授权用户 ${userId.slice(0, 12)}…` });
       return;
     }
 
     const trimmed = text.trim();
     if (!trimmed) return;
-
-    this.emit({ type: "message", direction: "in", userId: uid, tool: null, preview: trimmed.slice(0, 80) });
+    this.emit({ type: "message", direction: "in", userId, tool: null, preview: trimmed.slice(0, 80) });
 
     if (trimmed.startsWith("/")) {
-      await this.handleSlash(uid, trimmed, config);
+      await this.handleSlash(userId, trimmed, config);
       return;
     }
 
-    // @mention engine selection, e.g. "@codex 帮我写..." or just "@cc" to switch.
-    let tool = this.resolveTool(uid, config);
     let prompt = trimmed;
     const atMatch = trimmed.match(/^@(\w+)(?:[\s：:]\s*([\s\S]+))?$/);
     if (atMatch) {
-      const alias = TOOL_ALIASES[atMatch[1].toLowerCase()];
-      if (!alias) {
-        await this.reply(uid, `未知引擎: @${atMatch[1]}（可用: @claude, @codex）`);
+      const alias = atMatch[1].toLowerCase();
+      if (LEGACY_ALIASES.has(alias)) {
+        await this.reply(userId, LEGACY_MIGRATION_MESSAGE);
         return;
       }
-      tool = alias;
-      this.getUserState(uid).defaultTool = tool;
+      if (alias !== "pi") {
+        await this.reply(userId, `未知 Agent: @${atMatch[1]}（可用: @pi）`);
+        return;
+      }
       if (!atMatch[2]) {
-        await this.reply(uid, `已切换到 ${this.adapters[tool].displayName}`);
+        await this.reply(userId, "当前 Agent: Pi");
         return;
       }
       prompt = atMatch[2].trim();
     }
 
-    if (this.active.has(`${uid}:${tool}`)) {
-      await this.reply(uid, `${this.adapters[tool].displayName} 正在运行中，请稍候或发送 /cancel`);
+    if (this.active.has(userId)) {
+      await this.reply(userId, "Pi 正在运行中，请稍候或发送 /cancel");
       return;
     }
 
-    const combined = [prompt, refText].filter(Boolean).join("\n\n");
-    await this.exec(uid, tool, combined, config);
+    await this.exec(userId, [prompt, refText].filter(Boolean).join("\n\n"), config);
   }
 
-  private async exec(uid: string, tool: WeChatTool, prompt: string, config: WeChatBridgeConfig): Promise<void> {
-    const adapter = this.adapters[tool];
-    if (!(await adapter.isAvailable())) {
-      await this.reply(uid, `${adapter.displayName} 未安装，无法使用`);
-      return;
-    }
-
+  private async exec(userId: string, prompt: string, config: WeChatBridgeConfig): Promise<void> {
     const abort = new AbortController();
-    this.active.set(`${uid}:${tool}`, { abort, tool });
-    this.getUserState(uid).defaultTool = tool;
-    const stopTyping = await this.ilink.startTyping(uid);
-    const state = this.getUserState(uid);
-    // Per-user overrides (via /model, /mode) take precedence over the global config.
-    const mode = state.permissionMode ?? config.permissionMode;
-    const model = state.model ?? config.model;
-    const resumeId = this.resolveResumeId(uid, tool, state, mode);
-
-    // Bind this turn to a persisted PccAgent session and stream events to the UI.
-    const pccSessionId = await this.sink.ensureSession(uid, tool, prompt);
+    const task: ActiveTask = { abort };
+    this.active.set(userId, task);
+    const state = this.getUserState(userId);
+    let stopTyping: () => void = () => undefined;
+    let pccSessionId = this.sink.getRecord(userId)?.pccSessionId;
 
     try {
-      const result = await adapter.execute(prompt, {
+      stopTyping = await this.ilink.startTyping(userId);
+      pccSessionId = await this.sink.ensureSession(userId, prompt);
+      task.pccSessionId = pccSessionId;
+
+      const result = await this.adapter.execute(prompt, {
         workDir: config.workDir || os.homedir(),
-        permissionMode: mode,
-        model,
+        permissionMode: state.permissionMode ?? config.permissionMode,
+        model: state.model ?? config.model,
         maxTurns: config.maxTurns,
-        resumeId,
+        resumeId: state.resumeId,
         signal: abort.signal,
-        onEvent: (raw) => this.sink.forwardEvent(pccSessionId, raw),
+        onEvent: (event) => this.sink.forwardEvent(pccSessionId!, event),
       });
 
-      if (abort.signal.aborted) return;
-
-      // Drop a stale resume id so the next message starts fresh.
       let resetNotice = "";
-      if (result.sessionExpired && state.resumeIds[tool]) {
-        delete state.resumeIds[tool];
-        resetNotice = "[上个会话已过期，已自动开始新会话]\n\n";
+      if (result.sessionExpired) {
+        resetNotice = "[上个 Pi 会话已过期，已自动开始新会话]\n\n";
       }
-      if (result.resumeId) {
-        state.resumeIds[tool] = result.resumeId;
-        if (tool === "codex") state.codexResumeMode = mode;
-      }
+      state.resumeId = result.resumeId;
+      this.sink.updateResume(userId, result.resumeId);
 
-      // Local persistence must not replace a successful upstream answer with a
-      // failure message (for example when the desktop deleted this session).
       try {
         await this.sink.finalizeTurn(
-          uid,
-          tool,
+          userId,
           result.resumeId,
           prompt,
           result.text,
-          tool === "codex" ? mode : undefined,
+          result.error,
         );
       } catch (err) {
-        log("WECHAT_ROUTER", `${tool} 会话持久化失败: ${(err as Error).message}`);
+        log("WECHAT_ROUTER", {
+          error: extractErrorDetails(err),
+          context: "persist",
+          sessionId: pccSessionId,
+        });
+      } finally {
+        this.sink.forwardTerminal(pccSessionId, result.terminal);
       }
 
-      const footer = formatFooter(adapter.displayName, result.durationMs, result.error);
-      await this.reply(uid, `${resetNotice}${result.text}\n\n${footer}`);
-      this.emit({ type: "message", direction: "out", userId: uid, tool, preview: result.text.slice(0, 80) });
+      if (abort.signal.aborted) return;
+      const footer = formatFooter(this.adapter.displayName, result.durationMs, result.error);
+      await this.reply(userId, `${resetNotice}${result.text}\n\n${footer}`);
+      this.emit({ type: "message", direction: "out", userId, tool: "pi", preview: result.text.slice(0, 80) });
     } catch (err) {
-      if (!abort.signal.aborted) {
-        log("WECHAT_ROUTER", `${tool} 失败: ${(err as Error).message}`);
-        await this.reply(uid, `运行失败: ${(err as Error).message}`);
+      if (abort.signal.aborted) return;
+      const details = extractErrorDetails(err);
+      log("WECHAT_ROUTER", { error: details, context: "execute", sessionId: pccSessionId });
+      if (pccSessionId) {
+        this.sink.forwardTerminal(pccSessionId, {
+          kind: "transport_error",
+          turnId: crypto.randomUUID(),
+          error: {
+            code: "pi_wechat_bridge_error",
+            message: details.message,
+            source: "harnss",
+            stage: "prompt",
+            retryable: true,
+          },
+        });
       }
+      await this.reply(userId, `运行失败: ${details.message}`);
     } finally {
       stopTyping();
-      this.active.delete(`${uid}:${tool}`);
+      this.active.delete(userId);
     }
   }
 
-  private async handleSlash(uid: string, text: string, config: WeChatBridgeConfig): Promise<void> {
+  private async handleSlash(userId: string, text: string, config: WeChatBridgeConfig): Promise<void> {
     const parts = text.slice(1).split(/\s+/);
-    const cmd = parts[0].toLowerCase();
-    const state = this.getUserState(uid);
-    const currentTool = this.resolveTool(uid, config);
+    const command = parts[0].toLowerCase();
+    const state = this.getUserState(userId);
 
-    switch (cmd) {
+    switch (command) {
       case "help":
       case "h":
         await this.reply(
-          uid,
+          userId,
           [
             "=== PccAgent 微信助手 ===",
-            "直接发消息即可让当前引擎处理。",
-            "",
-            "【引擎】",
-            "/claude /cc  切换到 Claude Code",
-            "/codex /cx   切换到 Codex",
+            "直接发消息即可交给 Pi 处理，也可使用 @pi。",
             "",
             "【模型 / 模式】",
-            "/model <名称>  切换模型 (如 opus / sonnet / haiku)",
-            "/model         查看当前模型",
+            "/model <名称>  切换 Pi 模型",
             "/mode <模式>   切换 auto / safe / plan",
             "",
             "【会话】",
             "/status /st  查看当前状态",
-            "/new /n      开始新会话 (清除上下文)",
-            "/clear       清除会话与所有偏好",
+            "/new /n      开始新的 Pi 会话",
+            "/clear       清除会话与偏好",
             "/cancel /c   取消当前运行",
             "/help /h     显示帮助",
-            "",
-            "也可用 @claude / @codex 指定引擎，例如:",
-            "@codex 帮我重构这个函数",
           ].join("\n"),
         );
         return;
 
-      case "claude":
-      case "cc":
-        state.defaultTool = "claude";
-        await this.reply(uid, "已切换到 Claude Code");
+      case "pi":
+        await this.reply(userId, "当前 Agent: Pi");
         return;
 
+      case "claude":
+      case "cc":
       case "codex":
       case "cx":
-        state.defaultTool = "codex";
-        await this.reply(uid, "已切换到 Codex");
+        await this.reply(userId, LEGACY_MIGRATION_MESSAGE);
         return;
 
       case "status":
       case "st": {
-        const modeLabel: Record<string, string> = { auto: "auto(完整权限)", safe: "safe(只读)", plan: "plan(规划)" };
-        const effMode = state.permissionMode ?? config.permissionMode;
+        const mode = state.permissionMode ?? config.permissionMode;
         await this.reply(
-          uid,
+          userId,
           [
-            `引擎: ${this.adapters[currentTool].displayName}`,
-            `模式: ${modeLabel[effMode] ?? effMode}`,
+            "Agent: Pi",
+            `模式: ${mode}`,
             `模型: ${state.model || config.model || "默认"}`,
             `目录: ${config.workDir || `${os.homedir()} (默认主目录)`}`,
-            `会话: ${state.resumeIds[currentTool] ? "进行中" : "新会话"}`,
+            `会话: ${state.resumeId ? "进行中" : "新会话"}`,
           ].join("\n"),
         );
         return;
@@ -329,84 +265,74 @@ export class WeChatRouter {
 
       case "model":
       case "m": {
-        const arg = parts.slice(1).join(" ").trim();
-        if (!arg) {
-          await this.reply(
-            uid,
-            `当前模型: ${state.model || config.model || "默认"}\n用法: /model <名称>（如 opus / sonnet / haiku，或完整模型 id）`,
-          );
+        const model = parts.slice(1).join(" ").trim();
+        if (!model) {
+          await this.reply(userId, `当前模型: ${state.model || config.model || "默认"}\n用法: /model <provider/model>`);
           return;
         }
-        state.model = arg;
-        await this.reply(uid, `已切换模型: ${arg}\n（下一条消息生效，当前会话继续）`);
+        state.model = model;
+        await this.reply(userId, `已切换 Pi 模型: ${model}`);
         return;
       }
 
       case "mode": {
-        const arg = (parts[1] || "").toLowerCase();
-        if (arg !== "auto" && arg !== "safe" && arg !== "plan") {
+        const mode = (parts[1] || "").toLowerCase();
+        if (mode !== "auto" && mode !== "safe" && mode !== "plan") {
           await this.reply(
-            uid,
-            `当前模式: ${state.permissionMode ?? config.permissionMode}\n用法: /mode <auto|safe|plan>\nauto=完整权限 safe=只读 plan=规划`,
+            userId,
+            `当前模式: ${state.permissionMode ?? config.permissionMode}\n用法: /mode <auto|safe|plan>`,
           );
           return;
         }
-        state.permissionMode = arg;
-        await this.reply(uid, `已切换模式: ${arg}`);
+        state.permissionMode = mode;
+        await this.reply(userId, `已切换模式: ${mode}`);
         return;
       }
 
       case "new":
       case "n":
-        delete state.resumeIds[currentTool];
-        await this.reply(uid, `已开始新的 ${this.adapters[currentTool].displayName} 会话`);
+        delete state.resumeId;
+        this.sink.updateResume(userId, undefined);
+        await this.reply(userId, "已开始新的 Pi 会话");
         return;
 
       case "clear":
-        state.resumeIds = {};
-        state.defaultTool = undefined;
-        state.model = undefined;
-        state.permissionMode = undefined;
-        await this.reply(uid, "已清除会话与所有偏好");
+        delete state.resumeId;
+        delete state.model;
+        delete state.permissionMode;
+        this.sink.updateResume(userId, undefined);
+        await this.reply(userId, "已清除 Pi 会话与所有偏好");
         return;
 
       case "cancel":
       case "c":
       case "stop": {
-        const tasks = [...this.active.entries()].filter(([k]) => k.startsWith(`${uid}:`));
-        if (tasks.length === 0) {
-          await this.reply(uid, "当前没有正在运行的任务");
+        const task = this.active.get(userId);
+        if (!task) {
+          await this.reply(userId, "当前没有正在运行的任务");
           return;
         }
-        const seen = new Set<AbortController>();
-        for (const [key, task] of tasks) {
-          if (!seen.has(task.abort)) {
-            seen.add(task.abort);
-            task.abort.abort();
-          }
-          this.active.delete(key);
-        }
-        await this.reply(uid, "已取消当前任务");
+        task.abort.abort();
+        await this.reply(userId, "已取消当前任务");
         return;
       }
 
       default:
-        await this.reply(uid, `未知命令: /${cmd}\n发送 /help 查看可用命令`);
-        return;
+        await this.reply(userId, `未知命令: /${command}\n发送 /help 查看可用命令`);
     }
   }
 
-  private async reply(uid: string, text: string): Promise<void> {
+  private async reply(userId: string, text: string): Promise<void> {
     try {
-      await this.ilink.sendText(uid, text);
+      await this.ilink.sendText(userId, text);
     } catch (err) {
-      log("WECHAT_ROUTER", `发送回复失败: ${(err as Error).message}`);
+      log("WECHAT_ROUTER", { error: extractErrorDetails(err), context: "reply" });
     }
   }
 }
 
 function formatFooter(displayName: string, durationMs: number, error: boolean): string {
-  const secs = Math.round(durationMs / 1000);
-  const dur = secs >= 60 ? `${Math.floor(secs / 60)}m${secs % 60}s` : `${secs}s`;
-  return `— ${displayName} · ${dur}${error ? " · 出错" : ""}`;
+  const seconds = Math.round(durationMs / 1000);
+  const duration = seconds >= 60 ? `${Math.floor(seconds / 60)}m${seconds % 60}s` : `${seconds}s`;
+  return `— ${displayName} · ${duration}${error ? " · 出错" : ""}`;
 }

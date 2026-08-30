@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, Download, FolderGit2, Globe2, Search, Trash2 } from "lucide-react";
+import { Check, Download, Globe2, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { PiLogo } from "@/components/PiLogo";
 import {
   Dialog,
   DialogContent,
@@ -18,19 +19,13 @@ import type {
   CatalogFreshness,
   InstalledSkillRecord,
   SkillCatalogItem,
-  SkillInstallScope,
-  SkillTarget,
 } from "@/types";
-
-interface SkillsCatalogProps {
-  projectPath: string | null;
-}
 
 function formatInstalls(value: number): string {
   return new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 }).format(value);
 }
 
-export function SkillsCatalog({ projectPath }: SkillsCatalogProps) {
+export function SkillsCatalog() {
   const { t } = useTranslation("plugins");
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<SkillCatalogItem[]>([]);
@@ -39,8 +34,6 @@ export function SkillsCatalog({ projectPath }: SkillsCatalogProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<SkillCatalogItem | null>(null);
-  const [scope, setScope] = useState<SkillInstallScope>(projectPath ? "project" : "global");
-  const [targets, setTargets] = useState<SkillTarget[]>(["claude-code", "codex"]);
   const [installing, setInstalling] = useState(false);
   const [confirmOverwrite, setConfirmOverwrite] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
@@ -48,13 +41,13 @@ export function SkillsCatalog({ projectPath }: SkillsCatalogProps) {
   const catalogQuery = trimmedQuery.length >= 2 ? trimmedQuery : "";
 
   const refreshInstalled = useCallback(async () => {
-    const response = await window.claude.plugins.skills.listInstalled(projectPath);
+    const response = await window.claude.plugins.skills.listInstalled();
     if ("error" in response) {
       setError(response.error);
       return;
     }
     setInstalled(response.items);
-  }, [projectPath]);
+  }, []);
 
   useEffect(() => {
     void refreshInstalled();
@@ -91,32 +84,19 @@ export function SkillsCatalog({ projectPath }: SkillsCatalogProps) {
   );
 
   const openInstall = useCallback((item: SkillCatalogItem) => {
-    const existing = installed.find((record) => (
-      record.catalogId === item.id && record.scope === "project"
-    )) ?? installed.find((record) => record.catalogId === item.id);
     setSelected(item);
-    setScope(existing?.scope ?? (projectPath ? "project" : "global"));
-    setTargets(existing?.targets ?? ["claude-code", "codex"]);
     setConfirmOverwrite(false);
-  }, [installed, projectPath]);
-
-  const toggleTarget = useCallback((target: SkillTarget) => {
-    setTargets((current) =>
-      current.includes(target)
-        ? current.filter((item) => item !== target)
-        : [...current, target]);
   }, []);
 
   const handleInstall = useCallback(async () => {
-    if (!selected || targets.length === 0 || (scope === "project" && !projectPath)) return;
+    if (!selected) return;
     setInstalling(true);
     const response = await window.claude.plugins.skills.install({
       catalogId: selected.id,
       name: selected.name,
       source: selected.source,
-      scope,
-      targets,
-      projectPath: scope === "project" ? projectPath ?? undefined : undefined,
+      scope: "global",
+      targets: ["pi"],
       allowOverwriteModified: confirmOverwrite,
     });
     setInstalling(false);
@@ -131,7 +111,7 @@ export function SkillsCatalog({ projectPath }: SkillsCatalogProps) {
     toast.success(t("skills.installSuccess", { name: selected.name }));
     setSelected(null);
     await refreshInstalled();
-  }, [confirmOverwrite, projectPath, refreshInstalled, scope, selected, t, targets]);
+  }, [confirmOverwrite, refreshInstalled, selected, t]);
 
   const handleRemove = useCallback(async (record: InstalledSkillRecord) => {
     setRemovingId(record.id);
@@ -146,11 +126,11 @@ export function SkillsCatalog({ projectPath }: SkillsCatalogProps) {
   }, [refreshInstalled, t]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <ScrollArea className="min-h-0 flex-1">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <ScrollArea className="min-h-0 min-w-0 flex-1">
         <div
           data-skill-catalog-layout="reference"
-          className="mx-auto w-full max-w-5xl px-5 pb-12 pt-8 sm:px-8 sm:pt-10"
+          className="mx-auto w-full min-w-0 max-w-5xl px-4 pb-12 pt-8 sm:px-6 sm:pt-10 lg:px-8"
         >
           <header>
             <h1 className="text-2xl font-semibold text-foreground">{t("tabs.skills")}</h1>
@@ -174,11 +154,14 @@ export function SkillsCatalog({ projectPath }: SkillsCatalogProps) {
             {installed.length === 0 ? (
               <p className="py-5 text-sm text-muted-foreground">{t("state.noInstalledSkills")}</p>
             ) : (
-              <div className="flex gap-3 overflow-x-auto py-4">
+              <div
+                data-installed-list="skills"
+                className="grid max-h-[156px] grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))] gap-3 overflow-y-auto overscroll-contain py-4 pr-1"
+              >
                 {installed.map((record) => (
                   <div
                     key={record.id}
-                    className="flex h-14 w-56 shrink-0 items-center gap-3 rounded-md border border-border/65 bg-background px-2.5"
+                    className="flex h-14 min-w-0 items-center gap-3 rounded-md border border-border/65 bg-background px-2.5"
                   >
                     <PluginIcon
                       name={record.name}
@@ -188,23 +171,23 @@ export function SkillsCatalog({ projectPath }: SkillsCatalogProps) {
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-xs font-medium">{record.name}</div>
                       <div className="mt-0.5 truncate text-[10px] text-muted-foreground">
-                        {record.scope === "global" ? t("skills.global") : t("skills.project")}
+                        {record.managed === false ? record.origin : t("skills.global")}
                         {" · "}
-                        {record.targets.map((target) => (
-                          target === "claude-code" ? t("skills.claude") : t("skills.codex")
-                        )).join(", ")}
+                        {record.managed === false ? t("skills.localReadOnly") : t("skills.pi")}
                       </div>
                     </div>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
-                      disabled={removingId === record.id}
-                      onClick={() => void handleRemove(record)}
-                      title={t("action.remove")}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
+                    {record.managed !== false && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                        disabled={removingId === record.id}
+                        onClick={() => void handleRemove(record)}
+                        title={t("action.remove")}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -228,7 +211,10 @@ export function SkillsCatalog({ projectPath }: SkillsCatalogProps) {
             ) : items.length === 0 ? (
               <div className="py-12 text-center text-sm text-muted-foreground">{t("state.empty")}</div>
             ) : (
-              <div data-plugin-catalog-grid="skills" className="grid grid-cols-1 gap-x-10 lg:grid-cols-2">
+              <div
+                data-plugin-catalog-grid="skills"
+                className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,21rem),1fr))] gap-x-10"
+              >
                 {items.map((item) => {
                   const isInstalled = installedCatalogIds.has(item.id);
                   return (
@@ -288,51 +274,23 @@ export function SkillsCatalog({ projectPath }: SkillsCatalogProps) {
               </div>
             )}
             <div>
-              <div className="mb-2 text-xs font-medium">{t("skills.scope")}</div>
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  type="button"
-                  variant={scope === "project" ? "default" : "outline"}
-                  className="justify-start gap-2"
-                  disabled={!projectPath}
-                  onClick={() => setScope("project")}
-                >
-                  <FolderGit2 className="h-4 w-4" />
-                  {t("skills.project")}
-                </Button>
-                <Button
-                  type="button"
-                  variant={scope === "global" ? "default" : "outline"}
-                  className="justify-start gap-2"
-                  onClick={() => setScope("global")}
-                >
-                  <Globe2 className="h-4 w-4" />
-                  {t("skills.global")}
-                </Button>
+              <div className="mb-2 text-xs font-medium">{t("skills.location")}</div>
+              <div className="flex min-h-10 items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2">
+                <Globe2 className="h-4 w-4 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium">{t("skills.global")}</div>
+                  <div className="text-xs text-muted-foreground">{t("skills.globalDescription")}</div>
+                </div>
+                <Check className="h-4 w-4 shrink-0 text-emerald-600" />
               </div>
             </div>
 
             <div>
               <div className="mb-2 text-xs font-medium">{t("skills.targets")}</div>
-              <div className="grid grid-cols-2 gap-2">
-                {(["claude-code", "codex"] as const).map((target) => {
-                  const active = targets.includes(target);
-                  return (
-                    <Button
-                      key={target}
-                      type="button"
-                      variant={active ? "secondary" : "outline"}
-                      className="justify-start gap-2"
-                      onClick={() => toggleTarget(target)}
-                      aria-pressed={active}
-                    >
-                      <span className="flex h-4 w-4 items-center justify-center rounded border border-current/30">
-                        {active && <Check className="h-3 w-3" />}
-                      </span>
-                      {target === "claude-code" ? t("skills.claude") : t("skills.codex")}
-                    </Button>
-                  );
-                })}
+              <div className="flex h-10 items-center gap-2 rounded-md border border-border bg-muted/40 px-3">
+                <PiLogo className="h-4 w-4 shrink-0" />
+                <span className="text-sm font-medium">{t("skills.pi")}</span>
+                <Check className="ml-auto h-4 w-4 text-emerald-600" />
               </div>
             </div>
           </div>
@@ -349,7 +307,7 @@ export function SkillsCatalog({ projectPath }: SkillsCatalogProps) {
             </Button>
             <Button
               onClick={() => void handleInstall()}
-              disabled={installing || targets.length === 0 || (scope === "project" && !projectPath)}
+              disabled={installing}
             >
               <Download className="h-4 w-4" />
               {t(confirmOverwrite ? "action.replaceModified" : "action.confirmInstall")}

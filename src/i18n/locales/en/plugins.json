@@ -1,6 +1,6 @@
 {
   "title": "Plugins",
-  "subtitle": "Install reusable skills and project MCP servers",
+  "subtitle": "Manage discoverable local Skills and global MCP servers",
   "tabs": {
     "skills": "Skills",
     "mcp": "MCP"
@@ -24,11 +24,9 @@
     "searchSkills": "Search for a Skill by name or capability.",
     "empty": "No matching plugins",
     "loading": "Loading catalog...",
-    "noInstalledSkills": "No managed Skills installed",
-    "noInstalledMcp": "No MCP servers configured for this project",
-    "projectRequired": "Select a project before installing an MCP server.",
-    "sessionBusy": "Wait for the current turn to finish before changing MCP servers.",
-    "codexRestart": "Codex MCP activation is not available yet."
+    "noInstalledSkills": "No local Skills found",
+    "noInstalledMcp": "No global MCP servers found",
+    "sessionBusy": "Wait for the current turn to finish before changing MCP servers."
   },
   "action": {
     "install": "Install",
@@ -40,14 +38,14 @@
     "retry": "Retry"
   },
   "skills": {
-    "subtitle": "Find and install reusable agent capabilities",
+    "subtitle": "Skills are installed globally for Pi in every project and projectless chat",
     "installs": "{{count}} installs",
-    "scope": "Install scope",
-    "project": "Current project",
-    "global": "All projects",
-    "targets": "Target agents",
-    "claude": "Claude Code",
-    "codex": "Codex",
+    "location": "Install location",
+    "global": "Global (all projects)",
+    "globalDescription": "Available to every new Pi session, without a project",
+    "targets": "Target agent",
+    "pi": "Pi",
+    "localReadOnly": "Local read-only",
     "unsupportedSource": "This source cannot be installed by v0.1",
     "modifiedConfirmation": "Files managed by PccAgent were changed after installation. Installing again will replace those local edits.",
     "installedAt": "Installed {{date}}",
@@ -55,15 +53,15 @@
     "removeSuccess": "{{name}} removed"
   },
   "mcp": {
-    "subtitle": "Connect external tools and services to this project",
-    "project": "Project: {{name}}",
+    "subtitle": "Install globally for PccAgent and discover local Codex, Claude Code, and generic MCP settings",
+    "target": "Target agent",
     "transport": "Connection",
     "configuration": "Configuration",
     "installPreview": "Install source",
     "openSource": "Open source repository",
     "unsupported": "Unsupported in v0.1",
     "secretUnsupported": "Requires secret storage support",
-    "installSuccess": "{{name}} added to the project",
-    "removeSuccess": "{{name}} removed from the project"
+    "installSuccess": "{{name}} installed globally",
+    "removeSuccess": "{{name}} removed from global settings"
   }
 }

@@ -1,28 +1,20 @@
 import type { Dispatch, SetStateAction } from "react";
-import type { EngineId, ImageAttachment, UIMessage } from "@/types";
+import type { ImageAttachment, UIMessage } from "@/types";
 import { createSystemMessage, createUserMessage } from "@/lib/message-factory";
 
 type MessageSetter = Dispatch<SetStateAction<UIMessage[]>>;
 
-/** Minimal slice of the Claude engine hook the WeChat continuation needs. */
-interface ClaudeHookSlice {
+interface EngineHookSlice {
   setMessages: MessageSetter;
-  setIsProcessing: Dispatch<SetStateAction<boolean>>;
-}
-
-/** Minimal slice of the Codex engine hook (only used to surface the unsupported notice). */
-interface CodexHookSlice {
-  setMessages: MessageSetter;
+  setIsProcessing?: Dispatch<SetStateAction<boolean>>;
 }
 
 interface ContinueWeChatParams {
   sessionId: string;
-  engine: EngineId | undefined;
   text: string;
   images: ImageAttachment[] | undefined;
   displayText: string | undefined;
-  claude: ClaudeHookSlice;
-  codex: CodexHookSlice;
+  acp: EngineHookSlice;
   /** Track the session as live (single-pane queue/processing bookkeeping); omit in split panes. */
   markLive?: (sessionId: string, live: boolean) => void;
 }
@@ -30,38 +22,45 @@ interface ContinueWeChatParams {
 /**
  * Continue a WeChat conversation from the desktop. Shared by single-pane
  * (`useSessionLifecycle`) and split-pane (`usePaneController`) send paths so the
- * flow stays identical. Claude streams back over `claude:event`; Codex isn't
- * supported yet (its adapter doesn't forward events) so it surfaces a notice.
+ * flow stays identical. The bridge owns the Pi child while its ACP updates and
+ * canonical terminal outcome are forwarded to this session's normal ACP hook.
  */
 export async function continueWeChatSession({
   sessionId,
-  engine,
   text,
   images,
   displayText,
-  claude,
-  codex,
+  acp,
   markLive,
 }: ContinueWeChatParams): Promise<void> {
-  if (engine === "codex") {
-    codex.setMessages((prev) => [
+  acp.setMessages((prev) => [...prev, createUserMessage(text, images, displayText)]);
+  if (images?.length) {
+    markLive?.(sessionId, false);
+    acp.setIsProcessing?.(false);
+    acp.setMessages((prev) => [
       ...prev,
-      createSystemMessage("Codex 微信对话暂不支持桌面续聊，请在手机端继续。", true),
+      createSystemMessage("微信桌面续聊暂不支持图片附件，请改为文本消息。", true),
     ]);
     return;
   }
 
-  claude.setMessages((prev) => [...prev, createUserMessage(text, images, displayText)]);
-  claude.setIsProcessing(true);
   markLive?.(sessionId, true);
-
-  const res = await window.claude.wechat.send({ sessionId, text });
-  if (!res.ok) {
+  acp.setIsProcessing?.(true);
+  try {
+    const result = await window.claude.wechat.send({ sessionId, text });
+    if (result.ok) return;
     markLive?.(sessionId, false);
-    claude.setIsProcessing(false);
-    claude.setMessages((prev) => [
+    acp.setIsProcessing?.(false);
+    acp.setMessages((prev) => [
       ...prev,
-      createSystemMessage(res.error || "微信续聊失败", true),
+      createSystemMessage(result.error || "微信 Pi 会话发送失败。", true),
+    ]);
+  } catch (err) {
+    markLive?.(sessionId, false);
+    acp.setIsProcessing?.(false);
+    acp.setMessages((prev) => [
+      ...prev,
+      createSystemMessage(err instanceof Error ? err.message : String(err), true),
     ]);
   }
 }

@@ -169,22 +169,22 @@ function probeStdioServer(server: McpServerConfig): ProbeResult {
 }
 
 export function register(): void {
-  ipcMain.handle("mcp:list", (_event, projectId: string) => {
-    return loadMcpServers(projectId);
+  ipcMain.handle("mcp:list", () => {
+    return loadMcpServers();
   });
 
-  ipcMain.handle("mcp:add", (_event, { projectId, server }: { projectId: string; server: McpServerConfig }) => {
+  ipcMain.handle("mcp:add", (_event, server: McpServerConfig) => {
     try {
-      addMcpServer(projectId, server);
+      addMcpServer(server);
       return { ok: true };
     } catch (err) {
       return { error: reportError("MCP_ADD_ERR", err) };
     }
   });
 
-  ipcMain.handle("mcp:remove", (_event, { projectId, name }: { projectId: string; name: string }) => {
+  ipcMain.handle("mcp:remove", (_event, name: string) => {
     try {
-      removeMcpServer(projectId, name);
+      removeMcpServer(name);
       // Clean up OAuth data when removing server
       deleteOAuthData(name);
       return { ok: true };

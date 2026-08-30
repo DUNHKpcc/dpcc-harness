@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { PanelHeader } from "@/components/PanelHeader";
 import { useMcpServers } from "@/hooks/useMcpServers";
 import { McpServerRow } from "@/components/mcp/McpServerRow";
 import { AddServerDialog } from "@/components/mcp/AddServerDialog";
@@ -13,7 +12,6 @@ import type { AuthStatusInfo } from "@/components/mcp/mcp-utils";
 import type { McpServerConfig, McpServerStatus } from "@/types";
 
 interface McpPanelProps {
-  projectId: string | null;
   runtimeStatuses?: McpServerStatus[];
   isPreliminary?: boolean;
   /** Whether there's a live (non-draft, connected) session -- used to decide if config changes need a session restart */
@@ -25,7 +23,6 @@ interface McpPanelProps {
 }
 
 export const McpPanel = memo(function McpPanel({
-  projectId,
   runtimeStatuses,
   isPreliminary,
   hasLiveSession,
@@ -35,7 +32,7 @@ export const McpPanel = memo(function McpPanel({
   headerControls,
 }: McpPanelProps) {
   const { t } = useTranslation("tools");
-  const { servers, loading, addServer, removeServer } = useMcpServers(projectId);
+  const { servers, loading, addServer, removeServer } = useMcpServers();
   const [reconnectingName, setReconnectingName] = useState<string | null>(null);
   const [authenticatingName, setAuthenticatingName] = useState<string | null>(null);
   const [authStatuses, setAuthStatuses] = useState<Map<string, AuthStatusInfo>>(new Map());
@@ -123,24 +120,6 @@ export const McpPanel = memo(function McpPanel({
     }
     return map;
   }, [runtimeStatuses]);
-
-  // ── No project state ──
-
-  if (!projectId) {
-    return (
-      <div className="flex h-full flex-col">
-        <PanelHeader icon={Plug} label={t("mcp.title")} iconClass="text-violet-600/70 dark:text-violet-200/50">
-          {headerControls}
-        </PanelHeader>
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-foreground/[0.03]">
-            <Plug className="h-5 w-5 text-foreground/15" />
-          </div>
-          <p className="text-[11px] text-muted-foreground/45">{t("mcp.noProject")}</p>
-        </div>
-      </div>
-    );
-  }
 
   // ── Main render ──
 

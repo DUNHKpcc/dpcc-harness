@@ -1,16 +1,18 @@
-import os from "node:os";
-import path from "node:path";
-import fs from "node:fs";
 import crypto from "node:crypto";
+import fs from "node:fs";
 import type { BrowserWindow } from "electron";
-import { safeSend } from "../safe-send";
-import { reportError } from "../error-utils";
-import { isSessionDeleted, saveSessionToDisk } from "../session-store";
-import { getSessionFilePath } from "../data-dir";
-import { getCCProjectDir, parseJsonlToUIMessages, type CCImportedMessage } from "../../ipc/cc-import";
-import { loadWeChatConversations, saveWeChatConversations, type WeChatConversationRecord } from "./store";
+import { BUILTIN_PI_AGENT_ID } from "@shared/types/registry";
 import type { SessionMeta } from "@shared/lib/session-persistence";
 import type { WeChatBridgeConfig, WeChatBridgeEvent, WeChatTool } from "@shared/types/wechat";
+import { getSessionFilePath } from "../data-dir";
+import { safeSend } from "../safe-send";
+import { isSessionDeleted, saveSessionToDisk } from "../session-store";
+import type { AdapterStreamEvent, AdapterTerminal } from "./adapters/types";
+import {
+  loadWeChatConversations,
+  saveWeChatConversations,
+  type WeChatConversationRecord,
+} from "./store";
 
 interface SinkDeps {
   getMainWindow: () => BrowserWindow | null;
@@ -18,15 +20,15 @@ interface SinkDeps {
   emit: (event: WeChatBridgeEvent) => void;
 }
 
-/**
- * Bridges headless WeChat runs into PccAgent's standard session store so they
- * appear in the sidebar, persist locally, and can be continued from the desktop.
- *
- * Each `(userId, tool)` thread maps to a stable PccAgent session id. Live SDK
- * events are forwarded over the renderer's existing `claude:event` channel
- * (tagged with that id); the durable transcript is rebuilt from the Claude Code
- * JSONL (written via `persistSession: true`) after every turn.
- */
+interface PersistedWeChatMessage {
+  id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  timestamp: number;
+  isError?: boolean;
+}
+
+/** Persists Pi/ACP WeChat turns and forwards their canonical events to the renderer. */
 export class WeChatSessionSink {
   private conversations: Record<string, WeChatConversationRecord>;
 
@@ -34,153 +36,157 @@ export class WeChatSessionSink {
     this.conversations = loadWeChatConversations();
   }
 
-  private key(userId: string, tool: WeChatTool): string {
+  private key(userId: string, tool: WeChatTool = "pi"): string {
     return `${userId}:${tool}`;
   }
 
-  getRecord(userId: string, tool: WeChatTool): WeChatConversationRecord | undefined {
-    return this.conversations[this.key(userId, tool)];
+  getRecord(userId: string): WeChatConversationRecord | undefined {
+    return this.conversations[this.key(userId)];
   }
 
-  /** Reverse lookup — used when the desktop continues a WeChat session by its id. */
+  /** Legacy records remain on disk but can never be selected for execution. */
   getRecordBySessionId(pccSessionId: string): WeChatConversationRecord | undefined {
-    return Object.values(this.conversations).find((r) => r.pccSessionId === pccSessionId);
+    return Object.values(this.conversations).find(
+      (record) => record.tool === "pi" && record.pccSessionId === pccSessionId,
+    );
   }
 
-  /** All persisted records — lets the router hydrate its in-memory resume cache on start. */
   allRecords(): WeChatConversationRecord[] {
-    return Object.values(this.conversations);
+    return Object.values(this.conversations).filter((record) => record.tool === "pi");
   }
 
   private persist(): void {
     saveWeChatConversations(this.conversations);
   }
 
-  /**
-   * Ensure a stable persisted session exists for `(userId, tool)`; on first
-   * creation write a stub holding the user's prompt so it's openable immediately.
-   * Always emits a `session-upsert` so the sidebar reflects the new/bumped thread.
-   * Returns the stable PccAgent session id used to tag live events.
-   */
-  async ensureSession(userId: string, tool: WeChatTool, firstPrompt: string): Promise<string> {
-    const k = this.key(userId, tool);
+  async ensureSession(userId: string, firstPrompt: string): Promise<string> {
+    const key = this.key(userId);
     const config = this.deps.getConfig();
     const now = Date.now();
-    let rec = this.conversations[k];
-    let isNew = !rec;
+    let record = this.conversations[key];
+    let isNew = !record;
 
-    // A deleted desktop row must not be resurrected by the tail of the turn
-    // that owned it. The next inbound turn deliberately rotates to a new app
-    // session ID while preserving the upstream resume metadata.
-    if (rec && isSessionDeleted(rec.projectId, rec.pccSessionId)) {
-      rec = {
-        ...rec,
+    if (record && isSessionDeleted(record.projectId, record.pccSessionId)) {
+      record = {
+        ...record,
+        tool: "pi",
         pccSessionId: `wechat-${crypto.randomUUID()}`,
         projectId: config.projectId,
         title: makeTitle(firstPrompt, userId),
         createdAt: now,
         lastUpdatedMs: now,
       };
-      this.conversations[k] = rec;
+      this.conversations[key] = record;
       isNew = true;
     }
 
-    if (!rec) {
-      rec = {
+    if (!record) {
+      record = {
         userId,
-        tool,
+        tool: "pi",
         pccSessionId: `wechat-${crypto.randomUUID()}`,
         projectId: config.projectId,
         title: makeTitle(firstPrompt, userId),
         createdAt: now,
         lastUpdatedMs: now,
       };
-      this.conversations[k] = rec;
+      this.conversations[key] = record;
     } else {
-      rec.lastUpdatedMs = now;
-      // Heal records created before projectId was snapshotted.
-      if (!rec.projectId) rec.projectId = config.projectId;
+      record.lastUpdatedMs = now;
+      if (!record.projectId) record.projectId = config.projectId;
     }
     this.persist();
 
-    // Write a stub on first creation so the session is openable immediately and
-    // the sidebar can show it (resume turns already have history on disk).
     if (isNew) {
-      const stub: CCImportedMessage[] = [
-        { id: `wechat-user-${crypto.randomUUID()}`, role: "user", content: firstPrompt, timestamp: now },
-      ];
-      const meta = await this.writeSession(rec, stub, config);
+      const messages: PersistedWeChatMessage[] = [{
+        id: `wechat-user-${crypto.randomUUID()}`,
+        role: "user",
+        content: firstPrompt,
+        timestamp: now,
+      }];
+      const meta = await this.writeSession(record, messages, config);
       this.deps.emit({ type: "session-upsert", meta });
     }
-    return rec.pccSessionId;
+    return record.pccSessionId;
   }
 
-  /** Forward a raw SDK event to the renderer, tagged so the existing pipeline routes it. */
-  forwardEvent(pccSessionId: string, raw: unknown): void {
-    if (!raw || typeof raw !== "object") return;
-    safeSend(this.deps.getMainWindow, "claude:event", { ...(raw as object), _sessionId: pccSessionId });
+  updateResume(userId: string, resumeId: string | undefined): void {
+    const record = this.getRecord(userId);
+    if (!record) return;
+    if (resumeId) record.resumeId = resumeId;
+    else delete record.resumeId;
+    record.lastUpdatedMs = Date.now();
+    this.persist();
   }
 
-  /**
-   * Persist the full conversation after a turn completes. For Claude, rebuilds
-   * the transcript from the SDK JSONL (authoritative). Falls back to appending a
-   * user+assistant pair onto the prior on-disk history (Codex / missing JSONL).
-   */
+  forwardEvent(pccSessionId: string, event: AdapterStreamEvent): void {
+    if (!event.update || typeof event.update !== "object") return;
+    safeSend(this.deps.getMainWindow, "acp:event", {
+      _sessionId: pccSessionId,
+      sessionId: event.sessionId,
+      update: event.update,
+    });
+  }
+
+  forwardTerminal(pccSessionId: string, terminal: AdapterTerminal): void {
+    if (terminal.kind === "transport_error") {
+      safeSend(this.deps.getMainWindow, "acp:turn_transport_error", {
+        _sessionId: pccSessionId,
+        turnId: terminal.turnId,
+        status: "transport_error",
+        error: terminal.error,
+        outcomeDelivered: false,
+      });
+      return;
+    }
+
+    const { outcome } = terminal;
+    safeSend(this.deps.getMainWindow, "acp:turn_complete", {
+      _sessionId: pccSessionId,
+      turnId: outcome.turnId,
+      status: outcome.status,
+      ...(outcome.status !== "failed" ? { stopReason: outcome.stopReason } : {}),
+      ...(outcome.status === "failed" ? { error: outcome.error } : {}),
+      ...(outcome.status === "completed" && outcome.usage !== undefined
+        ? { usage: outcome.usage }
+        : {}),
+      outcome,
+      outcomeDelivered: true,
+    });
+  }
+
   async finalizeTurn(
     userId: string,
-    tool: WeChatTool,
-    sdkSessionId: string | undefined,
+    resumeId: string | undefined,
     turnPrompt: string,
     finalText: string,
-    codexResumeMode?: WeChatConversationRecord["codexResumeMode"],
+    failed: boolean,
   ): Promise<void> {
-    const k = this.key(userId, tool);
-    const rec = this.conversations[k];
-    if (!rec) return;
+    const record = this.getRecord(userId);
+    if (!record) return;
 
-    rec.lastUpdatedMs = Date.now();
-    if (sdkSessionId) rec.resumeId = sdkSessionId;
-    if (codexResumeMode) rec.codexResumeMode = codexResumeMode;
+    record.lastUpdatedMs = Date.now();
+    if (resumeId) record.resumeId = resumeId;
     this.persist();
 
     const config = this.deps.getConfig();
-    const messages = this.rebuildMessages(rec, config, turnPrompt, finalText);
-    const meta = await this.writeSession(rec, messages, config);
+    const messages = this.appendTurn(record, turnPrompt, finalText, failed);
+    const meta = await this.writeSession(record, messages, config);
     this.deps.emit({ type: "session-upsert", meta });
   }
 
-  /** Drop all in-memory + persisted conversation records (logout). */
   clear(): void {
     this.conversations = {};
     this.persist();
   }
 
-  // ── internals ──────────────────────────────────────────────
-
-  private rebuildMessages(
-    rec: WeChatConversationRecord,
-    config: WeChatBridgeConfig,
+  private appendTurn(
+    record: WeChatConversationRecord,
     turnPrompt: string,
     finalText: string,
-  ): CCImportedMessage[] {
-    // Claude: the SDK JSONL is the authoritative full transcript.
-    if (rec.tool === "claude" && rec.resumeId) {
-      try {
-        const dir = getCCProjectDir(config.workDir || os.homedir());
-        const filePath = path.join(dir, `${rec.resumeId}.jsonl`);
-        if (fs.existsSync(filePath)) {
-          const msgs = parseJsonlToUIMessages(filePath);
-          if (msgs.length) return msgs;
-        }
-      } catch (err) {
-        reportError("WECHAT_SINK_JSONL", err, { sessionId: rec.pccSessionId });
-      }
-    }
-
-    // Fallback: append this turn onto whatever history is already on disk.
-    // Skip re-adding the user prompt if it's already the last message (the
-    // first-turn stub written by ensureSession), to avoid a duplicate.
-    const prior = this.readExistingMessages(rec.pccSessionId, rec.projectId);
+    failed: boolean,
+  ): PersistedWeChatMessage[] {
+    const prior = this.readExistingMessages(record.pccSessionId, record.projectId);
     const last = prior[prior.length - 1];
     const userAlreadyPresent = !!last && last.role === "user" && last.content === turnPrompt;
     const now = Date.now();
@@ -188,16 +194,29 @@ export class WeChatSessionSink {
       ...prior,
       ...(userAlreadyPresent
         ? []
-        : [{ id: `wechat-user-${crypto.randomUUID()}`, role: "user", content: turnPrompt, timestamp: now }]),
-      { id: `wechat-assistant-${crypto.randomUUID()}`, role: "assistant", content: finalText, timestamp: now },
+        : [{
+            id: `wechat-user-${crypto.randomUUID()}`,
+            role: "user" as const,
+            content: turnPrompt,
+            timestamp: now,
+          }]),
+      {
+        id: `wechat-${failed ? "error" : "assistant"}-${crypto.randomUUID()}`,
+        role: failed ? "system" : "assistant",
+        content: finalText,
+        timestamp: now,
+        ...(failed ? { isError: true } : {}),
+      },
     ];
   }
 
-  private readExistingMessages(pccSessionId: string, projectId: string): CCImportedMessage[] {
+  private readExistingMessages(pccSessionId: string, projectId: string): PersistedWeChatMessage[] {
     try {
       const filePath = getSessionFilePath(projectId, pccSessionId);
       if (!fs.existsSync(filePath)) return [];
-      const data = JSON.parse(fs.readFileSync(filePath, "utf-8")) as { messages?: CCImportedMessage[] };
+      const data = JSON.parse(fs.readFileSync(filePath, "utf-8")) as {
+        messages?: PersistedWeChatMessage[];
+      };
       return Array.isArray(data.messages) ? data.messages : [];
     } catch {
       return [];
@@ -205,23 +224,30 @@ export class WeChatSessionSink {
   }
 
   private writeSession(
-    rec: WeChatConversationRecord,
-    messages: CCImportedMessage[],
+    record: WeChatConversationRecord,
+    messages: PersistedWeChatMessage[],
     config: WeChatBridgeConfig,
   ): Promise<SessionMeta> {
+    const permissionMode = config.permissionMode === "auto"
+      ? "bypassPermissions"
+      : config.permissionMode === "plan"
+        ? "plan"
+        : "default";
     return saveSessionToDisk({
-      id: rec.pccSessionId,
-      projectId: rec.projectId,
-      title: rec.title,
-      createdAt: rec.createdAt,
-      lastMessageAt: rec.lastUpdatedMs,
+      id: record.pccSessionId,
+      projectId: record.projectId,
+      title: record.title,
+      createdAt: record.createdAt,
+      lastMessageAt: record.lastUpdatedMs,
       messages,
       model: config.model || undefined,
-      permissionMode: config.permissionMode,
+      permissionMode,
       totalCost: 0,
-      engine: rec.tool === "codex" ? "codex" : "claude",
+      engine: "acp",
+      agentId: BUILTIN_PI_AGENT_ID,
+      agentSessionId: record.resumeId,
       source: "wechat",
-      wechatUserId: rec.userId,
+      wechatUserId: record.userId,
     });
   }
 }

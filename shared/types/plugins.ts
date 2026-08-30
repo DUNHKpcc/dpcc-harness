@@ -17,8 +17,12 @@ export interface SkillCatalogItem {
   installable: boolean;
 }
 
-export type SkillInstallScope = "project" | "global";
-export type SkillTarget = "claude-code" | "codex";
+export type SkillInstallScope = "global";
+/** Persisted by older Plugin Center builds and accepted only for safe migration/removal. */
+export type StoredSkillInstallScope = SkillInstallScope | "project";
+export type SkillTarget = "pi";
+/** Persisted by older Plugin Center builds and accepted only for safe update/removal. */
+export type StoredSkillTarget = SkillTarget | "claude-code" | "codex";
 
 export interface SkillInstallRequest {
   catalogId: string;
@@ -37,11 +41,14 @@ export interface InstalledSkillRecord {
   source: string;
   sourceRevision: string;
   contentHash: string;
-  scope: SkillInstallScope;
-  targets: SkillTarget[];
+  scope: StoredSkillInstallScope;
+  targets: StoredSkillTarget[];
   projectPath?: string;
   installPaths: string[];
   installedAt: string;
+  /** External Skills are discoverable but never modified by PccAgent. */
+  managed?: boolean;
+  origin?: "PccAgent" | "Claude Code" | "Codex" | "Local Agent";
 }
 
 export type McpCatalogInstallKind = "remote" | "npm";
@@ -83,10 +90,23 @@ export interface McpCatalogItem {
 }
 
 export interface McpCatalogInstallRequest {
-  projectId: string;
   item: McpCatalogItem;
   optionId: string;
   values: Record<string, string>;
+}
+
+export interface InstalledMcpRecord {
+  server: {
+    name: string;
+    transport: "stdio" | "sse" | "http";
+    command?: string;
+    args?: string[];
+    env?: Record<string, string>;
+    url?: string;
+    headers?: Record<string, string>;
+  };
+  source: "PccAgent" | "Claude Code" | "Codex" | "Local MCP";
+  managed: boolean;
 }
 
 export interface McpCatalogInstallResult {

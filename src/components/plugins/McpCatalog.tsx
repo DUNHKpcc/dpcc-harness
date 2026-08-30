@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Check, Download, ExternalLink, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { PiLogo } from "@/components/PiLogo";
 import {
   Dialog,
   DialogContent,
@@ -16,25 +17,19 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { PluginIcon, repositoryPublisherIconUrl } from "./PluginIcon";
 import type {
   CatalogFreshness,
-  EngineId,
   McpCatalogInstallOption,
   McpCatalogItem,
   McpServerConfig,
+  InstalledMcpRecord,
 } from "@/types";
 
 interface McpCatalogProps {
-  projectId: string | null;
-  projectName: string | null;
-  activeEngine?: EngineId;
   hasLiveSession: boolean;
   isSessionProcessing: boolean;
   onRestartWithServers?: (servers: McpServerConfig[]) => Promise<void> | void;
 }
 
 export function McpCatalog({
-  projectId,
-  projectName,
-  activeEngine,
   hasLiveSession,
   isSessionProcessing,
   onRestartWithServers,
@@ -42,7 +37,7 @@ export function McpCatalog({
   const { t } = useTranslation("plugins");
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<McpCatalogItem[]>([]);
-  const [servers, setServers] = useState<McpServerConfig[]>([]);
+  const [servers, setServers] = useState<InstalledMcpRecord[]>([]);
   const [freshness, setFreshness] = useState<CatalogFreshness>("fresh");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,12 +48,13 @@ export function McpCatalog({
   const [removingName, setRemovingName] = useState<string | null>(null);
 
   const refreshInstalled = useCallback(async () => {
-    if (!projectId) {
-      setServers([]);
+    const response = await window.claude.plugins.mcp.listInstalled();
+    if ("error" in response) {
+      setError(response.error);
       return;
     }
-    setServers(await window.claude.mcp.list(projectId));
-  }, [projectId]);
+    setServers(response.items);
+  }, []);
 
   useEffect(() => {
     void refreshInstalled();
@@ -89,7 +85,7 @@ export function McpCatalog({
     };
   }, [query]);
 
-  const installedNames = useMemo(() => new Set(servers.map((server) => server.name)), [servers]);
+  const installedNames = useMemo(() => new Set(servers.map(({ server }) => server.name)), [servers]);
   const catalogItemsByName = useMemo(
     () => new Map(items.map((item) => [item.name, item])),
     [items],
@@ -131,29 +127,23 @@ export function McpCatalog({
   }, []);
 
   const restartSession = useCallback(async () => {
-    if (!projectId || !hasLiveSession || !onRestartWithServers) return;
+    if (!hasLiveSession || !onRestartWithServers) return;
     if (isSessionProcessing) {
       toast.info(t("state.sessionBusy"));
       return;
     }
-    if (activeEngine === "codex") {
-      toast.info(t("state.codexRestart"));
-      return;
-    }
-    await onRestartWithServers(await window.claude.mcp.list(projectId));
-  }, [activeEngine, hasLiveSession, isSessionProcessing, onRestartWithServers, projectId, t]);
+    await onRestartWithServers(await window.claude.mcp.list());
+  }, [hasLiveSession, isSessionProcessing, onRestartWithServers, t]);
 
   const handleInstall = useCallback(async () => {
     if (
       !selected
       || !selectedOption
-      || !projectId
       || !selectedOption.supported
       || isSessionProcessing
     ) return;
     setInstalling(true);
     const response = await window.claude.plugins.mcp.install({
-      projectId,
       item: selected,
       optionId: selectedOption.id,
       values,
@@ -167,28 +157,28 @@ export function McpCatalog({
     setSelected(null);
     await refreshInstalled();
     await restartSession();
-  }, [isSessionProcessing, projectId, refreshInstalled, restartSession, selected, selectedOption, t, values]);
+  }, [isSessionProcessing, refreshInstalled, restartSession, selected, selectedOption, t, values]);
 
-  const handleRemove = useCallback(async (server: McpServerConfig) => {
-    if (!projectId || isSessionProcessing) return;
-    setRemovingName(server.name);
-    const response = await window.claude.mcp.remove(projectId, server.name);
+  const handleRemove = useCallback(async (record: InstalledMcpRecord) => {
+    if (!record.managed || isSessionProcessing) return;
+    setRemovingName(record.server.name);
+    const response = await window.claude.mcp.remove(record.server.name);
     setRemovingName(null);
     if (response.error) {
       toast.error(response.error);
       return;
     }
-    toast.success(t("mcp.removeSuccess", { name: server.name }));
+    toast.success(t("mcp.removeSuccess", { name: record.server.name }));
     await refreshInstalled();
     await restartSession();
-  }, [isSessionProcessing, projectId, refreshInstalled, restartSession, t]);
+  }, [isSessionProcessing, refreshInstalled, restartSession, t]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <ScrollArea className="min-h-0 flex-1">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <ScrollArea className="min-h-0 min-w-0 flex-1">
         <div
           data-mcp-catalog-layout="reference"
-          className="mx-auto w-full max-w-5xl px-5 pb-12 pt-8 sm:px-8 sm:pt-10"
+          className="mx-auto w-full min-w-0 max-w-5xl px-4 pb-12 pt-8 sm:px-6 sm:pt-10 lg:px-8"
         >
           <header>
             <div className="flex min-w-0 flex-wrap items-end justify-between gap-2">
@@ -196,11 +186,6 @@ export function McpCatalog({
                 <h1 className="text-2xl font-semibold text-foreground">{t("tabs.mcp")}</h1>
                 <p className="mt-1 text-sm text-muted-foreground">{t("mcp.subtitle")}</p>
               </div>
-              {projectName && (
-                <span className="max-w-64 truncate text-xs text-muted-foreground">
-                  {t("mcp.project", { name: projectName })}
-                </span>
-              )}
             </div>
             <label className="relative mt-7 block">
               <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -218,41 +203,48 @@ export function McpCatalog({
               <h2 className="text-sm font-semibold">{t("views.installed")}</h2>
               <span className="text-xs tabular-nums text-muted-foreground">{servers.length}</span>
             </div>
-            {!projectId ? (
-              <p className="py-5 text-sm text-muted-foreground">{t("state.projectRequired")}</p>
-            ) : servers.length === 0 ? (
+            {servers.length === 0 ? (
               <p className="py-5 text-sm text-muted-foreground">{t("state.noInstalledMcp")}</p>
             ) : (
-              <div className="flex gap-3 overflow-x-auto py-4">
-                {servers.map((server) => (
-                  <div
-                    key={server.name}
-                    className="flex h-14 w-64 shrink-0 items-center gap-3 rounded-md border border-border/65 bg-background px-2.5"
-                  >
-                    <PluginIcon
-                      name={server.name}
-                      imageUrl={catalogItemsByName.get(server.name)?.iconUrl}
-                      size="sm"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-xs font-medium">{server.name}</div>
-                      <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[10px] text-muted-foreground">
-                        <span className="shrink-0 uppercase">{server.transport}</span>
-                        <span className="truncate">{server.url ?? server.command}</span>
-                      </div>
-                    </div>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
-                      disabled={isSessionProcessing || removingName === server.name}
-                      onClick={() => void handleRemove(server)}
-                      title={isSessionProcessing ? t("state.sessionBusy") : t("action.remove")}
+              <div
+                data-installed-list="mcp"
+                className="grid max-h-[156px] grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))] gap-3 overflow-y-auto overscroll-contain py-4 pr-1"
+              >
+                {servers.map((record) => {
+                  const { server } = record;
+                  return (
+                    <div
+                      key={`${record.source}:${server.name}`}
+                      className="flex h-14 min-w-0 items-center gap-3 rounded-md border border-border/65 bg-background px-2.5"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                ))}
+                      <PluginIcon
+                        name={server.name}
+                        imageUrl={catalogItemsByName.get(server.name)?.iconUrl}
+                        size="sm"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-xs font-medium">{server.name}</div>
+                        <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[10px] text-muted-foreground">
+                          <span className="shrink-0 uppercase">{server.transport}</span>
+                          <span className="truncate">{server.url ?? server.command}</span>
+                          <span className="shrink-0">{record.source}</span>
+                        </div>
+                      </div>
+                      {record.managed && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                          disabled={isSessionProcessing || removingName === server.name}
+                          onClick={() => void handleRemove(record)}
+                          title={isSessionProcessing ? t("state.sessionBusy") : t("action.remove")}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </section>
@@ -272,7 +264,10 @@ export function McpCatalog({
             ) : items.length === 0 ? (
               <div className="py-12 text-center text-sm text-muted-foreground">{t("state.empty")}</div>
             ) : (
-              <div data-plugin-catalog-grid="mcp" className="grid grid-cols-1 gap-x-10 lg:grid-cols-2">
+              <div
+                data-plugin-catalog-grid="mcp"
+                className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,21rem),1fr))] gap-x-10"
+              >
                 {items.map((item) => {
                   const installed = installedNames.has(item.name);
                   const supported = item.installOptions.some((option) => option.supported);
@@ -304,13 +299,11 @@ export function McpCatalog({
                         size="sm"
                         variant="outline"
                         className="h-8 shrink-0 rounded-full px-3"
-                        disabled={!projectId || !supported || isSessionProcessing}
+                        disabled={!supported || isSessionProcessing}
                         onClick={() => openInstall(item)}
                         title={isSessionProcessing
                           ? t("state.sessionBusy")
-                          : !projectId
-                            ? t("state.projectRequired")
-                            : !supported
+                          : !supported
                               ? t("mcp.unsupported")
                               : undefined}
                       >
@@ -349,6 +342,14 @@ export function McpCatalog({
           </DialogHeader>
 
           <div className="space-y-4">
+            <div>
+              <div className="mb-2 text-xs font-medium">{t("mcp.target")}</div>
+              <div className="flex h-10 items-center gap-2 rounded-md border border-border bg-muted/40 px-3">
+                <PiLogo className="h-4 w-4 shrink-0" />
+                <span className="text-sm font-medium">Pi</span>
+                <Check className="ml-auto h-4 w-4 text-emerald-600" />
+              </div>
+            </div>
             {installPreview && (
               <div className="rounded-md border border-border/70 bg-muted/40 px-3 py-2">
                 <div className="mb-1 text-[10px] font-medium uppercase text-muted-foreground">
@@ -405,7 +406,7 @@ export function McpCatalog({
             <Button variant="outline" onClick={() => setSelected(null)}>{t("action.cancel")}</Button>
             <Button
               onClick={() => void handleInstall()}
-              disabled={!projectId || !selectedOption?.supported || installing || isSessionProcessing}
+              disabled={!selectedOption?.supported || installing || isSessionProcessing}
               title={isSessionProcessing ? t("state.sessionBusy") : undefined}
             >
               <Download className="h-4 w-4" />

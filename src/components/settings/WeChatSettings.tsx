@@ -2,6 +2,7 @@ import { memo, useState, useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import QRCode from "qrcode";
 import { Smartphone, QrCode, LogOut, RefreshCw, ShieldAlert, ScrollText } from "lucide-react";
+import { PiLogo } from "@/components/PiLogo";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +12,6 @@ import type {
   WeChatBridgeState,
   WeChatBridgeConfig,
   WeChatBridgeEvent,
-  WeChatTool,
   WeChatPermissionMode,
   WeChatLoginStatus,
   Project,
@@ -173,10 +173,6 @@ export const WeChatSettings = memo(function WeChatSettings() {
   const isConnecting = status === "connecting" || loginStatus !== null;
   const allowAllUnsafe = config.allowedUsers.length === 0;
 
-  const toolOptions: Array<{ value: WeChatTool; label: string }> = [
-    { value: "claude", label: "Claude Code" },
-    { value: "codex", label: "Codex" },
-  ];
   const modeOptions: Array<{ value: WeChatPermissionMode; label: string }> = [
     { value: "safe", label: t("wechat.mode.safe") },
     { value: "auto", label: t("wechat.mode.auto") },
@@ -263,13 +259,12 @@ export const WeChatSettings = memo(function WeChatSettings() {
           </SettingsSection>
 
           {/* ── Behavior ── */}
-          <SettingsSection label={t("wechat.behavior")}>
+          <SettingsSection icon={PiLogo} label={t("wechat.behavior")}>
             <SettingRow label={t("wechat.defaultTool")} description={t("wechat.defaultToolDesc")}>
-              <SettingsSelect
-                value={config.defaultTool}
-                onValueChange={(v) => void patchConfig({ defaultTool: v })}
-                options={toolOptions}
-              />
+              <span className="flex items-center gap-2 text-sm font-medium text-foreground">
+                <PiLogo size={16} />
+                Pi
+              </span>
             </SettingRow>
             <SettingRow label={t("wechat.permissionMode")} description={t("wechat.permissionModeDesc")}>
               <SettingsSelect

@@ -1,4 +1,14 @@
 import type { WeChatPermissionMode, WeChatTool } from "@shared/types/wechat";
+import type { ACPErrorDetails, ACPPiTurnOutcome } from "@shared/types/acp";
+
+export interface AdapterStreamEvent {
+  sessionId: string;
+  update: unknown;
+}
+
+export type AdapterTerminal =
+  | { kind: "outcome"; outcome: ACPPiTurnOutcome }
+  | { kind: "transport_error"; turnId: string; error: ACPErrorDetails };
 
 /** Options passed to a one-shot CLI run triggered by an inbound WeChat message. */
 export interface AdapterExecOptions {
@@ -8,7 +18,7 @@ export interface AdapterExecOptions {
   permissionMode: WeChatPermissionMode;
   /** Model override (empty = engine default). */
   model: string;
-  /** Max agent turns (Claude only). */
+  /** Compatibility cap retained in the persisted WeChat configuration. */
   maxTurns: number;
   /** Engine-specific resume id from the user's previous run (continues context). */
   resumeId?: string;
@@ -17,11 +27,10 @@ export interface AdapterExecOptions {
   /** Streamed intermediate text for progressive WeChat replies (optional). */
   onIntermediate?: (chunk: string) => void;
   /**
-   * Raw engine event passthrough (optional). For Claude these are the SDK
-   * `query()` messages verbatim, so the renderer's existing `claude:event`
-   * pipeline can render WeChat runs live when tagged with a `_sessionId`.
+   * ACP update passthrough so the renderer can render this turn live under
+   * the stable PccAgent session ID owned by the WeChat session sink.
    */
-  onEvent?: (raw: unknown) => void;
+  onEvent?: (event: AdapterStreamEvent) => void;
 }
 
 /** Result of a one-shot CLI run. */
@@ -36,6 +45,8 @@ export interface AdapterExecResult {
   durationMs: number;
   /** True when the failure looks like an expired/invalid resume session. */
   sessionExpired?: boolean;
+  /** Exactly one terminal signal for renderer/background cleanup. */
+  terminal: AdapterTerminal;
 }
 
 /** A built-in CLI engine the bridge can drive. */

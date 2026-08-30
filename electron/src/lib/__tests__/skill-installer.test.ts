@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -53,30 +52,38 @@ describe("Skill installer validation", () => {
     await expect(collectSkillFiles(skill)).rejects.toThrow("symlinks are not supported");
   });
 
-  it("accepts only explicit public GitHub shorthand sources and valid project scope", () => {
+  it("accepts only explicit public GitHub shorthand sources and global scope", () => {
     expect(normalizeSkillInstallRequest({
       catalogId: "owner/repo/skill",
       name: "skill",
       source: "owner/repo",
       scope: "global",
-      targets: ["claude-code", "claude-code", "codex"],
-    }).targets).toEqual(["claude-code", "codex"]);
+      targets: ["pi", "pi"],
+    }).targets).toEqual(["pi"]);
+
+    expect(() => normalizeSkillInstallRequest({
+      catalogId: "legacy-agent",
+      name: "skill",
+      source: "owner/repo",
+      scope: "global",
+      targets: ["codex"] as never,
+    })).toThrow("Unsupported Skill target");
 
     expect(() => normalizeSkillInstallRequest({
       catalogId: "remote",
       name: "skill",
       source: "https://example.com/repo",
       scope: "global",
-      targets: ["codex"],
+      targets: ["pi"],
     })).toThrow("Only public GitHub Skill sources");
 
     expect(() => normalizeSkillInstallRequest({
       catalogId: "project",
       name: "skill",
       source: "owner/repo",
-      scope: "project",
-      targets: ["codex"],
-    })).toThrow("project path is required");
+      scope: "project" as never,
+      targets: ["pi"],
+    })).toThrow("only be installed globally");
   });
 
   it("accepts only manifest paths derived from the recorded scope and targets", () => {
@@ -116,7 +123,7 @@ describe("Skill installer validation", () => {
       sourceRevision: "abc123",
       contentHash: "hash",
       scope: "global",
-      targets: ["codex"],
+      targets: ["pi"],
       installPaths: [path.join(os.homedir(), ".agents/skills/skill")],
       installedAt: new Date(0).toISOString(),
     };
@@ -144,33 +151,24 @@ describe("Skill installer validation", () => {
       .toEqual(["global"]);
   });
 
-  it("restores every target when a multi-target update fails partway through", async () => {
+  it("migrates an unmodified managed Pi project Skill into the global root", async () => {
     const projectPath = path.join(root, "project");
-    const claudePath = path.join(projectPath, ".claude/skills/skill");
-    const codexPath = path.join(projectPath, ".agents/skills/skill");
-    for (const destination of [claudePath, codexPath]) {
-      fs.mkdirSync(destination, { recursive: true });
-      fs.writeFileSync(path.join(destination, "SKILL.md"), "---\nname: skill\n---\n");
-      fs.writeFileSync(path.join(destination, "payload.txt"), "old");
-    }
-
-    const contentHash = await hashSkillFiles(await collectSkillFiles(claudePath));
-    const id = createHash("sha256").update(JSON.stringify({
-      catalogId: "owner/repo/skill",
-      scope: "project",
-      projectPath: path.resolve(projectPath),
-    })).digest("hex");
+    const projectSkillPath = path.join(projectPath, ".agents/skills/skill");
+    fs.mkdirSync(projectSkillPath, { recursive: true });
+    fs.writeFileSync(path.join(projectSkillPath, "SKILL.md"), "---\nname: skill\n---\n");
+    fs.writeFileSync(path.join(projectSkillPath, "payload.txt"), "project");
+    const contentHash = await hashSkillFiles(await collectSkillFiles(projectSkillPath));
     let manifest: InstalledSkillRecord[] = [{
-      id,
+      id: "project-record",
       catalogId: "owner/repo/skill",
       name: "skill",
       source: "owner/repo",
       sourceRevision: "old-revision",
       contentHash,
       scope: "project",
-      targets: ["claude-code", "codex"],
+      targets: ["pi"],
       projectPath,
-      installPaths: [claudePath, codexPath],
+      installPaths: [projectSkillPath],
       installedAt: new Date(0).toISOString(),
     }];
     const saveManifest = vi.fn((_key: string, records: InstalledSkillRecord[]) => {
@@ -189,46 +187,21 @@ describe("Skill installer validation", () => {
         }
       },
     }));
-    vi.doMock("../git-exec", () => ({
-      gitExec: vi.fn(async (args: string[]) => {
-        if (args[0] === "clone") {
-          const repositoryPath = args.at(-1)!;
-          const skillPath = path.join(repositoryPath, "skill");
-          fs.mkdirSync(skillPath, { recursive: true });
-          fs.writeFileSync(path.join(skillPath, "SKILL.md"), "---\nname: skill\n---\n");
-          fs.writeFileSync(path.join(skillPath, "payload.txt"), "new");
-          return "";
-        }
-        return "new-revision\n";
-      }),
-    }));
-
-    const rename = fs.promises.rename.bind(fs.promises);
-    const renameSpy = vi.spyOn(fs.promises, "rename").mockImplementation(async (from, to) => {
-      if (String(from).includes(".skill.tmp-") && path.resolve(to) === path.resolve(codexPath)) {
-        throw new Error("simulated second-target failure");
-      }
-      return rename(from, to);
-    });
+    const homeDirSpy = vi.spyOn(os, "homedir").mockReturnValue(path.join(root, "home"));
 
     try {
-      const { installSkill } = await import("../skill-installer");
-      await expect(installSkill({
-        catalogId: "owner/repo/skill",
-        name: "skill",
-        source: "owner/repo",
-        scope: "project",
-        targets: ["claude-code", "codex"],
-        projectPath,
-      })).rejects.toThrow("simulated second-target failure");
+      const { listInstalledSkills } = await import("../skill-installer");
+      const installed = await listInstalledSkills();
+      const globalPath = path.join(root, "home", ".agents/skills/skill");
 
-      expect(fs.readFileSync(path.join(claudePath, "payload.txt"), "utf8")).toBe("old");
-      expect(fs.readFileSync(path.join(codexPath, "payload.txt"), "utf8")).toBe("old");
-      expect(saveManifest).not.toHaveBeenCalled();
+      expect(installed).toHaveLength(1);
+      expect(installed[0]).toMatchObject({ scope: "global", installPaths: [globalPath] });
+      expect(fs.readFileSync(path.join(globalPath, "payload.txt"), "utf8")).toBe("project");
+      expect(fs.existsSync(projectSkillPath)).toBe(true);
+      expect(saveManifest).toHaveBeenCalledOnce();
     } finally {
-      renameSpy.mockRestore();
       vi.doUnmock("../json-file-store");
-      vi.doUnmock("../git-exec");
+      homeDirSpy.mockRestore();
       vi.resetModules();
     }
   });

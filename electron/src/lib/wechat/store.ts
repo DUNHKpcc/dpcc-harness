@@ -3,7 +3,10 @@ import path from "node:path";
 import { JsonFileStore } from "../json-file-store";
 import { getDataDir } from "../data-dir";
 import { reportError } from "../error-utils";
-import type { WeChatBridgeConfig, WeChatTool, WeChatPermissionMode } from "@shared/types/wechat";
+import type {
+  PersistedWeChatTool,
+  WeChatBridgeConfig,
+} from "@shared/types/wechat";
 import type { Credentials } from "./types";
 import type { ILinkPersistence } from "./ilink-client";
 
@@ -14,24 +17,24 @@ import type { ILinkPersistence } from "./ilink-client";
  */
 export interface WeChatConversationRecord {
   userId: string;
-  tool: WeChatTool;
+  tool: PersistedWeChatTool;
   /** Stable PccAgent session id (file name + `_sessionId` tag for live events). */
   pccSessionId: string;
   /** Project the session was created under — snapshot so a later config change can't orphan it. */
   projectId: string;
   /** Engine session id used for resume + locating the on-disk JSONL transcript. */
   resumeId?: string;
-  /** Permission mode the Codex thread was created in (gates `--last` resume). */
-  codexResumeMode?: WeChatPermissionMode;
+  /** Legacy Codex metadata retained without activating its runtime. */
+  codexResumeMode?: "auto" | "safe" | "plan";
   title: string;
   createdAt: number;
   lastUpdatedMs: number;
 }
 
-/** Out-of-the-box bridge config: off, Claude, safe mode, no whitelist. */
+/** Out-of-the-box bridge config: off, Pi, safe mode, no whitelist. */
 export const DEFAULT_WECHAT_CONFIG: WeChatBridgeConfig = {
   enabled: false,
-  defaultTool: "claude",
+  defaultTool: "pi",
   workDir: "",
   projectId: "",
   allowedUsers: [],
@@ -76,7 +79,9 @@ function normalizeConfig(raw: unknown): WeChatBridgeConfig {
   const c = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   return {
     enabled: c.enabled === true,
-    defaultTool: c.defaultTool === "codex" ? "codex" : "claude",
+    // Do not rewrite the raw file during load. The normalized runtime view is
+    // Pi-only while old config remains available for rollback on disk.
+    defaultTool: "pi",
     workDir: typeof c.workDir === "string" ? c.workDir : "",
     projectId: typeof c.projectId === "string" ? c.projectId : "",
     allowedUsers: Array.isArray(c.allowedUsers)

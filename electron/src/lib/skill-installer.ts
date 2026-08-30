@@ -1,13 +1,15 @@
 import { createHash, randomUUID } from "crypto";
 import fs from "fs";
-import os from "os";
+import os from "node:os";
 import path from "path";
 import { gitExec } from "./git-exec";
 import { JsonFileStore } from "./json-file-store";
+import { discoverLocalSkills } from "./local-skill-discovery";
 import type {
   InstalledSkillRecord,
   SkillInstallRequest,
-  SkillTarget,
+  StoredSkillInstallScope,
+  StoredSkillTarget,
 } from "../../../shared/types/plugins";
 
 const MAX_SKILL_FILES = 1_000;
@@ -29,21 +31,29 @@ function saveManifest(records: InstalledSkillRecord[]): void {
   manifestStore.save("manifest", records);
 }
 
-function recordId(request: SkillInstallRequest): string {
+function recordIdFor(
+  catalogId: string,
+  scope: StoredSkillInstallScope,
+  projectPath?: string,
+): string {
   return createHash("sha256")
     .update(JSON.stringify({
-      catalogId: request.catalogId,
-      scope: request.scope,
-      projectPath: request.projectPath ? path.resolve(request.projectPath) : null,
+      catalogId,
+      scope,
+      projectPath: projectPath ? path.resolve(projectPath) : null,
     }))
     .digest("hex");
+}
+
+function recordId(request: SkillInstallRequest): string {
+  return recordIdFor(request.catalogId, request.scope, request.projectPath);
 }
 
 export function normalizeSkillInstallRequest(request: SkillInstallRequest): SkillInstallRequest {
   const name = request.name.trim();
   const source = request.source.trim();
-  if (request.scope !== "project" && request.scope !== "global") {
-    throw new Error("Unsupported Skill installation scope");
+  if ((request as { scope?: unknown }).scope !== "global") {
+    throw new Error("Skills can only be installed globally");
   }
   if (!Array.isArray(request.targets)) throw new Error("Invalid Skill targets");
   const targets = Array.from(new Set(request.targets));
@@ -52,26 +62,21 @@ export function normalizeSkillInstallRequest(request: SkillInstallRequest): Skil
     throw new Error("Only public GitHub Skill sources are supported in v0.1");
   }
   if (targets.length === 0) throw new Error("Select at least one Skill target");
-  if (targets.some((target) => target !== "claude-code" && target !== "codex")) {
+  if (targets.some((target) => target !== "pi")) {
     throw new Error("Unsupported Skill target");
-  }
-  if (request.scope === "project" && !request.projectPath) {
-    throw new Error("A project path is required for project Skills");
   }
   return {
     ...request,
     name,
     source,
     targets,
-    projectPath: request.scope === "project" && request.projectPath
-      ? path.resolve(request.projectPath)
-      : undefined,
+    projectPath: undefined,
   };
 }
 
 function targetRoot(
-  target: SkillTarget,
-  scope: SkillInstallRequest["scope"],
+  target: StoredSkillTarget,
+  scope: StoredSkillInstallScope,
   projectPath?: string,
 ): string {
   if (scope === "project") {
@@ -95,7 +100,9 @@ export function resolveManagedSkillPaths(record: InstalledSkillRecord): Set<stri
   if (
     targets.size !== record.targets.length
     || targets.size === 0
-    || [...targets].some((target) => target !== "claude-code" && target !== "codex")
+    || [...targets].some((target) => (
+      target !== "pi" && target !== "claude-code" && target !== "codex"
+    ))
   ) {
     throw new Error("Installed Skill record has invalid targets");
   }
@@ -322,8 +329,58 @@ export function filterInstalledSkillsForProject(
   ));
 }
 
-export function listInstalledSkills(projectPath?: string | null): InstalledSkillRecord[] {
-  return filterInstalledSkillsForProject(loadManifest(), projectPath);
+function isMigratableProjectPiSkill(record: InstalledSkillRecord): boolean {
+  return record.scope === "project"
+    && record.targets.length === 1
+    && record.targets[0] === "pi";
+}
+
+async function migrateProjectPiSkills(records: InstalledSkillRecord[]): Promise<InstalledSkillRecord[]> {
+  const existingGlobalIds = new Set(
+    records.filter((record) => record.scope === "global").map((record) => record.id),
+  );
+  let changed = false;
+  const next = await Promise.all(records.map(async (record) => {
+    if (!isMigratableProjectPiSkill(record)) return record;
+
+    const globalId = recordIdFor(record.catalogId, "global");
+    if (existingGlobalIds.has(globalId)) return record;
+
+    try {
+      const [sourcePath] = resolveManagedSkillPaths(record);
+      const destination = path.join(targetRoot("pi", "global"), record.name);
+      if (await pathExists(destination) || !await pathExists(sourcePath)) return record;
+
+      const files = await collectSkillFiles(sourcePath);
+      if (await hashSkillFiles(files) !== record.contentHash) return record;
+
+      const change = await copySkillAtomic(files, destination, new Set<string>());
+      await commitSkillChanges([change]);
+      changed = true;
+      existingGlobalIds.add(globalId);
+      return {
+        ...record,
+        id: globalId,
+        scope: "global" as const,
+        projectPath: undefined,
+        installPaths: [destination],
+      };
+    } catch {
+      // Keep legacy project files untouched when they cannot be migrated safely.
+      return record;
+    }
+  }));
+
+  if (changed) saveManifest(next);
+  return next;
+}
+
+export async function listInstalledSkills(): Promise<InstalledSkillRecord[]> {
+  const records = await migrateProjectPiSkills(loadManifest());
+  const managed = records
+    .filter((record) => record.scope === "global")
+    .map((record) => ({ ...record, managed: true, origin: "PccAgent" as const }));
+  return [...managed, ...discoverLocalSkills(managed)];
 }
 
 export async function installSkill(request: SkillInstallRequest): Promise<InstalledSkillRecord> {

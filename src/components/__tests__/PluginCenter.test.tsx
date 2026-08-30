@@ -12,9 +12,6 @@ describe("Plugin Center workspace", () => {
   it("renders Skills and MCP as first-class workspace tabs", () => {
     const markup = renderToStaticMarkup(
       <PluginCenter
-        projectId={null}
-        projectPath={null}
-        projectName={null}
         hasLiveSession={false}
         isSessionProcessing={false}
       />,
@@ -31,8 +28,6 @@ describe("Plugin Center workspace", () => {
   it("uses the same reference layout for the MCP catalog", () => {
     const markup = renderToStaticMarkup(
       <McpCatalog
-        projectId={null}
-        projectName={null}
         hasLiveSession={false}
         isSessionProcessing={false}
       />,
@@ -107,6 +102,19 @@ describe("Plugin Center workspace", () => {
     expect(pluginCenter).toContain("isSessionProcessing={isSessionProcessing}");
     expect(mcpCatalog).toContain("isSessionProcessing || removingName === server.name");
     expect(mcpCatalog).toContain("!selectedOption.supported\n      || isSessionProcessing");
-    expect(skillsCatalog).toContain("listInstalled(projectPath)");
+    expect(skillsCatalog).toContain("listInstalled()");
+    expect(skillsCatalog).not.toContain("projectPath");
+    expect(skillsCatalog).toContain("grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))]");
+    expect(skillsCatalog).toContain("grid-cols-[repeat(auto-fit,minmax(min(100%,21rem),1fr))]");
+    expect(skillsCatalog).toContain('data-installed-list="skills"');
+    expect(skillsCatalog).toContain("max-h-[156px]");
+    expect(skillsCatalog).toContain("overflow-y-auto");
+    expect(skillsCatalog).not.toContain("overflow-x-auto");
+    expect(mcpCatalog).toContain("grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))]");
+    expect(mcpCatalog).toContain("grid-cols-[repeat(auto-fit,minmax(min(100%,21rem),1fr))]");
+    expect(mcpCatalog).toContain('data-installed-list="mcp"');
+    expect(mcpCatalog).toContain("max-h-[156px]");
+    expect(mcpCatalog).toContain("overflow-y-auto");
+    expect(mcpCatalog).not.toContain("overflow-x-auto");
   });
 });

@@ -7,9 +7,7 @@ import { ILinkClient } from "./ilink-client";
 import { WeChatRouter } from "./router";
 import { WeChatSessionSink } from "./session-sink";
 import { login, isLoginCancelled } from "./auth";
-import { resetClaudeBinaryCache } from "../claude-binary";
-import { ClaudeAdapter } from "./adapters/claude-adapter";
-import { CodexAdapter } from "./adapters/codex-adapter";
+import { PiAcpAdapter } from "./adapters/pi-acp-adapter";
 import {
   loadWeChatConfig,
   saveWeChatConfig,
@@ -19,14 +17,12 @@ import {
   clearWeChatRuntimeState,
   ilinkPersistence,
 } from "./store";
-import type { CLIAdapter } from "./adapters/types";
 import type { Credentials } from "./types";
 import type {
   WeChatBridgeConfig,
   WeChatBridgeEvent,
   WeChatBridgeState,
   WeChatConnectionStatus,
-  WeChatTool,
 } from "@shared/types/wechat";
 
 type EventListener = (event: WeChatBridgeEvent) => void;
@@ -45,7 +41,7 @@ export class WeChatBridge {
   private error: string | null = null;
   private loginAbort: AbortController | null = null;
   private readonly listeners = new Set<EventListener>();
-  private readonly adapters: Record<WeChatTool, CLIAdapter>;
+  private readonly adapter: PiAcpAdapter;
   private readonly sink: WeChatSessionSink;
   private getMainWindow: () => BrowserWindow | null = () => null;
   private credentialsLoaded = false;
@@ -58,7 +54,7 @@ export class WeChatBridge {
     // encrypted credential file now would yield null and silently log the user
     // out on every restart (B3).
     this.credentials = null;
-    this.adapters = { claude: new ClaudeAdapter(), codex: new CodexAdapter() };
+    this.adapter = new PiAcpAdapter();
     this.sink = new WeChatSessionSink({
       getMainWindow: () => this.getMainWindow(),
       getConfig: () => this.config,
@@ -210,7 +206,7 @@ export class WeChatBridge {
 
     this.router = new WeChatRouter(
       client,
-      this.adapters,
+      this.adapter,
       () => this.config,
       (event) => this.emit(event),
       this.sink,
@@ -240,8 +236,8 @@ export class WeChatBridge {
    * Tear down and re-establish the live connection WITHOUT dropping credentials.
    * Manual recovery for when the long-poll went stale or the user changed the
    * engine / gateway / CLI-binary config and wants the running bridge to pick it
-   * up — far less disruptive than a full QR re-scan (B4). Also clears the resolved
-   * Claude binary cache so a just-fixed path/source takes effect immediately.
+   * up — far less disruptive than a full QR re-scan (B4). Each Pi turn resolves
+   * the bundled runtime afresh, so no legacy binary cache is involved.
    */
   reconnect(): { ok: boolean; error?: string } {
     this.ensureInit();
@@ -252,8 +248,6 @@ export class WeChatBridge {
     if (!this.config.enabled) return { ok: false, error: "微信桥接未启用" };
 
     log("WECHAT_BRIDGE", "reconnect: re-establishing the live connection");
-    resetClaudeBinaryCache();
-
     // Drop the current client/router; keep credentials + config untouched.
     this.router?.stop();
     this.client?.stop();
@@ -299,6 +293,12 @@ export class WeChatBridge {
     this.ensureInit();
     if (!this.router) return { ok: false, error: "微信桥接未运行，无法续聊" };
     return this.router.runFromDesktop(opts.sessionId, opts.text);
+  }
+
+  cancelFromDesktop(opts: { sessionId: string }): { ok: boolean; error?: string } {
+    this.ensureInit();
+    if (!this.router) return { ok: false, error: "微信桥接未运行，无法取消" };
+    return this.router.cancelFromDesktop(opts.sessionId);
   }
 
   /** Auto-start at app launch when enabled and already logged in. */

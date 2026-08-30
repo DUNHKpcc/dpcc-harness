@@ -1,6 +1,6 @@
 # Plugin Center v0.1
 
-Status: Approved for implementation
+Status: Implemented; runtime targets amended for the Pi-first product direction
 
 ## Goal
 
@@ -13,6 +13,15 @@ The first release covers:
 - Skills discovery, installation, update detection, and removal.
 - MCP discovery and project-scoped installation.
 - The existing ACP Agent registry as a fixed entry below Plugins.
+
+## Runtime Target Policy
+
+Pi is the only built-in live Agent and the default target for all new Plugin
+Center behavior. New Skill installs and project MCP activation must work with
+the bundled Pi ACP runtime first. Generic custom ACP support may reuse the same
+contracts, but the Plugin Center must not create or restore Claude Code or
+Codex runtime paths. Historical Claude/Codex manifests are compatibility input
+for safe migration and removal only.
 
 ## Source Policy
 
@@ -92,7 +101,7 @@ Runtime loading follows the navigation boundary:
 Skill installation asks for:
 
 - Scope: current project or global.
-- Targets: Claude Code, Codex, or both.
+- Target: Pi. There is no runtime target selector.
 
 MCP installation asks for:
 
@@ -119,12 +128,15 @@ identifier and version.
 
 ## Skill Installation
 
-Installed skill files are written to native target locations:
+Installed skill files are written to the managed Pi locations:
 
 | Target | Project | Global |
 | --- | --- | --- |
-| Claude Code | `.claude/skills` | `~/.claude/skills` |
-| Codex | `.agents/skills` | `~/.agents/skills` |
+| Pi | `.agents/skills` | `~/.agents/skills` |
+
+Existing manifests that reference `.claude/skills` or an older Codex target
+remain readable only so owned files can be migrated or removed safely. New
+installs must never write those retired target locations.
 
 The installer must:
 
@@ -161,9 +173,11 @@ Secrets must not be written into ordinary catalog cache data. Secret persistence
 is isolated from non-secret MCP configuration before marketplace credentials are
 enabled.
 
-Claude and ACP sessions may be reloaded through existing paths. Codex MCP
-activation remains unavailable until its session configuration path is
-implemented and must not be presented as active.
+Project MCP entries are written to the existing MCP store. A live built-in Pi
+session is restarted with a fresh per-process `0600` adapter configuration;
+the temporary file is removed when the child exits. A dormant Pi session stays
+process-free and receives the current MCP configuration when the first prompt
+starts or revives it. Custom ACP agents follow their declared ACP capabilities.
 
 ## Cache And Failure
 
@@ -193,8 +207,10 @@ implemented and must not be presented as active.
 - Sidebar active state is mutually exclusive with sessions and Jira.
 - Skills loads the configured provider's Trending directory on entry, and
   Skill search works once the trimmed query reaches two characters.
-- A managed Skill can be installed and removed from project/global Claude and
-  Codex locations without touching unmanaged files.
+- A managed Skill can be installed and removed from project/global Pi
+  `.agents/skills` locations without touching unmanaged files.
+- Skill and MCP installation does not start a dormant Pi process merely to
+  refresh Plugin Center state.
 - MCP entries load from the Official Registry and supported entries can be added
   to the current project through the existing MCP store.
 - Unsupported transports are visible but cannot be installed.

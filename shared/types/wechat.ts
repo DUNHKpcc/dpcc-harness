@@ -1,23 +1,26 @@
 /**
  * WeChat bridge types shared between electron (main) and renderer.
  *
- * The bridge lets a phone control the built-in Claude Code / Codex CLIs through
- * WeChat's official ClawBot (iLink Bot API). Each inbound message triggers a
- * one-shot CLI run; the reply is streamed back to WeChat.
+ * The bridge lets a phone control the built-in Pi Agent through WeChat's
+ * official ClawBot (iLink Bot API). Each inbound message is an ACP turn.
  *
  * Canonical definitions — import from here, never redefine.
  */
 
 import type { SessionMeta } from "@shared/lib/session-persistence";
 
-/** Which built-in CLI engine handles an inbound WeChat message. */
-export type WeChatTool = "claude" | "codex";
+/** Pi is the only runtime the bridge may start. */
+export type WeChatTool = "pi";
+
+/** Read-only compatibility for conversation records created before Pi-only. */
+export type LegacyWeChatTool = "claude" | "codex";
+export type PersistedWeChatTool = WeChatTool | LegacyWeChatTool;
 
 /**
- * Permission posture applied to the spawned CLI, mapped per engine:
- * - auto: highest autonomy (Claude bypassPermissions / Codex bypass+full sandbox)
- * - safe: no mutations (Claude read-only tools / Codex read-only sandbox)
- * - plan: read-only planning (Claude plan / Codex read-only sandbox)
+ * Permission posture applied to Pi ACP requests:
+ * - auto: allow tool permission requests and client-side file writes
+ * - safe: allow read/search/fetch requests, reject mutations
+ * - plan: use the same read-only boundary while asking Pi to plan
  */
 export type WeChatPermissionMode = "auto" | "safe" | "plan";
 
@@ -25,9 +28,9 @@ export type WeChatPermissionMode = "auto" | "safe" | "plan";
 export interface WeChatBridgeConfig {
   /** Auto-start the bridge on app launch when credentials exist. */
   enabled: boolean;
-  /** Engine used when a message does not select one via @mention. */
+  /** Stable runtime identity; normalized to `pi` when reading legacy config. */
   defaultTool: WeChatTool;
-  /** Working directory the CLIs run in (empty = app cwd). */
+  /** Working directory Pi runs in (empty = user home). */
   workDir: string;
   /**
    * PccAgent project id WeChat conversations are persisted under. Bound to
@@ -40,11 +43,11 @@ export interface WeChatBridgeConfig {
    * Empty = allow anyone who can message the bot (unsafe — surfaced in UI).
    */
   allowedUsers: string[];
-  /** Permission / sandbox posture applied to spawned CLIs. */
+  /** Permission / sandbox posture applied to Pi ACP permission requests. */
   permissionMode: WeChatPermissionMode;
-  /** Model override sent to the engine (empty = engine default). */
+  /** Pi model config override (empty = Pi default). */
   model: string;
-  /** Max agent turns per message (Claude only). */
+  /** Legacy setting retained for one persisted-config compatibility cycle. */
   maxTurns: number;
 }
 

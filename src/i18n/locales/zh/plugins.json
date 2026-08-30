@@ -1,6 +1,6 @@
 {
   "title": "插件",
-  "subtitle": "安装可复用的 Skill 和项目 MCP Server",
+  "subtitle": "统一管理本机可发现的 Skill 与全局 MCP Server",
   "tabs": {
     "skills": "Skills",
     "mcp": "MCP"
@@ -24,11 +24,9 @@
     "searchSkills": "按名称或能力搜索 Skill。",
     "empty": "没有匹配的插件",
     "loading": "正在加载目录...",
-    "noInstalledSkills": "尚未安装由 PccAgent 管理的 Skill",
-    "noInstalledMcp": "当前项目尚未配置 MCP Server",
-    "projectRequired": "请先选择项目，再安装 MCP Server。",
-    "sessionBusy": "请等待当前任务完成后再更改 MCP Server。",
-    "codexRestart": "Codex MCP 当前还不支持即时生效。"
+    "noInstalledSkills": "尚未发现本机 Skill",
+    "noInstalledMcp": "尚未发现全局 MCP Server",
+    "sessionBusy": "请等待当前任务完成后再更改 MCP Server。"
   },
   "action": {
     "install": "安装",
@@ -40,14 +38,14 @@
     "retry": "重试"
   },
   "skills": {
-    "subtitle": "查找并安装可复用的 Agent 能力",
+    "subtitle": "Skill 统一全局安装，Pi 可在所有项目和无项目对话中加载",
     "installs": "{{count}} 次安装",
-    "scope": "安装范围",
-    "project": "当前项目",
-    "global": "所有项目",
+    "location": "安装位置",
+    "global": "全局（所有项目）",
+    "globalDescription": "不依赖当前项目，所有新 Pi 会话均可使用",
     "targets": "目标 Agent",
-    "claude": "Claude Code",
-    "codex": "Codex",
+    "pi": "Pi",
+    "localReadOnly": "本机只读",
     "unsupportedSource": "v0.1 暂不支持安装此来源",
     "modifiedConfirmation": "PccAgent 管理的文件在安装后被修改。再次确认将覆盖这些本地修改。",
     "installedAt": "安装于 {{date}}",
@@ -55,15 +53,15 @@
     "removeSuccess": "已移除 {{name}}"
   },
   "mcp": {
-    "subtitle": "为当前项目连接外部工具与服务",
-    "project": "项目：{{name}}",
+    "subtitle": "全局安装到 PccAgent，读取本机 Codex、Claude Code 与通用 MCP 配置",
+    "target": "目标 Agent",
     "transport": "连接方式",
     "configuration": "配置",
     "installPreview": "安装来源",
     "openSource": "打开源码仓库",
     "unsupported": "v0.1 暂不支持",
     "secretUnsupported": "需要 Secret 安全存储能力",
-    "installSuccess": "已将 {{name}} 添加到项目",
-    "removeSuccess": "已从项目移除 {{name}}"
+    "installSuccess": "已全局安装 {{name}}",
+    "removeSuccess": "已从全局配置移除 {{name}}"
   }
 }

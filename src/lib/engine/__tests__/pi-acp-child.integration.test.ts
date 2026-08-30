@@ -31,6 +31,36 @@ interface IntegrationHarness {
 
 const workspaces: string[] = [];
 
+async function waitForScenarioObservation(
+  connection: PiAcpConnection,
+  updateStart: number,
+  mode: "normal" | "retry-only" | "retry-then-success",
+) {
+  const deadline = Date.now() + 5_000;
+  let observation = createAcpTurnObservation();
+
+  while (Date.now() < deadline) {
+    observation = createAcpTurnObservation();
+    for (const update of connection.sessionUpdates.slice(updateStart)) {
+      observeAcpTurnUpdate(observation, update, {
+        isPi: true,
+        adapterVersion: "0.0.33",
+      });
+    }
+
+    const receivedExpectedUpdates = mode === "retry-only"
+      ? observation.retryNoticeCount >= 2
+      : observation.meaningfulTextLength > 0;
+    if (receivedExpectedUpdates) return observation;
+
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+
+  throw new Error(
+    `fixture_session_updates_timeout:${mode}:${connection.sessionUpdates.length - updateStart}`,
+  );
+}
+
 async function loadHarness(): Promise<IntegrationHarness> {
   // The JavaScript harness owns the real process boundary. This test owns the
   // Harnss outcome classification so fixture mode cannot dictate success.
@@ -60,18 +90,16 @@ async function runScenario(mode: "normal" | "retry-only" | "retry-then-success")
     const promptText = mode === "retry-only"
       ? "fixture:retry-only classify the real adapter output"
       : `${mode} classifier fixture`;
+    const updateStart = connection.sessionUpdates.length;
     const result = await connection.request("session/prompt", {
       sessionId: created.sessionId,
       prompt: [{ type: "text", text: promptText }],
     });
 
-    const observation = createAcpTurnObservation();
-    for (const update of connection.sessionUpdates) {
-      observeAcpTurnUpdate(observation, update, {
-        isPi: true,
-        adapterVersion: "0.0.33",
-      });
-    }
+    // The ACP response and session/update notifications use separate messages.
+    // Busy Linux runners can resolve the prompt before stdout delivers the
+    // final update, so wait for this scenario's complete observable signal.
+    const observation = await waitForScenarioObservation(connection, updateStart, mode);
     return classifyAcpTurn({
       stopReason: result.stopReason,
       isPi: true,

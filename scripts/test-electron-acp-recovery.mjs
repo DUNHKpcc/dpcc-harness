@@ -189,7 +189,10 @@ function spawnElectron({ env, args, logPath }) {
   // prints its usage text and the recovery test never reaches the renderer.
   // The temporary HOME must not make this test touch the developer's macOS Keychain.
   const keychainArgs = process.platform === "darwin" ? ["--use-mock-keychain"] : [];
-  const child = spawn(electronBinary, [repoRoot, ...keychainArgs, ...args], {
+  // The npm Electron distribution cannot use its root-owned SUID sandbox from
+  // a checkout. This isolated E2E validates recovery, not Chromium sandboxing.
+  const sandboxArgs = process.platform === "linux" ? ["--no-sandbox"] : [];
+  const child = spawn(electronBinary, [...sandboxArgs, repoRoot, ...keychainArgs, ...args], {
     cwd: repoRoot,
     env,
     stdio: ["ignore", "pipe", "pipe"],
@@ -310,7 +313,7 @@ function waitForResult(resultPath, child, acceptedCodes, timeoutMs) {
           if (acceptedCodes.includes(normalized.code) || !normalized.code.startsWith("ready_")) { resolve(normalized); return; }
         }
       } catch (error) { reject(error); return; }
-      if (child && child.exitCode !== null && !fs.existsSync(resultPath)) {
+      if (child && (child.exitCode !== null || child.signalCode !== null) && !fs.existsSync(resultPath)) {
         reject(new Error(`Electron exited before result.json (code=${child.exitCode}, signal=${child.signalCode})`));
         return;
       }

@@ -213,10 +213,13 @@ function runPackagedApp(executable, appRoot, extraResourcesLogo) {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pcc-package-smoke-"));
   const resultPath = path.join(tempDir, "result.json");
   const userDataPath = path.join(tempDir, "user-data");
+  // Linux CI cannot provide the root-owned SUID sandbox expected by Chromium.
+  // The smoke process is isolated and validates the packaged app, not sandbox setup.
+  const sandboxArgs = platformForAppRoot(appRoot) === "linux" ? ["--no-sandbox"] : [];
   fs.mkdirSync(userDataPath);
 
   return new Promise((resolve, reject) => {
-    const child = spawn(executable, ["--package-smoke-check"], {
+    const child = spawn(executable, [...sandboxArgs, "--package-smoke-check"], {
       cwd: appRoot,
       env: {
         ...process.env,

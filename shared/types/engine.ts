@@ -1,4 +1,31 @@
-import type { PermissionMode, PermissionUpdate } from "@anthropic-ai/claude-agent-sdk";
+/**
+ * Engine-neutral permission types.  The renderer and shared contracts must not
+ * import a provider SDK just to describe a permission response.
+ */
+export type PermissionMode =
+  | "default"
+  | "acceptEdits"
+  | "bypassPermissions"
+  | "plan"
+  | "dontAsk"
+  | "auto";
+
+export type PermissionUpdateDestination =
+  | "userSettings"
+  | "projectSettings"
+  | "localSettings"
+  | "session"
+  | "cliArg";
+
+export interface PermissionRuleValue {
+  toolName: string;
+  ruleContent?: string;
+}
+
+export type PermissionUpdate =
+  | { type: "addRules" | "replaceRules" | "removeRules"; rules: PermissionRuleValue[]; behavior: "allow" | "deny" | "ask"; destination: PermissionUpdateDestination }
+  | { type: "setMode"; mode: PermissionMode; destination: PermissionUpdateDestination }
+  | { type: "addDirectories" | "removeDirectories"; directories: string[]; destination: PermissionUpdateDestination };
 
 /** Unified slash command representation — normalized from each engine's native format. */
 export interface SlashCommand {
@@ -22,6 +49,9 @@ export interface SlashCommand {
 
 /** All supported engine identifiers. */
 export type EngineId = "claude" | "acp" | "codex";
+export type RuntimeEngineId = "acp";
+export type LegacyEngineId = "claude" | "codex";
+export type PersistedEngineId = RuntimeEngineId | LegacyEngineId;
 
 /**
  * Permission response behaviors.

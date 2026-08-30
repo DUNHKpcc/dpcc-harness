@@ -85,11 +85,100 @@ export interface ACPPermissionEvent {
   }>;
 }
 
+export const ACP_STOP_REASONS = [
+  "end_turn",
+  "max_tokens",
+  "max_turn_requests",
+  "refusal",
+  "cancelled",
+] as const;
+
+export type ACPStopReason = typeof ACP_STOP_REASONS[number];
+export type ACPTurnStatus = "completed" | "cancelled" | "failed";
+export type ACPCompletedStopReason = Exclude<ACPStopReason, "cancelled">;
+export type ACPErrorSource = "harnss" | "acp" | "pi" | "upstream";
+export type ACPErrorStage =
+  | "spawn"
+  | "initialize"
+  | "authenticate"
+  | "prompt"
+  | "settle"
+  | "persist";
+
+export interface ACPErrorDetails {
+  code: string;
+  message: string;
+  source: ACPErrorSource;
+  stage: ACPErrorStage;
+  retryable: boolean;
+  cause?: string;
+}
+
+/** The one terminal outcome shared by main, renderer, background and persistence. */
+export type ACPPiTurnOutcome =
+  | {
+      status: "completed";
+      turnId: string;
+      stopReason: ACPCompletedStopReason;
+      usage?: { inputTokens?: number; outputTokens?: number } | null;
+    }
+  | {
+      status: "cancelled";
+      turnId: string;
+      stopReason: "cancelled";
+    }
+  | {
+      status: "failed";
+      turnId: string;
+      error: ACPErrorDetails;
+    };
+
 export interface ACPTurnCompleteEvent {
   _sessionId: string;
-  stopReason: string;
+  turnId: string;
+  status: ACPTurnStatus;
+  stopReason?: ACPStopReason;
+  error?: ACPErrorDetails;
   usage?: { inputTokens?: number; outputTokens?: number } | null;
+  /** Canonical union for consumers that do not want to reconstruct it from flat fields. */
+  outcome?: ACPPiTurnOutcome;
+  outcomeDelivered: true;
 }
+
+/** A prompt transport failed before a canonical Pi turn outcome existed. */
+export interface ACPTransportErrorEvent {
+  _sessionId: string;
+  turnId: string;
+  status: "transport_error";
+  error: ACPErrorDetails;
+  outcomeDelivered: false;
+}
+
+export interface ACPPromptCompletedResult {
+  ok: true;
+  outcome: Extract<ACPPiTurnOutcome, { status: "completed" | "cancelled" }>;
+  outcomeDelivered: true;
+}
+
+export interface ACPPromptFailedResult {
+  ok: false;
+  outcome: Extract<ACPPiTurnOutcome, { status: "failed" }>;
+  outcomeDelivered: true;
+}
+
+export interface ACPPromptTransportErrorResult {
+  ok: false;
+  status: "transport_error";
+  /** Present when a running turn was also reported through the renderer event channel. */
+  turnId?: string;
+  error: ACPErrorDetails;
+  outcomeDelivered: false;
+}
+
+export type ACPPromptResult =
+  | ACPPromptCompletedResult
+  | ACPPromptFailedResult
+  | ACPPromptTransportErrorResult;
 
 export interface ACPAuthEnvVar {
   name: string;
@@ -147,6 +236,7 @@ export interface ACPStartAuthRequiredResult {
 
 export interface ACPStartErrorResult {
   error?: string;
+  errorDetails?: ACPErrorDetails;
   cancelled?: boolean;
 }
 
@@ -165,4 +255,15 @@ export interface ACPAuthenticateResult {
   configOptions?: ACPConfigOption[];
   mcpStatuses?: ACPStatusInfo[];
   error?: string;
+  errorDetails?: ACPErrorDetails;
+}
+
+export interface ACPReviveResult {
+  sessionId?: string;
+  agentSessionId?: string;
+  usedLoad?: boolean;
+  configOptions?: ACPConfigOption[];
+  mcpStatuses?: ACPStatusInfo[];
+  error?: string;
+  errorDetails?: ACPErrorDetails;
 }

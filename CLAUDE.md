@@ -34,6 +34,17 @@ The primary agent must retain architecture, security, payment, cross-system, fin
 
 Delegation prompts must be self-contained and include explicit ownership: file scope, concrete constraints, success criteria, and the commands or checks to verify completion. If an appropriate non-Spark subagent is unavailable, keep the work in the primary agent instead of falling back to Spark.
 
+## Pi-first Development Workflow
+
+For non-trivial repository work, use the checked-in `harnss-agent-workflow` Skill and `scripts/agent-workflow/` harness. The workflow is clean-clone reproducible and fail-closed; do not substitute ignored local scripts or historical aggregate logs.
+
+- Start with `pnpm workflow:start`. It creates a unique evidence run and performs required preflight checks. It uses Codex's stdio Serena MCP when available and does not launch a duplicate HTTP process unless `--http-debug` is explicitly requested.
+- Before Pi-facing changes, run `pnpm workflow:pi-reference -- query "<question>"`. The separate read-only reference layer routes to Harnss code, exact installed source for the three pinned Pi runtime packages, and official Pi documentation without adding the upstream source corpus to the application graph.
+- `pnpm workflow:check-pi-reference` verifies package versions, exact lockfile integrity entries, declared source provenance, source/doc files, and route targets offline. `pnpm workflow:verify-pi-upstream` explicitly verifies npm `gitHead` and integrity online but is not a required gate. `pnpm workflow:benchmark-pi` must keep at least 90% Recall@5 across 30 runtime, lifecycle, turn/error, Skill/MCP, and recovery/quality scenarios.
+- Use `pnpm workflow:review -- --fast` while iterating and `pnpm workflow:review -- --full` before claiming local completion. Both modes propagate every failure. Full local review never packages the app; Linux packaging and packaged smoke remain GitHub Actions gates.
+- Evidence records run ID, timestamp, HEAD SHA, dirty hash, changed-file count, command exit code, and summary. `pnpm workflow:status` reports only the current run.
+- The Pi source precedence is current Harnss code/tests/contracts, exact bundled package source pinned in `scripts/agent-workflow/pi-reference.json`, official Pi documentation, then model inference. Newer online docs never silently override shipped-version behavior.
+
 ## Tech Stack
 
 - **Runtime**: Electron 40 (main process) + React 19 (renderer)
@@ -180,11 +191,14 @@ pnpm install
 pnpm dev       # Starts Vite dev server + tsup watch + Electron
 pnpm build     # tsup (electron/) + Vite (renderer) production build
 pnpm start     # Run Electron with pre-built dist/
-pnpm test      # Run vitest unit tests (uses vitest.config.electron.ts)
+pnpm test      # Run vitest unit tests plus agent-workflow contract tests
 pnpm test:watch    # Run vitest in watch mode
 pnpm pi:runtime:check       # Verify bundled Pi pins, entries, host, and offline policy
 pnpm test:pi-integration    # Exercise real bundled ACP/Pi child processes
 pnpm test:electron-recovery # Exercise restart and recovery through Electron
+pnpm workflow:start         # Fail-closed preflight + current-run evidence
+pnpm workflow:pi-reference -- query "<Pi question>"
+pnpm workflow:review -- --full # Isolated provider fixture; never packages locally
 ```
 
 **Dev logs**: Main process logs go to `logs/main-{timestamp}.log` (dev) or `{userData}/logs/main-{timestamp}.log` (packaged). Check the latest file with `ls -t logs/main-*.log | head -1 | xargs cat`.

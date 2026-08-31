@@ -225,6 +225,20 @@ Pi child integration 和 Electron recovery 会使用临时目录，不读取真�
 `master` 的 branch protection/ruleset 中将它设为 required status check，workflow
 文件本身不能替代这项 GitHub repository setting。
 
+### Pi Agent 专属开发工作流
+
+```bash
+pnpm workflow:start
+pnpm workflow:pi-reference -- query "Pi 会话恢复为什么失败"
+pnpm workflow:review -- --fast
+pnpm workflow:review -- --full
+pnpm workflow:status
+```
+
+该工作流随仓库提交，clean clone 安装依赖后即可使用。离线门禁会校验 3 个 bundled Pi runtime package 的版本、对应 lockfile package entry 的精确 integrity、声明的源码 commit 和本地 source/doc 文件，并通过 30 个场景测试 Pi 检索路由。需要联网核对 npm 发布元数据中的 `gitHead` 与 integrity 时，运行 `pnpm workflow:verify-pi-upstream`；它不属于 required gate，避免 registry 波动阻断 PR。Pi 官方资料入口包括 [Pi 文档](https://pi.dev/docs/latest)、[RPC](https://pi.dev/docs/latest/rpc)、[SDK](https://pi.dev/docs/latest/sdk) 和 [Skills](https://pi.dev/docs/latest/skills)；实际行为仍以当前 Harnss 实现及安装包锁定版本源码为准。
+
+本地 `--full` 会执行 unit、typecheck、build、文档/test-map、真实 Pi child integration、Electron recovery、runtime doctor 和 Semgrep，但**不会在本机打包**。runtime doctor 使用仓库内隔离 catalog/credential fixture，只验证可复现的 bundled/offline 合约，不把开发者是否配置真实 provider 当作代码门禁。每次 review 都会创建独立 evidence run，并以 passed/failed 结束。Linux package 与 packaged smoke 只由 GitHub Actions 的 `quality` job 执行。任一 gate 失败都会返回非零状态，不再把失败记录成成功。
+
 ### 构建安装包
 
 ```bash

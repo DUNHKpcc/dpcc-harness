@@ -1,0 +1,4 @@
+interface:
+  display_name: "Harnss Agent Workflow"
+  short_description: "Run local Harnss AI development checks"
+  default_prompt: "Use $harnss-agent-workflow to start the local Harnss agent development workflow."

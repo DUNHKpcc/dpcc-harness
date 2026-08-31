@@ -1,0 +1,20 @@
+rules:
+  - id: harnss-electron-node-integration-enabled
+    message: Avoid enabling nodeIntegration in Electron webPreferences unless the window is intentionally privileged and isolated.
+    severity: WARNING
+    languages:
+      - typescript
+      - javascript
+    patterns:
+      - pattern: |
+          webPreferences: { ..., nodeIntegration: true, ... }
+
+  - id: harnss-shell-open-external-unvalidated
+    message: Validate or constrain URLs before passing user-controlled values to shell.openExternal.
+    severity: WARNING
+    languages:
+      - typescript
+      - javascript
+    patterns:
+      - pattern: shell.openExternal($URL)
+      - pattern-not: shell.openExternal("...")

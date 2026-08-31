@@ -1,0 +1,494 @@
+{
+  "schemaVersion": 1,
+  "runtimeManifest": "scripts/pi-runtime-versions.json",
+  "minimumRecallAt5": 0.9,
+  "sources": [
+    {
+      "id": "pi",
+      "package": "@earendil-works/pi-coding-agent",
+      "version": "0.84.1",
+      "repository": "https://github.com/earendil-works/pi.git",
+      "commit": "53fa77ccd8a279eb87e92294ef3687b03ff80112",
+      "integrity": "sha512-ncAqFrG+iybuPGOhMiZoEHkEzTpJgz3guYD32pD+M7ucc0WeHmauP6wa7qwP8V/KWvsZDVNa5XGsdZ7fkC7w7A==",
+      "requiredFiles": [
+        "README.md",
+        "docs/rpc.md",
+        "docs/sdk.md",
+        "docs/skills.md",
+        "docs/extensions.md",
+        "docs/environment-variables.md",
+        "docs/security.md",
+        "dist/core/agent-session.js",
+        "dist/modes/rpc/rpc-mode.js"
+      ]
+    },
+    {
+      "id": "pi-acp",
+      "package": "pi-acp",
+      "version": "0.0.33",
+      "repository": "https://github.com/svkozak/pi-acp.git",
+      "commit": "1bfcb394088ed879db8fd936b570bb626017f878",
+      "integrity": "sha512-vX9kY1tK14E72G4dBAx+RGCk/k7XPjTHls6dLUxA8WSkBav6B6JHuSBv3eusp50LCR/GTRsR2kIKsG0Z5jANzw==",
+      "requiredFiles": [
+        "README.md",
+        "dist/index.js"
+      ]
+    },
+    {
+      "id": "pi-mcp-adapter",
+      "package": "pi-mcp-adapter",
+      "version": "2.31.0",
+      "repository": "https://github.com/nicobailon/pi-mcp-adapter.git",
+      "commit": "eca6e8e14746f2a093e5d3085ccc244832962d71",
+      "integrity": "sha512-yKPgHWFLQY6FT7ukCgEp5KvkAZ4ZC1pl7+8Tdq+j4evfTtjhHXPuIpi0joNN7lIIKuJD1cjlTb+hu6IxRpseoA==",
+      "requiredFiles": [
+        "README.md",
+        "config.ts",
+        "session-recovery.ts",
+        "tool-result-renderer.ts",
+        "skills/mcp-scripting/SKILL.md"
+      ]
+    }
+  ],
+  "officialDocs": [
+    {
+      "id": "pi-docs",
+      "url": "https://pi.dev/docs/latest"
+    },
+    {
+      "id": "pi-rpc",
+      "url": "https://pi.dev/docs/latest/rpc"
+    },
+    {
+      "id": "pi-sdk",
+      "url": "https://pi.dev/docs/latest/sdk"
+    },
+    {
+      "id": "pi-skills",
+      "url": "https://pi.dev/docs/latest/skills"
+    },
+    {
+      "id": "pi-extensions",
+      "url": "https://pi.dev/docs/latest/extensions"
+    },
+    {
+      "id": "pi-environment",
+      "url": "https://pi.dev/docs/latest/environment-variables"
+    },
+    {
+      "id": "pi-security",
+      "url": "https://pi.dev/docs/latest/security"
+    },
+    {
+      "id": "pi-development",
+      "url": "https://pi.dev/docs/latest/development"
+    }
+  ],
+  "routes": [
+    {
+      "id": "protected-identity",
+      "title": "Protected built-in Pi identity",
+      "keywords": [
+        "protected identity",
+        "built in agent id",
+        "registry id",
+        "pi-acp identity",
+        "display name spoofing",
+        "受保护身份",
+        "内置 agent 身份"
+      ],
+      "appPaths": [
+        "electron/src/lib/agent-registry.ts",
+        "electron/src/lib/pi-acp-config.ts",
+        "shared/lib/session-runtime.ts"
+      ],
+      "sourceRefs": [
+        "pi:README.md",
+        "pi-acp:README.md"
+      ],
+      "docRefs": [
+        "pi-docs"
+      ]
+    },
+    {
+      "id": "bundled-runtime",
+      "title": "Bundled offline Pi runtime and process host",
+      "keywords": [
+        "bundled runtime",
+        "offline first launch",
+        "system path",
+        "electron helper",
+        "second dock exec",
+        "headless host",
+        "ELECTRON_RUN_AS_NODE",
+        "内置 pi",
+        "离线 runtime",
+        "外部 exec",
+        "系统 path"
+      ],
+      "appPaths": [
+        "electron/src/lib/bundled-pi-runtime.ts",
+        "electron/src/lib/pi-acp-config.ts",
+        "build/pi-runtime/bin/pi",
+        "scripts/check-pi-runtime.mjs"
+      ],
+      "sourceRefs": [
+        "pi:dist/cli.js",
+        "pi:docs/environment-variables.md",
+        "pi-acp:dist/index.js"
+      ],
+      "docRefs": [
+        "pi-environment",
+        "pi-development"
+      ]
+    },
+    {
+      "id": "runtime-doctor",
+      "title": "Pi runtime version, integrity, catalog, and credential diagnostics",
+      "keywords": [
+        "runtime doctor",
+        "version mismatch",
+        "missing bundled package",
+        "provider credential",
+        "model catalog",
+        "integrity check",
+        "版本不匹配",
+        "runtime 诊断"
+      ],
+      "appPaths": [
+        "scripts/check-pi-runtime.mjs",
+        "scripts/pi-runtime-versions.json",
+        "electron/src/lib/pi-runtime-status.ts",
+        "electron/src/lib/bundled-pi-runtime.ts"
+      ],
+      "sourceRefs": [
+        "pi:package.json",
+        "pi-acp:package.json",
+        "pi-mcp-adapter:package.json"
+      ],
+      "docRefs": [
+        "pi-development",
+        "pi-environment"
+      ]
+    },
+    {
+      "id": "custom-acp",
+      "title": "Custom ACP agents and user-managed Pi separation",
+      "keywords": [
+        "custom acp",
+        "user managed pi",
+        "different agent id",
+        "system pi executable",
+        "agent registry",
+        "用户本地 pi",
+        "自定义 acp",
+        "不同 agent id"
+      ],
+      "appPaths": [
+        "electron/src/lib/agent-registry.ts",
+        "electron/src/ipc/agent-registry.ts",
+        "electron/src/ipc/acp-sessions.ts",
+        "src/lib/engine/acp-agent-registry.ts"
+      ],
+      "sourceRefs": [
+        "pi-acp:README.md"
+      ],
+      "docRefs": [
+        "pi-docs"
+      ]
+    },
+    {
+      "id": "lazy-lifecycle",
+      "title": "Lazy draft materialization and dormant session revival",
+      "keywords": [
+        "lazy lifecycle",
+        "draft materialization",
+        "first real prompt",
+        "dormant session",
+        "cached config options",
+        "do not start process",
+        "session revival",
+        "草稿不启动",
+        "首次发送启动",
+        "旧会话恢复"
+      ],
+      "appPaths": [
+        "src/hooks/session/useDraftMaterialization.ts",
+        "src/hooks/session/useSessionRevival.ts",
+        "src/hooks/session/useSessionCrud.ts",
+        "src/hooks/useACP.ts",
+        "shared/lib/acp-config-cache.ts"
+      ],
+      "sourceRefs": [
+        "pi:dist/core/agent-session.js",
+        "pi:dist/core/session-manager.js",
+        "pi-acp:dist/index.js"
+      ],
+      "docRefs": [
+        "pi-sdk",
+        "pi-rpc"
+      ]
+    },
+    {
+      "id": "slash-commands",
+      "title": "Slash command preload without starting Pi",
+      "keywords": [
+        "slash commands",
+        "command catalog",
+        "cached slash commands",
+        "preload commands",
+        "list pi draft commands",
+        "斜杠命令",
+        "命令提前加载",
+        "不启动 pi"
+      ],
+      "appPaths": [
+        "electron/src/lib/pi-command-catalog.ts",
+        "electron/src/lib/agent-registry.ts",
+        "electron/src/ipc/agent-registry.ts",
+        "src/hooks/useAgentRegistry.ts"
+      ],
+      "sourceRefs": [
+        "pi:docs/prompt-templates.md",
+        "pi:docs/skills.md",
+        "pi-acp:dist/index.js"
+      ],
+      "docRefs": [
+        "pi-skills",
+        "pi-rpc"
+      ]
+    },
+    {
+      "id": "turn-outcome",
+      "title": "Canonical Pi ACP turn completion and failure contract",
+      "keywords": [
+        "turn outcome",
+        "stop reason",
+        "transport error",
+        "resolved prompt is not success",
+        "completed cancelled failed",
+        "turn id",
+        "结束状态",
+        "失败状态",
+        "跨层契约"
+      ],
+      "appPaths": [
+        "shared/lib/acp-turn.ts",
+        "electron/src/ipc/acp-sessions.ts",
+        "src/hooks/useACP.ts"
+      ],
+      "sourceRefs": [
+        "pi-acp:dist/index.js",
+        "pi:dist/core/agent-session.js"
+      ],
+      "docRefs": [
+        "pi-rpc"
+      ]
+    },
+    {
+      "id": "retry-observation",
+      "title": "Pi retry observation and failure classification",
+      "keywords": [
+        "retrying attempt",
+        "auto retry start",
+        "auto retry end",
+        "retry finished resuming",
+        "retry exhaustion",
+        "重试",
+        "attempt 1 3",
+        "resuming"
+      ],
+      "appPaths": [
+        "shared/lib/acp-turn.ts",
+        "electron/src/ipc/acp-sessions.ts",
+        "src/hooks/useACP.ts",
+        "scripts/test-pi-acp-integration.mjs"
+      ],
+      "sourceRefs": [
+        "pi-acp:dist/index.js",
+        "pi:dist/core/agent-session.js"
+      ],
+      "docRefs": [
+        "pi-rpc"
+      ]
+    },
+    {
+      "id": "tool-updates",
+      "title": "ACP tool calls, updates, details, and rendering",
+      "keywords": [
+        "tool call update",
+        "tool details missing",
+        "bash command details",
+        "structured diff",
+        "tool location",
+        "command execution details",
+        "工具详情",
+        "执行命令看不到详情"
+      ],
+      "appPaths": [
+        "src/lib/engine/acp-agent-updates.ts",
+        "src/components/ToolCall.tsx",
+        "src/components/tool-renderers/BashContent.tsx",
+        "electron/src/ipc/acp-sessions.ts"
+      ],
+      "sourceRefs": [
+        "pi-acp:dist/index.js",
+        "pi:dist/core/tools/bash.js",
+        "pi-mcp-adapter:tool-result-renderer.ts"
+      ],
+      "docRefs": [
+        "pi-rpc",
+        "pi-extensions"
+      ]
+    },
+    {
+      "id": "skills",
+      "title": "Pi-first Skill discovery and managed installation",
+      "keywords": [
+        "skill install",
+        "managed skills",
+        ".agents skills",
+        "old agent manifest",
+        "skill migration",
+        "skill command",
+        "技能安装",
+        "旧 agent",
+        "指向 pi"
+      ],
+      "appPaths": [
+        "electron/src/lib/skill-installer.ts",
+        "electron/src/lib/pi-command-catalog.ts",
+        "src/components/plugins/PluginCenter.tsx"
+      ],
+      "sourceRefs": [
+        "pi:docs/skills.md",
+        "pi:dist/core/skills.js",
+        "pi-mcp-adapter:skills/mcp-scripting/SKILL.md"
+      ],
+      "docRefs": [
+        "pi-skills",
+        "pi-security"
+      ]
+    },
+    {
+      "id": "mcp",
+      "title": "Pi MCP adapter isolation, configuration, and recovery",
+      "keywords": [
+        "mcp install",
+        "pi mcp adapter",
+        "PI_CODING_AGENT_DIR",
+        "isolated mcp config",
+        "0600 config",
+        "mcp restart",
+        "mcp recovery",
+        "mcp 安装",
+        "隔离配置"
+      ],
+      "appPaths": [
+        "electron/src/lib/pi-acp-config.ts",
+        "electron/src/lib/mcp-store.ts",
+        "electron/src/ipc/mcp.ts",
+        "electron/src/ipc/acp-sessions.ts"
+      ],
+      "sourceRefs": [
+        "pi:docs/environment-variables.md",
+        "pi-mcp-adapter:README.md",
+        "pi-mcp-adapter:config.ts",
+        "pi-mcp-adapter:session-recovery.ts"
+      ],
+      "docRefs": [
+        "pi-environment",
+        "pi-security"
+      ]
+    },
+    {
+      "id": "recovery",
+      "title": "Electron restart and live ACP session recovery",
+      "keywords": [
+        "electron restart recovery",
+        "acp session not found",
+        "renderer attach",
+        "revive session",
+        "persisted agent session id",
+        "old session read only",
+        "electron 重启恢复",
+        "会话恢复失败",
+        "只读会话"
+      ],
+      "appPaths": [
+        "electron/src/lib/e2e/acp-recovery-harness.ts",
+        "scripts/test-electron-acp-recovery.mjs",
+        "src/hooks/session/useSessionRevival.ts",
+        "shared/lib/session-runtime.ts"
+      ],
+      "sourceRefs": [
+        "pi-acp:dist/index.js",
+        "pi:docs/sessions.md",
+        "pi-mcp-adapter:session-recovery.ts"
+      ],
+      "docRefs": [
+        "pi-rpc",
+        "pi-sdk"
+      ]
+    },
+    {
+      "id": "observability",
+      "title": "Stable Pi error codes, context, and cross-layer diagnostics",
+      "keywords": [
+        "error observability",
+        "stable error code",
+        "error message extraction",
+        "session id turn id",
+        "runtime version context",
+        "错误观测",
+        "错误信息不足",
+        "错误码"
+      ],
+      "appPaths": [
+        "shared/lib/error-utils.ts",
+        "electron/src/lib/error-utils.ts",
+        "electron/src/lib/logger.ts",
+        "shared/lib/acp-turn.ts",
+        "electron/src/ipc/acp-sessions.ts"
+      ],
+      "sourceRefs": [
+        "pi-acp:dist/index.js",
+        "pi:docs/development.md"
+      ],
+      "docRefs": [
+        "pi-development",
+        "pi-rpc"
+      ]
+    },
+    {
+      "id": "testing",
+      "title": "Real bundled Pi integration, recovery E2E, and PR gates",
+      "keywords": [
+        "real pi child integration",
+        "electron recovery e2e",
+        "runtime fixture",
+        "package smoke",
+        "pull request gate",
+        "quality workflow",
+        "真实 pi 子进程",
+        "测试门槛",
+        "pr 门禁"
+      ],
+      "appPaths": [
+        "scripts/test-pi-acp-integration.mjs",
+        "scripts/test-pi-native-integration.mjs",
+        "scripts/test-electron-acp-recovery.mjs",
+        ".github/workflows/quality.yml",
+        "shared/contracts/code-review-map.json"
+      ],
+      "sourceRefs": [
+        "pi:docs/development.md",
+        "pi-acp:README.md",
+        "pi-mcp-adapter:README.md"
+      ],
+      "docRefs": [
+        "pi-development"
+      ]
+    }
+  ]
+}

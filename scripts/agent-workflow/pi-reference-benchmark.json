@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "description": "Deterministic retrieval benchmark for Harnss Pi-first development questions.",
+  "scenarios": [
+    { "id": "runtime-01", "category": "runtime", "query": "Why must the built-in Pi ignore the system PATH?", "expectedRoute": "bundled-runtime" },
+    { "id": "runtime-02", "category": "runtime", "query": "Built-in Pi must work offline on first launch", "expectedRoute": "bundled-runtime" },
+    { "id": "runtime-03", "category": "runtime", "query": "macOS launches a second exec icon in the Dock", "expectedRoute": "bundled-runtime" },
+    { "id": "runtime-04", "category": "runtime", "query": "The bundled pi-acp version does not match the runtime manifest", "expectedRoute": "runtime-doctor" },
+    { "id": "runtime-05", "category": "runtime", "query": "How should a locally installed user-managed Pi be selected?", "expectedRoute": "custom-acp" },
+    { "id": "runtime-06", "category": "runtime", "query": "Do not identify protected Pi by display name alone", "expectedRoute": "protected-identity" },
+
+    { "id": "lifecycle-01", "category": "lifecycle", "query": "A new draft must not start the Pi child process", "expectedRoute": "lazy-lifecycle" },
+    { "id": "lifecycle-02", "category": "lifecycle", "query": "Start Pi only when the first real prompt is sent", "expectedRoute": "lazy-lifecycle" },
+    { "id": "lifecycle-03", "category": "lifecycle", "query": "A dormant session should render cached config options", "expectedRoute": "lazy-lifecycle" },
+    { "id": "lifecycle-04", "category": "lifecycle", "query": "旧会话恢复后出现 ACP session not found", "expectedRoute": "recovery" },
+    { "id": "lifecycle-05", "category": "lifecycle", "query": "Slash commands should preload without starting Pi", "expectedRoute": "slash-commands" },
+    { "id": "lifecycle-06", "category": "lifecycle", "query": "历史 Claude Codex 会话只能读取不能恢复 runtime", "expectedRoute": "recovery" },
+
+    { "id": "turn-01", "category": "turn", "query": "A resolved connection.prompt is not proof that a turn succeeded", "expectedRoute": "turn-outcome" },
+    { "id": "turn-02", "category": "turn", "query": "Keep completed cancelled failed and transport_error distinct", "expectedRoute": "turn-outcome" },
+    { "id": "turn-03", "category": "turn", "query": "Retrying attempt 1/3 then retry finished resuming", "expectedRoute": "retry-observation" },
+    { "id": "turn-04", "category": "turn", "query": "Classify retry exhaustion as a Pi turn failure", "expectedRoute": "retry-observation" },
+    { "id": "turn-05", "category": "turn", "query": "Pi 执行命令时看不到 bash tool details", "expectedRoute": "tool-updates" },
+    { "id": "turn-06", "category": "turn", "query": "错误信息需要包含 session id turn id runtime version 和稳定错误码", "expectedRoute": "observability" },
+
+    { "id": "extension-01", "category": "skills-mcp", "query": "Skill installation still writes an old Claude agent manifest", "expectedRoute": "skills" },
+    { "id": "extension-02", "category": "skills-mcp", "query": "Managed Skills should be installed under .agents/skills for Pi", "expectedRoute": "skills" },
+    { "id": "extension-03", "category": "skills-mcp", "query": "MCP installation must target the bundled Pi adapter", "expectedRoute": "mcp" },
+    { "id": "extension-04", "category": "skills-mcp", "query": "PI_CODING_AGENT_DIR must isolate each Pi launch", "expectedRoute": "mcp" },
+    { "id": "extension-05", "category": "skills-mcp", "query": "The generated MCP config must use mode 0600", "expectedRoute": "mcp" },
+    { "id": "extension-06", "category": "skills-mcp", "query": "Custom ACP agents must remain separate from protected Pi", "expectedRoute": "custom-acp" },
+
+    { "id": "quality-01", "category": "quality", "query": "Add a real bundled pi-acp child integration test", "expectedRoute": "testing" },
+    { "id": "quality-02", "category": "quality", "query": "Electron restart and recovery need an end-to-end test", "expectedRoute": "testing" },
+    { "id": "quality-03", "category": "quality", "query": "The pull request quality workflow must be a required gate", "expectedRoute": "testing" },
+    { "id": "quality-04", "category": "quality", "query": "Runtime doctor should distinguish package catalog and credential failures", "expectedRoute": "runtime-doctor" },
+    { "id": "quality-05", "category": "quality", "query": "Renderer attach must wait until ACP runtime revival", "expectedRoute": "recovery" },
+    { "id": "quality-06", "category": "quality", "query": "Tool call updates should preserve structured diff and file location", "expectedRoute": "tool-updates" }
+  ]
+}

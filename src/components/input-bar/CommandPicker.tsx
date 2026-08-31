@@ -1,19 +1,27 @@
 import { useState, useRef, useMemo, useCallback, memo } from "react";
-import type { SlashCommand } from "@/types";
+import { useTranslation } from "react-i18next";
+import type { InstalledAgent, SlashCommand } from "@/types";
 import { getSlashCommandReplacement } from "./input-bar-utils";
 import { ComposerSuggestionList } from "./ComposerSuggestionList";
+import {
+  commandMatchesQuery,
+  getCommandPresentation,
+} from "./command-presentation";
 
 // ── Hook: slash command autocomplete state ──
 
 export interface UseCommandAutocompleteOptions {
   availableSlashCommands: SlashCommand[];
   editableRef: React.RefObject<HTMLDivElement | null>;
+  commandAgent?: InstalledAgent | null;
 }
 
 export function useCommandAutocomplete({
   availableSlashCommands,
   editableRef,
+  commandAgent,
 }: UseCommandAutocompleteOptions) {
+  const { t } = useTranslation("input");
   const [showCommands, setShowCommands] = useState(false);
   const [commandQuery, setCommandQuery] = useState("");
   const [commandIndex, setCommandIndex] = useState(0);
@@ -24,14 +32,12 @@ export function useCommandAutocomplete({
   // hiding commands that exist beyond an arbitrary cutoff.
   const cmdResults = useMemo(() => {
     if (!showCommands || availableSlashCommands.length === 0) return [];
-    const q = commandQuery.toLowerCase();
+    const q = commandQuery.trim();
     if (!q) return availableSlashCommands;
-    return availableSlashCommands.filter(
-      (cmd) =>
-        cmd.name.toLowerCase().includes(q) ||
-        cmd.description.toLowerCase().includes(q),
+    return availableSlashCommands.filter((cmd) =>
+      commandMatchesQuery(cmd, q, commandAgent, t),
     );
-  }, [showCommands, availableSlashCommands, commandQuery]);
+  }, [showCommands, availableSlashCommands, commandQuery, commandAgent, t]);
 
   const selectCommand = useCallback(
     (cmd: SlashCommand) => {
@@ -90,6 +96,7 @@ export interface CommandPickerProps {
   cmdResults: SlashCommand[];
   commandIndex: number;
   commandListRef: React.RefObject<HTMLDivElement | null>;
+  commandAgent?: InstalledAgent | null;
   onSelect: (cmd: SlashCommand) => void;
   onHover: (index: number) => void;
 }
@@ -126,9 +133,12 @@ export const CommandPicker = memo(function CommandPicker({
   cmdResults,
   commandIndex,
   commandListRef,
+  commandAgent,
   onSelect,
   onHover,
 }: CommandPickerProps) {
+  const { t } = useTranslation("input");
+
   return (
     <ComposerSuggestionList
       items={cmdResults}
@@ -147,6 +157,39 @@ export const CommandPicker = memo(function CommandPicker({
       {(cmd) => {
         const commandName = cmd.source === "codex-app" ? (cmd.appSlug ?? cmd.name) : cmd.name;
         const usesDollarPrefix = cmd.source === "codex-skill" || cmd.source === "codex-app";
+        const presentation = getCommandPresentation(cmd, commandAgent, t);
+
+        if (presentation.isLocalizedBasicCommand && presentation.icon) {
+          const CommandIcon = presentation.icon;
+          return (
+            <>
+              <CommandIcon
+                aria-hidden="true"
+                className="h-4 w-4 shrink-0 text-muted-foreground"
+                strokeWidth={1.8}
+              />
+              <div
+                className="grid min-w-0 flex-1 grid-cols-[minmax(7rem,auto)_minmax(0,1fr)] items-center gap-4"
+                data-command-name={commandName}
+              >
+                <span className="truncate font-medium">
+                  {presentation.label}
+                </span>
+                <span
+                  className="truncate text-right text-xs text-muted-foreground"
+                  title={presentation.description}
+                >
+                  {presentation.description}
+                </span>
+                <span className="sr-only">
+                  /{commandName}
+                  {presentation.argumentHint ? ` ${presentation.argumentHint}` : ""}
+                </span>
+              </div>
+            </>
+          );
+        }
+
         return (
           <>
             <CommandGlyph
@@ -167,7 +210,7 @@ export const CommandPicker = memo(function CommandPicker({
               </div>
               {cmd.description && (
                 <div className="truncate text-xs text-muted-foreground">
-                  {cmd.description}
+                  {presentation.description}
                 </div>
               )}
             </div>

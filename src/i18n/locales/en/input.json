@@ -15,6 +15,49 @@
     "stopDictation": "Stop dictation",
     "dictation": "Voice dictation"
   },
+  "commands": {
+    "clear": {
+      "label": "New chat",
+      "description": "Open a new Pi session"
+    },
+    "compact": {
+      "label": "Compact context",
+      "description": "Manually compact the current session context",
+      "argumentHint": "Optional compaction instructions"
+    },
+    "autocompact": {
+      "label": "Auto compact",
+      "description": "Turn automatic context compaction on or off",
+      "argumentHint": "On | Off | Toggle"
+    },
+    "export": {
+      "label": "Export session",
+      "description": "Export the session as an HTML file"
+    },
+    "session": {
+      "label": "Session status",
+      "description": "View messages, tokens, cost, and session file"
+    },
+    "name": {
+      "label": "Session name",
+      "description": "Set the current session display name",
+      "argumentHint": "Name"
+    },
+    "steering": {
+      "label": "Steering messages",
+      "description": "Set how queued steering messages are delivered",
+      "argumentHint": "All | One at a time"
+    },
+    "followUp": {
+      "label": "Follow-up messages",
+      "description": "Set how queued follow-up messages are delivered",
+      "argumentHint": "All | One at a time"
+    },
+    "changelog": {
+      "label": "Changelog",
+      "description": "View Pi release notes"
+    }
+  },
   "deepFolder": {
     "title": "Large Context Warning",
     "sendAnyway": "Send Anyway",

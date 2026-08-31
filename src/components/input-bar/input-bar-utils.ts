@@ -246,7 +246,14 @@ export function getAvailableSlashCommands(
     seen.add(key);
     return true;
   });
-  return [LOCAL_CLEAR_COMMAND, ...commands];
+  const skillCommands: SlashCommand[] = [];
+  const regularCommands: SlashCommand[] = [];
+  for (const command of commands) {
+    const isSkillCommand = command.source === "codex-skill"
+      || (command.source === "acp" && command.name.startsWith("skill:"));
+    (isSkillCommand ? skillCommands : regularCommands).push(command);
+  }
+  return [LOCAL_CLEAR_COMMAND, ...regularCommands, ...skillCommands];
 }
 
 export function isClearCommandText(text: string): boolean {

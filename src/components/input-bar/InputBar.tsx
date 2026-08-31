@@ -182,11 +182,21 @@ export const InputBar = memo(function InputBar({
     () => getAvailableSlashCommands(slashCommands ?? []),
     [slashCommands],
   );
+  const commandAgent = useMemo(() => {
+    const activeAgentId = lockedAgentId ?? selectedAgent?.id;
+    if (!activeAgentId) return null;
+    return agents?.find((agent) => agent.id === activeAgentId)
+      ?? (selectedAgent?.id === activeAgentId ? selectedAgent : null);
+  }, [agents, lockedAgentId, selectedAgent]);
 
   // ── Mention & command autocomplete ──
 
   const mention = useMentionAutocomplete({ projectPath, editableRef });
-  const command = useCommandAutocomplete({ availableSlashCommands, editableRef });
+  const command = useCommandAutocomplete({
+    availableSlashCommands,
+    editableRef,
+    commandAgent,
+  });
 
   // ── Composer lifecycle ──
 
@@ -772,6 +782,7 @@ export const InputBar = memo(function InputBar({
             cmdResults={command.cmdResults}
             commandIndex={command.commandIndex}
             commandListRef={command.commandListRef}
+            commandAgent={commandAgent}
             onSelect={(cmd) => {
               const didInsert = command.selectCommand(cmd);
               if (didInsert) {

@@ -15,6 +15,49 @@
     "stopDictation": "停止听写",
     "dictation": "语音听写"
   },
+  "commands": {
+    "clear": {
+      "label": "新对话",
+      "description": "打开一个新的 Pi 会话"
+    },
+    "compact": {
+      "label": "压缩上下文",
+      "description": "手动压缩当前会话上下文",
+      "argumentHint": "可选的压缩要求"
+    },
+    "autocompact": {
+      "label": "自动压缩",
+      "description": "开启、关闭或切换上下文自动压缩",
+      "argumentHint": "开启｜关闭｜切换"
+    },
+    "export": {
+      "label": "导出会话",
+      "description": "将会话导出为 HTML 文件"
+    },
+    "session": {
+      "label": "会话状态",
+      "description": "查看消息、token、费用和会话文件"
+    },
+    "name": {
+      "label": "会话名称",
+      "description": "设置当前会话的显示名称",
+      "argumentHint": "名称"
+    },
+    "steering": {
+      "label": "引导消息",
+      "description": "设置排队引导消息的投递方式",
+      "argumentHint": "全部｜逐条"
+    },
+    "followUp": {
+      "label": "后续消息",
+      "description": "设置排队后续消息的投递方式",
+      "argumentHint": "全部｜逐条"
+    },
+    "changelog": {
+      "label": "更新日志",
+      "description": "查看 Pi 更新记录"
+    }
+  },
   "deepFolder": {
     "title": "大量上下文警告",
     "sendAnyway": "仍然发送",

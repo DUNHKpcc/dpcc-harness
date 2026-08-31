@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SlashCommand } from "@/types";
+import { BUILTIN_PI_AGENT } from "@/types";
 import {
   LOCAL_CLEAR_COMMAND,
   getAvailableSlashCommands,
@@ -7,6 +8,18 @@ import {
   isClearCommandText,
   splitComposerFiles,
 } from "../input-bar";
+import {
+  commandMatchesQuery,
+  getCommandPresentation,
+  isProtectedBuiltInPiAgent,
+} from "../input-bar/command-presentation";
+
+const translations: Record<string, string> = {
+  "commands.compact.label": "压缩上下文",
+  "commands.compact.description": "手动压缩当前会话上下文",
+  "commands.compact.argumentHint": "可选的压缩要求",
+};
+const t = (key: string) => translations[key] ?? key;
 
 describe("InputBar slash command helpers", () => {
   it("always includes the local clear command first", () => {
@@ -32,6 +45,23 @@ describe("InputBar slash command helpers", () => {
     ]);
   });
 
+  it("keeps Skill commands after regular commands without changing group order", () => {
+    const commands: SlashCommand[] = [
+      { name: "skill:review", description: "Review changes", source: "acp" },
+      { name: "compact", description: "Compact context", source: "acp" },
+      { name: "fix", description: "Fix an issue", source: "codex-skill" },
+      { name: "session", description: "Show session stats", source: "acp" },
+    ];
+
+    expect(getAvailableSlashCommands(commands).map((command) => command.name)).toEqual([
+      "clear",
+      "compact",
+      "session",
+      "skill:review",
+      "fix",
+    ]);
+  });
+
   it("detects the exact /clear command text", () => {
     expect(isClearCommandText("/clear")).toBe(true);
     expect(isClearCommandText("  /clear  ")).toBe(true);
@@ -46,6 +76,52 @@ describe("InputBar slash command helpers", () => {
     expect(
       getSlashCommandReplacement({ name: "fix", description: "", source: "codex-skill", defaultPrompt: "bug" }),
     ).toBe("$fix bug");
+  });
+
+  it("localizes built-in Pi commands without changing their command identity", () => {
+    const command: SlashCommand = {
+      name: "compact",
+      description: "Manually compact the session context",
+      argumentHint: "optional custom instructions",
+      source: "acp",
+    };
+
+    expect(isProtectedBuiltInPiAgent(BUILTIN_PI_AGENT)).toBe(true);
+    expect(getCommandPresentation(command, BUILTIN_PI_AGENT, t)).toMatchObject({
+      label: "压缩上下文",
+      description: "手动压缩当前会话上下文",
+      argumentHint: "可选的压缩要求",
+      isLocalizedBasicCommand: true,
+    });
+    expect(getSlashCommandReplacement(command)).toBe("/compact ");
+    expect(commandMatchesQuery(command, "压缩", BUILTIN_PI_AGENT, t)).toBe(true);
+  });
+
+  it("does not localize a custom ACP command that reuses a Pi command name", () => {
+    const command: SlashCommand = {
+      name: "compact",
+      description: "Custom compact behavior",
+      source: "acp",
+    };
+    const customAgent = {
+      ...BUILTIN_PI_AGENT,
+      id: "custom-pi",
+      builtIn: false,
+      registryId: "custom-pi",
+    };
+
+    expect(isProtectedBuiltInPiAgent(customAgent)).toBe(false);
+    expect(isProtectedBuiltInPiAgent({
+      ...BUILTIN_PI_AGENT,
+      builtIn: false,
+    })).toBe(false);
+    expect(getCommandPresentation(command, customAgent, t)).toEqual({
+      label: "compact",
+      description: "Custom compact behavior",
+      argumentHint: "",
+      isLocalizedBasicCommand: false,
+    });
+    expect(commandMatchesQuery(command, "压缩", customAgent, t)).toBe(false);
   });
 
   it("splits selected composer files into image attachments and file references", () => {

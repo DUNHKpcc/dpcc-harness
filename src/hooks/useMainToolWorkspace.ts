@@ -981,15 +981,12 @@ export function useMainToolWorkspace(
 
   useEffect(() => {
     if (topRowItems.length <= 0) return;
+    if (toolIslands.state.preferredTopAreaWidthPx != null) return;
 
     const workspaceWidth = workspaceWidthRef.current;
     if (workspaceWidth <= 0) return;
 
     const nextPreferredTopAreaWidthPx = getTopToolAreaWidthPx(widthFractions, workspaceWidth);
-    if (Math.abs((toolIslands.state.preferredTopAreaWidthPx ?? -1) - nextPreferredTopAreaWidthPx) <= 0.5) {
-      return;
-    }
-
     toolIslands.setPreferredTopAreaWidthPx(nextPreferredTopAreaWidthPx);
   }, [
     topRowItems.length,

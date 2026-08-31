@@ -864,6 +864,8 @@ export function AppLayout() {
     mainCombinedWorkspaceWidth,
     mainToolAreaWidth,
     mainToolRelativeFractions,
+    mainToolColumnMinWidths,
+    mainToolColumnsMinWidth,
     maxMainTopToolColumns,
     canAddMainTopColumn,
     effectiveMainToolAreaFraction,
@@ -883,6 +885,7 @@ export function AppLayout() {
       hasActiveSession: !!manager.activeSessionId,
       hasRightPanel,
       hasToolsColumn: mainTopToolColumnCount > 0,
+      toolsColumnMinWidth: mainToolColumnsMinWidth,
       isSplitViewEnabled: splitView.enabled && splitView.paneCount > 1,
       splitPaneCount: splitView.paneCount,
       splitTopRowItemKinds: splitView.topRowItems.map((item) => item.kind),
@@ -892,6 +895,7 @@ export function AppLayout() {
   }, [
     hasRightPanel,
     mainTopToolColumnCount,
+    mainToolColumnsMinWidth,
     manager.activeSessionId,
     settings.islandLayout,
     sidebar.isOpen,
@@ -909,6 +913,7 @@ export function AppLayout() {
     mainWorkspaceChatMinWidth,
     mainToolAreaWidth,
     outerHandleWidth: handleW,
+    leadingColumnMinWidth: mainToolColumnMinWidths[0] ?? MIN_TOOLS_PANEL_WIDTH,
   });
   const isMainToolAreaResizing = mainToolAreaResize.isResizing;
 

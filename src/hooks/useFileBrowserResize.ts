@@ -1,15 +1,19 @@
 import { useCallback, useRef, useState, type CSSProperties } from "react";
 import { useDocumentMouseDrag } from "@/hooks/useDocumentMouseDrag";
+import {
+  FILE_BROWSER_LIST_MIN_WIDTH,
+  FILE_BROWSER_PREVIEW_MIN_WIDTH,
+  FILE_BROWSER_RESIZE_HANDLE_WIDTH,
+} from "@/lib/layout/constants";
 
 const STORAGE_KEY = "harnss-file-browser-list-width";
 const DEFAULT_LIST_WIDTH = 360;
-const MIN_LIST_WIDTH = 280;
-const MIN_PREVIEW_WIDTH = 240;
-const RESIZE_HANDLE_WIDTH = 8;
 
 function getStoredWidth(): number {
   const stored = Number(window.localStorage.getItem(STORAGE_KEY));
-  return Number.isFinite(stored) && stored >= MIN_LIST_WIDTH ? stored : DEFAULT_LIST_WIDTH;
+  return Number.isFinite(stored) && stored >= FILE_BROWSER_LIST_MIN_WIDTH
+    ? stored
+    : DEFAULT_LIST_WIDTH;
 }
 
 export function useFileBrowserResize() {
@@ -31,11 +35,11 @@ export function useFileBrowserResize() {
       (moveEvent) => {
         const containerWidth = contentRef.current?.clientWidth ?? window.innerWidth;
         const maxWidth = Math.max(
-          MIN_LIST_WIDTH,
-          containerWidth - MIN_PREVIEW_WIDTH - RESIZE_HANDLE_WIDTH,
+          FILE_BROWSER_LIST_MIN_WIDTH,
+          containerWidth - FILE_BROWSER_PREVIEW_MIN_WIDTH - FILE_BROWSER_RESIZE_HANDLE_WIDTH,
         );
         const nextWidth = Math.max(
-          MIN_LIST_WIDTH,
+          FILE_BROWSER_LIST_MIN_WIDTH,
           Math.min(maxWidth, startWidth - (moveEvent.clientX - startX)),
         );
         listWidthRef.current = nextWidth;
@@ -54,7 +58,9 @@ export function useFileBrowserResize() {
     handleResizeStart,
     contentStyle: {
       "--file-browser-list-width": `${listWidth}px`,
-      "--file-browser-list-min-width": `${MIN_LIST_WIDTH}px`,
+      "--file-browser-list-min-width": `${FILE_BROWSER_LIST_MIN_WIDTH}px`,
+      "--file-browser-preview-min-width": `${FILE_BROWSER_PREVIEW_MIN_WIDTH}px`,
+      "--file-browser-resize-handle-width": `${FILE_BROWSER_RESIZE_HANDLE_WIDTH}px`,
     } as CSSProperties,
   };
 }

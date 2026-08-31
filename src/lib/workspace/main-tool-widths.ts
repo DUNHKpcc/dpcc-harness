@@ -192,6 +192,7 @@ interface ResolveMainToolAreaLeadingColumnResizeInput {
   minChatWidth: number;
   toolRelativeFractions: number[];
   outerHandleWidth: number;
+  leadingColumnMinWidth?: number;
 }
 
 interface ResolveMainToolAreaLeadingColumnResizeResult {
@@ -383,6 +384,7 @@ export function resolveMainToolAreaLeadingColumnResize(
     minChatWidth,
     toolRelativeFractions,
     outerHandleWidth,
+    leadingColumnMinWidth = MIN_TOOLS_PANEL_WIDTH,
   } = input;
   const toolColumnCount = toolRelativeFractions.length;
   if (toolColumnCount <= 0 || workspaceWidth <= 0) {
@@ -406,11 +408,11 @@ export function resolveMainToolAreaLeadingColumnResize(
   const trailingColumnWidths = startColumnWidths.slice(1);
   const fixedTrailingWidth = trailingColumnWidths.reduce((sum, width) => sum + width, 0);
 
-  const minToolAreaWidth = outerHandleWidth + innerHandleWidth + fixedTrailingWidth + MIN_TOOLS_PANEL_WIDTH;
+  const minToolAreaWidth = outerHandleWidth + innerHandleWidth + fixedTrailingWidth + leadingColumnMinWidth;
   const maxToolAreaWidth = Math.max(minToolAreaWidth, workspaceWidth - minChatWidth);
   const nextToolAreaWidth = clampNumber(desiredToolAreaWidth, minToolAreaWidth, maxToolAreaWidth);
   const nextContentWidth = Math.max(0, nextToolAreaWidth - outerHandleWidth - innerHandleWidth);
-  const nextLeadingWidth = Math.max(MIN_TOOLS_PANEL_WIDTH, nextContentWidth - fixedTrailingWidth);
+  const nextLeadingWidth = Math.max(leadingColumnMinWidth, nextContentWidth - fixedTrailingWidth);
   const nextColumnWidths = [nextLeadingWidth, ...trailingColumnWidths];
   const nextToolRelativeFractions = nextContentWidth > 0
     ? nextColumnWidths.map((width) => width / nextContentWidth)

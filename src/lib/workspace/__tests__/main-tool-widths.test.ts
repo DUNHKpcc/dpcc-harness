@@ -176,6 +176,21 @@ describe("main tool width helpers", () => {
     expect(result.toolRelativeFractions[0]! * (result.toolAreaWidth - 8)).toBeCloseTo(280, 5);
   });
 
+  it("uses a tool-specific minimum for the leading column", () => {
+    const result = resolveMainToolAreaLeadingColumnResize({
+      startToolAreaWidth: 612,
+      desiredToolAreaWidth: 420,
+      workspaceWidth: 1500,
+      minChatWidth: 500,
+      toolRelativeFractions: [1],
+      outerHandleWidth: 4,
+      leadingColumnMinWidth: 528,
+    });
+
+    expect(result.toolAreaWidth).toBe(532);
+    expect(result.toolRelativeFractions).toEqual([1]);
+  });
+
   it("builds the default single-column layout used after merging columns", () => {
     const fractions = buildDefaultMainToolWidthFractions(1);
     expect(fractions[0]).toBeCloseTo(0.68, 5);

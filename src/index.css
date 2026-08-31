@@ -183,13 +183,16 @@
 
 .file-browser-preview {
   flex: 1 1 auto;
-  min-width: 0;
+  min-width: var(--file-browser-preview-min-width, 15rem);
   min-height: 0;
   background: var(--background);
 }
 
 .file-browser-list {
-  flex: 0 0 var(--file-browser-list-width, 22.5rem);
+  flex: 0 0 min(
+    var(--file-browser-list-width, 22.5rem),
+    calc(100% - var(--file-browser-preview-min-width, 15rem) - var(--file-browser-resize-handle-width, 0.5rem))
+  );
   min-width: var(--file-browser-list-min-width, 17.5rem);
   min-height: 0;
   border-inline-start: 1px solid color-mix(in oklch, var(--border) 70%, transparent);

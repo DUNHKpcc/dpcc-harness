@@ -20,6 +20,7 @@ export interface UseMainToolAreaResizeInput {
   mainWorkspaceChatMinWidth: number;
   mainToolAreaWidth: number;
   outerHandleWidth: number;
+  leadingColumnMinWidth: number;
 }
 
 export interface UseMainToolAreaResizeReturn {
@@ -38,6 +39,7 @@ export function useMainToolAreaResize(
     mainWorkspaceChatMinWidth,
     mainToolAreaWidth,
     outerHandleWidth,
+    leadingColumnMinWidth,
   } = input;
 
   const [isResizing, setIsResizing] = useState(false);
@@ -61,6 +63,7 @@ export function useMainToolAreaResize(
           minChatWidth: mainWorkspaceChatMinWidth,
           toolRelativeFractions: mainToolRelativeFractions,
           outerHandleWidth,
+          leadingColumnMinWidth,
         });
         mainToolWorkspace.setWidthFractionsDirect(nextLayout.widthFractions);
         mainToolWorkspace.setPreferredTopAreaWidthPx(nextLayout.preferredTopAreaWidthPx);
@@ -80,6 +83,7 @@ export function useMainToolAreaResize(
       mainToolWorkspace,
       mainTopToolColumnCount,
       mainWorkspaceChatMinWidth,
+      leadingColumnMinWidth,
       outerHandleWidth,
     ],
   );

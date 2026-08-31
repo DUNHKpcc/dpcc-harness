@@ -92,4 +92,18 @@ describe("split layout utilities", () => {
       isWindows: false,
     })).toBe(1076);
   });
+
+  it("expands the app minimum for tools with a wider interaction surface", () => {
+    expect(getAppMinimumWidth({
+      sidebarOpen: true,
+      isIslandLayout: true,
+      hasActiveSession: true,
+      hasRightPanel: false,
+      hasToolsColumn: true,
+      toolsColumnMinWidth: 528,
+      isSplitViewEnabled: false,
+      splitPaneCount: 1,
+      isWindows: false,
+    })).toBe(1324);
+  });
 });

@@ -18,13 +18,46 @@ export const WINDOWS_FRAME_BUFFER_WIDTH = 16;
 export const MIN_RIGHT_PANEL_WIDTH = 200;
 export const MIN_TOOLS_PANEL_WIDTH = 280;
 
+export const FILE_BROWSER_LIST_MIN_WIDTH = 280;
+export const FILE_BROWSER_PREVIEW_MIN_WIDTH = 240;
+export const FILE_BROWSER_RESIZE_HANDLE_WIDTH = 8;
+export const FILE_BROWSER_PANEL_MIN_WIDTH =
+  FILE_BROWSER_LIST_MIN_WIDTH
+  + FILE_BROWSER_PREVIEW_MIN_WIDTH
+  + FILE_BROWSER_RESIZE_HANDLE_WIDTH;
+
+const TOOL_MINIMUM_WIDTHS: Record<string, number> = {
+  files: FILE_BROWSER_PANEL_MIN_WIDTH,
+  "project-files": FILE_BROWSER_PANEL_MIN_WIDTH,
+};
+
+export function getToolMinimumWidth(toolId: string): number {
+  return TOOL_MINIMUM_WIDTHS[toolId] ?? MIN_TOOLS_PANEL_WIDTH;
+}
+
+export function getToolColumnMinimumWidth(toolIds: readonly string[]): number {
+  return toolIds.reduce(
+    (minimum, toolId) => Math.max(minimum, getToolMinimumWidth(toolId)),
+    MIN_TOOLS_PANEL_WIDTH,
+  );
+}
+
+export function getRequiredToolColumnsWidth(
+  minimumWidths: readonly number[],
+  handleWidth = SPLIT_HANDLE_WIDTH,
+): number {
+  if (minimumWidths.length <= 0) return 0;
+  return minimumWidths.reduce((sum, width) => sum + width, 0)
+    + Math.max(0, minimumWidths.length - 1) * handleWidth;
+}
+
 /** Per-tool preferred pixel widths — used as default when a tool has no remembered width. */
 export const TOOL_PREFERRED_WIDTHS: Record<string, number> = {
   terminal: 480,
   browser: 560,
   git: 360,
-  files: 320,
-  "project-files": 320,
+  files: 560,
+  "project-files": 560,
   mcp: 380,
 };
 

@@ -12,6 +12,9 @@ import type { ToolDragState, ToolIsland } from "@/types";
 import type { PanelToolId, ToolId } from "@/types/tools";
 import {
   DEFAULT_TOOL_PREFERRED_WIDTH,
+  getRequiredToolColumnsWidth,
+  getToolColumnMinimumWidth,
+  getToolMinimumWidth,
   getMinChatWidth,
   MIN_TOOLS_PANEL_WIDTH,
   SPLIT_HANDLE_WIDTH,
@@ -40,12 +43,13 @@ export interface MainToolAreaLayoutInput {
 export interface MainToolAreaLayout {
   mainTopToolColumnCount: number;
   mainWorkspaceChatMinWidth: number;
-  mainHasToolWorkspace: boolean;
   mainCombinedWorkspaceWidth: number;
   mainMaxToolAreaWidth: number;
   mainShowTopToolArea: boolean;
   mainToolAreaWidth: number;
   mainToolRelativeFractions: number[];
+  mainToolColumnMinWidths: number[];
+  mainToolColumnsMinWidth: number;
   maxMainTopToolColumns: number;
   canAddMainTopColumn: boolean;
   effectiveMainChatFraction: number;
@@ -67,6 +71,12 @@ export function useMainToolAreaLayout(input: MainToolAreaLayoutInput): MainToolA
   } = input;
 
   const mainTopToolColumnCount = mainToolWorkspace.topRowItems.length;
+  const mainToolColumnMinWidths = useMemo(
+    () => mainToolWorkspace.topRowItems.map((item) =>
+      getToolColumnMinimumWidth(item.islands.map((island) => island.toolId))),
+    [mainToolWorkspace.topRowItems],
+  );
+  const mainToolColumnsMinWidth = getRequiredToolColumnsWidth(mainToolColumnMinWidths);
   const mainWorkspaceChatMinWidth = hasActiveSession ? getChatPaneMinWidthPx("single") : getMinChatWidth(input.isIsland);
   const draggedTopColumnIslandCount = useMemo(() => {
     if (!mainDraggedIsland || mainDraggedIsland.dock !== "top") return 0;
@@ -98,14 +108,8 @@ export function useMainToolAreaLayout(input: MainToolAreaLayoutInput): MainToolA
     return null;
   }, [mainDraggedIsland, mainToolWorkspace.topRowItems]);
 
-  const mainHasToolWorkspace =
-    mainTopToolColumnCount > 0 ||
-    mainToolWorkspace.bottomToolIslands.length > 0 ||
-    !!mainToolDrag;
-
   const mainWorkspaceReservedWidth =
-    (hasRightPanel ? rightPanelWidth + handleW : 0) +
-    (mainHasToolWorkspace ? handleW : 0);
+    hasRightPanel ? rightPanelWidth + handleW : 0;
 
   const mainCombinedWorkspaceWidth = Math.max(0, availableSplitWidth - mainWorkspaceReservedWidth);
 
@@ -144,8 +148,19 @@ export function useMainToolAreaLayout(input: MainToolAreaLayoutInput): MainToolA
     (dragCreatesTopColumn ? 1 : 0) -
     (dragRemovesTopColumn ? 1 : 0);
 
+  const previewToolColumnsMinWidth = mainTopPreviewColumnCount === mainTopToolColumnCount
+    ? mainToolColumnsMinWidth
+    : Math.max(
+      mainToolColumnsMinWidth,
+      getRequiredToolIslandsWidth(Math.max(mainTopPreviewColumnCount, 1)),
+      mainTopPreviewColumnCount > mainTopToolColumnCount && mainToolDrag
+        ? mainToolColumnsMinWidth
+          + (mainTopToolColumnCount > 0 ? SPLIT_HANDLE_WIDTH : 0)
+          + getToolMinimumWidth(mainToolDrag.toolId)
+        : 0,
+    );
   const mainRequiredToolWidth = mainShowTopToolArea
-    ? getRequiredToolIslandsWidth(Math.max(mainTopPreviewColumnCount, 1))
+    ? handleW + previewToolColumnsMinWidth
     : 0;
 
   const resolvedMainToolArea = resolveMainToolAreaWidth({
@@ -318,7 +333,10 @@ export function useMainToolAreaLayout(input: MainToolAreaLayoutInput): MainToolA
   /** Check if a specific tool can fit as a new column at its preferred width. */
   const canFitToolAsNewColumn = useCallback(
     (toolId: ToolId): boolean => {
-      const preferredPx = TOOL_PREFERRED_WIDTHS[toolId] ?? DEFAULT_TOOL_PREFERRED_WIDTH;
+      const preferredPx = Math.max(
+        TOOL_PREFERRED_WIDTHS[toolId] ?? DEFAULT_TOOL_PREFERRED_WIDTH,
+        getToolMinimumWidth(toolId),
+      );
       const handleCost = mainTopToolColumnCount > 0 ? SPLIT_HANDLE_WIDTH : 0;
       const totalNeeded = effectiveMainToolAreaWidth + handleCost + preferredPx;
       return mainCombinedWorkspaceWidth - totalNeeded >= mainWorkspaceChatMinWidth;
@@ -329,12 +347,13 @@ export function useMainToolAreaLayout(input: MainToolAreaLayoutInput): MainToolA
   return {
     mainTopToolColumnCount,
     mainWorkspaceChatMinWidth,
-    mainHasToolWorkspace,
     mainCombinedWorkspaceWidth,
     mainMaxToolAreaWidth,
     mainShowTopToolArea,
     mainToolAreaWidth: effectiveMainToolAreaWidth,
     mainToolRelativeFractions,
+    mainToolColumnMinWidths,
+    mainToolColumnsMinWidth,
     maxMainTopToolColumns,
     canAddMainTopColumn,
     effectiveMainChatFraction: previewProjection?.chatFraction ?? resolvedMainToolArea.chatFraction,

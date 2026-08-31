@@ -1,5 +1,5 @@
-name: Bug Report
-description: Something isn't working correctly
+name: Bug 反馈
+description: 提交一个可复现的问题，帮助我们定位和修复。
 title: "[Bug]: "
 labels: ["bug", "status: needs-triage"]
 assignees: []
@@ -8,70 +8,71 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to report a bug! Please fill out the form below as completely as possible — the more detail you provide, the faster we can diagnose and fix the issue.
+        感谢反馈。请尽可能完整填写以下内容；信息越充分，我们越能更快定位和修复问题。
+        请勿提交 API Key、Token、密码、Cookie、设备凭据或包含个人信息的完整日志。
 
   - type: textarea
     id: description
     attributes:
-      label: Description
-      description: A clear and concise description of what the bug is.
-      placeholder: Describe what went wrong...
+      label: 问题描述
+      description: 清晰、简要地说明发生了什么问题。
+      placeholder: 请描述异常现象...
     validations:
       required: true
 
   - type: textarea
     id: steps
     attributes:
-      label: Steps to Reproduce
-      description: Step-by-step instructions to reproduce the behavior.
+      label: 复现步骤
+      description: 请提供能稳定复现该问题的操作步骤。
       placeholder: |
-        1. Open a session with engine '...'
-        2. Send the message '...'
-        3. Click on '...'
-        4. See error
+        1. 打开使用“...”的会话
+        2. 发送消息“...”
+        3. 点击“...”
+        4. 看到异常
     validations:
       required: true
 
   - type: textarea
     id: expected
     attributes:
-      label: Expected Behavior
-      description: What did you expect to happen?
-      placeholder: Describe what you expected...
+      label: 预期行为
+      description: 你原本希望发生什么？
+      placeholder: 请描述预期结果...
     validations:
       required: true
 
   - type: textarea
     id: actual
     attributes:
-      label: Actual Behavior
-      description: What actually happened? Include any error messages or screenshots.
-      placeholder: Describe what actually happened...
+      label: 实际行为
+      description: 实际发生了什么？可附上错误信息或截图。
+      placeholder: 请描述实际结果...
     validations:
       required: true
 
   - type: dropdown
     id: engine
     attributes:
-      label: Agent Runtime
-      description: Which runtime context were you using when the bug occurred?
+      label: Agent 运行环境
+      description: 出现问题时正在使用哪种运行环境？
       multiple: true
       options:
-        - Pi (built-in ACP agent)
-        - Custom ACP agent
-        - Legacy Claude/Codex session (read-only)
-        - Not runtime-specific
+        - Pi（内置 ACP agent）
+        - 自定义 ACP agent
+        - 历史 Claude/Codex 会话（只读）
+        - 与运行环境无关
     validations:
       required: true
 
   - type: dropdown
     id: os
     attributes:
-      label: Operating System
-      description: Which operating system are you using?
+      label: 操作系统
+      description: 你正在使用哪个操作系统？
       options:
-        - macOS (Apple Silicon)
-        - macOS (Intel)
+        - macOS（Apple Silicon）
+        - macOS（Intel）
         - Windows
         - Linux
     validations:
@@ -80,8 +81,8 @@ body:
   - type: input
     id: version
     attributes:
-      label: PccAgent Version
-      description: Found in the title bar or About screen. (e.g. `0.9.0`)
+      label: PccAgent 版本
+      description: 可在标题栏或“关于”页面查看，例如 `0.9.0`。
       placeholder: "0.x.x"
     validations:
       required: true
@@ -89,42 +90,42 @@ body:
   - type: dropdown
     id: area
     attributes:
-      label: Area
-      description: Which part of PccAgent is affected? (select all that apply)
+      label: 影响范围
+      description: PccAgent 的哪个部分受影响？可多选。
       multiple: true
       options:
-        - Chat / Messaging
-        - Tool Rendering
-        - MCP Tools
-        - Terminal
-        - Git Panel
-        - Browser Panel
-        - File Panel
-        - Session Management
-        - Settings
-        - Sidebar / Navigation
-        - Background Agents
-        - UI / Layout
-        - Build / Installation
-        - Other
+        - 聊天 / 消息
+        - 工具渲染
+        - MCP 工具
+        - 终端
+        - Git 面板
+        - 浏览器面板
+        - 文件面板
+        - 会话管理
+        - 设置
+        - 侧边栏 / 导航
+        - 后台 Agent
+        - UI / 布局
+        - 构建 / 安装
+        - 其他
 
   - type: textarea
     id: logs
     attributes:
-      label: Logs / Error Output
+      label: 日志 / 错误输出
       description: |
-        Paste any relevant logs here. **Please redact any sensitive data (API keys, tokens, passwords, file paths with personal info) before sharing.**
+        请粘贴相关日志。**提交前务必删除 API Key、Token、密码、包含个人信息的路径和其他敏感数据。**
 
-        **Where to find logs** (files are named `main-{timestamp}.log` — attach the most recent one):
-        - macOS: `~/Library/Application Support/PccAgent/logs/`
-        - Windows: `%APPDATA%\PccAgent\logs\`
-        - Linux: `~/.config/PccAgent/logs/`
+        **日志位置**（文件名为 `main-{timestamp}.log`；请附上最新且已脱敏的文件）：
+        - macOS：`~/Library/Application Support/PccAgent/logs/`
+        - Windows：`%APPDATA%\PccAgent\logs\`
+        - Linux：`~/.config/PccAgent/logs/`
       render: text
-      placeholder: Paste logs here...
+      placeholder: 请在此粘贴已脱敏的日志...
 
   - type: textarea
     id: additional
     attributes:
-      label: Additional Context
-      description: Any other context, screenshots, or information that might help diagnose the issue.
-      placeholder: Anything else to share?
+      label: 补充信息
+      description: 可补充其他有助于定位的问题背景、截图或信息。
+      placeholder: 还有其他需要说明的吗？

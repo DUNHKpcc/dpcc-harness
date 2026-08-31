@@ -1,5 +1,5 @@
-name: Feature Request
-description: Suggest a new feature or improvement
+name: 功能建议
+description: 提交一个新功能或改进建议。
 title: "[Feature]: "
 labels: ["enhancement", "status: needs-triage"]
 assignees: []
@@ -8,94 +8,94 @@ body:
   - type: markdown
     attributes:
       value: |
-        Have an idea that would make PccAgent better? We'd love to hear it! Please fill out the form below with as much detail as you can.
+        感谢你的想法。请尽可能详细填写以下内容，帮助我们理解真实的工作流和需求。
 
   - type: textarea
     id: problem
     attributes:
-      label: Problem / Motivation
-      description: Is your feature request related to a problem? Describe it clearly.
+      label: 问题 / 动机
+      description: 这个建议是否源于某个问题？请清楚说明。
       placeholder: |
-        I'm always frustrated when...
-        There's currently no way to...
+        我经常因为……而受阻。
+        目前无法……
     validations:
       required: true
 
   - type: textarea
     id: solution
     attributes:
-      label: Proposed Solution
-      description: Describe the feature you'd like to see. Be as specific as possible.
+      label: 期望的解决方案
+      description: 描述你希望看到的功能，越具体越好。
       placeholder: |
-        I'd like a button/panel/setting that...
-        When I do X, PccAgent should...
+        我希望增加一个按钮 / 面板 / 设置，用于……
+        当我执行 X 时，PccAgent 应该……
     validations:
       required: true
 
   - type: textarea
     id: alternatives
     attributes:
-      label: Alternatives Considered
-      description: Have you considered any alternative approaches or workarounds?
-      placeholder: I've tried doing X, but it doesn't work because...
+      label: 已考虑的替代方案
+      description: 你是否尝试过其他方案或临时绕过方式？
+      placeholder: 我尝试过 X，但它无法解决问题，因为……
 
   - type: dropdown
     id: area
     attributes:
-      label: Area
-      description: Which part of PccAgent does this feature relate to? (select all that apply)
+      label: 相关范围
+      description: 此功能与 PccAgent 的哪个部分相关？可多选。
       multiple: true
       options:
-        - Chat / Messaging
-        - Tool Rendering
-        - MCP Tools / Integrations
-        - Terminal
-        - Git Panel
-        - Browser Panel
-        - File Panel
-        - Session Management
-        - Settings
-        - Sidebar / Navigation
-        - Background Agents
-        - UI / Layout / Design
-        - Build / Installation
-        - ACP Agent Support
-        - Other
+        - 聊天 / 消息
+        - 工具渲染
+        - MCP 工具 / 集成
+        - 终端
+        - Git 面板
+        - 浏览器面板
+        - 文件面板
+        - 会话管理
+        - 设置
+        - 侧边栏 / 导航
+        - 后台 Agent
+        - UI / 布局 / 设计
+        - 构建 / 安装
+        - ACP agent 支持
+        - 其他
 
   - type: dropdown
     id: engine
     attributes:
-      label: Relevant Agent
-      description: Is this feature specific to a particular ACP agent?
+      label: 相关 Agent
+      description: 此功能是否仅与特定 ACP agent 有关？
       multiple: true
       options:
-        - Pi (built-in ACP agent)
-        - Custom ACP agent
-        - All ACP agents
-        - Not agent-specific
+        - Pi（内置 ACP agent）
+        - 自定义 ACP agent
+        - 所有 ACP agent
+        - 与 Agent 无关
 
   - type: dropdown
     id: priority
     attributes:
-      label: How important is this to you?
+      label: 此功能对你有多重要？
       options:
-        - Nice to have
-        - Would significantly improve my workflow
-        - Blocking my use of PccAgent
+        - 有了更好
+        - 能显著改善我的工作流
+        - 阻碍我使用 PccAgent
     validations:
       required: true
 
   - type: checkboxes
     id: contribution
     attributes:
-      label: Contribution
-      description: Would you be interested in contributing this feature?
+      label: 贡献意愿
+      description: 你是否愿意参与实现此功能？
       options:
-        - label: I'd be willing to submit a PR for this feature
+        - label: 我愿意为此功能提交 PR
 
   - type: textarea
     id: additional
     attributes:
-      label: Additional Context
-      description: Add any other context, mockups, screenshots, or examples that would help illustrate the feature.
-      placeholder: Anything else to share?
+      label: 补充信息
+      description: 可补充背景、原型、截图或示例，帮助说明该功能。
+      placeholder: 还有其他需要说明的吗？

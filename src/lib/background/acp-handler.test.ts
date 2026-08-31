@@ -202,6 +202,83 @@ describe("ACP turn terminal handlers", () => {
     });
   });
 
+  it("preserves Pi Bash command titles and accumulates terminal metadata output", () => {
+    const state = makeState();
+    const command = "printf 'alpha\\nbeta\\n'";
+
+    handleACPEvent(state, {
+      _sessionId: "session-1",
+      sessionId: "agent-session-1",
+      update: {
+        sessionUpdate: "tool_call",
+        toolCallId: "bash-1",
+        title: command,
+        kind: "execute",
+        status: "in_progress",
+        content: [{ type: "terminal", terminalId: "bash-1" }],
+        _meta: {
+          terminal_info: { terminal_id: "bash-1", cwd: "/repo" },
+        },
+      },
+    });
+
+    expect(state.messages[0]).toMatchObject({
+      id: "tool-bash-1",
+      toolName: "Bash",
+      toolInput: { command, cwd: "/repo" },
+    });
+
+    handleACPEvent(state, {
+      _sessionId: "session-1",
+      sessionId: "agent-session-1",
+      update: {
+        sessionUpdate: "tool_call_update",
+        toolCallId: "bash-1",
+        status: "in_progress",
+        _meta: {
+          terminal_output: { terminal_id: "bash-1", data: "alpha\n" },
+        },
+      },
+    });
+    handleACPEvent(state, {
+      _sessionId: "session-1",
+      sessionId: "agent-session-1",
+      update: {
+        sessionUpdate: "tool_call_update",
+        toolCallId: "bash-1",
+        status: "in_progress",
+        _meta: {
+          terminal_output: { terminal_id: "bash-1", data: "beta\n" },
+        },
+      },
+    });
+
+    expect(state.messages[0].toolResult).toMatchObject({
+      stdout: "alpha\nbeta\n",
+      status: "in_progress",
+    });
+
+    handleACPEvent(state, {
+      _sessionId: "session-1",
+      sessionId: "agent-session-1",
+      update: {
+        sessionUpdate: "tool_call_update",
+        toolCallId: "bash-1",
+        status: "completed",
+        _meta: {
+          terminal_exit: { terminal_id: "bash-1", exit_code: 0, signal: null },
+        },
+      },
+    });
+
+    expect(state.messages[0].toolResult).toMatchObject({
+      stdout: "alpha\nbeta\n",
+      exitCode: 0,
+      signal: null,
+      status: "completed",
+    });
+  });
+
   it("does not close a pending tool on an intermediate event before a failed turn", () => {
     const state = makeState([pendingTool("tool-read")]);
 

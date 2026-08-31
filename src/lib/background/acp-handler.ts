@@ -2,8 +2,8 @@ import type { ACPSessionEvent, ACPTurnCompleteEvent, ACPTransportErrorEvent } fr
 import type { InternalState } from "./session-store";
 import {
   mergeToolInput as acpMergeToolInput,
+  mergeToolResult as acpMergeToolResult,
   normalizeToolInput as acpNormalizeToolInput,
-  normalizeToolResult as acpNormalizeToolResult,
   deriveToolName,
 } from "@/lib/engine/acp-adapter";
 import { extractTaskSubagentSteps, getTaskStatus, isTaskToolName } from "@/lib/engine/acp-task-adapter";
@@ -111,7 +111,9 @@ export function handleACPEvent(state: InternalState, event: ACPSessionEvent): vo
       const msgId = `tool-${update.toolCallId}`;
       if (!state.messages.some(m => m.id === msgId)) {
         const isAlreadyDone = update.status === "completed" || update.status === "failed";
-        const initialResult = isAlreadyDone ? acpNormalizeToolResult(update.rawOutput, update.content) : undefined;
+        const initialResult = isAlreadyDone
+          ? acpMergeToolResult(undefined, update.rawOutput, update.content, update._meta, update.status)
+          : undefined;
         const toolName = deriveToolName(update.title, update.kind, update.rawInput);
 
         // Route as subagent step if there's an active task
@@ -122,7 +124,13 @@ export function handleACPEvent(state: InternalState, event: ACPSessionEvent): vo
             const step = {
               toolName,
               toolUseId: update.toolCallId,
-              toolInput: acpNormalizeToolInput(update.rawInput, update.kind, update.locations),
+              toolInput: acpNormalizeToolInput(
+                update.rawInput,
+                update.kind,
+                update.locations,
+                update.title,
+                update._meta,
+              ),
               ...(initialResult ? { toolResult: initialResult } : {}),
               ...(update.status === "failed" ? { toolError: true } : {}),
             };
@@ -138,7 +146,13 @@ export function handleACPEvent(state: InternalState, event: ACPSessionEvent): vo
           role: "tool_call",
           content: "",
           toolName,
-          toolInput: acpNormalizeToolInput(update.rawInput, update.kind, update.locations),
+          toolInput: acpNormalizeToolInput(
+            update.rawInput,
+            update.kind,
+            update.locations,
+            update.title,
+            update._meta,
+          ),
           ...(initialResult ? { toolResult: initialResult } : {}),
           ...(update.status === "failed" ? { toolError: true } : {}),
           ...(isTask ? { subagentStatus: getTaskStatus(update.status), subagentSteps: taskSteps ?? [] } : {}),
@@ -152,8 +166,6 @@ export function handleACPEvent(state: InternalState, event: ACPSessionEvent): vo
       break;
     }
     case "tool_call_update": {
-      const result = acpNormalizeToolResult(update.rawOutput, update.content);
-
       // Check if this is for the active task itself
       if (state.activeTask && update.toolCallId === state.activeTask.toolCallId) {
         const taskMsg = state.messages.find(m => m.id === state.activeTask!.msgId);
@@ -162,7 +174,13 @@ export function handleACPEvent(state: InternalState, event: ACPSessionEvent): vo
         if (isDone && taskMsg) {
           // Task finished — set final result with accumulated text, clear activeTask
           const textContent = state.activeTask.textBuffer;
-          const finalResult = result ?? (textContent ? { content: textContent } : undefined);
+          const finalResult = acpMergeToolResult(
+            taskMsg.toolResult,
+            update.rawOutput,
+            update.content,
+            update._meta,
+            update.status,
+          ) ?? (textContent ? { content: textContent, status: update.status } : undefined);
           if (finalResult && textContent && typeof finalResult.content !== "string") {
             finalResult.content = textContent;
           }
@@ -173,10 +191,25 @@ export function handleACPEvent(state: InternalState, event: ACPSessionEvent): vo
           if (taskSteps) taskMsg.subagentSteps = taskSteps;
           state.activeTask = null;
         } else if (taskMsg) {
-          const updatedInput = acpMergeToolInput(taskMsg.toolInput, update.rawInput, update.kind, update.locations);
+          const updatedInput = acpMergeToolInput(
+            taskMsg.toolInput,
+            update.rawInput,
+            update.kind,
+            update.locations,
+            update.title,
+            update._meta,
+          );
           if (updatedInput) {
             taskMsg.toolInput = updatedInput;
           }
+          const updatedResult = acpMergeToolResult(
+            taskMsg.toolResult,
+            update.rawOutput,
+            update.content,
+            update._meta,
+            update.status,
+          );
+          if (updatedResult) taskMsg.toolResult = updatedResult;
         }
         break;
       }
@@ -187,8 +220,22 @@ export function handleACPEvent(state: InternalState, event: ACPSessionEvent): vo
         if (taskMsg) {
           const step = (taskMsg.subagentSteps ?? []).find(s => s.toolUseId === update.toolCallId);
           if (step) {
-            step.toolInput = acpMergeToolInput(step.toolInput, update.rawInput, update.kind, update.locations) ?? step.toolInput;
-            if (result) step.toolResult = result;
+            step.toolInput = acpMergeToolInput(
+              step.toolInput,
+              update.rawInput,
+              update.kind,
+              update.locations,
+              update.title,
+              update._meta,
+            ) ?? step.toolInput;
+            const stepResult = acpMergeToolResult(
+              step.toolResult,
+              update.rawOutput,
+              update.content,
+              update._meta,
+              update.status,
+            );
+            if (stepResult) step.toolResult = stepResult;
             else if (!step.toolResult) step.toolResult = { status: "completed" };
             if (update.status === "failed") step.toolError = true;
             break;
@@ -200,7 +247,21 @@ export function handleACPEvent(state: InternalState, event: ACPSessionEvent): vo
       const msgId = `tool-${update.toolCallId}`;
       const msg = state.messages.find(m => m.id === msgId);
       if (msg) {
-        msg.toolInput = acpMergeToolInput(msg.toolInput, update.rawInput, update.kind, update.locations) ?? msg.toolInput;
+        msg.toolInput = acpMergeToolInput(
+          msg.toolInput,
+          update.rawInput,
+          update.kind,
+          update.locations,
+          update.title,
+          update._meta,
+        ) ?? msg.toolInput;
+        const result = acpMergeToolResult(
+          msg.toolResult,
+          update.rawOutput,
+          update.content,
+          update._meta,
+          update.status,
+        );
         if (result) msg.toolResult = result;
         if (update.status === "failed") msg.toolError = true;
         if (isTaskToolName(msg.toolName)) {

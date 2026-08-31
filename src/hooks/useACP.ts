@@ -16,7 +16,7 @@ import type {
   ACPAuthMethod,
   ACPTransportErrorEvent,
 } from "@/types";
-import { ACPStreamingBuffer, normalizeToolInput, normalizeToolResult, deriveToolName, mergeToolInput, pickAutoResponseOption } from "@/lib/engine/acp-adapter";
+import { ACPStreamingBuffer, normalizeToolInput, normalizeToolResult, deriveToolName, mergeToolInput, mergeToolResult, pickAutoResponseOption } from "@/lib/engine/acp-adapter";
 import { extractTaskSubagentSteps, getTaskStatus, isTaskToolName } from "@/lib/engine/acp-task-adapter";
 import { suppressNextSessionCompletion } from "@/lib/notification-utils";
 import { captureException } from "@/lib/analytics/analytics";
@@ -259,11 +259,13 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
       if (activeTaskRef.current && !isTaskToolName(toolName)) {
         activeTaskRef.current.hasInnerTools = true;
         const isAlreadyDone = tc.status === "completed" || tc.status === "failed";
-        const stepResult = isAlreadyDone ? normalizeToolResult(tc.rawOutput, tc.content) : undefined;
+        const stepResult = isAlreadyDone
+          ? mergeToolResult(undefined, tc.rawOutput, tc.content, tc._meta, tc.status)
+          : undefined;
         const step = {
           toolName,
           toolUseId: tc.toolCallId,
-          toolInput: normalizeToolInput(tc.rawInput, tc.kind, tc.locations),
+          toolInput: normalizeToolInput(tc.rawInput, tc.kind, tc.locations, tc.title, tc._meta),
           ...(stepResult ? { toolResult: stepResult } : {}),
           ...(tc.status === "failed" ? { toolError: true } : {}),
         };
@@ -277,7 +279,9 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
       // The initial tool_call event may already carry status/rawOutput (protocol allows it).
       // If the tool arrived completed, set toolResult immediately so it doesn't show as running.
       const isAlreadyDone = tc.status === "completed" || tc.status === "failed";
-      const initialResult = isAlreadyDone ? normalizeToolResult(tc.rawOutput, tc.content) : undefined;
+      const initialResult = isAlreadyDone
+        ? mergeToolResult(undefined, tc.rawOutput, tc.content, tc._meta, tc.status)
+        : undefined;
       const isTask = isTaskToolName(toolName);
       // Start tracking if this is a Task tool
       if (isTask && !isAlreadyDone) {
@@ -291,7 +295,7 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
           role: "tool_call" as const,
           content: "",
           toolName,
-          toolInput: normalizeToolInput(tc.rawInput, tc.kind, tc.locations),
+          toolInput: normalizeToolInput(tc.rawInput, tc.kind, tc.locations, tc.title, tc._meta),
           ...(initialResult ? { toolResult: initialResult } : {}),
           ...(tc.status === "failed" ? { toolError: true } : {}),
           ...(isTask ? {
@@ -303,12 +307,12 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
       });
     } else if (kind === "tool_call_update") {
       const tcu = update as Extract<typeof update, { sessionUpdate: "tool_call_update" }>;
-      const result = normalizeToolResult(tcu.rawOutput, tcu.content);
+      const resultUpdate = normalizeToolResult(tcu.rawOutput, tcu.content, tcu._meta);
       acpLog("TOOL_RESULT", {
         toolCallId: tcu.toolCallId?.slice(0, 12),
         status: tcu.status,
         isError: tcu.status === "failed",
-        hasResult: result != null,
+        hasResult: resultUpdate != null,
       });
 
       // Check if this is for the active task itself
@@ -319,13 +323,19 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
         if (isDone) {
           // Task finished — set final result with accumulated text, clear activeTask
           const textContent = activeTaskRef.current.textBuffer;
-          const finalResult = result ?? (textContent ? { content: textContent } : undefined);
-          if (finalResult && textContent && typeof finalResult.content !== "string") {
-            finalResult.content = textContent;
-          }
           activeTaskRef.current = null;
           setMessages(prev => prev.map(m => {
             if (m.id !== taskMsgId) return m;
+            const finalResult = mergeToolResult(
+              m.toolResult,
+              tcu.rawOutput,
+              tcu.content,
+              tcu._meta,
+              tcu.status,
+            ) ?? (textContent ? { content: textContent, status: tcu.status } : undefined);
+            if (finalResult && textContent && typeof finalResult.content !== "string") {
+              finalResult.content = textContent;
+            }
             const nextTaskSteps = extractTaskSubagentSteps(finalResult) ?? m.subagentSteps;
             return {
               ...m,
@@ -338,9 +348,27 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
         } else {
           setMessages(prev => prev.map(m => {
             if (m.id !== taskMsgId) return m;
-            const updatedInput = mergeToolInput(m.toolInput, tcu.rawInput, tcu.kind, tcu.locations);
-            if (!updatedInput || updatedInput === m.toolInput) return m;
-            return { ...m, toolInput: updatedInput };
+            const updatedInput = mergeToolInput(
+              m.toolInput,
+              tcu.rawInput,
+              tcu.kind,
+              tcu.locations,
+              tcu.title,
+              tcu._meta,
+            );
+            const updatedResult = mergeToolResult(
+              m.toolResult,
+              tcu.rawOutput,
+              tcu.content,
+              tcu._meta,
+              tcu.status,
+            );
+            if ((!updatedInput || updatedInput === m.toolInput) && !updatedResult) return m;
+            return {
+              ...m,
+              ...(updatedInput ? { toolInput: updatedInput } : {}),
+              ...(updatedResult ? { toolResult: updatedResult } : {}),
+            };
           }));
         }
         return;
@@ -356,12 +384,28 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
             ...m,
             subagentSteps: (m.subagentSteps ?? []).map(step =>
               step.toolUseId === tcu.toolCallId
-                ? {
-                  ...step,
-                  toolInput: mergeToolInput(step.toolInput, tcu.rawInput, tcu.kind, tcu.locations) ?? step.toolInput,
-                  toolResult: result ?? step.toolResult ?? { status: "completed" },
-                  toolError: tcu.status === "failed",
-                }
+                ? (() => {
+                  const stepResult = mergeToolResult(
+                    step.toolResult,
+                    tcu.rawOutput,
+                    tcu.content,
+                    tcu._meta,
+                    tcu.status,
+                  );
+                  return {
+                    ...step,
+                    toolInput: mergeToolInput(
+                      step.toolInput,
+                      tcu.rawInput,
+                      tcu.kind,
+                      tcu.locations,
+                      tcu.title,
+                      tcu._meta,
+                    ) ?? step.toolInput,
+                    toolResult: stepResult ?? step.toolResult ?? { status: "completed" },
+                    toolError: tcu.status === "failed",
+                  };
+                })()
                 : step
             ),
           };
@@ -373,12 +417,26 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
       const msgId = `tool-${tcu.toolCallId}`;
       setMessages(prev => prev.map(m => {
         if (m.id !== msgId) return m;
+        const result = mergeToolResult(
+          m.toolResult,
+          tcu.rawOutput,
+          tcu.content,
+          tcu._meta,
+          tcu.status,
+        );
         const isTask = isTaskToolName(m.toolName);
         const nextTaskStatus = isTask ? getTaskStatus(tcu.status) : undefined;
         const nextTaskSteps = isTask ? extractTaskSubagentSteps(result) : undefined;
         return {
           ...m,
-          toolInput: mergeToolInput(m.toolInput, tcu.rawInput, tcu.kind, tcu.locations) ?? m.toolInput,
+          toolInput: mergeToolInput(
+            m.toolInput,
+            tcu.rawInput,
+            tcu.kind,
+            tcu.locations,
+            tcu.title,
+            tcu._meta,
+          ) ?? m.toolInput,
           toolResult: result ?? m.toolResult,
           toolError: tcu.status === "failed",
           ...(nextTaskStatus ? { subagentStatus: nextTaskStatus } : {}),
@@ -493,7 +551,7 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
             setPendingPermission({
               requestId: data.requestId,
               toolName: data.toolCall.title,
-              toolInput: normalizeToolInput(data.toolCall.rawInput, data.toolCall.kind),
+              toolInput: normalizeToolInput(data.toolCall.rawInput, data.toolCall.kind, undefined, data.toolCall.title),
               toolUseId: data.toolCall.toolCallId,
             });
           })
@@ -506,7 +564,7 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
             setPendingPermission({
               requestId: data.requestId,
               toolName: data.toolCall.title,
-              toolInput: normalizeToolInput(data.toolCall.rawInput, data.toolCall.kind),
+              toolInput: normalizeToolInput(data.toolCall.rawInput, data.toolCall.kind, undefined, data.toolCall.title),
               toolUseId: data.toolCall.toolCallId,
             });
           });
@@ -518,7 +576,7 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
       setPendingPermission({
         requestId: data.requestId,
         toolName: data.toolCall.title,
-        toolInput: normalizeToolInput(data.toolCall.rawInput, data.toolCall.kind),
+        toolInput: normalizeToolInput(data.toolCall.rawInput, data.toolCall.kind, undefined, data.toolCall.title),
         toolUseId: data.toolCall.toolCallId,
       });
     });

@@ -36,7 +36,7 @@ const DEFAULT_COMMANDS = [
   },
 ];
 const DEFAULT_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
-const MODE_MARKER_RE = /\b(?:pi[-_ ]?fixture|fixture|mode)\s*[:=]\s*(normal|retry-only|retry-then-success|hold|exit-nonzero)\b/i;
+const MODE_MARKER_RE = /\b(?:pi[-_ ]?fixture|fixture|mode)\s*[:=]\s*(normal|retry-only|retry-then-success|bash-details|hold|exit-nonzero)\b/i;
 const PROMPT_RETRY_NOTICE = "Retrying (attempt 1/3, waiting 2s)...";
 const PROMPT_RETRY_FINISHED = "Retry finished, resuming.";
 
@@ -67,7 +67,7 @@ function parseJsonLine(line) {
 function normalizeMode(value) {
   const text = String(value ?? "").trim().toLowerCase();
   if (text === "retry-only" || text === "retry_then_success" || text === "retry-then-success") return text.replace(/_/g, "-");
-  if (text === "normal") return "normal";
+  if (text === "normal" || text === "bash-details") return text;
   if (text === "hold") return "hold";
   if (text === "exit-nonzero") return "exit-nonzero";
   return "";
@@ -492,6 +492,35 @@ async function emitPromptTurn(message) {
     await persistSession();
   };
 
+  const finishAsBashDetails = async () => {
+    if (turnToken !== currentPromptToken || abortRequested) return;
+    const toolCallId = `fixture-bash-${session.sessionId.slice(0, 8)}`;
+    const command = "printf 'alpha\\nbeta\\n'";
+    emitFrame({
+      type: "tool_execution_start",
+      toolCallId,
+      toolName: "bash",
+      args: { command },
+    });
+    emitFrame({
+      type: "tool_execution_update",
+      toolCallId,
+      partialResult: { content: [{ type: "text", text: "alpha\n" }] },
+    });
+    emitFrame({
+      type: "tool_execution_update",
+      toolCallId,
+      partialResult: { content: [{ type: "text", text: "alpha\nbeta\n" }] },
+    });
+    emitFrame({
+      type: "tool_execution_end",
+      toolCallId,
+      result: { content: [{ type: "text", text: "alpha\nbeta\n" }] },
+      isError: false,
+    });
+    await finishAsSuccess("Bash details fixture complete.");
+  };
+
   const finishAsHold = async () => {
     if (turnToken !== currentPromptToken || abortRequested) return;
     const toolCallId = `fixture-hold-${session.sessionId.slice(0, 8)}`;
@@ -527,6 +556,8 @@ async function emitPromptTurn(message) {
       await finishAsRetryOnly();
     } else if (mode === "retry-then-success") {
       await finishAsRetryThenSuccess();
+    } else if (mode === "bash-details") {
+      await finishAsBashDetails();
     } else {
       await finishAsSuccess("Normal fixture answer.");
     }

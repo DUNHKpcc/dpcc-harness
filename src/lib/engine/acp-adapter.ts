@@ -16,8 +16,21 @@ export function normalizeToolInput(
   rawInput: unknown,
   kind?: string,
   locations?: Array<{ path: string; line?: number }>,
+  title?: string,
+  meta?: Record<string, unknown> | null,
 ): Record<string, unknown> {
+  const titleCommand = kind === "execute" ? extractCommandTitle(title) : null;
+  const terminalCwd = extractTerminalMetadata(meta).cwd;
+
   if (rawInput === null || rawInput === undefined || typeof rawInput !== "object" || Array.isArray(rawInput)) {
+    // pi-acp intentionally carries Bash input in the ACP title and terminal
+    // metadata instead of rawInput. Preserve it in the renderer's Bash shape.
+    if (titleCommand) {
+      return {
+        command: titleCommand,
+        ...(terminalCwd ? { cwd: terminalCwd } : {}),
+      };
+    }
     // Even with non-object rawInput (e.g., edit patch text), extract file_path from locations
     if (kind && locations?.length) {
       if (kind === "edit" || kind === "read" || kind === "delete") {
@@ -80,7 +93,14 @@ export function normalizeToolInput(
         if (typeof raw.task === "string") { result.description = raw.task; result.prompt = raw.task; }
         return result;
       }
-      return shellCommand ? { command: shellCommand } : raw;
+      if (shellCommand) return { command: shellCommand };
+      if (titleCommand) {
+        return {
+          command: titleCommand,
+          ...(terminalCwd ? { cwd: terminalCwd } : {}),
+        };
+      }
+      return raw;
 
     case "search":
       // ACP agents may send structured search input instead of shell commands
@@ -145,13 +165,21 @@ function extractShellCommand(command: unknown): string | null {
   return null;
 }
 
+function extractCommandTitle(title: unknown): string | null {
+  if (typeof title !== "string") return null;
+  const command = title.trim();
+  return command || null;
+}
+
 export function mergeToolInput(
   existingInput: Record<string, unknown> | undefined,
   rawInput: unknown,
   kind?: string,
   locations?: Array<{ path: string; line?: number }>,
+  title?: string,
+  meta?: Record<string, unknown> | null,
 ): Record<string, unknown> | undefined {
-  const normalized = normalizeToolInput(rawInput, kind, locations);
+  const normalized = normalizeToolInput(rawInput, kind, locations, title, meta);
   if (Object.keys(normalized).length === 0) {
     return existingInput;
   }
@@ -187,8 +215,19 @@ function parseTodosFromUnknown(value: unknown): Array<{ content: string; status:
   return todos.length > 0 ? todos : null;
 }
 
-export function normalizeToolResult(rawOutput: unknown, content?: unknown[]): Record<string, unknown> | undefined {
-  if (!rawOutput && (!content || content.length === 0)) return undefined;
+export function normalizeToolResult(
+  rawOutput: unknown,
+  content?: unknown[],
+  meta?: Record<string, unknown> | null,
+): Record<string, unknown> | undefined {
+  const terminal = extractTerminalMetadata(meta);
+  if (!rawOutput
+    && (!content || content.length === 0)
+    && terminal.output === undefined
+    && terminal.exitCode === undefined
+    && terminal.signal === undefined) {
+    return undefined;
+  }
 
   const result: Record<string, unknown> = {};
 
@@ -219,6 +258,16 @@ export function normalizeToolResult(rawOutput: unknown, content?: unknown[]): Re
     result.content = result.output;
   }
 
+  if (terminal.output !== undefined) {
+    result.stdout = terminal.output;
+  }
+  if (terminal.exitCode !== undefined) {
+    result.exitCode = terminal.exitCode;
+  }
+  if (terminal.signal !== undefined) {
+    result.signal = terminal.signal;
+  }
+
   if (typeof result.filePath !== "string" || !result.filePath) {
     const parsedPath = extractEditedFilePath(result);
     if (parsedPath) result.filePath = parsedPath;
@@ -231,6 +280,70 @@ export function normalizeToolResult(rawOutput: unknown, content?: unknown[]): Re
   }
 
   return Object.keys(result).length > 0 ? result : undefined;
+}
+
+/**
+ * Merge one ACP tool update into the renderer result shape. pi-acp sends Bash
+ * output as terminal deltas, so replacing each result would retain only the
+ * final chunk (or nothing when the final delta is empty).
+ */
+export function mergeToolResult(
+  existingResult: object | undefined,
+  rawOutput: unknown,
+  content?: unknown[],
+  meta?: Record<string, unknown> | null,
+  status?: string | null,
+): Record<string, unknown> | undefined {
+  const existing = existingResult as Record<string, unknown> | undefined;
+  const normalized = normalizeToolResult(rawOutput, content, meta);
+  const terminal = extractTerminalMetadata(meta);
+
+  if (!existing && !normalized) {
+    if (status === "completed" || status === "failed" || status === "cancelled") {
+      return { status };
+    }
+    return undefined;
+  }
+
+  const merged: Record<string, unknown> = {
+    ...(existing ?? {}),
+    ...(normalized ?? {}),
+  };
+
+  if (terminal.output !== undefined) {
+    const previousOutput = typeof existing?.stdout === "string" ? existing.stdout : "";
+    merged.stdout = `${previousOutput}${terminal.output}`;
+  }
+  if (status) merged.status = status;
+
+  return merged;
+}
+
+interface ACPTerminalMetadata {
+  cwd?: string;
+  output?: string;
+  exitCode?: number;
+  signal?: string | null;
+}
+
+function extractTerminalMetadata(meta: Record<string, unknown> | null | undefined): ACPTerminalMetadata {
+  if (!meta) return {};
+  const info = asRecord(meta.terminal_info);
+  const output = asRecord(meta.terminal_output);
+  const exit = asRecord(meta.terminal_exit);
+  const cwd = typeof info?.cwd === "string" && info.cwd ? info.cwd : undefined;
+  const data = typeof output?.data === "string" ? output.data : undefined;
+  const exitCode = typeof exit?.exit_code === "number" ? exit.exit_code : undefined;
+  const signal = typeof exit?.signal === "string" || exit?.signal === null
+    ? exit.signal as string | null
+    : undefined;
+  return { cwd, output: data, exitCode, signal };
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
 }
 
 function isDiffContent(item: unknown): item is { type: "diff"; path: string; oldText: string; newText: string } {

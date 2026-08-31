@@ -575,7 +575,7 @@ export function getAcpAnalyticsPropertiesForSession(sessionId: string): Record<s
 }
 
 /** One-line summary for each ACP session update (mirrors summarizeEvent for Claude) */
-function summarizeUpdate(update: Record<string, unknown>): string {
+export function summarizeUpdate(update: Record<string, unknown>): string {
   const kind = update.sessionUpdate as string;
   switch (kind) {
     case "agent_message_chunk": {
@@ -595,10 +595,21 @@ function summarizeUpdate(update: Record<string, unknown>): string {
       return `tool_call id=${tc.toolCallId?.slice(0, 12)} title="${tc.title}" kind=${tc.kind ?? "?"} status=${tc.status}`;
     }
     case "tool_call_update": {
-      const tcu = update as { toolCallId?: string; status?: string; rawOutput?: unknown; content?: unknown[] };
+      const tcu = update as {
+        toolCallId?: string;
+        status?: string;
+        rawOutput?: unknown;
+        content?: unknown[];
+        title?: string;
+        _meta?: Record<string, unknown> | null;
+      };
       const hasOutput = tcu.rawOutput != null;
       const contentCount = Array.isArray(tcu.content) ? tcu.content.length : 0;
-      return `tool_call_update id=${tcu.toolCallId?.slice(0, 12)} status=${tcu.status ?? "?"} hasOutput=${hasOutput} content_items=${contentCount}`;
+      const terminalOutput = tcu._meta?.terminal_output as { data?: unknown } | undefined;
+      const terminalExit = tcu._meta?.terminal_exit as { exit_code?: unknown } | undefined;
+      const terminalDeltaLength = typeof terminalOutput?.data === "string" ? terminalOutput.data.length : 0;
+      const exitCode = typeof terminalExit?.exit_code === "number" ? terminalExit.exit_code : null;
+      return `tool_call_update id=${tcu.toolCallId?.slice(0, 12)} status=${tcu.status ?? "?"} title="${tcu.title ?? ""}" hasOutput=${hasOutput} content_items=${contentCount} terminal_delta_len=${terminalDeltaLength} exit_code=${exitCode ?? "?"}`;
     }
     case "plan": {
       const p = update as { entries?: unknown[] };

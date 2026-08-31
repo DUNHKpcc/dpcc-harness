@@ -11,11 +11,28 @@ import {
   selectAcpStartCleanupProcess,
   shouldSuppressAcpSessionUpdate,
   shouldUseWindowsShellForAcpBinary,
+  summarizeUpdate,
   supportsInProcessMcpReload,
   withAcpPromptInactivityTimeout,
 } from "../acp-sessions";
 
 vi.mock("../../lib/logger", () => ({ log: vi.fn() }));
+
+describe("summarizeUpdate", () => {
+  it("reports Pi terminal delta and exit metadata without logging output", () => {
+    expect(summarizeUpdate({
+      sessionUpdate: "tool_call_update",
+      toolCallId: "bash-tool-call-id",
+      status: "completed",
+      _meta: {
+        terminal_output: { terminal_id: "bash-tool-call-id", data: "secret output" },
+        terminal_exit: { terminal_id: "bash-tool-call-id", exit_code: 0, signal: null },
+      },
+    })).toBe(
+      "tool_call_update id=bash-tool-ca status=completed title=\"\" hasOutput=false content_items=0 terminal_delta_len=13 exit_code=0",
+    );
+  });
+});
 
 describe("buildAcpLifecycleErrorDetails", () => {
   it("preserves stable Pi preflight codes without leaking credentials", () => {

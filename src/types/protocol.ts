@@ -133,6 +133,8 @@ export interface ToolUseResult {
   file?: { filePath: string; content: string; numLines: number; startLine: number; totalLines: number };
   stdout?: string;
   stderr?: string;
+  exitCode?: number;
+  signal?: string | null;
   filePath?: string;
   oldString?: string;
   newString?: string;

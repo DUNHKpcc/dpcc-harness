@@ -25,12 +25,14 @@ export interface ACPUserMessageChunk { sessionUpdate: "user_message_chunk"; cont
 export interface ACPToolCall {
   sessionUpdate: "tool_call"; toolCallId: string; title: string; kind?: string; status: string;
   locations?: Array<{ path: string; line?: number }>; content?: unknown[]; rawInput?: unknown; rawOutput?: unknown;
+  _meta?: Record<string, unknown> | null;
 }
 export interface ACPToolCallUpdate {
   sessionUpdate: "tool_call_update"; toolCallId: string; status?: string;
   content?: unknown[]; rawOutput?: unknown; locations?: Array<{ path: string; line?: number }>;
   /** Some ACP agents (e.g. OpenCode) include rawInput and kind in tool_call_update events */
   rawInput?: unknown; kind?: string; title?: string;
+  _meta?: Record<string, unknown> | null;
 }
 export interface ACPPlan { sessionUpdate: "plan"; entries: Array<{ content: string; status: string; priority?: string }> }
 export interface ACPUsageUpdate { sessionUpdate: "usage_update"; size?: number; used?: number; cost?: { amount: number; currency: string } }

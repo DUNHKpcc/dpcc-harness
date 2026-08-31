@@ -6,6 +6,11 @@ import {
   createAcpTurnObservation,
   observeAcpTurnUpdate,
 } from "@shared/lib/acp-turn";
+import {
+  mergeToolInput,
+  mergeToolResult,
+  normalizeToolInput,
+} from "@/lib/engine/acp-adapter";
 
 interface WorkspacePaths {
   root: string;
@@ -170,6 +175,72 @@ async function runCancelScenario() {
   }
 }
 
+async function runBashDetailsScenario() {
+  const harness = await loadHarness();
+  const paths = await harness.createWorkspaceRoot();
+  workspaces.push(paths.root);
+  const connection = harness.spawnPiAcp(paths, "bash-details");
+  if (connection.missing) throw new Error("pi_acp_missing");
+
+  try {
+    await connection.request("initialize", {
+      protocolVersion: 1,
+      clientInfo: { name: "harnss-bash-details-test", version: "1.0.0" },
+      clientCapabilities: harness.buildClientCapabilities(),
+    });
+    const created = await connection.request("session/new", {
+      cwd: paths.workspace,
+      mcpServers: [],
+    });
+    const updateStart = connection.sessionUpdates.length;
+    await connection.request("session/prompt", {
+      sessionId: created.sessionId,
+      prompt: [{ type: "text", text: "fixture:bash-details preserve command details" }],
+    });
+
+    let toolInput: Record<string, unknown> | undefined;
+    let toolResult: Record<string, unknown> | undefined;
+    let toolCallId = "";
+    let startRawInput: unknown = null;
+
+    for (const candidate of connection.sessionUpdates.slice(updateStart)) {
+      if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) continue;
+      const update = candidate as Record<string, unknown>;
+      if (update.sessionUpdate === "tool_call" && update.kind === "execute") {
+        toolCallId = String(update.toolCallId ?? "");
+        startRawInput = update.rawInput;
+        toolInput = normalizeToolInput(
+          update.rawInput,
+          String(update.kind),
+          update.locations as Array<{ path: string; line?: number }> | undefined,
+          String(update.title ?? ""),
+          update._meta as Record<string, unknown> | null | undefined,
+        );
+      } else if (update.sessionUpdate === "tool_call_update" && update.toolCallId === toolCallId) {
+        toolInput = mergeToolInput(
+          toolInput,
+          update.rawInput,
+          typeof update.kind === "string" ? update.kind : undefined,
+          update.locations as Array<{ path: string; line?: number }> | undefined,
+          typeof update.title === "string" ? update.title : undefined,
+          update._meta as Record<string, unknown> | null | undefined,
+        );
+        toolResult = mergeToolResult(
+          toolResult,
+          update.rawOutput,
+          update.content as unknown[] | undefined,
+          update._meta as Record<string, unknown> | null | undefined,
+          typeof update.status === "string" ? update.status : undefined,
+        );
+      }
+    }
+
+    return { toolCallId, startRawInput, toolInput, toolResult };
+  } finally {
+    await connection.close();
+  }
+}
+
 afterEach(async () => {
   await Promise.all(workspaces.splice(0).map((root) => (
     fsp.rm(root, { recursive: true, force: true })
@@ -202,6 +273,22 @@ describe("real pi-acp child and Harnss classifier", () => {
     await expect(runCancelScenario()).resolves.toMatchObject({
       outcome: { status: "cancelled", stopReason: "cancelled" },
       childExit: { code: 0 },
+    });
+  }, 60_000);
+
+  it("preserves Bash title and terminal output from the real bundled adapter", async () => {
+    await expect(runBashDetailsScenario()).resolves.toMatchObject({
+      toolCallId: expect.stringContaining("fixture-bash-"),
+      startRawInput: undefined,
+      toolInput: {
+        command: "printf 'alpha\\nbeta\\n'",
+      },
+      toolResult: {
+        stdout: "alpha\nbeta\n",
+        exitCode: 0,
+        signal: null,
+        status: "completed",
+      },
     });
   }, 60_000);
 });

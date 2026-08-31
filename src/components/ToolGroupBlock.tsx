@@ -10,7 +10,7 @@ import type { UIMessage } from "@/types";
 import { ToolCall } from "./ToolCall";
 import { ThinkingBlock } from "./ThinkingBlock";
 import { getToolLabel, getToolIcon, getToolColor } from "@/components/lib/tool-metadata";
-import { formatCompactSummary } from "@/components/lib/tool-formatting";
+import { formatCompactSummary, isToolCallRunning } from "@/components/lib/tool-formatting";
 import { useChatPersistedState } from "@/components/chat-ui-state";
 import { ToolGlyph } from "@/components/lib/ToolGlyph";
 import {
@@ -217,7 +217,7 @@ export const ToolGroupBlock = memo(function ToolGroupBlock({
     return tools.map((tool) => {
       const toolName = tool.toolName ?? "";
       const isError = !!tool.toolError;
-      const isRunning = !tool.toolResult && !isError;
+      const isRunning = isToolCallRunning(tool);
       const Icon = isError ? AlertCircle : getToolIcon(toolName);
       const label = isError
         ? t("fallback.failedTo", { action: getToolLabel(toolName, "failure", t) ?? t("fallback.runTool") })

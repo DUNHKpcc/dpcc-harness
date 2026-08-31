@@ -6,6 +6,12 @@ import { getDistinctPatchPaths, getStructuredPatches } from "@/lib/diff/patch-ut
 
 // ── Compact summary for collapsed tool line ──
 
+export function isToolCallRunning(message: UIMessage): boolean {
+  if (message.toolError) return false;
+  const status = message.toolResult?.status;
+  return !message.toolResult || status === "pending" || status === "in_progress";
+}
+
 export function formatCompactSummary(message: UIMessage, t: TFunction<"toolcall">): string {
   const input = message.toolInput;
   const toolName = message.toolName ?? "";

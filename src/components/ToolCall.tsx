@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/collapsible";
 import type { UIMessage } from "@/types";
 import { getToolIcon, getToolLabel, getToolColor } from "@/components/lib/tool-metadata";
-import { formatCompactSummary } from "@/components/lib/tool-formatting";
+import { formatCompactSummary, isToolCallRunning } from "@/components/lib/tool-formatting";
 import { TextShimmer } from "@/components/ui/text-shimmer";
 import { TaskTool } from "./tool-renderers/TaskTool";
 import { ExpandedToolContent } from "./tool-renderers/ExpandedToolContent";
@@ -114,7 +114,7 @@ const RegularTool = memo(function RegularTool({
   );
   const expanded = isPlanTool || storedExpanded;
   const hasResult = !!message.toolResult;
-  const isRunning = !hasResult;
+  const isRunning = isToolCallRunning(message);
   const isError = !!message.toolError;
   const Icon = getToolIcon(message.toolName ?? "");
   const summary = formatCompactSummary(message, t);
@@ -133,13 +133,13 @@ const RegularTool = memo(function RegularTool({
   // Auto-expand on result arrival, then auto-collapse after 2s
   useEffect(() => {
     if (!autoExpandTools) return () => clearTimeout(autoCollapseTimer.current);
-    if (!hasResult || initialHadResult.current || skipAutoExpandOnResult || hasStoredExpanded || userToggled.current) return;
+    if (!hasResult || isRunning || initialHadResult.current || skipAutoExpandOnResult || hasStoredExpanded || userToggled.current) return;
     setExpanded(true);
     autoCollapseTimer.current = setTimeout(() => {
       if (!userToggled.current) setExpanded(false);
     }, 2000);
     return () => clearTimeout(autoCollapseTimer.current);
-  }, [autoExpandTools, hasResult, hasStoredExpanded, setExpanded, skipAutoExpandOnResult]);
+  }, [autoExpandTools, hasResult, hasStoredExpanded, isRunning, setExpanded, skipAutoExpandOnResult]);
 
   const handleOpenChange = (open: boolean) => {
     if (isPlanTool) return;

@@ -32,7 +32,7 @@ const PI_GATEWAY_DEFAULT: PiGatewaySettings = {
   modelMappings: CODEX_GATEWAY_MODEL_PRESETS,
 };
 
-function RuntimeBinaryDetails({ status }: { status: PiRuntimeBinaryStatus }) {
+export function RuntimeBinaryDetails({ status }: { status: PiRuntimeBinaryStatus }) {
   const { t } = useTranslation("settings");
   const statusClass = status.status === "ok"
     ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
@@ -48,9 +48,14 @@ function RuntimeBinaryDetails({ status }: { status: PiRuntimeBinaryStatus }) {
           {t(`engines.pi.runtimeStatus.${status.status}`)}
         </span>
       </div>
-      <div className="min-w-0 text-xs sm:max-w-[70%] sm:text-right">
+      <div className="w-full min-w-0 text-xs sm:max-w-[70%] sm:text-right">
         {status.resolvedPath ? (
-          <p className="break-all font-mono text-foreground/80">{status.resolvedPath}</p>
+          <p
+            className="truncate font-mono text-foreground/80"
+            title={status.resolvedPath}
+          >
+            {status.resolvedPath}
+          </p>
         ) : (
           <p className="text-foreground/80">{t("engines.pi.runtimeRepairHint")}</p>
         )}

@@ -133,7 +133,11 @@ test("review passes a successful selected gate and never packages in local full 
   assert.doesNotMatch(gates.stdout, /package-linux|package-smoke|ui-e2e/);
 
   const ciOutsideActions = run("bash", ["scripts/agent-workflow/review.sh", "--ci"], {
-    env: { HARNSS_WORKFLOW_STATE_DIR: state, WORKFLOW_NO_TEE: "1" },
+    env: {
+      GITHUB_ACTIONS: "false",
+      HARNSS_WORKFLOW_STATE_DIR: state,
+      WORKFLOW_NO_TEE: "1",
+    },
   });
   assert.notEqual(ciOutsideActions.status, 0);
   assert.match(ciOutsideActions.stdout, /restricted to GitHub Actions on Linux/);

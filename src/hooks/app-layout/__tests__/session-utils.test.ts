@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { CHAT_MODULE_PROJECT_ID } from "@/lib/session/chat-module";
-import { buildSessionOptions, resolveComposerClearProjectId } from "../session-utils";
+import {
+  buildSessionOptions,
+  resolveComposerClearProjectId,
+  resolveInstalledSessionAgent,
+} from "../session-utils";
 import { BUILTIN_PI_AGENT, type EngineId } from "@/types";
 
 const getModel = (_engine: EngineId) => "claude-opus-4-8";
@@ -57,6 +61,21 @@ describe("buildSessionOptions Pi identity", () => {
     const options = buildSessionOptions("acp", getModel, BUILTIN_PI_AGENT);
 
     expect(options.cachedSlashCommands?.map((command) => command.name)).toContain("compact");
+  });
+
+  it("replaces a stale selected Agent snapshot with the latest registry caches", () => {
+    const staleAgent = { ...BUILTIN_PI_AGENT, cachedConfigOptions: undefined };
+    const cachedConfigOptions = [{
+      id: "model",
+      name: "Model",
+      type: "select" as const,
+      currentValue: "latest-model",
+      options: [{ value: "latest-model", name: "Latest Model" }],
+    }];
+    const refreshedAgent = { ...BUILTIN_PI_AGENT, cachedConfigOptions };
+
+    expect(resolveInstalledSessionAgent(staleAgent, [refreshedAgent]))
+      .toBe(refreshedAgent);
   });
 });
 

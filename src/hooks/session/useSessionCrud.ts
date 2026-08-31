@@ -17,6 +17,8 @@ import {
 import {
   getAgentCachedConfigOptions,
   getAgentCachedSlashCommands,
+  normalizeCachedAcpConfigOptions,
+  normalizeCachedAcpSlashCommands,
 } from "@shared/lib/acp-config-cache";
 
 interface UseSessionCrudParams {
@@ -112,11 +114,28 @@ export function useSessionCrud({
       void saveCurrentSession();
       const requestedOptions = options ?? {};
       const identity = normalizeNewSessionIdentity(requestedOptions);
+      const installedAgent = installedAgentsRef.current.find((agent) => (
+        agent.engine === "acp" && agent.id === identity.agentId
+      ));
+      const registryConfigOptions = installedAgent
+        ? getAgentCachedConfigOptions(installedAgentsRef.current, identity.agentId)
+        : [];
+      const registrySlashCommands = installedAgent
+        ? getAgentCachedSlashCommands(installedAgentsRef.current, identity.agentId)
+        : [];
+      const cachedConfigOptions = registryConfigOptions.length > 0
+        ? registryConfigOptions
+        : normalizeCachedAcpConfigOptions(requestedOptions.cachedConfigOptions);
+      const cachedSlashCommands = registrySlashCommands.length > 0
+        ? registrySlashCommands
+        : normalizeCachedAcpSlashCommands(requestedOptions.cachedSlashCommands);
       const draftOptions: StartOptions = {
         ...requestedOptions,
         engine: identity.engine,
         agentId: identity.agentId,
         effort: undefined,
+        cachedConfigOptions,
+        cachedSlashCommands,
       };
       const draftEngine = identity.engine;
       // Publish the logical draft immediately. No ACP process exists until send.
@@ -128,10 +147,10 @@ export function useSessionCrud({
       setInitialMessages([]);
       setInitialMeta(null);
       setInitialConfigOptions(
-        draftEngine === "acp" ? (options?.cachedConfigOptions ?? []) : [],
+        draftEngine === "acp" ? cachedConfigOptions : [],
       );
       setInitialSlashCommands(
-        draftEngine === "acp" ? (options?.cachedSlashCommands ?? []) : [],
+        draftEngine === "acp" ? cachedSlashCommands : [],
       );
       setAcpConfigOptionsLoading(false);
       setInitialPermission(null);

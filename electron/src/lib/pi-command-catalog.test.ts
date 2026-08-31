@@ -46,6 +46,21 @@ describe("Pi draft command catalog", () => {
     ]);
   });
 
+  it("uses the home directory for a Chat virtual project with a blank cwd", () => {
+    const { homeDir, agentDir } = fixture();
+    write(
+      path.join(homeDir, ".agents", "skills", "global-skill", "SKILL.md"),
+      "---\nname: global-skill\ndescription: Global fixture skill\n---\n",
+    );
+
+    const commands = listPiDraftSlashCommands("", { homeDir, agentDir });
+
+    expect(commands).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "skill:global-skill" }),
+      expect.objectContaining({ name: "compact" }),
+    ]));
+  });
+
   it("loads global and project prompts and explicit Agent Skills before Pi starts", () => {
     const { homeDir, agentDir, cwd } = fixture();
     write(

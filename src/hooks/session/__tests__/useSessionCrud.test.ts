@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ChatSession, SlashCommand } from "@/types";
+import type { ACPConfigOption, ChatSession, SlashCommand } from "@/types";
 import { applySelectedSessionReadState, useSessionCrud } from "../useSessionCrud";
 
 vi.mock("react", () => ({
@@ -49,14 +49,22 @@ describe("applySelectedSessionReadState", () => {
 });
 
 describe("useSessionCrud draft initialization", () => {
-  it("publishes cached slash commands without starting an ACP process", async () => {
+  it("rehydrates registry caches for every consecutive draft without starting ACP", async () => {
     const start = vi.fn();
     vi.stubGlobal("window", { claude: { acp: { start } } });
+    const cachedConfigOptions: ACPConfigOption[] = [{
+      id: "model",
+      name: "Model",
+      type: "select",
+      currentValue: "provider/model",
+      options: [{ value: "provider/model", name: "Model" }],
+    }];
     const cachedSlashCommands: SlashCommand[] = [{
       name: "compact",
       description: "Compact context",
       source: "acp",
     }];
+    const setInitialConfigOptions = vi.fn();
     const setInitialSlashCommands = vi.fn();
     const abandonDraftAcpSession = vi.fn();
     const startOptionsRef = { current: {} };
@@ -67,7 +75,13 @@ describe("useSessionCrud draft initialization", () => {
       refs: {
         activeSessionIdRef,
         sessionsRef: { current: [] },
-        installedAgentsRef: { current: [] },
+        installedAgentsRef: { current: [{
+          id: "pi-acp",
+          name: "Pi",
+          engine: "acp",
+          cachedConfigOptions,
+          cachedSlashCommands,
+        }] },
         liveSessionIdsRef: { current: new Set() },
         backgroundStoreRef: { current: new Map() },
         draftProjectIdRef,
@@ -85,7 +99,7 @@ describe("useSessionCrud draft initialization", () => {
         setActiveSessionId: vi.fn(),
         setInitialMessages: vi.fn(),
         setInitialMeta: vi.fn(),
-        setInitialConfigOptions: vi.fn(),
+        setInitialConfigOptions,
         setInitialSlashCommands,
         setInitialPermission: vi.fn(),
         setInitialRawAcpPermission: vi.fn(),
@@ -115,15 +129,21 @@ describe("useSessionCrud draft initialization", () => {
       clearQueue: vi.fn(),
     } as never);
 
-    await crud.createSession("project-1", {
+    await crud.createSession("project-1", { engine: "acp", agentId: "pi-acp" });
+    await crud.createSession("project-1", { engine: "acp", agentId: "pi-acp" });
+
+    expect(setInitialConfigOptions).toHaveBeenNthCalledWith(1, cachedConfigOptions);
+    expect(setInitialConfigOptions).toHaveBeenNthCalledWith(2, cachedConfigOptions);
+    expect(setInitialSlashCommands).toHaveBeenNthCalledWith(1, cachedSlashCommands);
+    expect(setInitialSlashCommands).toHaveBeenNthCalledWith(2, cachedSlashCommands);
+    expect(abandonDraftAcpSession).toHaveBeenCalledTimes(2);
+    expect(abandonDraftAcpSession).toHaveBeenCalledWith("new_draft");
+    expect(startOptionsRef.current).toMatchObject({
       engine: "acp",
       agentId: "pi-acp",
+      cachedConfigOptions,
       cachedSlashCommands,
     });
-
-    expect(setInitialSlashCommands).toHaveBeenCalledWith(cachedSlashCommands);
-    expect(abandonDraftAcpSession).toHaveBeenCalledWith("new_draft");
-    expect(startOptionsRef.current).toMatchObject({ engine: "acp", agentId: "pi-acp" });
     expect(draftProjectIdRef.current).toBe("project-1");
     expect(activeSessionIdRef.current).toBe("__draft__");
     expect(start).not.toHaveBeenCalled();

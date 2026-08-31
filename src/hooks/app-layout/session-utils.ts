@@ -3,6 +3,16 @@ import { DEFAULT_PERMISSION_MODE, type StartOptions } from "@/hooks/session/type
 import { CHAT_MODULE_PROJECT_ID } from "@/lib/session/chat-module";
 import { normalizeNewSessionIdentity } from "@shared/lib/session-runtime";
 
+/** Resolve a selected identity to the newest registry snapshot and its caches. */
+export function resolveInstalledSessionAgent(
+  selectedAgent: InstalledAgent,
+  installedAgents: readonly InstalledAgent[],
+): InstalledAgent {
+  return installedAgents.find((agent) => (
+    agent.engine === "acp" && agent.id === selectedAgent.id
+  )) ?? selectedAgent;
+}
+
 /** Build common session-creation options from current settings and agent state. */
 export function buildSessionOptions(
   engine: EngineId,

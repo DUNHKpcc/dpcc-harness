@@ -5,6 +5,7 @@ import { parse as parseYaml } from "yaml";
 import { PI_BUILTIN_SLASH_COMMANDS } from "@shared/types/registry";
 import type { SlashCommand } from "@shared/types/engine";
 import { getDataDir } from "./data-dir";
+import { normalizeSessionCwd } from "./session-cwd";
 import { resolvePiUpstream } from "./upstream-resolver";
 
 const MAX_DISCOVERED_COMMANDS = 512;
@@ -238,14 +239,15 @@ export function listPiDraftSlashCommands(
   cwd: string,
   options: PiCommandCatalogOptions = {},
 ): SlashCommand[] {
-  if (!path.isAbsolute(cwd)) {
+  const homeDir = options.homeDir ?? os.homedir();
+  const sessionCwd = normalizeSessionCwd(cwd, homeDir);
+  if (!path.isAbsolute(sessionCwd)) {
     throw new Error("Pi draft command catalog requires an absolute cwd.");
   }
-  const homeDir = options.homeDir ?? os.homedir();
   const agentDir = options.agentDir ?? resolveAgentDir(homeDir);
   const settings = deepMerge(
     readJsonObject(path.join(agentDir, "settings.json")),
-    readJsonObject(path.join(cwd, ".pi", "settings.json")),
+    readJsonObject(path.join(sessionCwd, ".pi", "settings.json")),
   );
   const nestedSkills = isRecord(settings.skills) ? settings.skills : {};
   const enableSkillCommands = typeof settings.enableSkillCommands === "boolean"
@@ -265,8 +267,8 @@ export function listPiDraftSlashCommands(
 
   const promptPaths = [
     path.join(agentDir, "prompts"),
-    path.join(cwd, ".pi", "prompts"),
-    ...stringArray(settings.prompts).map((entry) => resolveResourcePath(entry, cwd, homeDir)),
+    path.join(sessionCwd, ".pi", "prompts"),
+    ...stringArray(settings.prompts).map((entry) => resolveResourcePath(entry, sessionCwd, homeDir)),
   ];
   for (const promptPath of promptPaths) {
     for (const filePath of markdownFiles(promptPath, true, remaining)) add(promptCommand(filePath));
@@ -275,10 +277,10 @@ export function listPiDraftSlashCommands(
   if (enableSkillCommands) {
     const skillPaths = [
       path.join(agentDir, "skills"),
-      path.join(cwd, ".pi", "skills"),
+      path.join(sessionCwd, ".pi", "skills"),
       path.join(homeDir, ".agents", "skills"),
-      path.join(cwd, ".agents", "skills"),
-      ...stringArray(settings.skills).map((entry) => resolveResourcePath(entry, cwd, homeDir)),
+      path.join(sessionCwd, ".agents", "skills"),
+      ...stringArray(settings.skills).map((entry) => resolveResourcePath(entry, sessionCwd, homeDir)),
     ];
     for (const skillPath of skillPaths) {
       for (const filePath of skillFiles(skillPath, remaining)) add(skillCommand(filePath));

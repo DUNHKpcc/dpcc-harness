@@ -6,7 +6,10 @@ import { BUILTIN_PI_AGENT } from "@/types";
 import type { FileReference, ImageAttachment, InstalledAgent } from "@/types";
 import type { SettingsSection } from "@/components/SettingsView";
 import { selectProjectModelForEngine, useSettingsStore } from "@/stores/settings-store";
-import { buildSessionOptions } from "./session-utils";
+import {
+  buildSessionOptions,
+  resolveInstalledSessionAgent,
+} from "./session-utils";
 import {
   areAcpSlashCommandsEqual,
   areAcpConfigOptionsEqual,
@@ -31,9 +34,13 @@ interface UseAppSessionActionsInput {
 }
 
 export function useAppSessionActions(input: UseAppSessionActionsInput) {
-  const selectedAgent = input.selectedAgent?.engine === "acp"
+  const requestedAgent = input.selectedAgent?.engine === "acp"
     ? input.selectedAgent
     : BUILTIN_PI_AGENT;
+  const selectedAgent = resolveInstalledSessionAgent(
+    requestedAgent,
+    input.installedAgents,
+  );
 
   const handleAgentWorktreeChange = useCallback((nextPath: string | null) => {
     input.settings.setGitCwd(nextPath);

@@ -70,17 +70,22 @@ import {
   readAcpRecoveryE2EConfig,
   registerAcpRecoveryIpc,
 } from "./lib/e2e/acp-recovery-harness";
+import { readUiE2EConfig } from "./lib/e2e/ui-test-mode";
 import { getPiRuntimeStatus } from "./lib/pi-runtime-status";
 
 const diagnosticBuild = __PCC_DIAGNOSTIC_BUILD__;
 const packageSmokeCheck = isPackageSmokeCheckRequested();
 const acpRecoveryE2E = app.isPackaged ? null : readAcpRecoveryE2EConfig();
+const uiE2E = readUiE2EConfig(app.isPackaged);
 
 if (packageSmokeCheck && process.env.PCC_PACKAGE_SMOKE_USER_DATA) {
   app.setPath("userData", process.env.PCC_PACKAGE_SMOKE_USER_DATA);
 }
 if (acpRecoveryE2E?.userDataPath) {
   app.setPath("userData", acpRecoveryE2E.userDataPath);
+}
+if (uiE2E) {
+  app.setPath("userData", uiE2E.userDataPath);
 }
 
 // IPC module registrations
@@ -1174,6 +1179,13 @@ function initializeApp(): void {
     return;
   }
 
+  if (uiE2E) {
+    // Playwright drives the real React renderer and production preload/IPC, but
+    // external services would make the isolated UI run nondeterministic.
+    initPreReleaseCheck(getMainWindow);
+    return;
+  }
+
   if (packageSmokeCheck) {
     if (!mainWindow) {
       throw new Error("Package smoke check could not create the main window");
@@ -1303,7 +1315,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
 }
 
 app.on("before-quit", (event) => {
-  if (acpRecoveryE2E) {
+  if (acpRecoveryE2E || uiE2E) {
     isQuitting = true;
     return;
   }

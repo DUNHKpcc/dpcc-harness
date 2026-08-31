@@ -248,6 +248,7 @@ export const ProjectFilesPanel = memo(function ProjectFilesPanel({
           role="separator"
           aria-orientation="vertical"
           aria-label="调整文件列表宽度"
+          data-file-browser-resize-handle
           className="file-browser-resize-handle group flex w-2 shrink-0 cursor-col-resize items-center justify-center"
           onMouseDown={fileBrowserResize.handleResizeStart}
         >

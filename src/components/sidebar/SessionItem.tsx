@@ -90,7 +90,10 @@ export function SessionItem({
 
   if (isEditing) {
     return (
-      <div className="flex min-w-0 items-center gap-1 px-1 py-px ps-2">
+      <div
+        data-session-item-id={session.id}
+        className="flex min-w-0 items-center gap-1 px-1 py-px ps-2"
+      >
         <input
           {...renameInputProps}
           className="h-7 min-w-0 flex-1 rounded-lg bg-black/5 px-2 text-[13px] leading-5 text-sidebar-foreground outline-none ring-1 ring-inset ring-sidebar-ring dark:bg-white/5"
@@ -104,6 +107,7 @@ export function SessionItem({
   return (
     <div
       ref={containerRef}
+      data-session-item-id={session.id}
       className="group relative"
       draggable
       onDragStart={handleDragStart}
@@ -112,6 +116,7 @@ export function SessionItem({
     >
       <button
         onClick={onSelect}
+        aria-current={isActive ? "page" : undefined}
         className={`session-item-button flex w-full min-w-0 items-center gap-2.5 rounded-lg ps-4 pe-3 group-hover:pe-8 py-1.5 text-start text-[13px] font-medium transition-all ${
           isActive
             ? "session-item-active bg-primary/10 text-black dark:bg-primary/15 dark:text-primary"

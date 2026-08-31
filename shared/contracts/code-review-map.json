@@ -183,6 +183,36 @@
         "electron/src/lib/wechat/session-sink.pi.test.ts",
         "electron/src/lib/wechat/adapters/pi-acp-adapter.test.ts"
       ]
+    },
+    {
+      "contract": "desktop-core-ui-workflows",
+      "sources": [
+        "electron/src/main.ts",
+        "electron/src/lib/e2e/ui-test-mode.ts",
+        "src/components/AppLayout.tsx",
+        "src/components/welcome/WelcomeWizard.tsx",
+        "src/components/sidebar/SessionItem.tsx",
+        "src/components/ToolPicker.tsx",
+        "src/components/ToolPickerMenu.tsx",
+        "src/components/ProjectFilesPanel.tsx",
+        "src/components/workspace/MainTopToolArea.tsx",
+        "src/components/plugins/PluginCenter.tsx",
+        "src/components/plugins/SkillsCatalog.tsx",
+        "src/hooks/useFileBrowserResize.ts",
+        "src/hooks/useMainToolAreaLayout.ts",
+        "src/hooks/useMainToolWorkspace.ts",
+        "src/lib/layout/constants.ts",
+        "src/lib/layout/split-layout.ts",
+        "playwright.config.ts",
+        ".github/workflows/quality.yml"
+      ],
+      "tests": [
+        "src/lib/layout/__tests__/split-layout.test.ts",
+        "src/lib/workspace/__tests__/main-tool-widths.test.ts",
+        "tests/ui/onboarding.e2e.ts",
+        "tests/ui/session-workspace.e2e.ts",
+        "tests/ui/plugins-responsive.e2e.ts"
+      ]
     }
   ]
 }

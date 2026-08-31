@@ -3,6 +3,8 @@ dist/
 electron/dist/
 logs/
 *.log
+playwright-report/
+test-results/
 .DS_Store
 docs/
 /release/

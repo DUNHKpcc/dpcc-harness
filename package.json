@@ -43,6 +43,8 @@
     "test:watch": "vitest --config vitest.config.electron.ts",
     "test:pi-integration": "node scripts/test-pi-acp-integration.mjs && pnpm exec vitest run --config vitest.config.electron.ts src/lib/engine/__tests__/pi-acp-child.integration.test.ts && node scripts/test-pi-native-integration.mjs",
     "test:electron-recovery": "node scripts/test-electron-acp-recovery.mjs --test-mode=acp-recovery",
+    "test:ui": "pnpm build:electron && playwright test",
+    "test:ui:debug": "pnpm build:electron && playwright test --debug",
     "package:smoke": "node scripts/check-packaged-app.mjs",
     "docs:check": "node scripts/check-release-docs.mjs",
     "test-map:check": "node scripts/check-test-map.mjs"
@@ -82,6 +84,7 @@
     "@electron/asar": "3.4.1",
     "@electron/notarize": "^3.1.0",
     "@electron/rebuild": "^4.0.3",
+    "@playwright/test": "1.62.1",
     "@tailwindcss/typography": "^0.5.19",
     "@tailwindcss/vite": "^4.1.18",
     "@types/dompurify": "^3.2.0",

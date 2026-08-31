@@ -86,6 +86,7 @@ export const ToolPickerMenu = memo(function ToolPickerMenu({
             <Button
               variant="ghost"
               size="icon"
+              aria-label={t("picker.togglePanels")}
               className="no-drag h-6 w-6 text-muted-foreground/40 hover:text-foreground/60"
             >
               <PanelRight className="h-3.5 w-3.5" />

@@ -133,6 +133,7 @@ export function MainTopToolArea({
       style={showSinglePaneSplitPreview ? { width: 0, minWidth: 0 } : { width: toolAreaWidth, minWidth: 0 }}
     >
       <div
+        data-main-tool-area-resize-handle
         className="resize-col flat-divider-soft group flex w-2 shrink-0 cursor-col-resize items-center justify-center"
         style={isIsland ? { width: "var(--island-panel-gap)" } : undefined}
         onMouseDown={onOuterResizeStart}

@@ -51,6 +51,20 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Playwright UI check
+        run: xvfb-run -a --server-args="-screen 0 1920x1080x24" pnpm test:ui
+
+      - name: Upload Playwright diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-ui-diagnostics
+          path: |
+            playwright-report/
+            test-results/playwright-ui/
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Documentation check
         run: pnpm docs:check
 

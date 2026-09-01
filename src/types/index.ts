@@ -241,6 +241,7 @@ export type {
   ACPStatusInfo,
   ACPStartSuccessResult,
   ACPStartAuthRequiredResult,
+  ACPStartCancellationReason,
   ACPStartErrorResult,
   ACPStartResult,
   ACPAuthenticateResult,

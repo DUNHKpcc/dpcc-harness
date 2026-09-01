@@ -44,6 +44,7 @@ export interface PaneControllerContext {
   manager: {
     acpConfigOptions: ACPConfigOption[];
     acpConfigOptionsLoading: boolean;
+    acpConfigOptionsDormant: boolean;
     setACPConfig: (key: string, value: string) => void;
   };
   splitView?: { setFocusedSession: (sessionId: string | null) => void };
@@ -90,6 +91,9 @@ export function usePaneController(
     const paneAcpConfigOptionsLoading = isActiveSessionPane
       ? ctx.manager.acpConfigOptionsLoading
       : paneState.acp.configOptionsLoading;
+    const paneAcpConfigOptionsDormant = isActiveSessionPane
+      ? ctx.manager.acpConfigOptionsDormant
+      : paneState.isRuntimeDormant;
     const configuredModelValue = paneEngine === "acp"
       ? paneAcpConfigOptions
           .find((option) => option.id === "model" || option.category === "model")
@@ -216,6 +220,7 @@ export function usePaneController(
       paneSlashCommands: paneState.acp.slashCommands,
       paneAcpConfigOptions,
       paneAcpConfigOptionsLoading,
+      paneAcpConfigOptionsDormant,
       handlePaneAgentChange,
       handlePaneClear,
       handlePaneSend,

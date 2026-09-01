@@ -132,6 +132,29 @@
       ]
     },
     {
+      "contract": "pi-lazy-model-options",
+      "sources": [
+        "shared/types/acp.ts",
+        "shared/lib/acp-start.ts",
+        "electron/src/ipc/acp-sessions.ts",
+        "electron/src/preload.ts",
+        "src/hooks/useSessionManager.ts",
+        "src/hooks/session/useDraftMaterialization.ts",
+        "src/hooks/session/useSessionRevival.ts",
+        "src/hooks/session/useSessionPane.ts",
+        "src/components/input-bar/ModelThinkingDropdown.tsx"
+      ],
+      "tests": [
+        "electron/src/ipc/__tests__/acp-sessions.test.ts",
+        "src/components/__tests__/InputBar.test.ts",
+        "src/hooks/session/__tests__/useDraftMaterialization.test.ts",
+        "src/hooks/session/__tests__/useSessionRevival.test.ts",
+        "src/hooks/session/__tests__/useSessionCrud.test.ts",
+        "scripts/test-electron-acp-recovery.mjs",
+        "tests/ui/session-workspace.e2e.ts"
+      ]
+    },
+    {
       "contract": "pi-plugin-install-routing",
       "sources": [
         "shared/types/plugins.ts",

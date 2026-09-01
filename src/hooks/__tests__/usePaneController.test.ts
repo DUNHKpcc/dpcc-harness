@@ -42,6 +42,7 @@ function makeContext(): PaneControllerContext {
     manager: {
       acpConfigOptions: [],
       acpConfigOptionsLoading: false,
+      acpConfigOptionsDormant: false,
       setACPConfig: vi.fn(),
     },
   };

@@ -110,7 +110,8 @@ describe("useSessionRevival", () => {
     expect(window.claude.acp.attachRenderer).not.toHaveBeenCalled();
     expect(liveSessionIdsRef.current.has("persisted-session")).toBe(true);
     expect(setters.setInitialConfigOptions).toHaveBeenCalledWith(configOptions);
-    expect(setters.setAcpConfigOptionsLoading).toHaveBeenCalledWith(false);
+    expect(setters.setAcpConfigOptionsLoading).toHaveBeenNthCalledWith(1, true);
+    expect(setters.setAcpConfigOptionsLoading).toHaveBeenLastCalledWith(false);
     expect(acp.setConfigOptions).toHaveBeenCalledWith(configOptions);
     expect(acp.hydrate).toHaveBeenCalled();
     expect(window.claude.acp.prompt).toHaveBeenCalledWith(

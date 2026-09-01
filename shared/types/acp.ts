@@ -236,10 +236,20 @@ export interface ACPStartAuthRequiredResult {
   authMethods: ACPAuthMethod[];
 }
 
+export type ACPStartCancellationReason =
+  | "user_stop"
+  | "new_draft"
+  | "switch_session"
+  | "deselect"
+  | "engine_switch"
+  | "auth_cancel"
+  | "cleanup";
+
 export interface ACPStartErrorResult {
   error?: string;
   errorDetails?: ACPErrorDetails;
   cancelled?: boolean;
+  cancelReason?: ACPStartCancellationReason;
 }
 
 export type ACPStartResult =

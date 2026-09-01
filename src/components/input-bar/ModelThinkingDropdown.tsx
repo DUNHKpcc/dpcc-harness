@@ -38,7 +38,25 @@ interface ModelThinkingDropdownProps {
   isProcessing: boolean;
   acpConfigOptions?: ACPConfigOption[];
   acpConfigOptionsLoading?: boolean;
+  acpConfigOptionsDormant?: boolean;
   onACPConfigChange?: (configId: string, value: string) => void;
+}
+
+export type ModelOptionsDisplayState = "ready" | "loading" | "dormant" | "unavailable";
+
+export function resolveModelOptionsDisplayState({
+  hasOptions,
+  loading,
+  dormant,
+}: {
+  hasOptions: boolean;
+  loading: boolean;
+  dormant: boolean;
+}): ModelOptionsDisplayState {
+  if (hasOptions) return "ready";
+  if (loading) return "loading";
+  if (dormant) return "dormant";
+  return "unavailable";
 }
 
 function findAcpOption(
@@ -80,6 +98,7 @@ export const ModelThinkingDropdown = memo(function ModelThinkingDropdown({
   isProcessing,
   acpConfigOptions,
   acpConfigOptionsLoading,
+  acpConfigOptionsDormant,
   onACPConfigChange,
 }: ModelThinkingDropdownProps) {
   const { t } = useTranslation("input");
@@ -120,7 +139,12 @@ export const ModelThinkingDropdown = memo(function ModelThinkingDropdown({
   const hasThinkingOptions = thinkingItems.length > 0 && canChangeThinking;
   const hasModelOptions = acpModelItems.length > 0 && !!acpModelOption && !!onACPConfigChange;
   const showThinkingPanel = hasModelOptions || hasThinkingOptions;
-  const isLoading = !!acpConfigOptionsLoading && (acpConfigOptions?.length ?? 0) === 0;
+  const displayState = resolveModelOptionsDisplayState({
+    hasOptions: hasModelOptions,
+    loading: !!acpConfigOptionsLoading,
+    dormant: !!acpConfigOptionsDormant,
+  });
+  const isLoading = displayState === "loading";
 
   const handleThinkingSelect = (value: string) => {
     if (acpThinkingOption && onACPConfigChange) {
@@ -132,6 +156,7 @@ export const ModelThinkingDropdown = memo(function ModelThinkingDropdown({
     <DropdownMenu open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
         <Button
+          data-slot="model-thinking-trigger"
           variant="ghost"
           size="xs"
           className={`${TOOLBAR_BTN} min-w-0 max-w-[70%] shrink`}
@@ -157,6 +182,7 @@ export const ModelThinkingDropdown = memo(function ModelThinkingDropdown({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
+        data-slot="model-thinking-menu"
         align="start"
         className="flex w-72 flex-col"
         style={{
@@ -165,9 +191,14 @@ export const ModelThinkingDropdown = memo(function ModelThinkingDropdown({
         }}
       >
         {isLoading && (
-          <DropdownMenuItem disabled className="text-xs text-muted-foreground">
+          <DropdownMenuItem data-slot="model-options-loading" disabled className="text-xs text-muted-foreground">
             <Loader2 className="h-3 w-3 animate-spin" />
             {t("engine.loadingOptions")}
+          </DropdownMenuItem>
+        )}
+        {displayState === "dormant" && (
+          <DropdownMenuItem data-slot="model-options-dormant" disabled className="text-xs text-muted-foreground">
+            {t("engine.optionsAfterFirstMessage")}
           </DropdownMenuItem>
         )}
         {!isLoading && hasModelOptions && (
@@ -221,8 +252,8 @@ export const ModelThinkingDropdown = memo(function ModelThinkingDropdown({
             </div>
           </DropdownMenuGroup>
         )}
-        {!isLoading && !hasModelOptions && (
-          <DropdownMenuItem disabled className="text-xs text-muted-foreground">
+        {displayState === "unavailable" && (
+          <DropdownMenuItem data-slot="model-options-unavailable" disabled className="text-xs text-muted-foreground">
             {t("engine.noOptions")}
           </DropdownMenuItem>
         )}

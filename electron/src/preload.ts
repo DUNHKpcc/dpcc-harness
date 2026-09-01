@@ -25,6 +25,7 @@ interface PreloadGlobals {
 }
 
 import type { ThemeOption as ThemeSource, MacBackgroundEffect } from "@shared/types/settings";
+import type { ACPStartCancellationReason } from "@shared/types/acp";
 
 /**
  * The OS UI language, injected by the main process via webPreferences
@@ -274,7 +275,8 @@ contextBridge.exposeInMainWorld("claude", {
     reviveSession: (options: { agentId: string; cwd: string; sessionId?: string; agentSessionId?: string; mcpServers?: unknown[]; initialConfigOptions?: unknown[] }) =>
       ipcRenderer.invoke("acp:revive-session", options),
     cancel: (sessionId: string) => ipcRenderer.invoke("acp:cancel", sessionId),
-    abortPendingStart: () => ipcRenderer.invoke("acp:abort-pending-start"),
+    abortPendingStart: (reason?: ACPStartCancellationReason) =>
+      ipcRenderer.invoke("acp:abort-pending-start", reason),
     respondPermission: (sessionId: string, requestId: string, optionId: string) =>
       ipcRenderer.invoke("acp:permission_response", { sessionId, requestId, optionId }),
     setConfig: (sessionId: string, configId: string, value: string) =>

@@ -5,7 +5,9 @@ import { formatAcpOperationError } from "../../lib/engine/acp-utils";
 import { createSystemMessage, createUserMessage } from "../../lib/message-factory";
 import { toMcpStatusState } from "../../lib/mcp-utils";
 import { suppressNextSessionCompletion } from "../../lib/notification-utils";
+import { toastText } from "../../lib/toast-i18n";
 import { normalizeNewSessionIdentity } from "@shared/lib/session-runtime";
+import type { ACPStartCancellationReason } from "@shared/types/acp";
 import {
   DRAFT_ID,
   type EngineHooks,
@@ -104,7 +106,7 @@ export function useDraftMaterialization({
     }
   }, [isCurrentDraftTarget, setDraftMcpStatuses]);
 
-  const abandonDraftAcpSession = useCallback((_reason = "cleanup") => {
+  const abandonDraftAcpSession = useCallback((reason: ACPStartCancellationReason = "cleanup") => {
     ++draftGenerationRef.current;
     const sessionId = draftAcpSessionIdRef.current;
     if (sessionId) {
@@ -113,15 +115,17 @@ export function useDraftMaterialization({
       backgroundStoreRef.current.delete(sessionId);
       void window.claude.acp.stop(sessionId);
     } else if (materializingRef.current) {
-      void window.claude.acp.abortPendingStart();
+      void window.claude.acp.abortPendingStart(reason);
     }
     draftAcpSessionIdRef.current = null;
     setDraftAcpSessionId(null);
     pendingAcpDraftPromptRef.current = null;
     acp.clearAuthRequired();
     setAcpConfigOptionsLoading(false);
-    setInitialConfigOptions([]);
-    setInitialSlashCommands([]);
+    if (reason !== "user_stop") {
+      setInitialConfigOptions([]);
+      setInitialSlashCommands([]);
+    }
     setDraftMcpStatuses([]);
   }, [
     acp,
@@ -146,6 +150,7 @@ export function useDraftMaterialization({
       if (materializingGenerationRef.current !== generation) return;
       materializingGenerationRef.current = null;
       materializingRef.current = false;
+      setAcpConfigOptionsLoading(false);
     };
     const isCurrent = () => (
       materializingGenerationRef.current === generation
@@ -205,6 +210,7 @@ export function useDraftMaterialization({
 
     let result;
     try {
+      setAcpConfigOptionsLoading(true);
       result = await window.claude.acp.start({
         agentId: identity.agentId,
         cwd,
@@ -213,7 +219,16 @@ export function useDraftMaterialization({
       });
     } catch (error) {
       captureException(error instanceof Error ? error : new Error(String(error)), { label: "MATERIALIZE_ACP_START_ERR" });
-      if (isCurrent()) setSessions((previous) => previous.filter((session) => session.id !== DRAFT_ID));
+      if (isCurrent()) {
+        setSessions((previous) => previous.filter((session) => session.id !== DRAFT_ID));
+        acp.setMessages((previous) => [
+          ...previous,
+          createSystemMessage(
+            `Failed to start Pi ACP session: ${error instanceof Error ? error.message : String(error)}`,
+            true,
+          ),
+        ]);
+      }
       release();
       return null;
     }
@@ -224,6 +239,15 @@ export function useDraftMaterialization({
     }
     if ("cancelled" in result && result.cancelled) {
       setSessions((previous) => previous.filter((session) => session.id !== DRAFT_ID));
+      acp.setMessages((previous) => [
+        ...previous,
+        createSystemMessage(
+          toastText(result.cancelReason === "user_stop"
+            ? "session.piStartCancelledByUser"
+            : "session.piStartCancelled"),
+          true,
+        ),
+      ]);
       release();
       return null;
     }

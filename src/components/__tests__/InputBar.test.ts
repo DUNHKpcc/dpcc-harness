@@ -13,6 +13,7 @@ import {
   getCommandPresentation,
   isProtectedBuiltInPiAgent,
 } from "../input-bar/command-presentation";
+import { resolveModelOptionsDisplayState } from "../input-bar/ModelThinkingDropdown";
 
 const translations: Record<string, string> = {
   "commands.compact.label": "压缩上下文",
@@ -132,5 +133,16 @@ describe("InputBar slash command helpers", () => {
       imageFiles: [image],
       otherFiles: [document],
     });
+  });
+});
+
+describe("Pi model option display state", () => {
+  it.each([
+    [{ hasOptions: true, loading: true, dormant: true }, "ready"],
+    [{ hasOptions: false, loading: true, dormant: true }, "loading"],
+    [{ hasOptions: false, loading: false, dormant: true }, "dormant"],
+    [{ hasOptions: false, loading: false, dormant: false }, "unavailable"],
+  ] as const)("maps %o to %s", (input, expected) => {
+    expect(resolveModelOptionsDisplayState(input)).toBe(expected);
   });
 });

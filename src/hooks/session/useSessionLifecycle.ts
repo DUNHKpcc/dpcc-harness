@@ -21,6 +21,7 @@ import {
   normalizeNewSessionIdentity,
 } from "@shared/lib/session-runtime";
 import { getAcpPromptTransportErrorMessage, hasAcpPromptTransportEvent } from "@shared/lib/acp-turn";
+import type { ACPStartCancellationReason } from "@shared/types/acp";
 
 interface UseSessionLifecycleParams {
   refs: SharedSessionRefs;
@@ -34,7 +35,7 @@ interface UseSessionLifecycleParams {
   saveCurrentSession: () => Promise<void>;
   seedBackgroundStore: () => void;
   // From draft materialization
-  abandonDraftAcpSession: (reason?: string) => void;
+  abandonDraftAcpSession: (reason?: ACPStartCancellationReason) => void;
   materializeDraft: (
     text: string,
     images?: ImageAttachment[],

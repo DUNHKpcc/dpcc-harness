@@ -71,6 +71,8 @@
       "planModeUpdateFailed": "Failed to update plan mode",
       "sendMessageFailed": "Failed to send message",
       "restartFailed": "Failed to restart session",
+      "piStartCancelled": "Pi startup was cancelled.",
+      "piStartCancelledByUser": "Pi startup was cancelled by you.",
       "deleteFailed": "Failed to delete session",
       "importFailed": "Failed to import session"
     },

@@ -70,6 +70,7 @@ import {
 } from "@shared/lib/acp-turn";
 import { normalizeMcpStdioServer } from "@shared/lib/mcp-config";
 import { normalizeCachedAcpConfigOptions } from "@shared/lib/acp-config-cache";
+import { normalizeAcpStartCancellationReason } from "@shared/lib/acp-start";
 import type { McpServerInput } from "@shared/lib/mcp-config";
 import type {
   ACPPiTurnOutcome,
@@ -77,6 +78,7 @@ import type {
   ACPAuthenticateResult,
   ACPConfigOption,
   ACPErrorDetails,
+  ACPStartCancellationReason,
 } from "@shared/types/acp";
 
 type ACPReadTextFileParams = ACPTextFileParams & { content?: string; line?: number | null; limit?: number | null };
@@ -499,7 +501,12 @@ function buildAcpChildExitError(
 
 // Track in-flight acp:start so the renderer can abort during npx download / protocol init.
 // Only one start can be in-flight at a time (guarded by materializingRef in the renderer).
-let pendingStartProcess: { id: string; process: ChildProcess; aborted?: boolean } | null = null;
+let pendingStartProcess: {
+  id: string;
+  process: ChildProcess;
+  aborted?: boolean;
+  abortReason?: ACPStartCancellationReason;
+} | null = null;
 
 interface AcpCleanupProcess {
   pid?: number;
@@ -1539,8 +1546,12 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       }
 
       // Check if the user intentionally aborted the start (stop button during download)
-      const wasAborted = pendingStartProcess?.aborted === true;
-      const cleanupProcess = selectAcpStartCleanupProcess(connResult, pendingStartProcess);
+      const abortedStart = pendingStartProcess;
+      const wasAborted = abortedStart?.aborted === true;
+      const cancelReason = wasAborted
+        ? normalizeAcpStartCancellationReason(abortedStart?.abortReason)
+        : undefined;
+      const cleanupProcess = selectAcpStartCleanupProcess(connResult, abortedStart);
       pendingStartProcess = null;
 
       // Kill the spawned process to avoid orphans
@@ -1554,8 +1565,8 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       }
 
       if (wasAborted) {
-        log("ACP_SPAWN", `Aborted by user`);
-        return { cancelled: true };
+        log("ACP_SPAWN", `Start cancelled reason=${cancelReason}`);
+        return { cancelled: true, cancelReason };
       }
 
       const errorDetails = buildAcpLifecycleErrorDetails(err, "acp_start_failed", "initialize");
@@ -2074,13 +2085,15 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
   // Abort an in-flight acp:start (e.g. user clicked stop during npx download).
   // Marks pendingStartProcess as aborted and kills the process — the acp:start
   // catch block will detect `.aborted` and return { cancelled: true }.
-  ipcMain.handle("acp:abort-pending-start", async () => {
+  ipcMain.handle("acp:abort-pending-start", async (_event, reason: unknown) => {
+    const cancelReason = normalizeAcpStartCancellationReason(reason);
     if (!pendingStartProcess) {
-      log("ACP_ABORT_START", "No pending start to abort");
+      log("ACP_ABORT_START", `No pending start to abort reason=${cancelReason}`);
       return { ok: false };
     }
-    log("ACP_ABORT_START", `Aborting start id=${pendingStartProcess.id.slice(0, 8)} pid=${pendingStartProcess.process.pid}`);
+    log("ACP_ABORT_START", `Aborting start id=${pendingStartProcess.id.slice(0, 8)} pid=${pendingStartProcess.process.pid} reason=${cancelReason}`);
     pendingStartProcess.aborted = true;
+    pendingStartProcess.abortReason = cancelReason;
     killProcessTree(pendingStartProcess.process);
     return { ok: true };
   });
@@ -2092,6 +2105,7 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       if (pendingStartProcess?.id === sessionId) {
         log("ACP_STOP", `session=${sessionId?.slice(0, 8)} is pending start — aborting`);
         pendingStartProcess.aborted = true;
+        pendingStartProcess.abortReason = "user_stop";
         killProcessTree(pendingStartProcess.process);
         return { ok: true };
       }

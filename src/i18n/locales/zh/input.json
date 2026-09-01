@@ -79,6 +79,7 @@
     "current": "当前",
     "customReasoningEffort": "自定义推理强度",
     "loadingOptions": "正在加载选项…",
+    "optionsAfterFirstMessage": "发送第一条消息后加载模型",
     "noOptions": "无法加载此 agent 的选项",
     "noThinkingOptions": "当前模型不支持可调推理强度",
     "opensNewChat": "将打开新会话",

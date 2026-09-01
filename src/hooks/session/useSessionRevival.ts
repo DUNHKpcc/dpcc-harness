@@ -157,6 +157,7 @@ export function useSessionRevival({
 
     const agentId = disposition.agentId || BUILTIN_PI_AGENT_ID;
     let result: Awaited<ReturnType<typeof window.claude.acp.reviveSession>>;
+    setAcpConfigOptionsLoading(true);
     try {
       result = await window.claude.acp.reviveSession({
         agentId,
@@ -168,6 +169,7 @@ export function useSessionRevival({
       });
     } catch (error) {
       if (isCurrent(oldId)) {
+        setAcpConfigOptionsLoading(false);
         acp.setMessages((previous) => [...previous, createSystemMessage(
           `Failed to reconnect ACP session: ${error instanceof Error ? error.message : String(error)}`,
           true,
@@ -177,6 +179,7 @@ export function useSessionRevival({
     }
     if (result.error || !result.sessionId) {
       if (isCurrent(oldId)) {
+        setAcpConfigOptionsLoading(false);
         acp.setMessages((previous) => [...previous, createSystemMessage(
           formatAcpOperationError(
             result,
@@ -221,6 +224,7 @@ export function useSessionRevival({
       if (copied) void window.claude.sessions.delete(session.projectId, newId);
       discard();
       if (isCurrent(oldId)) {
+        setAcpConfigOptionsLoading(false);
         acp.setMessages((previous) => [...previous, createSystemMessage(
           `Failed to prepare reconnected session: ${error instanceof Error ? error.message : String(error)}`,
           true,

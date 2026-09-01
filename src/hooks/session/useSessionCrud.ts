@@ -4,6 +4,7 @@ import type { ChatSession, PersistedSession, Project, ACPConfigOption, SlashComm
 import { suppressNextSessionCompletion } from "../../lib/notification-utils";
 import { capture } from "../../lib/analytics/analytics";
 import { toastText } from "../../lib/toast-i18n";
+import type { ACPStartCancellationReason } from "@shared/types/acp";
 import { bgAgentStore } from "../../lib/background/agent-store";
 import {
   DRAFT_ID,
@@ -31,7 +32,7 @@ interface UseSessionCrudParams {
   saveCurrentSession: () => Promise<void>;
   seedBackgroundStore: () => void;
   // From draft materialization
-  abandonDraftAcpSession: (reason?: string) => void;
+  abandonDraftAcpSession: (reason?: ACPStartCancellationReason) => void;
   // From session cache
   cacheSessionPayload: (data: PersistedSession) => void;
   consumeCachedSessionPayload: (sessionId: string) => PersistedSession | null;

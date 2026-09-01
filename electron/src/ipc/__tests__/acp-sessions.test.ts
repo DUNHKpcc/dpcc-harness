@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { AcpSessionOperationCoordinator } from "../../lib/acp-session-operations";
+import { normalizeAcpStartCancellationReason } from "@shared/lib/acp-start";
 import {
   buildAcpLifecycleErrorDetails,
   buildAcpMcpServers,
@@ -17,6 +18,15 @@ import {
 } from "../acp-sessions";
 
 vi.mock("../../lib/logger", () => ({ log: vi.fn() }));
+
+describe("normalizeAcpStartCancellationReason", () => {
+  it("preserves known renderer reasons and fails closed for unknown IPC input", () => {
+    expect(normalizeAcpStartCancellationReason("user_stop")).toBe("user_stop");
+    expect(normalizeAcpStartCancellationReason("switch_session")).toBe("switch_session");
+    expect(normalizeAcpStartCancellationReason("unexpected")).toBe("cleanup");
+    expect(normalizeAcpStartCancellationReason(null)).toBe("cleanup");
+  });
+});
 
 describe("summarizeUpdate", () => {
   it("reports Pi terminal delta and exit metadata without logging output", () => {

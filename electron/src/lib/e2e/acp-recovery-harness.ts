@@ -9,7 +9,7 @@ import {
 } from "@shared/lib/session-recovery";
 
 export type AcpRecoveryPhase = "first" | "resume";
-export type AcpRecoveryScenario = "success" | "crash" | "timeout" | "child-exit" | "stop-active";
+export type AcpRecoveryScenario = "success" | "crash" | "timeout" | "child-exit" | "stop-active" | "cancel-start";
 
 export interface AcpRecoveryE2EConfig {
   enabled: boolean;
@@ -72,6 +72,7 @@ export function readAcpRecoveryE2EConfig(
     || scenarioValue === "timeout"
     || scenarioValue === "child-exit"
     || scenarioValue === "stop-active"
+    || scenarioValue === "cancel-start"
     ? scenarioValue
     : "success";
 
@@ -201,7 +202,7 @@ export function buildAcpRecoveryRendererUrl(config: AcpRecoveryE2EConfig): strin
   const waitFor = async (predicate, label, timeoutMs = 30000) => {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
-      const value = predicate();
+      const value = await predicate();
       if (value) return value;
       await delay(25);
     }
@@ -511,6 +512,37 @@ export function buildAcpRecoveryRendererUrl(config: AcpRecoveryE2EConfig): strin
     await e2e.shutdown(0);
   };
 
+  const runFirstStartCancel = async () => {
+    const pendingStart = api.acp.start({
+      agentId: "pi-acp",
+      cwd: config.projectPath,
+      mcpServers: [],
+    });
+    const runtime = await waitFor(async () => {
+      const snapshots = await e2e.runtimeSnapshot();
+      return snapshots.find((item) => item.isOfficialPi && item.pid) || null;
+    }, "pending Pi startup child");
+    const abortResult = await api.acp.abortPendingStart("user_stop");
+    if (!abortResult || abortResult.ok !== true) {
+      throw new Error("Pending Pi startup could not be cancelled.");
+    }
+    const startResult = await pendingStart;
+    if (!startResult || startResult.cancelled !== true || startResult.cancelReason !== "user_stop") {
+      throw new Error("Cancelled Pi startup did not preserve the user_stop reason.");
+    }
+    const remainingRuntime = await waitFor(async () => {
+      const snapshots = await e2e.runtimeSnapshot();
+      return snapshots.length === 0 ? snapshots : null;
+    }, "cancelled Pi startup cleanup");
+    await e2e.writeResult({
+      ok: true,
+      code: "ok",
+      stage: "first-cancel-start",
+      first: { runtime, abortResult, startResult, remainingRuntime },
+    });
+    await e2e.shutdown(0);
+  };
+
   const runResume = async () => {
     if (!config.sessionId || !config.agentSessionId) throw new Error("Resume phase is missing session identity.");
     const persisted = await api.sessions.load(config.projectId, config.sessionId);
@@ -582,6 +614,8 @@ export function buildAcpRecoveryRendererUrl(config: AcpRecoveryE2EConfig): strin
     await assertPiRuntimeStatus();
     if (config.phase === "resume") {
       await runResume();
+    } else if (config.scenario === "cancel-start") {
+      await runFirstStartCancel();
     } else if (config.scenario === "stop-active") {
       await runFirstActiveStop();
     } else if (config.scenario === "child-exit") {

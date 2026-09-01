@@ -79,6 +79,7 @@
     "current": "Current",
     "customReasoningEffort": "Custom reasoning effort",
     "loadingOptions": "Loading options...",
+    "optionsAfterFirstMessage": "Model options load after your first message",
     "noOptions": "Could not load options for this agent",
     "noThinkingOptions": "This model has no adjustable reasoning effort",
     "opensNewChat": "Opens new chat",

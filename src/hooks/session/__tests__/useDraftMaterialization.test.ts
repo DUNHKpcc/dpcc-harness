@@ -64,6 +64,7 @@ function makeParams() {
     },
     engines: {
       acp: {
+        setMessages: vi.fn(),
         setConfigOptions: vi.fn(),
         setAuthMethods: vi.fn(),
         setAuthRequired: vi.fn(),
@@ -145,6 +146,69 @@ describe("useDraftMaterialization", () => {
       initialConfigOptions: cachedConfigOptions,
     });
     expect(params.refs.liveSessionIdsRef.current).toContain("pi-session");
+    expect(params.setters.setAcpConfigOptionsLoading).toHaveBeenCalledWith(true);
+    expect(params.setters.setAcpConfigOptionsLoading).toHaveBeenLastCalledWith(false);
+  });
+
+  it("replaces an empty fresh-profile cache with live Pi options", async () => {
+    const { useDraftMaterialization } = await import("../useDraftMaterialization");
+    const params = makeParams();
+    const start = deferred<{
+      sessionId: string;
+      agentSessionId: string;
+      configOptions: ACPConfigOption[];
+    }>();
+    const liveConfigOptions: ACPConfigOption[] = [{
+      id: "model",
+      name: "Model",
+      category: "model",
+      type: "select",
+      currentValue: "fixture/model",
+      options: [{ value: "fixture/model", name: "Fixture Model" }],
+    }];
+    vi.mocked(window.claude.acp.start).mockReturnValue(start.promise);
+
+    const materialization = useDraftMaterialization(
+      params as unknown as Parameters<typeof useDraftMaterialization>[0],
+    );
+    const pending = materialization.materializeDraft("hello");
+    await flushAsync();
+
+    expect(params.setters.setAcpConfigOptionsLoading).toHaveBeenLastCalledWith(true);
+    start.resolve({
+      sessionId: "pi-session",
+      agentSessionId: "pi-agent-session",
+      configOptions: liveConfigOptions,
+    });
+
+    await expect(pending).resolves.toMatchObject({ sessionId: "pi-session" });
+    expect(params.setters.setInitialConfigOptions).toHaveBeenCalledWith(liveConfigOptions);
+    expect(params.engines.acp.setConfigOptions).toHaveBeenCalledWith(liveConfigOptions);
+    expect(params.setters.setAcpConfigOptionsLoading).toHaveBeenLastCalledWith(false);
+  });
+
+  it("surfaces a user cancellation and clears startup loading", async () => {
+    const { useDraftMaterialization } = await import("../useDraftMaterialization");
+    const params = makeParams();
+    vi.mocked(window.claude.acp.start).mockResolvedValue({
+      cancelled: true,
+      cancelReason: "user_stop",
+    });
+
+    const materialization = useDraftMaterialization(
+      params as unknown as Parameters<typeof useDraftMaterialization>[0],
+    );
+    await expect(materialization.materializeDraft("hello")).resolves.toBeNull();
+
+    const updateMessages = params.engines.acp.setMessages.mock.calls.at(-1)?.[0];
+    expect(typeof updateMessages).toBe("function");
+    expect(updateMessages([])).toEqual([
+      expect.objectContaining({
+        role: "system",
+        content: "Pi startup was cancelled by you.",
+      }),
+    ]);
+    expect(params.setters.setAcpConfigOptionsLoading).toHaveBeenLastCalledWith(false);
   });
 
   it("releases the materialization guard when MCP loading rejects", async () => {
@@ -182,6 +246,7 @@ describe("useDraftMaterialization", () => {
 
     await expect(pending).resolves.toBeNull();
     expect(window.claude.acp.stop).toHaveBeenCalledWith("stale-session");
+    expect(window.claude.acp.abortPendingStart).toHaveBeenCalledWith("switch_session");
     expect(params.refs.liveSessionIdsRef.current).not.toContain("stale-session");
     expect(params.refs.materializingRef.current).toBe(false);
   });

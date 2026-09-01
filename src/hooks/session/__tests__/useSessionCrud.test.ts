@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ACPConfigOption, ChatSession, SlashCommand } from "@/types";
+import type { ACPConfigOption, ChatSession, InstalledAgent, SlashCommand } from "@/types";
 import { applySelectedSessionReadState, useSessionCrud } from "../useSessionCrud";
 
 vi.mock("react", () => ({
@@ -70,18 +70,19 @@ describe("useSessionCrud draft initialization", () => {
     const startOptionsRef = { current: {} };
     const draftProjectIdRef = { current: null };
     const activeSessionIdRef = { current: null };
+    const installedAgentsRef: { current: InstalledAgent[] } = { current: [{
+      id: "pi-acp",
+      name: "Pi",
+      engine: "acp",
+      cachedConfigOptions,
+      cachedSlashCommands,
+    }] };
 
     const crud = useSessionCrud({
       refs: {
         activeSessionIdRef,
         sessionsRef: { current: [] },
-        installedAgentsRef: { current: [{
-          id: "pi-acp",
-          name: "Pi",
-          engine: "acp",
-          cachedConfigOptions,
-          cachedSlashCommands,
-        }] },
+        installedAgentsRef,
         liveSessionIdsRef: { current: new Set() },
         backgroundStoreRef: { current: new Map() },
         draftProjectIdRef,
@@ -131,17 +132,26 @@ describe("useSessionCrud draft initialization", () => {
 
     await crud.createSession("project-1", { engine: "acp", agentId: "pi-acp" });
     await crud.createSession("project-1", { engine: "acp", agentId: "pi-acp" });
+    installedAgentsRef.current = [{
+      id: "pi-acp",
+      name: "Pi",
+      engine: "acp",
+      cachedSlashCommands,
+    }];
+    await crud.createSession("project-1", { engine: "acp", agentId: "pi-acp" });
 
     expect(setInitialConfigOptions).toHaveBeenNthCalledWith(1, cachedConfigOptions);
     expect(setInitialConfigOptions).toHaveBeenNthCalledWith(2, cachedConfigOptions);
+    expect(setInitialConfigOptions).toHaveBeenNthCalledWith(3, []);
     expect(setInitialSlashCommands).toHaveBeenNthCalledWith(1, cachedSlashCommands);
     expect(setInitialSlashCommands).toHaveBeenNthCalledWith(2, cachedSlashCommands);
-    expect(abandonDraftAcpSession).toHaveBeenCalledTimes(2);
+    expect(setInitialSlashCommands).toHaveBeenNthCalledWith(3, cachedSlashCommands);
+    expect(abandonDraftAcpSession).toHaveBeenCalledTimes(3);
     expect(abandonDraftAcpSession).toHaveBeenCalledWith("new_draft");
     expect(startOptionsRef.current).toMatchObject({
       engine: "acp",
       agentId: "pi-acp",
-      cachedConfigOptions,
+      cachedConfigOptions: [],
       cachedSlashCommands,
     });
     expect(draftProjectIdRef.current).toBe("project-1");

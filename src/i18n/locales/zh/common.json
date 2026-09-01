@@ -71,6 +71,8 @@
       "planModeUpdateFailed": "更新 Plan 模式失败",
       "sendMessageFailed": "发送消息失败",
       "restartFailed": "重启会话失败",
+      "piStartCancelled": "Pi 启动已取消。",
+      "piStartCancelledByUser": "你已取消 Pi 启动。",
       "deleteFailed": "删除会话失败",
       "importFailed": "导入会话失败"
     },

@@ -88,6 +88,7 @@ export interface InputBarProps {
   slashCommands?: SlashCommand[];
   acpConfigOptions?: ACPConfigOption[];
   acpConfigOptionsLoading?: boolean;
+  acpConfigOptionsDormant?: boolean;
   onACPConfigChange?: (configId: string, value: string) => void;
   acpPermissionBehavior?: AcpPermissionBehavior;
   onAcpPermissionBehaviorChange?: (behavior: AcpPermissionBehavior) => void;
@@ -122,6 +123,7 @@ export const InputBar = memo(function InputBar({
   slashCommands,
   acpConfigOptions,
   acpConfigOptionsLoading,
+  acpConfigOptionsDormant,
   onACPConfigChange,
   acpPermissionBehavior,
   onAcpPermissionBehaviorChange,
@@ -1004,6 +1006,7 @@ export const InputBar = memo(function InputBar({
             isProcessing={isProcessing}
             acpConfigOptions={acpConfigOptions}
             acpConfigOptionsLoading={acpConfigOptionsLoading}
+            acpConfigOptionsDormant={acpConfigOptionsDormant}
             onACPConfigChange={onACPConfigChange}
           />
         ) : (

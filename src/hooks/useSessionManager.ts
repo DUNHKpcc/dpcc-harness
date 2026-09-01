@@ -13,6 +13,7 @@ import {
 import { BackgroundSessionStore } from "../lib/background/session-store";
 import { createSystemMessage } from "../lib/message-factory";
 import { suppressNextSessionCompletion } from "../lib/notification-utils";
+import { toastText } from "../lib/toast-i18n";
 import { getSplitPaneStateSnapshot } from "../lib/split-pane-state";
 import {
   DRAFT_ID,
@@ -742,7 +743,12 @@ export function useSessionManager(
         if (draftAcpSessionIdRef.current && liveSessionIdsRef.current.has(draftAcpSessionIdRef.current)) {
           await window.claude.acp.cancel(draftAcpSessionIdRef.current);
         } else {
-          await window.claude.acp.abortPendingStart();
+          abandonDraftAcpSession("user_stop");
+          setSessions((previous) => previous.filter((session) => session.id !== DRAFT_ID));
+          acp.setMessages((previous) => [
+            ...previous,
+            createSystemMessage(toastText("session.piStartCancelledByUser"), true),
+          ]);
         }
         acp.setIsProcessing(false);
         return;
@@ -758,7 +764,8 @@ export function useSessionManager(
     // resurrected from old engine state.
     slashCommands: acp.slashCommands,
     acpConfigOptions: acp.configOptions,
-    acpConfigOptionsLoading,
+    acpConfigOptionsLoading: acpConfigOptionsLoading || acp.configOptionsLoading,
+    acpConfigOptionsDormant: runtimeEnabled && !runtimeAvailable,
     setACPConfig: acp.setConfig,
     mcpServerStatuses: runtimeEnabled
       ? (acpMcpStatuses.length > 0 ? acpMcpStatuses : draftMcpStatuses)

@@ -1,6 +1,30 @@
 import { test, expect } from "./fixtures/electron-app";
 import { configureRenderer, seedProjectAndSession } from "./helpers/app-state";
 
+test("shows the dormant Pi model state on a fresh profile", async ({ page }) => {
+  await configureRenderer(page);
+
+  const piCache = await page.evaluate(async () => {
+    const agents = await window.claude.agents.list();
+    const pi = agents.find((agent) => agent.id === "pi-acp");
+    return {
+      configCount: pi?.cachedConfigOptions?.length ?? 0,
+      commandNames: pi?.cachedSlashCommands?.map((command) => command.name) ?? [],
+    };
+  });
+  expect(piCache.configCount).toBe(0);
+  expect(piCache.commandNames).toContain("compact");
+
+  await page.locator('[data-sidebar-top-actions="true"]')
+    .getByRole("button", { name: "New Chat", exact: true })
+    .click();
+  await page.locator('[data-slot="model-thinking-trigger"]').click();
+
+  await expect(page.locator('[data-slot="model-options-dormant"]'))
+    .toHaveText("Model options load after your first message");
+  await expect(page.locator('[data-slot="model-options-unavailable"]')).toHaveCount(0);
+});
+
 test("opens and renames a persisted session through the sidebar", async ({ page }) => {
   await configureRenderer(page);
   const project = await seedProjectAndSession(page);

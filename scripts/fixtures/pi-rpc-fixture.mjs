@@ -40,6 +40,11 @@ const MODE_MARKER_RE = /\b(?:pi[-_ ]?fixture|fixture|mode)\s*[:=]\s*(normal|retr
 const PROMPT_RETRY_NOTICE = "Retrying (attempt 1/3, waiting 2s)...";
 const PROMPT_RETRY_FINISHED = "Retry finished, resuming.";
 
+function startupDelayMs() {
+  const value = Number(process.env.PI_RPC_FIXTURE_START_DELAY_MS ?? 0);
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+}
+
 function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
 }
@@ -740,6 +745,9 @@ async function handleRpcCommand(message) {
       replyResponse("get_state", id, responseState());
       return;
     case "get_available_models":
+      if (startupDelayMs() > 0) {
+        await new Promise((resolve) => setTimeout(resolve, startupDelayMs()));
+      }
       replyResponse("get_available_models", id, responseModels());
       return;
     case "get_commands":

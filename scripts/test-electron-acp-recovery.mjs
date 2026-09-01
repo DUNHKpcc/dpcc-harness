@@ -175,6 +175,7 @@ function createWorkspace(scenario) {
     PI_ACP_PI_COMMAND: fixturePath,
     PI_RPC_FIXTURE_MODE: "",
     ...(scenario === "timeout" ? { PCC_AGENT_ACP_PROMPT_INACTIVITY_TIMEOUT_MS: "500" } : {}),
+    ...(scenario === "cancel-start" ? { PI_RPC_FIXTURE_START_DELAY_MS: "30000" } : {}),
     ELECTRON_ENABLE_LOGGING: "1",
   };
   return { paths, env };
@@ -517,14 +518,15 @@ async function main() {
     process.exitCode = EXIT_CODES.unavailable;
     return;
   }
-  const scenarios = ["success", "crash", "timeout", "child-exit", "stop-active"].includes(scenario)
+  const scenarios = ["success", "crash", "timeout", "child-exit", "stop-active", "cancel-start"].includes(scenario)
     ? [scenario]
-    : ["success", "crash", "timeout", "child-exit", "stop-active"];
+    : ["success", "crash", "timeout", "child-exit", "stop-active", "cancel-start"];
   const results = [];
   for (const currentScenario of scenarios) {
     const scenarioResult = currentScenario === "timeout"
       || currentScenario === "child-exit"
       || currentScenario === "stop-active"
+      || currentScenario === "cancel-start"
       ? await runOnePhaseFailureScenario(currentScenario)
       : await runPair(currentScenario);
     results.push(scenarioResult);

@@ -28,6 +28,7 @@ import type {
   ACPTurnCompleteEvent,
   ACPTransportErrorEvent,
   ACPConfigOption,
+  ACPStartCancellationReason,
   ACPAuthenticateResult,
   ACPAvailableCommand,
   ACPAuthMethod,
@@ -278,7 +279,7 @@ declare global {
         reloadSession: (sessionId: string, mcpServers?: McpServerConfig[], cwd?: string) => Promise<IpcResult & { supportsLoad?: boolean }>;
         reviveSession: (options: { agentId: string; cwd: string; sessionId?: string; agentSessionId?: string; mcpServers?: McpServerConfig[]; initialConfigOptions?: ACPConfigOption[] }) => Promise<ACPReviveResult>;
         cancel: (sessionId: string) => Promise<IpcResult>;
-        abortPendingStart: () => Promise<{ ok?: boolean }>;
+        abortPendingStart: (reason?: ACPStartCancellationReason) => Promise<{ ok?: boolean }>;
         respondPermission: (sessionId: string, requestId: string, optionId: string) => Promise<IpcResult>;
         setConfig: (sessionId: string, configId: string, value: string) => Promise<{ configOptions?: ACPConfigOption[]; error?: string }>;
         attachRenderer: (sessionId: string) => Promise<IpcResult & { replayed?: number }>;

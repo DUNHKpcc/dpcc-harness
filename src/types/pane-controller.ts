@@ -20,6 +20,7 @@ export interface PaneController {
   paneSlashCommands: SlashCommand[];
   paneAcpConfigOptions: ACPConfigOption[];
   paneAcpConfigOptionsLoading: boolean;
+  paneAcpConfigOptionsDormant: boolean;
   handlePaneAgentChange: (agent: InstalledAgent | null) => Promise<void>;
   handlePaneClear: () => Promise<void>;
   handlePaneSend: (text: string, images?: ImageAttachment[], displayText?: string, fileReferences?: FileReference[]) => Promise<void>;

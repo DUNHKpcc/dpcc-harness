@@ -68,6 +68,7 @@ export interface SessionPaneState {
   contextUsage: ContextUsage | null;
   isProcessing: boolean;
   isConnected: boolean;
+  isRuntimeDormant: boolean;
   isCompacting: boolean;
   sessionInfo: SessionInfo | null;
   pendingPermission: PermissionRequest | null;
@@ -183,6 +184,7 @@ export function useSessionPane({
     contextUsage: acp.contextUsage,
     isProcessing: acp.isProcessing,
     isConnected: acp.isConnected,
+    isRuntimeDormant: isRuntimeEnabled && !isRuntimeAvailable,
     isCompacting: acp.isCompacting,
     sessionInfo: acp.sessionInfo,
     pendingPermission: acp.pendingPermission,

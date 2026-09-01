@@ -951,6 +951,7 @@ export function AppLayout() {
     manager: {
       acpConfigOptions: manager.acpConfigOptions,
       acpConfigOptionsLoading: manager.acpConfigOptionsLoading,
+      acpConfigOptionsDormant: manager.acpConfigOptionsDormant,
       setACPConfig: manager.setACPConfig,
     },
     splitView: {
@@ -1666,6 +1667,7 @@ export function AppLayout() {
                   slashCommands={activePaneCtrl?.paneSlashCommands ?? manager.slashCommands}
                   acpConfigOptions={activePaneCtrl?.paneAcpConfigOptions ?? manager.acpConfigOptions}
                   acpConfigOptionsLoading={activePaneCtrl?.paneAcpConfigOptionsLoading ?? manager.acpConfigOptionsLoading}
+                  acpConfigOptionsDormant={activePaneCtrl?.paneAcpConfigOptionsDormant ?? manager.acpConfigOptionsDormant}
                   onACPConfigChange={activePaneCtrl?.handlePaneAcpConfigChange ?? manager.setACPConfig}
                   acpPermissionBehavior={settings.acpPermissionBehavior}
                   onAcpPermissionBehaviorChange={settings.setAcpPermissionBehavior}

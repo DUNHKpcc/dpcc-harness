@@ -271,6 +271,7 @@ function SplitChatPaneInner({
               slashCommands={paneController.paneSlashCommands}
               acpConfigOptions={paneController.paneAcpConfigOptions}
               acpConfigOptionsLoading={paneController.paneAcpConfigOptionsLoading}
+              acpConfigOptionsDormant={paneController.paneAcpConfigOptionsDormant}
               onACPConfigChange={paneController.handlePaneAcpConfigChange}
               acpPermissionBehavior={acpPermissionBehavior}
               onAcpPermissionBehaviorChange={onAcpPermissionBehaviorChange}

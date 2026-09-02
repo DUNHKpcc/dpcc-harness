@@ -6,10 +6,12 @@ import { copyToClipboard } from "@/lib/clipboard";
 interface CopyButtonProps {
   text: string;
   className?: string;
+  label?: string;
 }
 
-export function CopyButton({ text, className }: CopyButtonProps) {
+export function CopyButton({ text, className, label }: CopyButtonProps) {
   const [copied, setCopied] = useState(false);
+  const accessibleLabel = label ?? "Copy";
 
   const handleCopy = useCallback(async () => {
     const ok = await copyToClipboard(text);
@@ -25,6 +27,8 @@ export function CopyButton({ text, className }: CopyButtonProps) {
       variant="ghost"
       size="icon"
       className={`h-7 w-7 text-muted-foreground hover:text-foreground ${className ?? ""}`}
+      aria-label={accessibleLabel}
+      title={accessibleLabel}
       onClick={(event) => {
         event.preventDefault();
         event.stopPropagation();

@@ -84,6 +84,12 @@ export type UIMessage =
   | SystemUIMessage
   | SummaryUIMessage;
 
+export interface MessageEditRequest {
+  requestId: number;
+  text: string;
+  images?: ImageAttachment[];
+}
+
 // ── Session metadata ──
 
 export interface SessionInfo {

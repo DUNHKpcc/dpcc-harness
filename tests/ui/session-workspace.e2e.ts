@@ -187,6 +187,203 @@ test("opens and renames a persisted session through the sidebar", async ({ page 
   }, { projectId: project.id })).toBe("Renamed by Playwright");
 });
 
+test("opens cached Pi context details without starting a dormant Pi session", async ({ electronApp, page }) => {
+  await configureRenderer(page);
+  await electronApp.evaluate(({ ipcMain }) => {
+    const counters = { startCalls: 0, reviveCalls: 0 };
+    (globalThis as typeof globalThis & {
+      __harnssPiContextCacheCounters?: typeof counters;
+    }).__harnssPiContextCacheCounters = counters;
+
+    ipcMain.removeHandler("acp:start");
+    ipcMain.handle("acp:start", () => {
+      counters.startCalls += 1;
+      throw new Error("Opening cached context must not start Pi");
+    });
+    ipcMain.removeHandler("acp:revive-session");
+    ipcMain.handle("acp:revive-session", () => {
+      counters.reviveCalls += 1;
+      throw new Error("Opening cached context must not revive Pi");
+    });
+  });
+  const capturedAt = Date.now();
+  const contextTimeline = Array.from({ length: 48 }, (_, index) => ({
+    id: `context-entry-${index}`,
+    kind: index === 0
+      ? "user" as const
+      : index === 1
+        ? "tool" as const
+        : index === 2
+          ? "custom" as const
+          : "assistant" as const,
+    label: index === 1 ? "Tool: read" : index === 2 ? "model_change" : null,
+    timestamp: capturedAt - 1_000 + index * 10,
+    tokenEstimate: 48 + index,
+    characterCount: 192 + index,
+    excerpt: index === 0
+      ? "Inspect the current context details."
+      : index === 1
+        ? null
+        : `Timeline fixture entry ${index}.`,
+    excerptTruncated: false,
+  }));
+  await seedProjectAndSession(page, {
+    piContextSnapshots: [
+      {
+        version: 1,
+        id: "pi-context-before-compact",
+        capturedAt: capturedAt - 1_000,
+        phase: "settled",
+        source: "pi-extension",
+        model: "pcc-agent/gpt-5.6",
+        usedTokens: 48_000,
+        contextWindow: 128_000,
+        percent: 37.5,
+        breakdown: {
+          systemPromptTokens: 4_000,
+          toolTokens: 3_000,
+          conversationTokens: 41_000,
+          reservedOutputTokens: 8_000,
+          freeTokens: 72_000,
+        },
+        details: {
+          systemPrompt: {
+            characterCount: 16_000,
+            tokenEstimate: 4_000,
+          },
+          tools: [
+            {
+              name: "read",
+              description: "Read a tracked project file.",
+              tokenEstimate: 96,
+            },
+          ],
+          totalTools: 1,
+          omittedTools: 0,
+          timeline: contextTimeline,
+          totalEntries: contextTimeline.length,
+          omittedEntries: 0,
+        },
+      },
+      {
+        version: 1,
+        id: "pi-context-after-compact",
+        capturedAt,
+        phase: "compacted",
+        source: "pi-extension",
+        model: "pcc-agent/gpt-5.6",
+        usedTokens: null,
+        contextWindow: 128_000,
+        percent: null,
+        breakdown: {
+          systemPromptTokens: 4_000,
+          toolTokens: 3_000,
+          conversationTokens: 0,
+          reservedOutputTokens: 8_000,
+          freeTokens: 128_000,
+        },
+        compaction: {
+          reason: "manual",
+          tokensBefore: 120_000,
+          summary: "Kept the active implementation decisions and next steps.",
+        },
+      },
+    ],
+  });
+
+  await page.getByRole("button", { name: "Playwright Session", exact: true }).click();
+  const contextEntry = page.locator("[data-context-gauge]");
+  await expect(contextEntry).toBeVisible();
+  const [entryBox, composerBox] = await Promise.all([
+    contextEntry.boundingBox(),
+    page.locator("[data-chat-composer]").boundingBox(),
+  ]);
+  expect(entryBox).not.toBeNull();
+  expect(composerBox).not.toBeNull();
+  expect((composerBox!.x + composerBox!.width) - (entryBox!.x + entryBox!.width)).toBeLessThanOrEqual(64);
+  await contextEntry.click();
+
+  const inspector = page.locator("[data-context-inspector]");
+  await expect(inspector).toBeVisible();
+  const [inspectorBox, viewport] = await Promise.all([
+    inspector.boundingBox(),
+    page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight })),
+  ]);
+  expect(inspectorBox).not.toBeNull();
+  expect(inspectorBox!.width / viewport.width).toBeGreaterThan(0.69);
+  expect(inspectorBox!.width / viewport.width).toBeLessThan(0.71);
+  expect(inspectorBox!.height / viewport.height).toBeGreaterThan(0.69);
+  expect(inspectorBox!.height / viewport.height).toBeLessThan(0.71);
+  await expect(inspector.locator("[data-context-cache-status]")).toHaveText("Cached");
+  await expect(inspector.locator("[data-context-snapshot-index]")).toHaveText("Snapshot 2 of 2");
+  await expect(inspector).toContainText("Kept the active implementation decisions and next steps.");
+  await expect(inspector.getByRole("button", { name: "Compact context" })).toHaveCount(0);
+
+  await inspector.getByRole("tab", { name: "Details", exact: true }).click();
+  await expect(inspector.locator("[data-context-detail-system]")).toContainText("4.0k");
+  await expect(inspector.locator("[data-context-detail-tools]")).toContainText("Read a tracked project file.");
+
+  await inspector.getByRole("tab", { name: "Timeline", exact: true }).click();
+  await expect(inspector.locator("[data-context-timeline-axis]")).toBeVisible();
+  await expect(inspector.locator('[data-context-timeline-track="user"]')).toBeVisible();
+  await expect(inspector.locator('[data-context-timeline-track="assistant"]')).toBeVisible();
+  await expect(inspector.locator('[data-context-timeline-track="tool"]')).toBeVisible();
+  await expect(inspector.locator('[data-context-timeline-track="system"]')).toBeVisible();
+  const userMarker = inspector.locator('[data-context-timeline-marker][data-context-timeline-category="user"]');
+  await userMarker.click();
+  await expect(userMarker).toHaveAttribute("aria-pressed", "true");
+  await expect(inspector.locator("[data-context-timeline-detail]")).toHaveAttribute(
+    "data-context-timeline-entry-id",
+    "context-entry-0",
+  );
+  await expect(inspector.locator("[data-context-timeline-detail]")).toContainText("Inspect the current context details.");
+  const toolMarker = inspector.locator('[data-context-timeline-marker][data-context-timeline-category="tool"]');
+  await expect(toolMarker).toHaveAttribute("aria-label", /Tool: read/);
+  await toolMarker.click();
+  await expect(inspector.locator("[data-context-timeline-detail]")).toHaveAttribute(
+    "data-context-timeline-entry-id",
+    "context-entry-1",
+  );
+  await expect(inspector.locator("[data-context-timeline-detail]")).toContainText("Tool: read");
+
+  await inspector.locator("[data-context-previous]").click();
+  await expect(inspector.locator("[data-context-snapshot-index]")).toHaveText("Snapshot 1 of 2");
+  await expect(inspector.locator("[data-context-next]")).toBeEnabled();
+  await inspector.getByRole("tab", { name: "Overview", exact: true }).click();
+  const usageBar = inspector.locator("[data-context-usage-bar]");
+  await expect(usageBar).toHaveAttribute("aria-valuenow", "48000");
+  await expect(usageBar.locator("[data-context-usage-used]")).toHaveAttribute("style", /width: 37.5%/);
+  await expect(usageBar.locator("[data-context-usage-remaining]")).toHaveAttribute("style", /width: 62.5%/);
+  await expect(inspector.locator("[data-context-usage-labels]")).toContainText("Used 48.0k");
+  await expect(inspector.locator("[data-context-usage-labels]")).toContainText("Remaining 80.0k");
+
+  await inspector.locator("[data-context-next]").click();
+  await expect(inspector.locator("[data-context-snapshot-index]")).toHaveText("Snapshot 2 of 2");
+  await expect(usageBar).toHaveAttribute("data-context-usage-unavailable", "true");
+  await expect(usageBar).not.toHaveAttribute("aria-valuenow");
+  await expect.poll(() => electronApp.evaluate(() => (
+    globalThis as typeof globalThis & {
+      __harnssPiContextCacheCounters?: { startCalls: number; reviveCalls: number };
+    }
+  ).__harnssPiContextCacheCounters)).toEqual({ startCalls: 0, reviveCalls: 0 });
+});
+
+test("shows the cache-empty state for a dormant Pi session", async ({ page }) => {
+  await configureRenderer(page);
+  await seedProjectAndSession(page);
+
+  await page.getByRole("button", { name: "Playwright Session", exact: true }).click();
+  const contextEntry = page.locator("[data-context-gauge]");
+  await expect(contextEntry).toBeVisible();
+  await contextEntry.click();
+
+  const inspector = page.locator("[data-context-inspector]");
+  await expect(inspector).toBeVisible();
+  await expect(inspector.locator("[data-context-cache-status]")).toHaveText("Cached");
+  await expect(inspector.locator("[data-context-inspector-empty]")).toContainText("No context snapshots yet");
+  await expect(inspector).toContainText("Pi has not saved a context snapshot for this session.");
+});
+
 test("shows compact model names and brand icons across model surfaces", async ({ electronApp, page }) => {
   const qualifiedModel = "pcc-agent-dpcc-codex/gpt-5.3-codex-spark";
   await configureRenderer(page);

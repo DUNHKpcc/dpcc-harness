@@ -236,6 +236,50 @@
         "tests/ui/session-workspace.e2e.ts",
         "tests/ui/plugins-responsive.e2e.ts"
       ]
+    },
+    {
+      "contract": "pi-context-observability",
+      "sources": [
+        "build/pi-runtime/extensions/pcc-context-usage.ts",
+        "build/pi-runtime/THIRD_PARTY_NOTICES.md",
+        "build/pi-runtime/bin/pi",
+        "build/pi-runtime/bin/pi.cmd",
+        "electron/src/lib/bundled-pi-runtime.ts",
+        "electron/src/lib/pi-acp-config.ts",
+        "scripts/check-pi-runtime.mjs",
+        "scripts/check-packaged-app.mjs",
+        "scripts/test-pi-native-integration.mjs",
+        "shared/lib/session-runtime.ts",
+        "src/lib/pi-context-bridge.ts",
+        "src/lib/pi-context-store.ts",
+        "src/hooks/useACP.ts",
+        "src/lib/background/acp-handler.ts",
+        "src/lib/background/session-store.ts",
+        "src/hooks/session/useSessionPersistence.ts",
+        "src/hooks/session/useSessionCache.ts",
+        "src/hooks/session/useSessionCrud.ts",
+        "src/hooks/session/useSessionPane.ts",
+        "src/hooks/session/useExtraPaneLoader.ts",
+        "src/hooks/session/useSessionRevival.ts",
+        "src/hooks/useSessionManager.ts",
+        "src/components/input-bar/ContextGauge.tsx",
+        "src/components/input-bar/ContextInspector.tsx",
+        "src/components/input-bar/InputBar.tsx",
+        "src/components/split/SplitPaneHost.tsx",
+        "src/types/pi-context.ts",
+        "src/types/session.ts",
+        "src/i18n/locales/en/input.json",
+        "src/i18n/locales/zh/input.json"
+      ],
+      "tests": [
+        "src/lib/__tests__/pi-context-bridge.test.ts",
+        "src/lib/__tests__/pcc-context-usage-extension.test.ts",
+        "src/lib/background/acp-handler.test.ts",
+        "electron/src/lib/__tests__/bundled-pi-runtime.test.ts",
+        "electron/src/lib/pi-acp-config.test.ts",
+        "scripts/test-pi-native-integration.mjs",
+        "tests/ui/session-workspace.e2e.ts"
+      ]
     }
   ]
 }

@@ -14,6 +14,8 @@ interface ConfigureRendererOptions {
 
 interface SeedProjectAndSessionOptions {
   model?: string;
+  contextUsage?: unknown;
+  piContextSnapshots?: unknown[];
 }
 
 export async function configureRenderer(
@@ -33,7 +35,11 @@ export async function configureRenderer(
 
 export async function seedProjectAndSession(
   page: Page,
-  { model = "fixture/model" }: SeedProjectAndSessionOptions = {},
+  {
+    model = "fixture/model",
+    contextUsage,
+    piContextSnapshots,
+  }: SeedProjectAndSessionOptions = {},
 ): Promise<SeededProject> {
   const project = await page.evaluate(async () => {
     const bridge = (window as typeof window & {
@@ -49,7 +55,12 @@ export async function seedProjectAndSession(
   fs.writeFileSync(path.join(project.path, "src", "workspace.ts"), "export const ready = true;\n", "utf8");
   fs.writeFileSync(path.join(project.path, "notes", "overview.md"), "# Overview\n\nStable UI workflow.\n", "utf8");
 
-  const saved = await page.evaluate(async ({ projectId, sessionModel }) => {
+  const saved = await page.evaluate(async ({
+    projectId,
+    sessionModel,
+    sessionContextUsage,
+    sessionPiContextSnapshots,
+  }) => {
     const bridge = (window as typeof window & {
       claude: { sessions: { save: (value: unknown) => Promise<{ ok?: boolean; error?: string }> } };
     }).claude;
@@ -70,8 +81,15 @@ export async function seedProjectAndSession(
       ],
       totalCost: 0,
       isProcessing: false,
+      ...(sessionContextUsage ? { contextUsage: sessionContextUsage } : {}),
+      ...(sessionPiContextSnapshots ? { piContextSnapshots: sessionPiContextSnapshots } : {}),
     });
-  }, { projectId: project.id, sessionModel: model });
+  }, {
+    projectId: project.id,
+    sessionModel: model,
+    sessionContextUsage: contextUsage,
+    sessionPiContextSnapshots: piContextSnapshots,
+  });
   if (saved.error) throw new Error(saved.error);
 
   await page.reload({ waitUntil: "domcontentloaded" });

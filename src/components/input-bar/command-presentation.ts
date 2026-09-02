@@ -11,7 +11,9 @@ import {
   Waypoints,
 } from "lucide-react";
 import type { InstalledAgent, SlashCommand } from "@/types";
-import { BUILTIN_PI_AGENT_ID } from "@/types";
+import { isProtectedBuiltInPiAgent as hasProtectedBuiltInPiIdentity } from "@shared/lib/session-runtime";
+
+export { isProtectedBuiltInPiAgent } from "@shared/lib/session-runtime";
 
 type Translate = (key: string) => string;
 
@@ -43,15 +45,6 @@ const PI_COMMAND_METADATA: Record<string, LocalizedCommandMetadata> = {
   changelog: { translationKey: "changelog", icon: ScrollText },
 };
 
-export function isProtectedBuiltInPiAgent(
-  agent: InstalledAgent | null | undefined,
-): boolean {
-  return agent?.id === BUILTIN_PI_AGENT_ID
-    && agent.engine === "acp"
-    && agent.builtIn === true
-    && agent.registryId?.trim() === BUILTIN_PI_AGENT_ID;
-}
-
 function getLocalizedMetadata(
   command: SlashCommand,
   agent: InstalledAgent | null | undefined,
@@ -59,7 +52,7 @@ function getLocalizedMetadata(
   if (command.source === "local") {
     return LOCAL_COMMAND_METADATA[command.name];
   }
-  if (command.source === "acp" && isProtectedBuiltInPiAgent(agent)) {
+  if (command.source === "acp" && hasProtectedBuiltInPiIdentity(agent)) {
     return PI_COMMAND_METADATA[command.name];
   }
   return undefined;

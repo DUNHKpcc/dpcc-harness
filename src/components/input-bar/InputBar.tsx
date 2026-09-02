@@ -63,6 +63,7 @@ import {
   splitComposerFiles,
 } from "./input-bar-utils";
 import { ContextGauge } from "./ContextGauge";
+import { ContextInspector } from "./ContextInspector";
 import { AttachmentPreview } from "./AttachmentPreview";
 import { EnginePickerDropdown } from "./EnginePickerDropdown";
 import { ModelThinkingDropdown } from "./ModelThinkingDropdown";
@@ -71,6 +72,8 @@ import { MentionPicker } from "./MentionPicker";
 import { useMentionAutocomplete } from "./useMentionAutocomplete";
 import { CommandPicker } from "./CommandPicker";
 import { useCommandAutocomplete } from "./CommandPicker";
+import { createLegacyPiContextSnapshot } from "@/lib/pi-context-bridge";
+import { usePiContextSnapshots } from "@/lib/pi-context-store";
 
 export interface InputBarProps {
   onSend: (text: string, images?: ImageAttachment[], displayText?: string, fileReferences?: FileReference[]) => void;
@@ -78,8 +81,16 @@ export interface InputBarProps {
   onStop: () => void;
   isProcessing: boolean;
   projectPath?: string;
+  /** Session identity used to read Pi context snapshots without starting a runtime. */
+  contextSessionId?: string | null;
   contextUsage?: ContextUsage | null;
   isCompacting?: boolean;
+  /** The context inspector is reading saved snapshots for a dormant Pi session. */
+  isPiContextDormant?: boolean;
+  /** The current session uses the protected built-in Pi context bridge. */
+  hasPiContextInspector?: boolean;
+  /** Whether this pane currently owns a live protected Pi runtime. */
+  canCompact?: boolean;
   onCompact?: () => void;
   agents?: InstalledAgent[];
   selectedAgent?: InstalledAgent | null;
@@ -114,8 +125,12 @@ export const InputBar = memo(function InputBar({
   onStop,
   isProcessing,
   projectPath,
+  contextSessionId,
   contextUsage,
   isCompacting,
+  isPiContextDormant = false,
+  hasPiContextInspector = false,
+  canCompact = false,
   onCompact,
   agents,
   selectedAgent,
@@ -144,6 +159,20 @@ export const InputBar = memo(function InputBar({
   const [isDragging, setIsDragging] = useState(false);
   const [editingAttachment, setEditingAttachment] = useState<ImageAttachment | null>(null);
   const [nativeCommandMenu, setNativeCommandMenu] = useState<"model" | null>(null);
+  const [contextInspectorOpen, setContextInspectorOpen] = useState(false);
+
+  const piContextSnapshots = usePiContextSnapshots(contextSessionId);
+  const legacyContextSnapshot = useMemo(
+    () => contextUsage ? createLegacyPiContextSnapshot(contextUsage) : null,
+    [contextUsage],
+  );
+  const contextInspectorSnapshots = useMemo(
+    () => piContextSnapshots.length > 0
+      ? piContextSnapshots
+      : legacyContextSnapshot ? [legacyContextSnapshot] : [],
+    [legacyContextSnapshot, piContextSnapshots],
+  );
+  const latestPiContextSnapshot = piContextSnapshots[piContextSnapshots.length - 1] ?? null;
 
   // Deep folder confirmation
   const [showDeepFolderConfirm, setShowDeepFolderConfirm] = useState(false);
@@ -1025,16 +1054,31 @@ export const InputBar = memo(function InputBar({
             />
           )
         ) : null}
-        {contextUsage && contextUsage.contextWindow > 0 && onCompact && (
+        {(hasPiContextInspector || latestPiContextSnapshot || (contextUsage && contextUsage.contextWindow > 0)) && (
           <ContextGauge
             contextUsage={contextUsage}
+            contextSnapshot={latestPiContextSnapshot}
             isCompacting={isCompacting ?? false}
             isProcessing={isProcessing}
             onCompact={onCompact}
+            showWhenEmpty={hasPiContextInspector}
+            onOpenInspector={hasPiContextInspector || contextInspectorSnapshots.length > 0
+              ? () => setContextInspectorOpen(true)
+              : undefined}
             className="ms-auto"
           />
         )}
       </div>
+
+      <ContextInspector
+        open={contextInspectorOpen}
+        onOpenChange={setContextInspectorOpen}
+        snapshots={contextInspectorSnapshots}
+        isProcessing={isProcessing}
+        isCompacting={isCompacting ?? false}
+        isRuntimeDormant={isPiContextDormant}
+        onCompact={canCompact && latestPiContextSnapshot?.source === "pi-extension" ? onCompact : undefined}
+      />
 
       {/* Deep folder confirmation dialog */}
       <ConfirmDialog

@@ -1693,8 +1693,12 @@ export function AppLayout() {
                   isProcessing={manager.isProcessing}
                   queuedCount={manager.queuedCount}
                   projectPath={activeProjectPath}
+                  contextSessionId={manager.activeSessionId}
                   contextUsage={manager.contextUsage}
                   isCompacting={manager.isCompacting}
+                  isPiContextDormant={manager.isRuntimeDormant}
+                  hasPiContextInspector={manager.hasPiContextInspector}
+                  canCompact={manager.canCompact}
                   onCompact={manager.compact}
                   agents={agents}
                   selectedAgent={activePaneCtrl?.selectedPaneAgent ?? selectedAgent}

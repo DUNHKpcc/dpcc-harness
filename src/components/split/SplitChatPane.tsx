@@ -262,8 +262,12 @@ function SplitChatPaneInner({
               isProcessing={paneState.isProcessing}
               queuedCount={isActiveSessionPane ? queuedCount : 0}
               projectPath={projectPath}
+              contextSessionId={sessionId}
               contextUsage={paneState.contextUsage}
               isCompacting={paneState.isCompacting}
+              isPiContextDormant={paneState.isRuntimeDormant}
+              hasPiContextInspector={paneState.hasPiContextInspector}
+              canCompact={paneState.canCompact}
               onCompact={paneState.engine.compact}
               agents={agents}
               selectedAgent={paneController.selectedPaneAgent}

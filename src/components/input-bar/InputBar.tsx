@@ -6,7 +6,6 @@ import {
   memo,
   lazy,
   Suspense,
-  useEffect,
   type KeyboardEvent,
 } from "react";
 import { useTranslation } from "react-i18next";
@@ -37,7 +36,6 @@ import type {
   AcpPermissionBehavior,
   EngineId,
   SlashCommand,
-  MessageEditRequest,
 } from "@/types";
 import { BOTTOM_CHAT_MAX_WIDTH_CLASS } from "@/lib/layout/constants";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
@@ -108,10 +106,6 @@ export interface InputBarProps {
   onRemoveGrabbedElement?: (id: string) => void;
   /** Open ACP Agents settings */
   onManageACPs?: () => void;
-  /** Pending request to restore a previous user message in the composer */
-  editRequest: MessageEditRequest | null;
-  /** Called after an edit request has been applied to the composer */
-  onEditRequestHandled: (requestId: number) => void;
 }
 
 export const InputBar = memo(function InputBar({
@@ -140,8 +134,6 @@ export const InputBar = memo(function InputBar({
   grabbedElements,
   onRemoveGrabbedElement,
   onManageACPs,
-  editRequest,
-  onEditRequestHandled,
 }: InputBarProps) {
   const { t } = useTranslation("input");
   // ── Core state ──
@@ -221,40 +213,6 @@ export const InputBar = memo(function InputBar({
     },
     [mention.closeMentions, command.setShowCommands, setComposerHasContent],
   );
-
-  useEffect(() => {
-    const request = editRequest;
-    const el = editableRef.current;
-    if (!request || !el) return;
-
-    el.innerHTML = "";
-    if (request.text) {
-      el.appendChild(document.createTextNode(request.text));
-    }
-    setAttachments(request.images ? [...request.images] : []);
-    setFileAttachments([]);
-    setComposerHasContent(hasMeaningfulText(request.text));
-    mention.closeMentions();
-    command.setShowCommands(false);
-    el.focus();
-
-    const selection = window.getSelection();
-    if (selection) {
-      const range = document.createRange();
-      range.selectNodeContents(el);
-      range.collapse(false);
-      selection.removeAllRanges();
-      selection.addRange(range);
-    }
-
-    onEditRequestHandled(request.requestId);
-  }, [
-    command.setShowCommands,
-    editRequest,
-    mention.closeMentions,
-    onEditRequestHandled,
-    setComposerHasContent,
-  ]);
 
   // ── Image attachments ──
 

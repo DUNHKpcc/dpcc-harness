@@ -10,15 +10,13 @@
  * BottomComposer; only the outer wrapper and tool strip differ.
  */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useMemo } from "react";
 import { motion } from "motion/react";
 import type {
   BackgroundAgent,
   ChatSession,
   EngineId,
-  ImageAttachment,
   InstalledAgent,
-  MessageEditRequest,
   TodoItem,
 } from "@/types";
 import type { SessionPaneState } from "@/hooks/session/useSessionPane";
@@ -176,31 +174,6 @@ function SplitChatPaneInner({
 }: SplitChatPaneProps) {
   // ── Display preferences from Zustand store ──
   const expandEditToolCallsByDefault = useSettingsStore((s) => s.expandEditToolCallsByDefault);
-  const [editRequest, setEditRequest] = useState<MessageEditRequest | null>(null);
-  const nextEditRequestIdRef = useRef(0);
-
-  useEffect(() => {
-    setEditRequest(null);
-  }, [sessionId]);
-
-  const handleEditMessage = useCallback((text: string, images?: ImageAttachment[]) => {
-    if (isActiveSessionPane) {
-      for (const element of grabbedElements) {
-        onRemoveGrabbedElement(element.id);
-      }
-    }
-    nextEditRequestIdRef.current += 1;
-    setEditRequest({
-      requestId: nextEditRequestIdRef.current,
-      text,
-      images,
-    });
-  }, [grabbedElements, isActiveSessionPane, onRemoveGrabbedElement]);
-
-  const handleEditRequestHandled = useCallback((requestId: number) => {
-    setEditRequest((current) => current?.requestId === requestId ? null : current);
-  }, []);
-
   // Build the pane controller inside the component (uses usePaneController hook)
   const paneController = usePaneController(
     sessionId,
@@ -279,7 +252,6 @@ function SplitChatPaneInner({
             extraBottomPadding={!!paneState.pendingPermission}
             sessionId={sessionId}
             onTopScrollProgress={onTopScrollProgress}
-            onEditMessage={readOnlyReason === null ? handleEditMessage : undefined}
           />
           <div
             className={`pointer-events-none absolute inset-x-0 bottom-0 z-[5] transition-opacity duration-200 ${isIsland ? "h-24" : "h-28"}`}
@@ -317,8 +289,6 @@ function SplitChatPaneInner({
               onSelectWorktree={isActiveSessionPane ? onSelectWorktree : undefined}
               isEmptySession={paneState.messages.length === 0}
               onManageACPs={onManageACPs}
-              editRequest={editRequest}
-              onEditRequestHandled={handleEditRequestHandled}
             />
           </div>
         </div>

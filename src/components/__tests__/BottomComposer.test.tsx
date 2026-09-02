@@ -25,8 +25,6 @@ function createProps(
     onStop: vi.fn(),
     isProcessing: false,
     queuedCount: 0,
-    editRequest: null,
-    onEditRequestHandled: vi.fn(),
     ...overrides,
   };
 }

@@ -2,7 +2,7 @@ import { Fragment, useEffect, useLayoutEffect, useRef, useMemo, useCallback, use
 import { useTranslation } from "react-i18next";
 import { motion } from "motion/react";
 import { Loader2, Minus } from "lucide-react";
-import type { UIMessage } from "@/types";
+import type { ImageAttachment, UIMessage } from "@/types";
 import { AgentIcon } from "./AgentIcon";
 import { getAgentIcon } from "@/lib/engine-icons";
 import { useAgentContext } from "./AgentContext";
@@ -146,6 +146,7 @@ interface ChatMessageRowProps {
   sendNextId?: string | null;
   onSendQueuedNow?: (messageId: string) => void;
   onUnqueueQueuedMessage?: (messageId: string) => void;
+  onEditMessage?: (text: string, images?: ImageAttachment[]) => void;
 }
 
 const ChatMessageRow = memo(function ChatMessageRow({
@@ -157,6 +158,7 @@ const ChatMessageRow = memo(function ChatMessageRow({
   sendNextId,
   onSendQueuedNow,
   onUnqueueQueuedMessage,
+  onEditMessage,
 }: ChatMessageRowProps) {
   const { t } = useTranslation("chat");
   // ── Display preferences from Zustand store ──
@@ -238,6 +240,7 @@ const ChatMessageRow = memo(function ChatMessageRow({
         isSendNextQueued={sendNextId === msg.id}
         onSendQueuedNow={onSendQueuedNow}
         onUnqueueQueued={onUnqueueQueuedMessage}
+        onEditMessage={onEditMessage}
       />
     </div>
   );
@@ -249,7 +252,8 @@ const ChatMessageRow = memo(function ChatMessageRow({
   prev.continuationIds === next.continuationIds &&
   prev.sendNextId === next.sendNextId &&
   prev.onSendQueuedNow === next.onSendQueuedNow &&
-  prev.onUnqueueQueuedMessage === next.onUnqueueQueuedMessage,
+  prev.onUnqueueQueuedMessage === next.onUnqueueQueuedMessage &&
+  prev.onEditMessage === next.onEditMessage,
 );
 
 // ── ChatViewProps ──
@@ -265,6 +269,7 @@ interface ChatViewProps {
   onTopScrollProgress?: (progress: number) => void;
   onSendQueuedNow?: (messageId: string) => void;
   onUnqueueQueuedMessage?: (messageId: string) => void;
+  onEditMessage?: (text: string, images?: ImageAttachment[]) => void;
   sendNextId?: string | null;
   /** Current space ID — included in remount key so space switches show spinner immediately */
   spaceId?: string;
@@ -356,7 +361,7 @@ export const ChatView = memo(function ChatView(props: ChatViewProps) {
 function ChatViewContent({
   messages, isProcessing, showThinking, extraBottomPadding, scrollToMessageId, onScrolledToMessage,
   sessionId, onTopScrollProgress,
-  onSendQueuedNow, onUnqueueQueuedMessage, sendNextId,
+  onSendQueuedNow, onUnqueueQueuedMessage, onEditMessage, sendNextId,
 }: ChatViewProps) {
   // ── Display preferences from Zustand store (only those used directly in ChatViewContent) ──
   const autoGroupTools = useSettingsStore((s) => s.autoGroupTools);
@@ -869,6 +874,7 @@ function ChatViewContent({
                 sendNextId={sendNextId}
                 onSendQueuedNow={onSendQueuedNow}
                 onUnqueueQueuedMessage={onUnqueueQueuedMessage}
+                onEditMessage={onEditMessage}
               />
             </div>
           ))}

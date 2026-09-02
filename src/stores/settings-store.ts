@@ -4,6 +4,7 @@ import type { StateStorage } from "zustand/middleware";
 import type { ToolId } from "@/types/tools";
 import type { AcpPermissionBehavior, ClaudeEffort, EngineId, LanguageOption, MacBackgroundEffect, ThemeOption } from "@/types";
 import { reportSettingsSaveFailure, setAppSettingsChecked } from "@/lib/app-settings-ipc";
+import { normalizeAccentColor } from "@/lib/theme-colors";
 
 // ── Constants ──
 
@@ -132,6 +133,7 @@ export interface ProjectSettings {
 /** Global settings state (not per-project) */
 interface GlobalSettingsState {
   theme: ThemeOption;
+  accentColor: string | null;
   language: LanguageOption;
   /**
    * Most recently selected model per engine, independent of project/session.
@@ -166,6 +168,7 @@ interface GlobalSettingsState {
 interface SettingsActions {
   // Global setters
   setTheme: (t: ThemeOption) => void;
+  setAccentColor: (color: string | null) => void;
   setLanguage: (l: LanguageOption) => void;
   setIslandLayout: (enabled: boolean) => void;
   setIslandShine: (enabled: boolean) => void;
@@ -359,6 +362,7 @@ function readLegacyGlobalSettings(): GlobalSettingsState {
 
   return {
     theme,
+    accentColor: null,
     language,
     // Legacy storage had no global last-model; default and let it populate on next pick.
     lastModelByEngine: DEFAULT_ENGINE_MODELS,
@@ -476,6 +480,7 @@ export const useSettingsStore = create<SettingsStore>()(
     (set, get) => ({
       // ── Global state defaults ──
       theme: "light",
+      accentColor: null,
       language: "system",
       lastModelByEngine: DEFAULT_ENGINE_MODELS,
       islandLayout: false,
@@ -504,6 +509,8 @@ export const useSettingsStore = create<SettingsStore>()(
         mirrorLegacyTheme(t);
         set({ theme: t });
       },
+
+      setAccentColor: (color) => set({ accentColor: normalizeAccentColor(color) }),
 
       setLanguage: (l) => set({ language: l }),
 
@@ -688,6 +695,7 @@ export const useSettingsStore = create<SettingsStore>()(
       partialize: (state) => ({
         // Global state
         theme: state.theme,
+        accentColor: state.accentColor,
         language: state.language,
         lastModelByEngine: state.lastModelByEngine,
         islandLayout: state.islandLayout,
@@ -717,6 +725,9 @@ export const useSettingsStore = create<SettingsStore>()(
         return {
           ...current,
           ...incoming,
+          accentColor: incoming.accentColor === undefined
+            ? current.accentColor
+            : normalizeAccentColor(incoming.accentColor),
           // Ensure projects is always an object, never undefined
           projects: incoming.projects ?? current.projects,
         };

@@ -60,6 +60,19 @@ describe("settings store", () => {
     expect(localStorage.getItem("pcc-agent-theme")).toBe("light");
   });
 
+  it("persists a normalized accent color and supports resetting it", async () => {
+    const { useSettingsStore } = await import("../settings-store");
+
+    useSettingsStore.getState().setAccentColor("#3B82F6");
+
+    expect(useSettingsStore.getState().accentColor).toBe("#3b82f6");
+    const persisted = JSON.parse(localStorage.getItem("pcc-agent-settings-store") ?? "{}");
+    expect(persisted.state?.accentColor).toBe("#3b82f6");
+
+    useSettingsStore.getState().setAccentColor(null);
+    expect(useSettingsStore.getState().accentColor).toBeNull();
+  });
+
   it("persists the canonical theme when the legacy mirror cannot be written", async () => {
     const { useSettingsStore } = await import("../settings-store");
     const originalSetItem = localStorage.setItem.bind(localStorage);

@@ -22,6 +22,19 @@
             if (candidate === "light" || candidate === "dark" || candidate === "system") {
               stored = candidate;
             }
+            var accentCandidate = parsed && parsed.state && parsed.state.accentColor;
+            if (typeof accentCandidate === "string" && /^#[0-9a-f]{6}$/i.test(accentCandidate)) {
+              document.documentElement.style.setProperty("--theme-accent", accentCandidate.toLowerCase());
+              var hex = accentCandidate.slice(1);
+              var red = parseInt(hex.slice(0, 2), 16) / 255;
+              var green = parseInt(hex.slice(2, 4), 16) / 255;
+              var blue = parseInt(hex.slice(4, 6), 16) / 255;
+              var linearize = function(channel) {
+                return channel <= 0.03928 ? channel / 12.92 : Math.pow((channel + 0.055) / 1.055, 2.4);
+              };
+              var luminance = 0.2126 * linearize(red) + 0.7152 * linearize(green) + 0.0722 * linearize(blue);
+              document.documentElement.style.setProperty("--theme-accent-foreground", luminance > 0.179 ? "#1c1917" : "#fffaf5");
+            }
           }
         } catch (_) {}
         if (!stored) {

@@ -26,6 +26,18 @@ export interface InstalledAgent {
   cachedSlashCommands?: SlashCommand[];
 }
 
+export type PiModelCacheRefreshResult =
+  | {
+      ok: true;
+      modelCount: number;
+      updated: boolean;
+    }
+  | {
+      ok: false;
+      error: string;
+      skipped?: boolean;
+    };
+
 /** Stable identity of the only built-in runtime in Pi-only builds. */
 export const BUILTIN_PI_AGENT_ID = "pi-acp" as const;
 

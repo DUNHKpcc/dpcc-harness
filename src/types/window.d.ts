@@ -3,7 +3,11 @@ import type { Space } from "./spaces";
 import type { SearchMessageResult, SearchSessionResult } from "./search";
 import type { McpServerConfig } from "./mcp";
 import type { GitRepoInfo, GitStatus, GitBranch, GitLogEntry } from "@shared/types/git";
-import type { InstalledAgent, PiRuntimeStatus } from "@shared/types/registry";
+import type {
+  InstalledAgent,
+  PiModelCacheRefreshResult,
+  PiRuntimeStatus,
+} from "@shared/types/registry";
 import type { EffectiveCliConfig, EffectiveCliModels } from "@shared/types/cc-config";
 import type { AppSettings, MacBackgroundEffect, ThemeOption } from "@shared/types/settings";
 import type {
@@ -331,6 +335,8 @@ declare global {
         getPlatformKeys: () => Promise<string[]>;
         /** Resolved PATH and version details for the supported Pi runtime pair. */
         getPiRuntimeStatus: () => Promise<PiRuntimeStatus>;
+        /** Refresh the built-in Pi draft model cache without starting Pi. */
+        refreshPiModelCache: () => Promise<PiModelCacheRefreshResult>;
         /** Local-only Pi command catalog for drafts; does not start an ACP process. */
         listPiDraftCommands: (cwd: string) => Promise<{ commands: SlashCommand[] }>;
       };

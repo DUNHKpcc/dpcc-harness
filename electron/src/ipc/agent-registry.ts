@@ -14,6 +14,7 @@ import type { ACPConfigOption } from "@shared/types/acp";
 import type { SlashCommand } from "@shared/types/engine";
 import { getPiRuntimeStatus } from "../lib/pi-runtime-status";
 import { listPiDraftSlashCommands } from "../lib/pi-command-catalog";
+import { refreshBuiltInPiModelCache } from "../lib/pi-model-cache";
 
 export function register(): void {
   loadUserAgents();
@@ -44,6 +45,7 @@ export function register(): void {
   );
   ipcMain.handle("agents:get-platform-keys", () => getRegistryPlatformKeys());
   ipcMain.handle("agents:get-pi-runtime-status", () => getPiRuntimeStatus());
+  ipcMain.handle("agents:refresh-pi-model-cache", () => refreshBuiltInPiModelCache());
   ipcMain.handle("agents:list-pi-draft-commands", (_e, cwd: string) => ({
     commands: listPiDraftSlashCommands(cwd),
   }));

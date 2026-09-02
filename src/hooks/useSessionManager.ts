@@ -42,6 +42,7 @@ import {
   areAcpConfigOptionsEqual,
   getAgentCachedConfigOptions,
   getAgentCachedSlashCommands,
+  reconcileCachedAcpConfigCatalog,
 } from "@shared/lib/acp-config-cache";
 import { BUILTIN_PI_AGENT_ID } from "@shared/types/registry";
 
@@ -292,11 +293,15 @@ export function useSessionManager(
       installedAgents,
       activeRuntimeAgentId,
     );
-    setInitialConfigOptions((current) => (
-      current.length > 0 || areAcpConfigOptionsEqual(current, cachedConfigOptions)
-        ? current
-        : cachedConfigOptions
-    ));
+    setInitialConfigOptions((current) => {
+      if (activeRuntimeAgentId !== BUILTIN_PI_AGENT_ID) {
+        return current.length > 0 || areAcpConfigOptionsEqual(current, cachedConfigOptions)
+          ? current
+          : cachedConfigOptions;
+      }
+      const reconciled = reconcileCachedAcpConfigCatalog(current, cachedConfigOptions);
+      return areAcpConfigOptionsEqual(current, reconciled) ? current : reconciled;
+    });
     setInitialSlashCommands((current) => (
       current.length > 0 || areAcpSlashCommandsEqual(current, cachedSlashCommands)
         ? current

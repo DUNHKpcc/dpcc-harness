@@ -23,7 +23,11 @@ const cachedSlashCommand: SlashCommand = {
   source: "acp",
 };
 
-const { mockExecFile } = vi.hoisted(() => ({
+const {
+  mockExecFile,
+  mockListPiUpstreamModels,
+  mockResolvePiUpstream,
+} = vi.hoisted(() => ({
   mockExecFile: (() => {
     const fn = vi.fn();
     return Object.assign(fn, {
@@ -38,6 +42,8 @@ const { mockExecFile } = vi.hoisted(() => ({
       }),
     });
   })(),
+  mockListPiUpstreamModels: vi.fn(),
+  mockResolvePiUpstream: vi.fn(),
 }));
 
 vi.mock("child_process", () => ({
@@ -48,6 +54,16 @@ vi.mock("electron", () => ({
   app: {
     getPath: () => "/tmp/pcc-agent-test",
   },
+}));
+
+vi.mock("../logger", () => ({ log: vi.fn() }));
+
+vi.mock("../pi-acp-config", () => ({
+  listPiUpstreamModels: mockListPiUpstreamModels,
+}));
+
+vi.mock("../upstream-resolver", () => ({
+  resolvePiUpstream: mockResolvePiUpstream,
 }));
 
 afterEach(() => {
@@ -195,5 +211,88 @@ describe("built-in Pi draft cache", () => {
       binary: "bundled:pi-acp",
       cachedSlashCommands: [cachedSlashCommand],
     })]);
+  });
+});
+
+describe("built-in Pi model catalog refresh", () => {
+  afterEach(() => {
+    mockListPiUpstreamModels.mockReset();
+    mockResolvePiUpstream.mockReset();
+  });
+
+  it("replaces the cached model catalog without starting Pi or resetting thinking", async () => {
+    const thinkingOption: ACPConfigOption = {
+      id: "thought_level",
+      name: "Thinking",
+      category: "thought_level",
+      type: "select",
+      currentValue: "high",
+      options: [
+        { value: "medium", name: "Medium" },
+        { value: "high", name: "High" },
+      ],
+    };
+    mockResolvePiUpstream.mockReturnValue({
+      tier: "default",
+      model: "",
+      providers: [
+        { id: "provider", name: "DPCC API (Claude)" },
+      ],
+    });
+    mockListPiUpstreamModels.mockResolvedValue({
+      models: ["provider/model-a", "provider/model-b"],
+      error: null,
+    });
+    const registry = await loadModule();
+    registry.updateCachedConfig("pi-acp", [cachedModelOption, thinkingOption]);
+    registry.updateCachedSlashCommands("pi-acp", [cachedSlashCommand]);
+    const { refreshBuiltInPiModelCache } = await import("../pi-model-cache");
+    const firstRefresh = refreshBuiltInPiModelCache();
+    const concurrentRefresh = refreshBuiltInPiModelCache();
+
+    expect(concurrentRefresh).toBe(firstRefresh);
+    await expect(Promise.all([firstRefresh, concurrentRefresh])).resolves.toEqual([
+      { ok: true, modelCount: 2, updated: true },
+      { ok: true, modelCount: 2, updated: true },
+    ]);
+    expect(mockListPiUpstreamModels).toHaveBeenCalledTimes(1);
+    expect(registry.getAgent("pi-acp")?.cachedConfigOptions).toEqual([
+      {
+        ...cachedModelOption,
+        options: [
+          {
+            value: "provider/model-a",
+            name: "provider/model-a (DPCC API (Claude))",
+            description: null,
+          },
+          {
+            value: "provider/model-b",
+            name: "provider/model-b (DPCC API (Claude))",
+            description: null,
+          },
+        ],
+      },
+      thinkingOption,
+    ]);
+    expect(registry.getAgent("pi-acp")?.cachedSlashCommands).toEqual([cachedSlashCommand]);
+    expect(mockExecFile).not.toHaveBeenCalled();
+  });
+
+  it("keeps the offline cache when the live catalog cannot be refreshed", async () => {
+    mockResolvePiUpstream.mockReturnValue({
+      tier: "default",
+      model: "",
+      providers: [],
+    });
+    mockListPiUpstreamModels.mockResolvedValue({ models: [], error: "no_token" });
+    const registry = await loadModule();
+    registry.updateCachedConfig("pi-acp", [cachedModelOption]);
+    const { refreshBuiltInPiModelCache } = await import("../pi-model-cache");
+
+    await expect(refreshBuiltInPiModelCache()).resolves.toEqual({
+      ok: false,
+      error: "no_token",
+    });
+    expect(registry.getAgent("pi-acp")?.cachedConfigOptions).toEqual([cachedModelOption]);
   });
 });

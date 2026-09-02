@@ -61,6 +61,107 @@ test("restores the sidebar from the Plugins workspace", async ({ page }) => {
   await expect(workspace).toBeVisible();
 });
 
+test("refreshes a dormant Pi model catalog after account authorization without starting Pi", async ({ electronApp, page }) => {
+  const oldModel = "pcc-agent-dpcc-claude/model-old";
+  const newModel = "pcc-agent-dpcc-claude/model-new";
+  const initialConfig = [{
+    id: "model",
+    name: "Model",
+    category: "model",
+    type: "select" as const,
+    currentValue: oldModel,
+    options: [{ value: oldModel, name: `${oldModel} (DPCC API (Claude))` }],
+  }, {
+    id: "thought_level",
+    name: "Thinking",
+    category: "thought_level",
+    type: "select" as const,
+    currentValue: "high",
+    options: [
+      { value: "medium", name: "Medium" },
+      { value: "high", name: "High" },
+    ],
+  }];
+
+  await configureRenderer(page);
+  await page.evaluate(async (configOptions) => {
+    await window.claude.agents.updateCachedConfig("pi-acp", configOptions);
+  }, initialConfig);
+  await electronApp.evaluate(({ ipcMain }) => {
+    const counters = { refreshCalls: 0, startCalls: 0 };
+    (globalThis as typeof globalThis & {
+      __harnssPiModelRefreshCounters?: typeof counters;
+    }).__harnssPiModelRefreshCounters = counters;
+
+    ipcMain.removeHandler("agents:refresh-pi-model-cache");
+    ipcMain.handle("agents:refresh-pi-model-cache", () => {
+      counters.refreshCalls += 1;
+      return { ok: true, modelCount: 2, updated: false };
+    });
+    ipcMain.removeHandler("acp:start");
+    ipcMain.handle("acp:start", () => {
+      counters.startCalls += 1;
+      throw new Error("Dormant model refresh must not start Pi");
+    });
+  });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.locator("#root").waitFor();
+
+  await page.locator('[data-sidebar-top-actions="true"]')
+    .getByRole("button", { name: "New Chat", exact: true })
+    .click();
+  const modelTrigger = page.locator('[data-slot="model-thinking-trigger"]');
+  await expect(modelTrigger).toContainText("model-old");
+  await expect(modelTrigger).toContainText(/high/i);
+  await modelTrigger.click();
+  await expect(page.locator('[data-slot="model-option-list"]')
+    .getByText("model-old", { exact: true })).toBeVisible();
+  await expect(page.getByText("model-new", { exact: true })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
+  await page.evaluate(async (refreshedConfig) => {
+    await window.claude.agents.updateCachedConfig("pi-acp", refreshedConfig);
+  }, [{
+    ...initialConfig[0],
+    currentValue: newModel,
+    options: [
+      { value: oldModel, name: `${oldModel} (DPCC API (Claude))` },
+      { value: newModel, name: `${newModel} (DPCC API (Claude))` },
+    ],
+  }, {
+    ...initialConfig[1],
+    currentValue: "medium",
+  }]);
+  await electronApp.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]?.webContents.send("account-auth:changed", {
+      status: "connected",
+      issuer: "https://account.example.test",
+      clientId: "pcc-agent-desktop",
+      deviceName: "Playwright",
+      account: null,
+      expiresAt: Date.now() + 60_000,
+      scopes: [],
+      legacyManual: false,
+    });
+  });
+
+  await expect.poll(() => electronApp.evaluate(() => (
+    globalThis as typeof globalThis & {
+      __harnssPiModelRefreshCounters?: { refreshCalls: number; startCalls: number };
+    }
+  ).__harnssPiModelRefreshCounters)).toEqual({ refreshCalls: 1, startCalls: 0 });
+  await expect(modelTrigger).toContainText("model-old");
+  await expect(modelTrigger).toContainText(/high/i);
+  await modelTrigger.click();
+  await expect(page.locator('[data-slot="model-option-list"]')
+    .getByText("model-new", { exact: true })).toBeVisible();
+  expect(await electronApp.evaluate(() => (
+    globalThis as typeof globalThis & {
+      __harnssPiModelRefreshCounters?: { refreshCalls: number; startCalls: number };
+    }
+  ).__harnssPiModelRefreshCounters?.startCalls)).toBe(0);
+});
+
 test("opens and renames a persisted session through the sidebar", async ({ page }) => {
   await configureRenderer(page);
   const project = await seedProjectAndSession(page);

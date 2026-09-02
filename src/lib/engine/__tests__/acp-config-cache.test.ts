@@ -5,6 +5,8 @@ import {
   getAgentCachedConfigOptions,
   normalizeCachedAcpConfigOptions,
   normalizeCachedAcpSlashCommands,
+  reconcileCachedAcpConfigCatalog,
+  replaceCachedAcpModelCatalog,
   updateCachedAcpConfigValue,
 } from "@shared/lib/acp-config-cache";
 
@@ -48,6 +50,62 @@ describe("ACP config cache", () => {
     expect(updateCachedAcpConfigValue([modelOption], "model", "provider/model-b"))
       .toEqual([{
         ...modelOption,
+        currentValue: "provider/model-b",
+      }]);
+  });
+
+  it("refreshes the model catalog while preserving other cached selectors", () => {
+    const thinkingOption = {
+      id: "thought_level",
+      name: "Thinking",
+      category: "thought_level",
+      type: "select" as const,
+      currentValue: "high",
+      options: [
+        { value: "medium", name: "Medium" },
+        { value: "high", name: "High" },
+      ],
+    };
+
+    expect(replaceCachedAcpModelCatalog(
+      [modelOption, thinkingOption],
+      [
+        { value: "provider/model-a", name: "Model A" },
+        { value: "provider/model-b", name: "Model B" },
+      ],
+    )).toEqual([
+      {
+        ...modelOption,
+        options: [
+          { value: "provider/model-a", name: "Model A" },
+          { value: "provider/model-b", name: "Model B" },
+        ],
+      },
+      thinkingOption,
+    ]);
+  });
+
+  it("merges a refreshed dormant catalog without resetting its selection", () => {
+    const selectedModel = {
+      ...modelOption,
+      currentValue: "provider/model-b",
+      options: [
+        ...modelOption.options,
+        { value: "provider/model-b", name: "Model B" },
+      ],
+    };
+    const refreshed = replaceCachedAcpModelCatalog(
+      [modelOption],
+      [
+        { value: "provider/model-a", name: "Model A" },
+        { value: "provider/model-b", name: "Model B" },
+        { value: "provider/model-c", name: "Model C" },
+      ],
+    );
+
+    expect(reconcileCachedAcpConfigCatalog([selectedModel], refreshed))
+      .toEqual([{
+        ...refreshed[0],
         currentValue: "provider/model-b",
       }]);
   });

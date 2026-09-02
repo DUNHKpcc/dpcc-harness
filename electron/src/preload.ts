@@ -346,6 +346,7 @@ contextBridge.exposeInMainWorld("claude", {
       ipcRenderer.invoke("agents:check-binaries", agents),
     getPlatformKeys: () => ipcRenderer.invoke("agents:get-platform-keys"),
     getPiRuntimeStatus: () => ipcRenderer.invoke("agents:get-pi-runtime-status"),
+    refreshPiModelCache: () => ipcRenderer.invoke("agents:refresh-pi-model-cache"),
     listPiDraftCommands: (cwd: string) =>
       ipcRenderer.invoke("agents:list-pi-draft-commands", cwd),
   },

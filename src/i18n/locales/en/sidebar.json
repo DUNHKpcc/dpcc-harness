@@ -43,6 +43,9 @@
   "acpAgents": {
     "open": "ACP Agents"
   },
+  "visibility": {
+    "show": "Show sidebar"
+  },
   "project": {
     "openJiraBoard": "Open Jira board",
     "newFolder": "New folder",

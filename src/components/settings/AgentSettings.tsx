@@ -42,6 +42,7 @@ interface AgentSettingsProps {
   agents: InstalledAgent[];
   onSave: (agent: InstalledAgent) => Promise<{ ok?: boolean; error?: string }>;
   onDelete: (id: string) => Promise<{ ok?: boolean; error?: string }>;
+  showHeading?: boolean;
 }
 
 interface FormState {
@@ -485,6 +486,7 @@ export const AgentSettings = memo(function AgentSettings({
   agents,
   onSave,
   onDelete,
+  showHeading = true,
 }: AgentSettingsProps) {
   const { t } = useTranslation("settings");
   const [editingAgent, setEditingAgent] = useState<InstalledAgent | null>(null);
@@ -537,12 +539,14 @@ export const AgentSettings = memo(function AgentSettings({
       <Tabs defaultValue="store" className="flex min-h-0 flex-1 flex-col">
         {/* Header: title + description + tabs in one bordered section */}
         <div className="border-b border-foreground/[0.06] px-6">
-          <div className="py-4">
-            <h2 className="text-base font-semibold text-foreground">{t("agents.title")}</h2>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {t("agents.description")}
-            </p>
-          </div>
+          {showHeading && (
+            <div className="py-4">
+              <h2 className="text-base font-semibold text-foreground">{t("agents.title")}</h2>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {t("agents.description")}
+              </p>
+            </div>
+          )}
           <div className="flex h-9 items-center gap-1">
             <TabsList variant="line">
               <TabsTrigger value="store" className="gap-1.5">

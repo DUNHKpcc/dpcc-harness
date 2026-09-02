@@ -25,6 +25,42 @@ test("shows the dormant Pi model state on a fresh profile", async ({ page }) => 
   await expect(page.locator('[data-slot="model-options-unavailable"]')).toHaveCount(0);
 });
 
+test("restores the sidebar from the ACP Agents workspace", async ({ page }) => {
+  await configureRenderer(page);
+
+  await page.locator('[data-sidebar-acp-agents-entry="true"]').click();
+  const workspace = page.locator('[data-sidebar-workspace="acp-agents"]');
+  await expect(workspace).toBeVisible();
+
+  await page.locator('[data-sidebar-toggle="true"]').click();
+  const restoreButton = page.locator('[data-sidebar-restore="true"]');
+  await expect(restoreButton).toBeVisible();
+  await expect(workspace.locator('[data-sidebar-workspace-header="true"]')).toContainText("ACP Agents");
+  await restoreButton.click();
+
+  await expect(page.locator('[data-sidebar-acp-agents-entry="true"]')).toBeVisible();
+  await expect(restoreButton).toHaveCount(0);
+  await expect(workspace).toBeVisible();
+});
+
+test("restores the sidebar from the Plugins workspace", async ({ page }) => {
+  await configureRenderer(page);
+
+  await page.locator('[data-sidebar-plugin-entry="true"]').click();
+  const workspace = page.locator('[data-sidebar-workspace="plugins"]');
+  await expect(workspace).toBeVisible();
+
+  await page.locator('[data-sidebar-toggle="true"]').click();
+  const restoreButton = page.locator('[data-sidebar-restore="true"]');
+  await expect(restoreButton).toBeVisible();
+  await expect(workspace.locator('[data-sidebar-workspace-header="true"]')).toContainText("Plugins");
+  await restoreButton.click();
+
+  await expect(page.locator('[data-sidebar-plugin-entry="true"]')).toBeVisible();
+  await expect(restoreButton).toHaveCount(0);
+  await expect(workspace).toBeVisible();
+});
+
 test("opens and renames a persisted session through the sidebar", async ({ page }) => {
   await configureRenderer(page);
   const project = await seedProjectAndSession(page);

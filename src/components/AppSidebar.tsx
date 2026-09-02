@@ -547,6 +547,7 @@ export const AppSidebar = memo(function AppSidebar({
         <Button
           variant="ghost"
           size="icon"
+          data-sidebar-toggle="true"
           className="no-drag h-8 w-8 rounded-full text-sidebar-foreground/70 transition-all hover:bg-black/5 hover:text-sidebar-foreground dark:hover:bg-white/10"
           onClick={onToggleSidebar}
         >

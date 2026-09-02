@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { PanelLeft } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAppOrchestrator } from "@/hooks/useAppOrchestrator";
 import { useSpaceTheme } from "@/hooks/useSpaceTheme";
 import { useGlassTheme } from "@/hooks/useGlassTheme";
@@ -1091,6 +1092,9 @@ export function AppLayout() {
   const showAcpAuthDialog =
     !!manager.acpAuthSessionId &&
     manager.acpAuthRequired;
+  const sidebarWorkspaceTitle = sidebarWorkspaceView === "plugins"
+    ? t("plugins.open", { ns: "sidebar" })
+    : t("acpAgents.open", { ns: "sidebar" });
 
   return (
     <ThemeProvider value={resolvedTheme}>
@@ -1204,24 +1208,55 @@ export function AppLayout() {
 
       <div ref={handleContentContainerRef} className={`flex min-w-0 flex-1 flex-col ${settings.islandLayout ? "m-[var(--island-gap)]" : sidebar.isOpen ? "flat-divider-s" : ""} ${isResizing || sidebar.isResizing ? "select-none" : ""}`}>
         {sidebarWorkspaceView ? (
-          <div className="island flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-[var(--island-radius)] bg-background">
-            {sidebarWorkspaceView === "plugins" ? (
-              <Suspense fallback={<PluginCenterFallback />}>
-                <PluginCenter
-                  hasLiveSession={hasActiveRuntimeSession}
-                  isSessionProcessing={manager.isProcessing}
-                  onRestartWithServers={manager.restartWithMcpServers}
-                />
-              </Suspense>
-            ) : (
-              <div className="min-h-0 flex-1 overflow-hidden">
+          <div
+            data-sidebar-workspace={sidebarWorkspaceView}
+            className="island flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[var(--island-radius)] bg-background"
+          >
+            <div
+              data-sidebar-workspace-header="true"
+              className={`drag-region flex h-[3.25rem] shrink-0 items-center gap-3 px-4 ${
+                !sidebar.isOpen && isMac ? "ps-[84px]" : ""
+              }`}
+              style={{ background: titlebarSurfaceColor }}
+            >
+              {!sidebar.isOpen && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      data-sidebar-restore="true"
+                      aria-label={t("visibility.show", { ns: "sidebar" })}
+                      className="no-drag h-7 w-7 text-muted-foreground/60 hover:text-foreground"
+                      onClick={sidebar.toggle}
+                    >
+                      <PanelLeft className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{t("visibility.show", { ns: "sidebar" })}</TooltipContent>
+                </Tooltip>
+              )}
+              <h1 className="text-sm font-semibold text-foreground">{sidebarWorkspaceTitle}</h1>
+            </div>
+            <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+              {sidebarWorkspaceView === "plugins" ? (
+                <Suspense fallback={<PluginCenterFallback />}>
+                  <PluginCenter
+                    hasLiveSession={hasActiveRuntimeSession}
+                    isSessionProcessing={manager.isProcessing}
+                    onRestartWithServers={manager.restartWithMcpServers}
+                  />
+                </Suspense>
+              ) : (
                 <AgentSettings
                   agents={agents}
                   onSave={saveAgent}
                   onDelete={deleteAgent}
+                  showHeading={false}
                 />
-              </div>
-            )}
+              )}
+            </div>
           </div>
         ) : (
         <>

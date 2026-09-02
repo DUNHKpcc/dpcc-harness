@@ -187,6 +187,91 @@ test("opens and renames a persisted session through the sidebar", async ({ page 
   }, { projectId: project.id })).toBe("Renamed by Playwright");
 });
 
+test("shows compact model names and brand icons across model surfaces", async ({ electronApp, page }) => {
+  const qualifiedModel = "pcc-agent-dpcc-codex/gpt-5.3-codex-spark";
+  await configureRenderer(page);
+  await page.evaluate(async (model) => {
+    await window.claude.agents.updateCachedConfig("pi-acp", [{
+      id: "model",
+      name: "Model",
+      category: "model",
+      type: "select",
+      currentValue: model,
+      options: [
+        { value: model, name: `${model} (DPCC API (Codex))` },
+        { value: "xai/grok-4.6", name: "Grok 4.6" },
+        { value: "anthropic/claude-haiku-4-5", name: "Claude Haiku 4.5" },
+      ],
+    }]);
+  }, qualifiedModel);
+  await electronApp.evaluate(({ ipcMain }) => {
+    const model = "pcc-agent-dpcc-codex/gpt-5.3-codex-spark";
+    const emptyEngine = {
+      source: "default" as const,
+      providerName: null,
+      baseUrl: null,
+      maskedToken: null,
+      model: null,
+    };
+    const emptyModels = { source: "default" as const, models: [], error: null };
+    ipcMain.removeHandler("cc-config:effective");
+    ipcMain.handle("cc-config:effective", () => ({
+      claude: { ...emptyEngine },
+      codex: { ...emptyEngine },
+      pi: { ...emptyEngine, model },
+    }));
+    ipcMain.removeHandler("cc-config:models");
+    ipcMain.handle("cc-config:models", () => ({
+      claude: { ...emptyModels },
+      codex: { ...emptyModels },
+      pi: {
+        source: "default",
+        models: [model, "xai/grok-4.6", "anthropic/claude-haiku-4-5"],
+        error: null,
+      },
+    }));
+  });
+  const project = await seedProjectAndSession(page, { model: qualifiedModel });
+
+  await page.getByRole("button", { name: "Playwright Session", exact: true }).click();
+  const modelTrigger = page.locator('[data-slot="model-thinking-trigger"]');
+  const triggerIcon = modelTrigger.locator('[data-slot="model-icon"][data-model-brand="openai"]');
+  await expect(triggerIcon).toBeVisible();
+  await expect.poll(() => triggerIcon.evaluate((element) => getComputedStyle(element).maskImage))
+    .not.toBe("none");
+  await modelTrigger.click();
+  const modelOptions = page.locator('[data-slot="model-option-list"]');
+  for (const brand of ["openai", "grok", "claude"]) {
+    const icon = modelOptions.locator(`[data-slot="model-icon"][data-model-brand="${brand}"]`);
+    await expect(icon).toBeVisible();
+    await expect.poll(() => icon.evaluate((element) => getComputedStyle(element).maskImage))
+      .not.toBe("none");
+  }
+  await page.keyboard.press("Escape");
+
+  await page.getByRole("button", { name: "Session Details", exact: true }).click();
+
+  const details = page.locator('[data-slot="session-details-popover"]');
+  await expect(details.getByText("gpt-5.3-codex-spark", { exact: true })).toBeVisible();
+  await expect(details.locator('[data-slot="model-icon"][data-model-brand="openai"]')).toBeVisible();
+  await expect(page.getByText(qualifiedModel, { exact: true })).toHaveCount(0);
+  await expect.poll(async () => page.evaluate(async ({ projectId }) => {
+    const persisted = await window.claude.sessions.load(projectId, "playwright-session");
+    return persisted?.model;
+  }, { projectId: project.id })).toBe(qualifiedModel);
+
+  await electronApp.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()[0]?.webContents.send("menu-bar:open-settings");
+  });
+  await page.locator('[data-settings-section="current-config"]').click();
+  const configModels = page.locator('[data-slot="current-config-model-list"]');
+  await expect(configModels.getByText("gpt-5.3-codex-spark", { exact: true })).toBeVisible();
+  for (const brand of ["openai", "grok", "claude"]) {
+    await expect(configModels.locator(`[data-slot="model-icon"][data-model-brand="${brand}"]`))
+      .toBeVisible();
+  }
+});
+
 test("previews project files, resizes the list, and restores its width", async ({ electronApp, page }) => {
   await configureRenderer(page);
   await seedProjectAndSession(page);

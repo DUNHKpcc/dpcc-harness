@@ -9,6 +9,7 @@ import type {
   ACPConfigSelectOption,
 } from "@/types";
 import { cn } from "@/lib/utils";
+import { ModelLabel } from "@/components/ModelIcon";
 
 export interface ModelOptionItem {
   id: string;
@@ -160,7 +161,12 @@ export const ModelOptionList = memo(function ModelOptionList({
               className={item.id === selectedId ? "bg-accent" : ""}
             >
               <div className="min-w-0 flex-1">
-                <div className="truncate" title={item.label}>{item.label}</div>
+                <ModelLabel
+                  model={item.id}
+                  label={item.label}
+                  iconSize={14}
+                  className="w-full"
+                />
                 {item.description && (
                   <div className="line-clamp-2 text-[10px] text-muted-foreground">
                     {item.description}

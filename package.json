@@ -63,6 +63,7 @@
     "@fontsource-variable/source-serif-4": "^5.2.9",
     "@fontsource/instrument-serif": "^5.2.8",
     "@huggingface/transformers": "^3.8.1",
+    "@lobehub/icons-static-svg": "1.94.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@monaco-editor/react": "^4.7.0",
     "@tanstack/react-virtual": "^3.13.22",

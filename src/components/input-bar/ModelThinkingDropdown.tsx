@@ -2,6 +2,7 @@ import { memo } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ModelLabel } from "@/components/ModelIcon";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -167,9 +168,12 @@ export const ModelThinkingDropdown = memo(function ModelThinkingDropdown({
           ) : (
             <>
               {activeModelLabel && (
-                <span className="min-w-0 truncate" title={activeModelLabel}>
-                  {activeModelLabel}
-                </span>
+                <ModelLabel
+                  model={acpModelOption?.currentValue ?? activeModelLabel}
+                  label={activeModelLabel}
+                  iconSize={13}
+                  className="min-w-0"
+                />
               )}
               {activeThinkingLabel && (
                 <span className="shrink-0 text-muted-foreground/70">

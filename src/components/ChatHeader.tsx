@@ -8,12 +8,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ToolPickerMenu } from "./ToolPickerMenu";
+import { ModelLabel } from "./ModelIcon";
 import { UPSTREAM_REQUEST_SCROLL_AREA_CLASS } from "@/components/lib/chat-header-layout";
 import { isMac } from "@/lib/utils";
 import {
   getUpstreamRequestCount,
   getUpstreamRequestTokenTotal,
 } from "@/lib/usage/upstream-requests";
+import { getModelDisplayName } from "@/lib/model-utils";
 import type { AcpPermissionBehavior, UpstreamRequestRecord } from "@/types";
 import type { ToolId } from "@/types/tools";
 
@@ -68,6 +70,9 @@ function UpstreamRequestRow({
   const { t } = useTranslation("chat");
   const tokenTotal = getUpstreamRequestTokenTotal(record);
   const duration = formatDuration(record.durationMs);
+  const displayModel = record.model
+    ? getModelDisplayName(record.model)
+    : t("header.unknownModel");
 
   return (
     <div className="rounded-md border border-border/50 bg-muted/20 px-2.5 py-2">
@@ -81,9 +86,18 @@ function UpstreamRequestRow({
               {record.engine}
             </Badge>
           </div>
-          <div className="mt-1 truncate font-mono text-[11px] text-muted-foreground">
-            {record.model || t("header.unknownModel")}
-          </div>
+          {record.model ? (
+            <ModelLabel
+              model={record.model}
+              label={displayModel}
+              iconSize={12}
+              className="mt-1 max-w-full font-mono text-[11px] text-muted-foreground"
+            />
+          ) : (
+            <div className="mt-1 truncate font-mono text-[11px] text-muted-foreground">
+              {displayModel}
+            </div>
+          )}
         </div>
         <span className="shrink-0 text-[10px] text-muted-foreground">
           {t(`header.requestStatus.${record.status}`)}
@@ -163,10 +177,11 @@ export const ChatHeader = memo(function ChatHeader({
   const macIslandTitlebarOffsetClass = islandLayout && isMac ? "translate-y-0.5" : "";
   const shouldShowSidebarToggle = showSidebarToggle && !sidebarOpen;
   const shouldReserveSidebarInset = shouldShowSidebarToggle && isMac;
+  const displayModel = model ? getModelDisplayName(model) : "";
 
   // Collect all session detail rows for the unified tooltip
-  const detailRows: { label: string; value: string }[] = [];
-  if (model) detailRows.push({ label: t("header.model"), value: model });
+  const detailRows: { label: string; value: string; model?: string }[] = [];
+  if (displayModel && model) detailRows.push({ label: t("header.model"), value: displayModel, model });
   detailRows.push({
     label: t("header.plan"),
     value: planMode ? t("state.on", { ns: "common" }) : t("state.off", { ns: "common" }),
@@ -208,13 +223,18 @@ export const ChatHeader = memo(function ChatHeader({
               <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
             </span>
           </TooltipTrigger>
-          {(model || permissionDisplay) && (
+          {(displayModel || permissionDisplay) && (
             <TooltipContent side="bottom">
               <div className="space-y-0.5 text-xs">
-                {model && (
+                {displayModel && (
                   <div className="flex justify-between gap-4">
                     <span className="opacity-70">{t("header.model")}</span>
-                    <span className="font-mono">{model}</span>
+                    <ModelLabel
+                      model={model ?? displayModel}
+                      label={displayModel}
+                      iconSize={12}
+                      className="justify-end font-mono"
+                    />
                   </div>
                 )}
                 {permissionDisplay && (
@@ -312,7 +332,12 @@ export const ChatHeader = memo(function ChatHeader({
                   )}
                 </button>
               </PopoverTrigger>
-              <PopoverContent side="bottom" align="end" className="w-[360px] overflow-hidden p-0">
+              <PopoverContent
+                data-slot="session-details-popover"
+                side="bottom"
+                align="end"
+                className="w-[360px] overflow-hidden p-0"
+              >
                 <div className="border-b border-border/50 px-3 py-2">
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-xs font-medium text-foreground/80">{t("header.details")}</span>
@@ -327,7 +352,16 @@ export const ChatHeader = memo(function ChatHeader({
                   {detailRows.map((row) => (
                     <div key={row.label} className="flex justify-between gap-6">
                       <span className="opacity-70">{row.label}</span>
-                      <span className="font-mono text-end">{row.value}</span>
+                      {row.model ? (
+                        <ModelLabel
+                          model={row.model}
+                          label={row.value}
+                          iconSize={12}
+                          className="justify-end font-mono text-end"
+                        />
+                      ) : (
+                        <span className="font-mono text-end">{row.value}</span>
+                      )}
                     </div>
                   ))}
                 </div>

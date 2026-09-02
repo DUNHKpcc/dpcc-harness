@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ComponentProps } from "react";
 import { UPSTREAM_REQUEST_SCROLL_AREA_CLASS } from "@/components/lib/chat-header-layout";
 import { ChatHeader } from "../ChatHeader";
+import { ModelLabel } from "../ModelIcon";
 import { ChatSection } from "../sidebar/ChatSection";
 import { SidebarActionsProvider, type SidebarActions } from "../sidebar/SidebarActionsContext";
 import { SidebarPluginEntry } from "../sidebar/SidebarPluginEntry";
@@ -59,6 +60,18 @@ describe("ChatHeader", () => {
   it("keeps the upstream request list constrained to one visible request", () => {
     expect(UPSTREAM_REQUEST_SCROLL_AREA_CLASS).toContain("h-[9.5rem]");
     expect(UPSTREAM_REQUEST_SCROLL_AREA_CLASS).not.toContain("max-h-72");
+  });
+});
+
+describe("ModelLabel", () => {
+  it("renders the resolved brand icon and compact model name", () => {
+    const markup = renderToStaticMarkup(
+      <ModelLabel model="pcc-agent-dpcc-codex/gpt-5.3-codex-spark" />,
+    );
+
+    expect(markup).toContain('data-model-brand="openai"');
+    expect(markup).toContain("gpt-5.3-codex-spark");
+    expect(markup).not.toContain(">pcc-agent-dpcc-codex/gpt-5.3-codex-spark<");
   });
 });
 

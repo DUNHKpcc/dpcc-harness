@@ -12,6 +12,10 @@ interface ConfigureRendererOptions {
   welcomeCompleted?: boolean;
 }
 
+interface SeedProjectAndSessionOptions {
+  model?: string;
+}
+
 export async function configureRenderer(
   page: Page,
   { welcomeCompleted = true }: ConfigureRendererOptions = {},
@@ -27,7 +31,10 @@ export async function configureRenderer(
   await page.locator("#root").waitFor();
 }
 
-export async function seedProjectAndSession(page: Page): Promise<SeededProject> {
+export async function seedProjectAndSession(
+  page: Page,
+  { model = "fixture/model" }: SeedProjectAndSessionOptions = {},
+): Promise<SeededProject> {
   const project = await page.evaluate(async () => {
     const bridge = (window as typeof window & {
       claude: { projects: { createDev: (name: string) => Promise<SeededProject | null> } };
@@ -42,7 +49,7 @@ export async function seedProjectAndSession(page: Page): Promise<SeededProject> 
   fs.writeFileSync(path.join(project.path, "src", "workspace.ts"), "export const ready = true;\n", "utf8");
   fs.writeFileSync(path.join(project.path, "notes", "overview.md"), "# Overview\n\nStable UI workflow.\n", "utf8");
 
-  const saved = await page.evaluate(async ({ projectId }) => {
+  const saved = await page.evaluate(async ({ projectId, sessionModel }) => {
     const bridge = (window as typeof window & {
       claude: { sessions: { save: (value: unknown) => Promise<{ ok?: boolean; error?: string }> } };
     }).claude;
@@ -55,7 +62,7 @@ export async function seedProjectAndSession(page: Page): Promise<SeededProject> 
       lastMessageAt: now,
       engine: "acp",
       agentId: "pi-acp",
-      model: "fixture/model",
+      model: sessionModel,
       permissionMode: "default",
       messages: [
         { id: "playwright-user", role: "user", content: "Inspect the workspace fixture", timestamp: now },
@@ -64,7 +71,7 @@ export async function seedProjectAndSession(page: Page): Promise<SeededProject> 
       totalCost: 0,
       isProcessing: false,
     });
-  }, { projectId: project.id });
+  }, { projectId: project.id, sessionModel: model });
   if (saved.error) throw new Error(saved.error);
 
   await page.reload({ waitUntil: "domcontentloaded" });

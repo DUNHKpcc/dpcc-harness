@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { PiLogo } from "@/components/PiLogo";
+import { ModelLabel } from "@/components/ModelIcon";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { SettingsHeader, SettingsSection, SettingsSelect } from "@/components/settings/shared";
@@ -84,7 +85,7 @@ function ModelList({ models, activeModel }: { models: EffectiveModelList | undef
   });
 
   return (
-    <div className="space-y-1.5">
+    <div data-slot="current-config-model-list" className="space-y-1.5">
       <div className="flex items-center justify-between px-0.5">
         <span className="font-mono text-[11px] text-muted-foreground">
           {t("currentConfig.models.title")}
@@ -105,7 +106,7 @@ function ModelList({ models, activeModel }: { models: EffectiveModelList | undef
                   : "bg-foreground/[0.04] text-foreground/80"
               }`}
             >
-              {m}
+              <ModelLabel model={m} iconSize={12} />
               {isDefault && (
                 <span className="rounded-sm bg-emerald-500/20 px-1 text-[9px] uppercase tracking-wide">
                   {t("currentConfig.models.default")}

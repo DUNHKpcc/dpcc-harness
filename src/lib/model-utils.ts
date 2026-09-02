@@ -1,5 +1,86 @@
 import type { ModelInfo } from "@/types";
 
+/** Strip the provider prefix from a qualified ACP model ID for compact UI labels. */
+export function getModelDisplayName(model: string): string {
+  const normalized = model.trim();
+  const separator = normalized.indexOf("/");
+  if (separator <= 0 || separator === normalized.length - 1) return normalized;
+  return normalized.slice(separator + 1);
+}
+
+export type ModelBrand =
+  | "claude"
+  | "openai"
+  | "grok"
+  | "deepseek"
+  | "kimi"
+  | "zhipu"
+  | "gemini"
+  | "gemma"
+  | "qwen"
+  | "meta"
+  | "mistral"
+  | "cohere"
+  | "doubao"
+  | "yi"
+  | "minimax"
+  | "stepfun"
+  | "baichuan"
+  | "hunyuan"
+  | "wenxin"
+  | "spark"
+  | "internlm";
+
+function detectModelBrand(value: string): ModelBrand | null {
+  const normalized = value.trim().toLowerCase();
+  const tokens = normalized.split(/[^a-z0-9]+/).filter(Boolean);
+  const has = (...candidates: string[]) => candidates.some((candidate) => tokens.includes(candidate));
+  const hasVersioned = (...candidates: string[]) => candidates.some((candidate) => (
+    tokens.some((token) => token === candidate || (
+      token.startsWith(candidate) && /^\d/.test(token.slice(candidate.length))
+    ))
+  ));
+
+  if (has("anthropic") || hasVersioned("claude")) return "claude";
+  if (
+    has("openai", "chatgpt", "codex")
+    || hasVersioned("gpt")
+    || tokens.some((token) => /^o[134]$/.test(token))
+  ) return "openai";
+  if (has("xai") || hasVersioned("grok")) return "grok";
+  if (has("deepseek")) return "deepseek";
+  if (has("kimi", "moonshot")) return "kimi";
+  if (has("zhipu", "zai") || hasVersioned("glm") || normalized.includes("z-ai")) return "zhipu";
+  if (hasVersioned("gemini")) return "gemini";
+  if (hasVersioned("gemma")) return "gemma";
+  if (has("qwq") || hasVersioned("qwen")) return "qwen";
+  if (has("meta") || hasVersioned("llama")) return "meta";
+  if (has("codestral", "ministral") || hasVersioned("mistral")) return "mistral";
+  if (has("cohere", "command")) return "cohere";
+  if (has("doubao", "seed")) return "doubao";
+  if (has("yi") || normalized.includes("01-ai")) return "yi";
+  if (hasVersioned("minimax")) return "minimax";
+  if (has("stepfun") || hasVersioned("step")) return "stepfun";
+  if (hasVersioned("baichuan")) return "baichuan";
+  if (has("hunyuan")) return "hunyuan";
+  if (has("wenxin", "ernie")) return "wenxin";
+  if (hasVersioned("spark")) return "spark";
+  if (hasVersioned("internlm")) return "internlm";
+  return null;
+}
+
+/** Resolve a model family from the model ID first, then its provider prefix. */
+export function getModelBrand(model: string): ModelBrand | null {
+  const normalized = model.trim();
+  const separator = normalized.indexOf("/");
+  const modelBrand = detectModelBrand(getModelDisplayName(normalized));
+  if (modelBrand || separator <= 0) return modelBrand;
+
+  const provider = normalized.slice(0, separator);
+  if (provider.startsWith("pcc-agent-dpcc-")) return null;
+  return detectModelBrand(provider);
+}
+
 function normalizeModelId(model: string | null | undefined): string {
   return (model ?? "").trim().toLowerCase();
 }

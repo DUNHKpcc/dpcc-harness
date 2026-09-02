@@ -4,6 +4,8 @@ import {
   areModelsEquivalent,
   canonicalizeModelValue,
   findEquivalentModel,
+  getModelBrand,
+  getModelDisplayName,
   resolveClaudePickerValue,
   resolveModelValue,
 } from "../model-utils";
@@ -43,6 +45,48 @@ const cachedModels: ModelInfo[] = [
     supportedEffortLevels: ["low", "medium", "high", "max"],
   },
 ];
+
+describe("getModelDisplayName", () => {
+  it("hides the provider prefix from a qualified Pi model ID", () => {
+    expect(getModelDisplayName("pcc-agent-dpcc-codex/gpt-5.3-codex-spark"))
+      .toBe("gpt-5.3-codex-spark");
+  });
+
+  it("keeps unqualified and nested model IDs intact after the provider", () => {
+    expect(getModelDisplayName("gpt-5.3-codex-spark")).toBe("gpt-5.3-codex-spark");
+    expect(getModelDisplayName("openrouter/anthropic/claude-sonnet-4"))
+      .toBe("anthropic/claude-sonnet-4");
+  });
+});
+
+describe("getModelBrand", () => {
+  it.each([
+    ["anthropic/claude-opus-4-6", "claude"],
+    ["pcc-agent-dpcc-codex/gpt-5.3-codex-spark", "openai"],
+    ["xai/grok-4", "grok"],
+    ["deepseek/deepseek-r1", "deepseek"],
+    ["moonshot/kimi-k2", "kimi"],
+    ["zhipu/glm-5", "zhipu"],
+    ["google/gemini-3-pro", "gemini"],
+    ["alibaba/qwen3-coder", "qwen"],
+    ["meta/llama-4", "meta"],
+    ["mistral/codestral", "mistral"],
+  ] as const)("maps %s to the %s icon", (model, brand) => {
+    expect(getModelBrand(model)).toBe(brand);
+  });
+
+  it("prefers the model family over a generic provider prefix", () => {
+    expect(getModelBrand("pcc-agent-dpcc-codex/deepseek-v4"))
+      .toBe("deepseek");
+  });
+
+  it("does not mistake a managed route name for the model family", () => {
+    expect(getModelBrand("pcc-agent-dpcc-codex/custom-model"))
+      .toBeNull();
+    expect(getModelBrand("anthropic/custom-model"))
+      .toBe("claude");
+  });
+});
 
 describe("resolveModelValue", () => {
   it("maps a saved 1M Opus runtime id to the default alias when the cache is stale", () => {

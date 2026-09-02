@@ -12,7 +12,13 @@
 
 import React, { useMemo } from "react";
 import { motion } from "motion/react";
-import type { ChatSession, EngineId, InstalledAgent, TodoItem, BackgroundAgent } from "@/types";
+import type {
+  BackgroundAgent,
+  ChatSession,
+  EngineId,
+  InstalledAgent,
+  TodoItem,
+} from "@/types";
 import type { SessionPaneState } from "@/hooks/session/useSessionPane";
 import { usePaneController, type PaneControllerContext } from "@/hooks/usePaneController";
 import { useSettingsStore } from "@/stores/settings-store";
@@ -168,7 +174,6 @@ function SplitChatPaneInner({
 }: SplitChatPaneProps) {
   // ── Display preferences from Zustand store ──
   const expandEditToolCallsByDefault = useSettingsStore((s) => s.expandEditToolCallsByDefault);
-
   // Build the pane controller inside the component (uses usePaneController hook)
   const paneController = usePaneController(
     sessionId,

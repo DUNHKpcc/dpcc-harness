@@ -48,6 +48,7 @@
   },
   "message": {
     "attachedImage": "attached image",
+    "copy": "Copy",
     "queued": "Queued",
     "sendNext": "Send next",
     "unqueue": "Unqueue"

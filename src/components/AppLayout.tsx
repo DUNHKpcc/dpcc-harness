@@ -198,7 +198,6 @@ export function AppLayout() {
     displayText?: string;
     fileReferences?: FileReference[];
   } | null>(null);
-
   const handleOpenSidebarWorkspace = useCallback((view: Exclude<SidebarWorkspaceView, null>) => {
     setShowSettings(false);
     setJiraBoardProjectForSpace(spaceManager.activeSpaceId, null);

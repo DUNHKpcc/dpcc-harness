@@ -360,6 +360,9 @@ export const MessageBubble = memo(function MessageBubble({
               <p className="text-xs">{time}</p>
             </TooltipContent>
           </Tooltip>
+          <div className="mt-0.5 flex justify-end gap-0.5 opacity-0 transition-opacity group-hover/user:opacity-100 focus-within:opacity-100">
+            <CopyButton text={displayContent} label={t("message.copy")} />
+          </div>
         </div>
       </div>
     );
@@ -379,7 +382,7 @@ export const MessageBubble = memo(function MessageBubble({
 
   return (
     <div
-      className={cn("flex justify-start", CHAT_ROW_CLASS)}
+      className={cn("group/assistant flex justify-start", CHAT_ROW_CLASS)}
       data-continuation={isContinuation || undefined}
     >
       <Tooltip>
@@ -425,6 +428,11 @@ export const MessageBubble = memo(function MessageBubble({
                   </div>
                 ) : null}
               </div>
+              {message.content && (
+                <div className="mt-0.5 flex items-center opacity-0 transition-opacity group-hover/assistant:opacity-100 focus-within:opacity-100">
+                  <CopyButton text={message.content} label={t("message.copy")} />
+                </div>
+              )}
             </div>
           </div>
         </TooltipTrigger>
@@ -440,6 +448,7 @@ export const MessageBubble = memo(function MessageBubble({
   prev.message.isStreaming === next.message.isStreaming &&
   prev.message.thinkingComplete === next.message.thinkingComplete &&
   prev.message.images === next.message.images &&
+  prev.message.displayContent === next.message.displayContent &&
   prev.message.isError === next.message.isError &&
   prev.message.checkpointId === next.message.checkpointId &&
   prev.message.isQueued === next.message.isQueued &&

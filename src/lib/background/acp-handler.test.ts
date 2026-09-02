@@ -7,6 +7,11 @@ import {
   handleACPTransportError,
   handleACPTurnComplete,
 } from "./acp-handler";
+import { PI_CONTEXT_BRIDGE_PREFIX } from "@/lib/pi-context-bridge";
+import {
+  clearPiContextSnapshots,
+  getPiContextSnapshots,
+} from "@/lib/pi-context-store";
 
 function makeState(messages: UIMessage[] = []): InternalState {
   return {
@@ -200,6 +205,79 @@ describe("ACP turn terminal handlers", () => {
       toolName: "Read",
       toolResult: { content: "ok", stdout: "ok" },
     });
+  });
+
+  it("consumes Pi context bridge notifications without adding marker text to chat", () => {
+    clearPiContextSnapshots("session-1");
+    const state = makeState();
+    const marker = `${PI_CONTEXT_BRIDGE_PREFIX}${JSON.stringify({
+      version: 1,
+      id: "compaction-1",
+      capturedAt: 1_700_000_000_000,
+      phase: "compacted",
+      usedTokens: null,
+      contextWindow: 128_000,
+      breakdown: {
+        systemPromptTokens: 500,
+        toolTokens: 400,
+        conversationTokens: 0,
+        reservedOutputTokens: 2_000,
+        freeTokens: 128_000,
+      },
+      compaction: {
+        reason: "manual",
+        tokensBefore: 120_000,
+        summary: "Kept the active implementation plan.",
+      },
+    })}`;
+
+    handleACPEvent(state, {
+      _sessionId: "session-1",
+      sessionId: "agent-session-1",
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        content: { type: "text", text: marker },
+      },
+    }, { acceptsPiContextBridge: true });
+
+    expect(getPiContextSnapshots("session-1")).toHaveLength(1);
+    expect(state.contextUsage).toMatchObject({ inputTokens: 0, contextWindow: 128_000 });
+    expect(state.messages).toEqual([
+      expect.objectContaining({
+        role: "summary",
+        content: "Kept the active implementation plan.",
+        compactTrigger: "manual",
+      }),
+    ]);
+    expect(state.messages.some((message) => message.content.startsWith(PI_CONTEXT_BRIDGE_PREFIX))).toBe(false);
+    clearPiContextSnapshots("session-1");
+  });
+
+  it("does not consume a context marker from an untrusted ACP agent", () => {
+    clearPiContextSnapshots("session-1");
+    const state = makeState();
+    const marker = `${PI_CONTEXT_BRIDGE_PREFIX}${JSON.stringify({
+      version: 1,
+      id: "untrusted-marker",
+      capturedAt: 1_700_000_000_000,
+      phase: "settled",
+      usedTokens: 1,
+      contextWindow: 128_000,
+    })}`;
+
+    handleACPEvent(state, {
+      _sessionId: "session-1",
+      sessionId: "agent-session-1",
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        content: { type: "text", text: marker },
+      },
+    });
+
+    expect(getPiContextSnapshots("session-1")).toHaveLength(0);
+    expect(state.messages).toEqual([
+      expect.objectContaining({ role: "assistant", content: marker }),
+    ]);
   });
 
   it("preserves Pi Bash command titles and accumulates terminal metadata output", () => {

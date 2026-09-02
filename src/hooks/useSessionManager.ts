@@ -15,6 +15,7 @@ import { createSystemMessage } from "../lib/message-factory";
 import { suppressNextSessionCompletion } from "../lib/notification-utils";
 import { toastText } from "../lib/toast-i18n";
 import { getSplitPaneStateSnapshot } from "../lib/split-pane-state";
+import { replacePiContextSnapshots } from "@/lib/pi-context-store";
 import {
   DRAFT_ID,
   type StartOptions,
@@ -34,6 +35,7 @@ import { useSessionRevival } from "./session/useSessionRevival";
 import { useSessionLifecycle } from "./session/useSessionLifecycle";
 import {
   getSessionRuntimeDisposition,
+  isProtectedBuiltInPiAgent,
   newPiSessionIdentity,
 } from "@shared/lib/session-runtime";
 import { getAcpPromptTransportErrorMessage, hasAcpPromptTransportEvent } from "@shared/lib/acp-turn";
@@ -44,7 +46,7 @@ import {
   getAgentCachedSlashCommands,
   reconcileCachedAcpConfigCatalog,
 } from "@shared/lib/acp-config-cache";
-import { BUILTIN_PI_AGENT_ID } from "@shared/types/registry";
+import { BUILTIN_PI_AGENT, BUILTIN_PI_AGENT_ID } from "@shared/types/registry";
 
 export function useSessionManager(
   projects: Project[],
@@ -128,6 +130,11 @@ export function useSessionManager(
     isDraft || liveSessionIdsRef.current.has(runtimeSessionId)
   );
   const acpSessionId = runtimeAvailable ? runtimeSessionId : null;
+  const activeRuntimeAgent = activeRuntimeAgentId
+    ? installedAgents.find((agent) => agent.id === activeRuntimeAgentId)
+      ?? (activeRuntimeAgentId === BUILTIN_PI_AGENT_ID ? BUILTIN_PI_AGENT : undefined)
+    : undefined;
+  const usesPiContextBridge = isProtectedBuiltInPiAgent(activeRuntimeAgent);
 
   // ── Primary session pane ──
   const primaryPane = useSessionPane({
@@ -135,6 +142,7 @@ export function useSessionManager(
     activeEngine,
     runtimeEnabled,
     runtimeAvailable,
+    usesPiContextBridge,
     acpSessionId,
     initialMessages,
     initialMeta,
@@ -584,6 +592,11 @@ export function useSessionManager(
       : [];
     const runtimeAvailable = disposition.kind === "runtime"
       && liveSessionIdsRef.current.has(sessionId);
+    const usesPiContextBridge = disposition.kind === "runtime"
+      && isProtectedBuiltInPiAgent(
+        installedAgentsRef.current.find((agent) => agent.id === disposition.agentId)
+          ?? (disposition.agentId === BUILTIN_PI_AGENT_ID ? BUILTIN_PI_AGENT : undefined),
+      );
     if (
       disposition.kind === "runtime"
       && disposition.agentId === BUILTIN_PI_AGENT_ID
@@ -604,6 +617,7 @@ export function useSessionManager(
     ): SessionPaneBootstrap => ({
       session,
       runtimeAvailable,
+      usesPiContextBridge,
       initialMessages: state.messages,
       initialMeta: {
         isProcessing: state.isProcessing,
@@ -634,6 +648,7 @@ export function useSessionManager(
       return {
         session,
         runtimeAvailable,
+        usesPiContextBridge,
         initialMessages: splitPaneState.messages,
         initialMeta: {
           isProcessing: splitPaneState.isProcessing,
@@ -667,10 +682,15 @@ export function useSessionManager(
       return null;
     }
     const restoredSession = normalizePersistedSessionForDisplay(persistedSession);
+    replacePiContextSnapshots(
+      sessionId,
+      usesPiContextBridge ? restoredSession.piContextSnapshots ?? [] : [],
+    );
 
     return {
       session,
       runtimeAvailable: false,
+      usesPiContextBridge,
       initialMessages: restoredSession.messages,
       initialMeta: {
         isProcessing: false,
@@ -764,6 +784,9 @@ export function useSessionManager(
     respondPermission: engine.respondPermission,
     contextUsage: engine.contextUsage,
     isCompacting: "isCompacting" in engine ? !!engine.isCompacting : false,
+    isRuntimeDormant: primaryPane.isRuntimeDormant,
+    hasPiContextInspector: usesPiContextBridge,
+    canCompact: usesPiContextBridge && runtimeAvailable,
     compact: engine.compact,
     // ACP is the only live command source. Legacy command lists are not
     // resurrected from old engine state.

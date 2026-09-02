@@ -7,6 +7,7 @@ import { buildPersistedSession, toChatSession } from "../../lib/session/records"
 import { normalizeToolInput as acpNormalizeToolInput, pickAutoResponseOption } from "../../lib/engine/acp-adapter";
 import { DRAFT_ID } from "./types";
 import { createSystemMessage } from "@/lib/message-factory";
+import { getPiContextSnapshots } from "@/lib/pi-context-store";
 import {
   SESSION_SEND_FAILURE_EVENT,
   type SessionSendFailureDetail,
@@ -17,7 +18,11 @@ import {
   type SplitPaneStateSnapshot,
 } from "@/lib/split-pane-state";
 import type { SharedSessionRefs, SharedSessionSetters, EngineHooks } from "./types";
-import { getSessionRuntimeDisposition } from "@shared/lib/session-runtime";
+import {
+  getSessionRuntimeDisposition,
+  isProtectedBuiltInPiAgent,
+} from "@shared/lib/session-runtime";
+import { BUILTIN_PI_AGENT, BUILTIN_PI_AGENT_ID } from "@shared/types/registry";
 
 interface UseSessionPersistenceParams {
   refs: SharedSessionRefs;
@@ -35,7 +40,7 @@ export function useSessionPersistence({
   continueQueuedBackgroundSession,
 }: UseSessionPersistenceParams) {
   const { acp, engine } = engines;
-  const { messages, totalCost, upstreamRequestCount, requestLog, sessionInfo } = engine;
+  const { messages, totalCost, upstreamRequestCount, requestLog, contextUsage, sessionInfo } = engine;
   const {
     setSessions,
     setDraftAcpSessionId,
@@ -45,6 +50,7 @@ export function useSessionPersistence({
   const {
     activeSessionIdRef,
     sessionsRef,
+    installedAgentsRef,
     messagesRef,
     totalCostRef,
     upstreamRequestCountRef,
@@ -94,8 +100,16 @@ export function useSessionPersistence({
 
     persistenceGenerationRef.current += 1;
     const write = (async () => {
+      const agent = installedAgentsRef.current.find((entry) => entry.id === disposition.agentId)
+        ?? (disposition.agentId === BUILTIN_PI_AGENT_ID ? BUILTIN_PI_AGENT : undefined);
+      const piContextSnapshots = isProtectedBuiltInPiAgent(agent)
+        ? getPiContextSnapshots(data.id)
+        : [];
+      const persistableData = { ...data };
+      delete persistableData.piContextSnapshots;
       const result = await window.claude.sessions.save({
-        ...data,
+        ...persistableData,
+        ...(piContextSnapshots.length > 0 ? { piContextSnapshots: [...piContextSnapshots] } : {}),
         engine: disposition.engine,
         agentId: disposition.agentId,
       });
@@ -341,6 +355,26 @@ export function useSessionPersistence({
         ? !!continueQueuedBackgroundSession?.(sessionId)
         : false;
 
+      // A background Pi turn can finish while its child process stays alive.
+      // Persist here so its newest context snapshots survive an app restart,
+      // rather than waiting for the later process-exit handler.
+      if (!isProcessing && liveSessionIdsRef.current.has(sessionId) && session) {
+        const state = backgroundStoreRef.current.get(sessionId);
+        if (state && state.messages.length > 0) {
+          void persistRuntimeSession(buildPersistedSession(
+            {
+              ...session,
+              model: session.model || state.sessionInfo?.model,
+            },
+            state.messages,
+            state.totalCost,
+            state.contextUsage,
+            state.requestLog ?? [],
+            state.upstreamRequestCount,
+          )).catch(() => undefined);
+        }
+      }
+
       if (wasProcessing && !isProcessing && session && !continuedQueuedSession && !suppressUnread) {
         window.dispatchEvent(new CustomEvent("pcc-agent:background-session-complete", {
           detail: {
@@ -399,7 +433,14 @@ export function useSessionPersistence({
         detail: { sessionId },
       }));
     };
-  }, [continueQueuedBackgroundSession, sessionsRef, setSessions, switchSessionRef, backgroundStoreRef]);
+  }, [
+    backgroundStoreRef,
+    continueQueuedBackgroundSession,
+    persistRuntimeSession,
+    sessionsRef,
+    setSessions,
+    switchSessionRef,
+  ]);
 
   useEffect(() => {
     const handleSendFailure = (event: Event) => {
@@ -518,7 +559,18 @@ export function useSessionPersistence({
       if (sid === activeSessionIdRef.current) return;
       if (isSplitPaneRoutingReady(sid)) return;
       if (sid === draftAcpSessionIdRef.current) return;
-      backgroundStoreRef.current.handleACPEvent(event);
+      const session = sessionsRef.current.find((entry) => entry.id === sid);
+      const disposition = session
+        ? getSessionRuntimeDisposition({
+            engine: session.invalidEngine ?? session.engine,
+            agentId: session.agentId,
+          })
+        : null;
+      const agent = disposition?.kind === "runtime"
+        ? installedAgentsRef.current.find((entry) => entry.id === disposition.agentId)
+          ?? (disposition.agentId === BUILTIN_PI_AGENT_ID ? BUILTIN_PI_AGENT : undefined)
+        : undefined;
+      backgroundStoreRef.current.handleACPEvent(event, isProtectedBuiltInPiAgent(agent));
     });
 
     // Route permission requests for non-active ACP sessions to the background store
@@ -592,7 +644,15 @@ export function useSessionPersistence({
     if (!saveTimerRef.current) {
       saveTimerRef.current = setTimeout(flushActiveSaveWhenIdle, 2000);
     }
-  }, [messages, activeSessionId, sessionInfo?.model, upstreamRequestCount, requestLog, flushActiveSaveWhenIdle]);
+  }, [
+    messages,
+    activeSessionId,
+    sessionInfo?.model,
+    upstreamRequestCount,
+    requestLog,
+    contextUsage,
+    flushActiveSaveWhenIdle,
+  ]);
 
   const flushPendingSaves = useCallback(async () => {
     while (true) {

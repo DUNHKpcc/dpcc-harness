@@ -11,7 +11,12 @@ import {
   getAgentCachedConfigOptions,
   getAgentCachedSlashCommands,
 } from "@shared/lib/acp-config-cache";
-import { getSessionRuntimeDisposition } from "@shared/lib/session-runtime";
+import {
+  getSessionRuntimeDisposition,
+  isProtectedBuiltInPiAgent,
+} from "@shared/lib/session-runtime";
+import { BUILTIN_PI_AGENT, BUILTIN_PI_AGENT_ID } from "@shared/types/registry";
+import { replacePiContextSnapshots } from "@/lib/pi-context-store";
 
 const MAX_SESSION_PAYLOAD_CACHE = 6;
 
@@ -82,6 +87,14 @@ export function useSessionCache({
     const restoredAgentId = disposition.kind === "runtime"
       ? disposition.agentId
       : undefined;
+    const restoredAgent = restoredAgentId
+      ? installedAgentsRef.current.find((agent) => agent.id === restoredAgentId)
+        ?? (restoredAgentId === BUILTIN_PI_AGENT_ID ? BUILTIN_PI_AGENT : undefined)
+      : undefined;
+    replacePiContextSnapshots(
+      id,
+      isProtectedBuiltInPiAgent(restoredAgent) ? restoredData.piContextSnapshots ?? [] : [],
+    );
     const restoredEngine = disposition.kind === "runtime"
       ? "acp" as const
       : disposition.kind === "legacy-read-only"

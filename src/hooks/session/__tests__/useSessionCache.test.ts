@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { BUILTIN_PI_AGENT } from "@shared/types/registry";
 import type { PersistedSession } from "@/types";
 import { DRAFT_ID } from "../types";
 
@@ -57,7 +58,7 @@ function makeParams(initialSessions: Array<Record<string, unknown>> = []) {
       sessionsRef: { current: initialSessions as never[] },
       installedAgentsRef: {
         current: [{
-          id: "pi-acp",
+          ...BUILTIN_PI_AGENT,
           cachedConfigOptions: [{
             id: "model",
             name: "Model",
@@ -175,6 +176,60 @@ describe("useSessionCache", () => {
     expect(params.setters.setInitialSlashCommands).toHaveBeenLastCalledWith([
       expect.objectContaining({ name: "compact", source: "acp" }),
     ]);
+  });
+
+  it("restores saved Pi context details without initializing an ACP runtime", async () => {
+    const { useSessionCache } = await import("../useSessionCache");
+    const {
+      clearPiContextSnapshots,
+      getPiContextSnapshots,
+    } = await import("@/lib/pi-context-store");
+    const params = makeParams();
+    const cache = useSessionCache(params as never);
+    const sessionId = "pi-context-cache";
+
+    cache.applyLoadedSession(sessionId, makePayload(sessionId, {
+      engine: "acp",
+      agentId: "pi-acp",
+      piContextSnapshots: [{
+        version: 1,
+        id: "saved-context",
+        capturedAt: 1,
+        phase: "settled",
+        source: "pi-extension",
+        model: "fixture/model",
+        usedTokens: 42,
+        contextWindow: 128,
+        percent: 32.8125,
+        breakdown: {
+          systemPromptTokens: 8,
+          toolTokens: 4,
+          conversationTokens: 30,
+          reservedOutputTokens: 16,
+          freeTokens: 70,
+        },
+        details: {
+          systemPrompt: { characterCount: 32, tokenEstimate: 8 },
+          tools: [],
+          totalTools: 0,
+          omittedTools: 0,
+          timeline: [],
+          totalEntries: 0,
+          omittedEntries: 0,
+        },
+      }],
+    }));
+
+    expect(getPiContextSnapshots(sessionId)).toEqual([
+      expect.objectContaining({
+        id: "saved-context",
+        details: expect.objectContaining({
+          systemPrompt: { characterCount: 32, tokenEstimate: 8 },
+        }),
+      }),
+    ]);
+    expect("acp" in window.claude).toBe(false);
+    clearPiContextSnapshots(sessionId);
   });
 
   it("keeps an unknown engine detached instead of guessing it is Claude", async () => {

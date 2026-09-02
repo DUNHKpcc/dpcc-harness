@@ -14,3 +14,10 @@ export type { ImageAttachment, FileAttachment, GrabbedElement } from "./attachme
 export type { PermissionUpdateDestination, PermissionRuleValue, PermissionUpdate, PermissionRequest, AcpPermissionBehavior } from "./permissions";
 export type { BackgroundAgentUsage, BackgroundAgent, BackgroundAgentActivity } from "./agents";
 export type { ContextUsage, ModelInfo, McpTransport, McpServerConfig, McpServerStatusState, McpServerStatus } from "./mcp";
+export type {
+  PiContextSnapshotPhase,
+  PiContextCompactionReason,
+  PiContextBreakdown,
+  PiContextCompaction,
+  PiContextSnapshot,
+} from "./pi-context";

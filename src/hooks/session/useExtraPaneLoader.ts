@@ -14,6 +14,7 @@ interface ExtraPaneLoaderResult {
   readyId: string | null;
   session: ChatSession | null;
   runtimeAvailable: boolean;
+  usesPiContextBridge: boolean;
   initialMessages: UIMessage[];
   initialMeta: InitialMeta | null;
   initialPermission: PermissionRequest | null;
@@ -35,6 +36,7 @@ export function useExtraPaneLoader({
   const [readyId, setReadyId] = useState<string | null>(null);
   const [session, setSession] = useState<ChatSession | null>(null);
   const [runtimeAvailable, setRuntimeAvailable] = useState(false);
+  const [usesPiContextBridge, setUsesPiContextBridge] = useState(false);
   const [initialMessages, setInitialMessages] = useState<UIMessage[]>([]);
   const [initialMeta, setInitialMeta] = useState<InitialMeta | null>(null);
   const [initialPermission, setInitialPermission] = useState<PermissionRequest | null>(null);
@@ -56,6 +58,7 @@ export function useExtraPaneLoader({
         setReadyId(null);
         setSession(null);
         setRuntimeAvailable(false);
+        setUsesPiContextBridge(false);
         setInitialMessages([]);
         setInitialMeta(null);
         setInitialPermission(null);
@@ -76,6 +79,7 @@ export function useExtraPaneLoader({
         setReadyId(sessionId);
         setSession(bootstrap.session);
         setRuntimeAvailable(bootstrap.runtimeAvailable);
+        setUsesPiContextBridge(bootstrap.usesPiContextBridge);
         setInitialMessages(bootstrap.initialMessages);
         setInitialMeta(bootstrap.initialMeta);
         setInitialPermission(bootstrap.initialPermission);
@@ -93,6 +97,7 @@ export function useExtraPaneLoader({
         setReadyId(null);
         setSession(null);
         setRuntimeAvailable(false);
+        setUsesPiContextBridge(false);
         setInitialMessages([]);
         setInitialMeta(null);
         setInitialPermission(null);
@@ -108,6 +113,7 @@ export function useExtraPaneLoader({
     readyId,
     session,
     runtimeAvailable,
+    usesPiContextBridge,
     initialMessages,
     initialMeta,
     initialPermission,

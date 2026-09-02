@@ -16,9 +16,16 @@ import {
   getSessionRuntimeDisposition,
   INVALID_SESSION_ENGINE_MESSAGE,
   LEGACY_SESSION_READ_ONLY_MESSAGE,
+  isProtectedBuiltInPiAgent,
 } from "@shared/lib/session-runtime";
+import { BUILTIN_PI_AGENT } from "@shared/types/registry";
 import { getAcpPromptTransportErrorMessage, hasAcpPromptTransportEvent } from "@shared/lib/acp-turn";
 import { formatAcpOperationError } from "../../lib/engine/acp-utils";
+import {
+  clearPiContextSnapshots,
+  getPiContextSnapshots,
+  replacePiContextSnapshots,
+} from "@/lib/pi-context-store";
 import { DRAFT_ID, type EngineHooks, type SharedSessionRefs, type SharedSessionSetters } from "./types";
 
 interface UseSessionRevivalParams {
@@ -90,6 +97,7 @@ export function useSessionRevival({
     requestLogRef,
     contextUsageRef,
     liveSessionIdsRef,
+    installedAgentsRef,
     acpAgentIdRef,
     acpAgentSessionIdRef,
     acpConfigOptionsRef,
@@ -202,6 +210,11 @@ export function useSessionRevival({
       return;
     }
     const revivedMessages = [...messagesRef.current, createUserMessage(text, images, displayText)];
+    const agent = installedAgentsRef.current.find((entry) => entry.id === agentId)
+      ?? (agentId === BUILTIN_PI_AGENT_ID ? BUILTIN_PI_AGENT : undefined);
+    const contextSnapshots = isProtectedBuiltInPiAgent(agent)
+      ? getPiContextSnapshots(oldId)
+      : [];
     let copied = false;
     try {
       copied = await copyPersistedSessionToRuntimeId(
@@ -235,6 +248,10 @@ export function useSessionRevival({
 
     liveSessionIdsRef.current.delete(oldId);
     liveSessionIdsRef.current.add(newId);
+    if (newId !== oldId && contextSnapshots.length > 0) {
+      replacePiContextSnapshots(newId, contextSnapshots);
+      clearPiContextSnapshots(oldId);
+    }
     acpAgentIdRef.current = agentId;
     acpAgentSessionIdRef.current = result.agentSessionId ?? session.agentSessionId ?? null;
     setSessions((previous) => previous.map((item) => item.id === oldId

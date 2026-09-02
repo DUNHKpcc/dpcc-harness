@@ -21,6 +21,7 @@ import {
   normalizeCachedAcpConfigOptions,
   normalizeCachedAcpSlashCommands,
 } from "@shared/lib/acp-config-cache";
+import { clearPiContextSnapshots } from "@/lib/pi-context-store";
 
 interface UseSessionCrudParams {
   refs: SharedSessionRefs;
@@ -310,6 +311,7 @@ export function useSessionCrud({
         ++draftGenerationRef.current;
       }
       evictFromCache(id);
+      clearPiContextSnapshots(id);
       // Remove renderer ownership before the first await. This prevents the
       // active 2s auto-save from observing the session while deletion is in
       // progress. The main process also tombstones the ID for queued saves.

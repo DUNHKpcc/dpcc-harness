@@ -49,7 +49,6 @@
   "message": {
     "attachedImage": "附加图片",
     "copy": "复制",
-    "edit": "重新编辑",
     "queued": "排队中",
     "sendNext": "下一个发送",
     "unqueue": "移出队列"

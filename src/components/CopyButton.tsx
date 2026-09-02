@@ -26,7 +26,7 @@ export function CopyButton({ text, className, label }: CopyButtonProps) {
       type="button"
       variant="ghost"
       size="icon"
-      className={`h-7 w-7 text-muted-foreground hover:text-foreground ${className ?? ""}`}
+      className={`h-6 w-6 text-muted-foreground hover:text-foreground ${className ?? ""}`}
       aria-label={accessibleLabel}
       title={accessibleLabel}
       onClick={(event) => {
@@ -35,7 +35,7 @@ export function CopyButton({ text, className, label }: CopyButtonProps) {
         void handleCopy();
       }}
     >
-      {copied ? <Check className="h-3.5 w-3.5 text-foreground/60" /> : <Copy className="h-3.5 w-3.5" />}
+      {copied ? <Check className="h-3 w-3 text-foreground/60" /> : <Copy className="h-3 w-3" />}
     </Button>
   );
 }

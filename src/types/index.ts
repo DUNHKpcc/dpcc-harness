@@ -45,7 +45,6 @@ export type {
   SystemUIMessage,
   SummaryUIMessage,
   UIMessage,
-  MessageEditRequest,
   SessionInfo,
   UpstreamModelUsageBreakdown,
   UpstreamRequestEngine,

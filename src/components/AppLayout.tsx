@@ -20,7 +20,7 @@ import {
   equalWidthFractions,
 } from "@/lib/layout/constants";
 import { BUILTIN_PI_AGENT } from "@/types";
-import type { FileReference, ImageAttachment, InstalledAgent, MessageEditRequest } from "@/types";
+import type { FileReference, InstalledAgent } from "@/types";
 import { AppSidebar, type SidebarWorkspaceView } from "./AppSidebar";
 import { ChatHeader } from "./ChatHeader";
 import { ChatSearchBar } from "./ChatSearchBar";
@@ -197,23 +197,6 @@ export function AppLayout() {
     displayText?: string;
     fileReferences?: FileReference[];
   } | null>(null);
-  const [editRequest, setEditRequest] = useState<MessageEditRequest | null>(null);
-  const nextEditRequestIdRef = useRef(0);
-
-  const handleEditMessage = useCallback((text: string, images?: ImageAttachment[]) => {
-    clearGrabbedElements();
-    nextEditRequestIdRef.current += 1;
-    setEditRequest({
-      requestId: nextEditRequestIdRef.current,
-      text,
-      images,
-    });
-  }, [clearGrabbedElements]);
-
-  const handleEditRequestHandled = useCallback((requestId: number) => {
-    setEditRequest((current) => current?.requestId === requestId ? null : current);
-  }, []);
-
   const handleOpenSidebarWorkspace = useCallback((view: Exclude<SidebarWorkspaceView, null>) => {
     setShowSettings(false);
     setJiraBoardProjectForSpace(spaceManager.activeSpaceId, null);
@@ -1654,7 +1637,6 @@ export function AppLayout() {
                 onTopScrollProgress={handleTopScrollProgress}
                 onSendQueuedNow={handleSendQueuedNow}
                 onUnqueueQueuedMessage={handleUnqueueMessage}
-                onEditMessage={readOnlyReason === null ? handleEditMessage : undefined}
                 sendNextId={manager.sendNextId}
               />
               <div
@@ -1695,8 +1677,6 @@ export function AppLayout() {
                   onSelectWorktree={handleAgentWorktreeChange}
                   isEmptySession={manager.messages.length === 0}
                   onManageACPs={() => handleOpenSidebarWorkspace("acp-agents")}
-                  editRequest={editRequest}
-                  onEditRequestHandled={handleEditRequestHandled}
                 />
               </div>
               </>

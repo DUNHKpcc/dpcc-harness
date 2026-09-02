@@ -1,9 +1,8 @@
 import { memo, useState, useMemo, createContext, useContext, lazy, Suspense, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertCircle, Clock, Crosshair, File, Folder, Info, PenLine, Send, X } from "lucide-react";
+import { AlertCircle, Clock, Crosshair, File, Folder, Info, Send, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { guessLanguage } from "@/lib/languages";
@@ -227,8 +226,6 @@ interface MessageBubbleProps {
   onSendQueuedNow?: (messageId: string) => void;
   /** Called when user removes a queued user message before it is sent */
   onUnqueueQueued?: (messageId: string) => void;
-  /** Restores the visible user message in the composer for editing */
-  onEditMessage?: (text: string, images?: ImageAttachment[]) => void;
 }
 
 export const MessageBubble = memo(function MessageBubble({
@@ -239,7 +236,6 @@ export const MessageBubble = memo(function MessageBubble({
   isSendNextQueued = false,
   onSendQueuedNow,
   onUnqueueQueued,
-  onEditMessage,
 }: MessageBubbleProps) {
   const { t } = useTranslation("chat");
   // All hooks must be called before any early returns (Rules of Hooks)
@@ -364,25 +360,8 @@ export const MessageBubble = memo(function MessageBubble({
               <p className="text-xs">{time}</p>
             </TooltipContent>
           </Tooltip>
-          <div className="mt-0.5 flex justify-end gap-0.5">
+          <div className="mt-0.5 flex justify-end gap-0.5 opacity-0 transition-opacity group-hover/user:opacity-100 focus-within:opacity-100">
             <CopyButton text={displayContent} label={t("message.copy")} />
-            {onEditMessage && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                aria-label={t("message.edit")}
-                title={t("message.edit")}
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  onEditMessage(displayContent, message.images);
-                }}
-              >
-                <PenLine className="h-3.5 w-3.5" />
-              </Button>
-            )}
           </div>
         </div>
       </div>
@@ -403,7 +382,7 @@ export const MessageBubble = memo(function MessageBubble({
 
   return (
     <div
-      className={cn("flex justify-start", CHAT_ROW_CLASS)}
+      className={cn("group/assistant flex justify-start", CHAT_ROW_CLASS)}
       data-continuation={isContinuation || undefined}
     >
       <Tooltip>
@@ -450,7 +429,7 @@ export const MessageBubble = memo(function MessageBubble({
                 ) : null}
               </div>
               {message.content && (
-                <div className="mt-0.5 flex items-center">
+                <div className="mt-0.5 flex items-center opacity-0 transition-opacity group-hover/assistant:opacity-100 focus-within:opacity-100">
                   <CopyButton text={message.content} label={t("message.copy")} />
                 </div>
               )}
@@ -478,8 +457,7 @@ export const MessageBubble = memo(function MessageBubble({
   prev.showThinking === next.showThinking &&
   prev.isContinuation === next.isContinuation &&
   prev.onSendQueuedNow === next.onSendQueuedNow &&
-  prev.onUnqueueQueued === next.onUnqueueQueued &&
-  prev.onEditMessage === next.onEditMessage,
+  prev.onUnqueueQueued === next.onUnqueueQueued,
 );
 
 /**

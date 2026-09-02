@@ -83,12 +83,14 @@ function resolveBundledPi() {
     process.platform === "win32" ? "pi.cmd" : "pi",
   );
   const mcpBridgePath = path.join(REPO_ROOT, "build", "pi-runtime", "extensions", "pcc-mcp.ts");
+  const contextBridgePath = path.join(REPO_ROOT, "build", "pi-runtime", "extensions", "pcc-context-usage.ts");
   try {
     fs.accessSync(hostPath, process.platform === "win32" ? fs.constants.F_OK : fs.constants.X_OK);
     fs.accessSync(entryPath, fs.constants.F_OK);
     fs.accessSync(mcpAdapterEntryPath, fs.constants.F_OK);
     fs.accessSync(wrapperPath, process.platform === "win32" ? fs.constants.F_OK : fs.constants.X_OK);
     fs.accessSync(mcpBridgePath, fs.constants.F_OK);
+    fs.accessSync(contextBridgePath, fs.constants.F_OK);
     fs.accessSync(MCP_FIXTURE_PATH, fs.constants.F_OK);
   } catch {
     throw codedError("pi_bundled_package_missing", "bundled Pi runtime is unavailable");
@@ -101,6 +103,7 @@ function resolveBundledPi() {
     mcpAdapterVersion: mcpAdapter.version,
     wrapperPath,
     mcpBridgePath,
+    contextBridgePath,
   };
 }
 
@@ -229,6 +232,9 @@ async function runPi({ runtime, paths, baseUrl, sessionId, prompt, mcpConfigPath
       PCC_AGENT_PI_MCP_CONFIG: mcpConfigPath,
       PCC_AGENT_PI_MCP_ADAPTER: runtime.mcpAdapterEntryPath,
     } : {}),
+    ...(useWrapper ? {
+      PCC_AGENT_PI_CONTEXT_EXTENSION: runtime.contextBridgePath,
+    } : {}),
   };
   const command = useWrapper ? runtime.wrapperPath : runtime.hostPath;
   const commandArgs = useWrapper ? args : [runtime.entryPath, ...args];
@@ -285,6 +291,124 @@ async function runPi({ runtime, paths, baseUrl, sessionId, prompt, mcpConfigPath
     stderrBytes: Buffer.byteLength(stderr.join("")),
     stderrTail: stderr.join("").slice(-2_000),
   };
+}
+
+/**
+ * Starts the real bundled Pi RPC mode through the packaged launcher and proves
+ * that the context extension emits the read-only UI bridge notification.
+ */
+async function runContextBridgeRpc(runtime, paths) {
+  const fixture = await startPiNativeProviderFixture({ mode: "success", apiKey: FIXTURE_API_KEY });
+  try {
+    await writeModelsConfig(paths, fixture.baseUrl);
+    const child = spawn(runtime.wrapperPath, [
+      "--mode", "rpc",
+      "--provider", PROVIDER_ID,
+      "--model", MODEL_ID,
+      "--api-key", FIXTURE_API_KEY,
+      "--session-dir", paths.sessionDir,
+      "--session-id", `native-context-${crypto.randomUUID().slice(0, 8)}`,
+      "--thinking", "off",
+      "--no-skills",
+      "--no-prompt-templates",
+      "--no-themes",
+      "--no-context-files",
+      "--offline",
+    ], {
+      cwd: paths.workspace,
+      env: {
+        ...isolatedEnvironment(paths, fixture.baseUrl),
+        ELECTRON_RUN_AS_NODE: "1",
+        PCC_AGENT_PI_RUNTIME_HOST: runtime.hostPath,
+        PCC_AGENT_PI_ENTRY: runtime.entryPath,
+        PCC_AGENT_PI_CONTEXT_EXTENSION: runtime.contextBridgePath,
+      },
+      shell: process.platform === "win32",
+      windowsHide: true,
+      detached: process.platform !== "win32",
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+
+    const bridge = await new Promise((resolve, reject) => {
+      let buffer = "";
+      let stderr = "";
+      let settled = false;
+      const timeout = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        killProcess(child);
+        reject(codedError("cli_timeout", `Pi context bridge did not emit within ${TEST_TIMEOUT_MS}ms`));
+      }, TEST_TIMEOUT_MS);
+      const finish = (callback, value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        killProcess(child);
+        callback(value);
+      };
+
+      child.on("error", () => finish(reject, codedError("cli_spawn_error", "Pi context bridge could not be started")));
+      child.on("exit", (code, signal) => {
+        finish(reject, codedError(
+          "cli_exit_unexpected",
+          `Pi context bridge exited before emitting (code=${code ?? "null"}, signal=${signal ?? "null"}): ${stderr.slice(-500)}`,
+        ));
+      });
+      child.stderr.on("data", (chunk) => { stderr = `${stderr}${chunk}`.slice(-2_000); });
+      child.stdout.on("data", (chunk) => {
+        buffer += chunk;
+        let newline = buffer.indexOf("\n");
+        while (newline >= 0) {
+          const line = buffer.slice(0, newline).trim();
+          buffer = buffer.slice(newline + 1);
+          newline = buffer.indexOf("\n");
+          if (!line) continue;
+          let event;
+          try {
+            event = JSON.parse(line);
+          } catch {
+            finish(reject, codedError("native_protocol_error", "Pi RPC emitted an invalid JSON line"));
+            return;
+          }
+          if (
+            event?.type === "extension_ui_request"
+            && event.method === "notify"
+            && typeof event.message === "string"
+            && event.message.startsWith("__PCC_AGENT_PI_CONTEXT_V1__:")
+          ) {
+            finish(resolve, event.message.slice("__PCC_AGENT_PI_CONTEXT_V1__:".length));
+            return;
+          }
+        }
+      });
+    });
+
+    let snapshot;
+    try {
+      snapshot = JSON.parse(String(bridge));
+    } catch {
+      throw codedError("native_protocol_error", "Pi context bridge payload is not JSON");
+    }
+    assertCondition(snapshot?.version === 1, "Pi context bridge emitted an unsupported payload");
+    assertCondition(snapshot?.phase === "session_start", "Pi context bridge did not emit the startup snapshot");
+    assertCondition(snapshot?.contextWindow === 128000, "Pi context bridge lost the native model context window");
+    assertCondition(typeof snapshot?.usedTokens === "number" || snapshot?.usedTokens === null, "Pi context bridge usage is invalid");
+    assertCondition(
+      typeof snapshot?.details?.systemPrompt?.characterCount === "number"
+        && typeof snapshot?.details?.systemPrompt?.tokenEstimate === "number",
+      "Pi context bridge did not emit inspectable composition details",
+    );
+    assertCondition(Array.isArray(snapshot?.details?.timeline), "Pi context bridge timeline is invalid");
+    return {
+      phase: snapshot.phase,
+      contextWindow: snapshot.contextWindow,
+      detailEntries: snapshot.details.timeline.length,
+    };
+  } finally {
+    await fixture.close();
+  }
 }
 
 function assertCondition(condition, message, code = "assertion_failed") {
@@ -500,6 +624,7 @@ async function main() {
   const paths = await makePaths();
   try {
     const success = await runSuccessAndContinuation(runtime, paths);
+    const contextBridge = await runContextBridgeRpc(runtime, paths);
     const recovered = await runRecoverAfterRetry(runtime, paths);
     const skill = await runProjectSkillExposure(runtime, paths);
     const mcp = await runMcpExposure(runtime, paths);
@@ -512,6 +637,7 @@ async function main() {
       mcpAdapterVersion,
       scenarios: {
         successAndContinuation: success,
+        contextBridge,
         recoverAfterRetry: recovered,
         projectSkillExposure: skill,
         mcpExposure: mcp,

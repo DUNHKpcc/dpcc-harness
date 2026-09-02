@@ -16,10 +16,8 @@ import {
   type PiProviderUpstream,
   type PiUpstream,
 } from "./upstream-resolver";
-import {
-  BUILTIN_PI_AGENT_ID,
-  type InstalledAgent,
-} from "@shared/types/registry";
+import { type InstalledAgent } from "@shared/types/registry";
+import { isProtectedBuiltInPiAgent } from "@shared/lib/session-runtime";
 import {
   bundledPiEnvironment,
   resolveBundledPiRuntime,
@@ -31,6 +29,7 @@ const PI_GATEWAY_ENV_KEY = "PCC_AGENT_PI_GATEWAY_KEY";
 const PI_MCP_EXTENSION_ENV_KEY = "PCC_AGENT_PI_MCP_EXTENSION";
 const PI_MCP_CONFIG_ENV_KEY = "PCC_AGENT_PI_MCP_CONFIG";
 const PI_MCP_ADAPTER_ENV_KEY = "PCC_AGENT_PI_MCP_ADAPTER";
+const PI_CONTEXT_EXTENSION_ENV_KEY = "PCC_AGENT_PI_CONTEXT_EXTENSION";
 const PI_GLOBAL_SKILLS_ENV_KEY = "PCC_AGENT_PI_GLOBAL_SKILLS";
 const PI_PROJECT_SKILLS_ENV_KEY = "PCC_AGENT_PI_PROJECT_SKILLS";
 
@@ -108,6 +107,7 @@ const PI_PROVIDER_ROUTING_KEYS = new Set([
   PI_MCP_EXTENSION_ENV_KEY,
   PI_MCP_CONFIG_ENV_KEY,
   PI_MCP_ADAPTER_ENV_KEY,
+  PI_CONTEXT_EXTENSION_ENV_KEY,
   PI_GLOBAL_SKILLS_ENV_KEY,
   PI_PROJECT_SKILLS_ENV_KEY,
   "PI_CODING_AGENT_DIR",
@@ -472,10 +472,7 @@ function buildIsolatedPiEnvironment(
 export function isOfficialPiAcpAgent(
   agent: Pick<InstalledAgent, "id" | "engine" | "builtIn" | "registryId">,
 ): boolean {
-  return agent.id === BUILTIN_PI_AGENT_ID
-    && agent.engine === "acp"
-    && agent.builtIn === true
-    && agent.registryId?.trim() === BUILTIN_PI_AGENT_ID;
+  return isProtectedBuiltInPiAgent(agent);
 }
 
 function e2ePiCommandOverride(): string | undefined {
@@ -500,6 +497,9 @@ export async function preparePiAcpLaunch(
   const runtime = resolveBundledPiRuntime();
   const piCommand = e2ePiCommandOverride() ?? runtime.piCommandPath;
   const runtimeEnv = bundledPiEnvironment(runtime, piCommand);
+  const contextEnv: NodeJS.ProcessEnv = {
+    [PI_CONTEXT_EXTENSION_ENV_KEY]: runtime.piContextExtensionPath,
+  };
   const skillEnv = preparePiSkillEnvironment(options.cwd);
 
   const upstream = resolvePiUpstream();
@@ -516,7 +516,7 @@ export async function preparePiAcpLaunch(
     const mcp = preparePiMcpEnvironment(runtime, options);
     return {
       ...baseLaunch,
-      env: { ...agent.env, ...runtimeEnv, ...skillEnv, ...mcp.env },
+      env: { ...agent.env, ...runtimeEnv, ...contextEnv, ...skillEnv, ...mcp.env },
       cleanup: mcp.cleanup,
     };
   }
@@ -554,6 +554,7 @@ export async function preparePiAcpLaunch(
         agentDir,
         piCommand,
       ),
+      ...contextEnv,
       ...skillEnv,
       ...mcp.env,
     },

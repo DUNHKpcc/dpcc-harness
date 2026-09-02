@@ -25,6 +25,7 @@ const BUNDLED_PI_ENTRY = "/embedded/app.asar/node_modules/pi/dist/cli.js";
 const BUNDLED_PI_ACP_ENTRY = "/embedded/app.asar/node_modules/pi-acp/dist/index.js";
 const BUNDLED_PI_MCP_ENTRY = "/embedded/app.asar/node_modules/pi-mcp-adapter/index.ts";
 const BUNDLED_PI_MCP_BRIDGE = "/embedded/resources/pi-runtime/extensions/pcc-mcp.ts";
+const BUNDLED_PI_CONTEXT_BRIDGE = "/embedded/resources/pi-runtime/extensions/pcc-context-usage.ts";
 
 vi.mock("./data-dir", () => ({
   getDataDir: () => dataDirRef.current,
@@ -99,6 +100,7 @@ function piAgent(adapterPath: string, piPath: string): InstalledAgent {
       PCC_AGENT_PI_MCP_EXTENSION: "/tmp/ambient-extension.ts",
       PCC_AGENT_PI_MCP_CONFIG: "/tmp/ambient-mcp.json",
       PCC_AGENT_PI_MCP_ADAPTER: "/tmp/ambient-adapter.ts",
+      PCC_AGENT_PI_CONTEXT_EXTENSION: "/tmp/ambient-context.ts",
       PCC_AGENT_PI_GLOBAL_SKILLS: "/tmp/ambient-skills",
       KEEP_ME: "yes",
     },
@@ -132,6 +134,8 @@ describe("Pi ACP config", () => {
       piCommandAvailable: true,
       piMcpBridgePath: BUNDLED_PI_MCP_BRIDGE,
       piMcpBridgeAvailable: true,
+      piContextExtensionPath: BUNDLED_PI_CONTEXT_BRIDGE,
+      piContextExtensionAvailable: true,
       pi: {
         packageName: "@earendil-works/pi-coding-agent",
         expectedVersion: "0.84.1",
@@ -166,6 +170,7 @@ describe("Pi ACP config", () => {
       PCC_AGENT_PI_RUNTIME_HOST: BUNDLED_HOST,
       PCC_AGENT_PI_ENTRY: BUNDLED_PI_ENTRY,
       PI_ACP_PI_COMMAND: piCommand,
+      PCC_AGENT_PI_CONTEXT_EXTENSION: BUNDLED_PI_CONTEXT_BRIDGE,
     }));
     mockResolvePiUpstream.mockReturnValue(dpccUpstream());
     mockFetchUpstreamModels.mockImplementation(async (_baseUrl: string, token: string) => ({
@@ -296,6 +301,7 @@ describe("Pi ACP config", () => {
       PCC_AGENT_PI_MCP_EXTENSION: "",
       PCC_AGENT_PI_MCP_CONFIG: "",
       PCC_AGENT_PI_MCP_ADAPTER: "",
+      PCC_AGENT_PI_CONTEXT_EXTENSION: BUNDLED_PI_CONTEXT_BRIDGE,
       PCC_AGENT_PI_GLOBAL_SKILLS: "",
     });
     expect(launch.env?.OPENAI_API_KEY).toBeUndefined();
@@ -426,6 +432,7 @@ describe("Pi ACP config", () => {
       PCC_AGENT_PI_MCP_EXTENSION: "",
       PCC_AGENT_PI_MCP_CONFIG: "",
       PCC_AGENT_PI_MCP_ADAPTER: "",
+      PCC_AGENT_PI_CONTEXT_EXTENSION: BUNDLED_PI_CONTEXT_BRIDGE,
       PCC_AGENT_PI_GLOBAL_SKILLS: "",
     });
     expect(fs.existsSync(path.join(dataDirRef.current, "pi-agent"))).toBe(false);

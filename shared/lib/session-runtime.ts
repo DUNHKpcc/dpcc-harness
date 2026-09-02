@@ -1,5 +1,6 @@
 import {
   BUILTIN_PI_AGENT_ID,
+  type InstalledAgent,
 } from "../types/registry";
 import type { PersistedEngineId, RuntimeEngineId } from "../types/engine";
 
@@ -38,6 +39,16 @@ export function isLegacyReadOnlyDisposition(
 
 export function newPiSessionIdentity(): SessionRuntimeIdentity {
   return { engine: "acp", agentId: BUILTIN_PI_AGENT_ID };
+}
+
+/** The bundled Pi runtime may only be selected through its complete identity. */
+export function isProtectedBuiltInPiAgent(
+  agent: Pick<InstalledAgent, "id" | "engine" | "builtIn" | "registryId"> | null | undefined,
+): boolean {
+  return agent?.id === BUILTIN_PI_AGENT_ID
+    && agent.engine === "acp"
+    && agent.builtIn === true
+    && agent.registryId?.trim() === BUILTIN_PI_AGENT_ID;
 }
 
 export function getSessionRuntimeDisposition(session: {

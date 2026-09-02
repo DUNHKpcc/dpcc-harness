@@ -8,6 +8,13 @@ fi
 
 export ELECTRON_RUN_AS_NODE=1
 
+if [ -z "${PCC_AGENT_PI_CONTEXT_EXTENSION:-}" ]; then
+  printf '%s\n' 'PccAgent bundled Pi context bridge is not configured.' >&2
+  exit 78
+fi
+
+set -- "$@" --extension "$PCC_AGENT_PI_CONTEXT_EXTENSION"
+
 if [ -n "${PCC_AGENT_PI_GLOBAL_SKILLS:-}" ]; then
   set -- "$@" --skill "$PCC_AGENT_PI_GLOBAL_SKILLS"
 fi

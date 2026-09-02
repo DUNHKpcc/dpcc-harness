@@ -9,6 +9,7 @@ export type BundledPiRuntimeErrorCode =
   | "pi_acp_bundled_package_missing"
   | "pi_mcp_bundled_package_missing"
   | "pi_mcp_bridge_missing"
+  | "pi_context_bridge_missing"
   | "pi_bundled_version_mismatch"
   | "pi_acp_bundled_version_mismatch"
   | "pi_mcp_bundled_version_mismatch";
@@ -32,6 +33,8 @@ export interface BundledPiRuntimeInspection {
   piCommandAvailable: boolean;
   piMcpBridgePath: string;
   piMcpBridgeAvailable: boolean;
+  piContextExtensionPath: string;
+  piContextExtensionAvailable: boolean;
   pi: BundledPiRuntimeComponent;
   piAcp: BundledPiRuntimeComponent;
   piMcpAdapter: BundledPiRuntimeComponent;
@@ -45,6 +48,7 @@ export interface BundledPiRuntime extends BundledPiRuntimeInspection {
   piAcp: BundledPiRuntimeComponent & { entryPath: string; available: true; code: null };
   piMcpAdapter: BundledPiRuntimeComponent & { entryPath: string; available: true; code: null };
   piMcpBridgeAvailable: true;
+  piContextExtensionAvailable: true;
   offlineReady: true;
 }
 
@@ -209,15 +213,21 @@ function piMcpBridgePath(context: BundledPiRuntimeContext): string {
   return path.join(piRuntimeResourceRoot(context), "pi-runtime", "extensions", "pcc-mcp.ts");
 }
 
+function piContextExtensionPath(context: BundledPiRuntimeContext): string {
+  return path.join(piRuntimeResourceRoot(context), "pi-runtime", "extensions", "pcc-context-usage.ts");
+}
+
 export function inspectBundledPiRuntime(
   overrides: Partial<BundledPiRuntimeContext> = {},
 ): BundledPiRuntimeInspection {
   const context = { ...defaultContext(), ...overrides };
   const commandPath = piCommandPath(context);
   const mcpBridgePath = piMcpBridgePath(context);
+  const contextExtensionPath = piContextExtensionPath(context);
   const hostAvailable = canAccess(context.hostPath, true, context.platform);
   const piCommandAvailable = canAccess(commandPath, true, context.platform);
   const piMcpBridgeAvailable = canAccess(mcpBridgePath, false, context.platform);
+  const piContextExtensionAvailable = canAccess(contextExtensionPath, false, context.platform);
   const pi = inspectComponent(
     runtimeManifest.binaries.pi.package,
     runtimeManifest.binaries.pi.version,
@@ -251,12 +261,15 @@ export function inspectBundledPiRuntime(
     piCommandAvailable,
     piMcpBridgePath: mcpBridgePath,
     piMcpBridgeAvailable,
+    piContextExtensionPath: contextExtensionPath,
+    piContextExtensionAvailable,
     pi,
     piAcp,
     piMcpAdapter,
     offlineReady: hostAvailable
       && piCommandAvailable
       && piMcpBridgeAvailable
+      && piContextExtensionAvailable
       && pi.available
       && piAcp.available
       && piMcpAdapter.available,
@@ -295,6 +308,12 @@ export function resolveBundledPiRuntime(
       "The bundled Pi MCP bridge is missing from the application resources.",
     );
   }
+  if (!inspected.piContextExtensionAvailable) {
+    throw codedError(
+      "pi_context_bridge_missing",
+      "The bundled Pi context bridge is missing from the application resources.",
+    );
+  }
   if (!inspected.piMcpAdapter.available) {
     throw codedError(
       inspected.piMcpAdapter.code ?? "pi_mcp_bundled_package_missing",
@@ -315,5 +334,6 @@ export function bundledPiEnvironment(
     PCC_AGENT_PI_RUNTIME_HOST: runtime.hostPath,
     PCC_AGENT_PI_ENTRY: runtime.pi.entryPath,
     PI_ACP_PI_COMMAND: piCommand,
+    PCC_AGENT_PI_CONTEXT_EXTENSION: runtime.piContextExtensionPath,
   };
 }

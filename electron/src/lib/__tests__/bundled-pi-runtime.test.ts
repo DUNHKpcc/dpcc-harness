@@ -23,6 +23,7 @@ function createContext(options: {
   includePiAcp?: boolean;
   includePiMcpAdapter?: boolean;
   includeMcpBridge?: boolean;
+  includeContextBridge?: boolean;
   includeWrapper?: boolean;
 } = {}): BundledPiRuntimeContext {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "pcc-agent-bundled-pi-"));
@@ -74,6 +75,11 @@ function createContext(options: {
   }
   if (options.includeMcpBridge !== false) {
     const bridgePath = path.join(runtimeRoot, "extensions", "pcc-mcp.ts");
+    fs.mkdirSync(path.dirname(bridgePath), { recursive: true });
+    fs.writeFileSync(bridgePath, "// fixture\n");
+  }
+  if (options.includeContextBridge !== false) {
+    const bridgePath = path.join(runtimeRoot, "extensions", "pcc-context-usage.ts");
     fs.mkdirSync(path.dirname(bridgePath), { recursive: true });
     fs.writeFileSync(bridgePath, "// fixture\n");
   }
@@ -149,11 +155,13 @@ describe("bundled Pi runtime", () => {
         piMcpAdapter: { actualVersion: "2.31.0", available: true },
       });
       expect(runtime.piCommandPath).toContain(path.join("build", "pi-runtime", "bin"));
+      expect(runtime.piContextExtensionPath).toContain(path.join("build", "pi-runtime", "extensions"));
       expect(bundledPiEnvironment(runtime)).toMatchObject({
         ELECTRON_RUN_AS_NODE: "1",
         PCC_AGENT_PI_RUNTIME_HOST: context.hostPath,
         PCC_AGENT_PI_ENTRY: runtime.pi.entryPath,
         PI_ACP_PI_COMMAND: runtime.piCommandPath,
+        PCC_AGENT_PI_CONTEXT_EXTENSION: runtime.piContextExtensionPath,
       });
     } finally {
       process.env.PATH = originalPath;
@@ -181,6 +189,18 @@ describe("bundled Pi runtime", () => {
     const mismatchedPi = createContext({ piVersion: "0.84.2" });
     expect(() => resolveBundledPiRuntime(mismatchedPi)).toThrow(expect.objectContaining({
       code: "pi_bundled_version_mismatch",
+    }));
+  });
+
+  it("fails closed when the bundled context bridge is unavailable", () => {
+    const context = createContext({ includeContextBridge: false });
+
+    expect(inspectBundledPiRuntime(context)).toMatchObject({
+      offlineReady: false,
+      piContextExtensionAvailable: false,
+    });
+    expect(() => resolveBundledPiRuntime(context)).toThrow(expect.objectContaining({
+      code: "pi_context_bridge_missing",
     }));
   });
 

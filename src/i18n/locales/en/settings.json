@@ -49,6 +49,12 @@
       "light": "Light",
       "system": "System"
     },
+    "colors": {
+      "section": "Theme customization",
+      "label": "Accent color",
+      "description": "Choose the primary accent color used throughout the interface. Other customization options are not available yet.",
+      "reset": "Reset"
+    },
     "tools": {
       "section": "Tools",
       "autoGroup": "Auto-group tools",

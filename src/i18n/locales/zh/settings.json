@@ -49,6 +49,12 @@
       "light": "浅色",
       "system": "跟随系统"
     },
+    "colors": {
+      "section": "主题自定义",
+      "label": "主题色",
+      "description": "选择应用界面中使用的主色调，其他自定义选项暂未提供。",
+      "reset": "恢复默认"
+    },
     "tools": {
       "section": "工具",
       "autoGroup": "自动分组工具",

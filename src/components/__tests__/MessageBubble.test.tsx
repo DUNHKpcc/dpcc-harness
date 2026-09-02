@@ -27,6 +27,8 @@ describe("MessageBubble message actions", () => {
     const markup = renderMessage(message);
 
     expect(markup).toContain('aria-label="Copy"');
+    expect(markup).toContain("h-5 w-5");
+    expect(markup).toContain("h-2.5 w-2.5");
     expect(markup).toContain("group-hover/user:opacity-100");
     expect(markup).toContain("Continue");
   });

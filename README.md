@@ -202,8 +202,8 @@ MCP 服务器在右侧工具栏的 **MCP 服务器面板**中按项目配置。�
 ## 开发
 
 ```bash
-pnpm install
-pnpm dev
+pnpm install  安装项目依赖
+pnpm dev      拉起develop开发版
 ```
 
 `pnpm dev` 启动 Vite、Electron main watch 和 Electron。开发态与安装包都使用仓库锁定的 bundled Pi runtime，不读取系统 PATH 中的同名命令，也不会在首次运行时下载 runtime。可用 `pnpm pi:runtime:check` 检查 Pi、`pi-acp`、MCP adapter、Electron host、版本锁定和离线策略。
@@ -211,13 +211,13 @@ pnpm dev
 ### 测试
 
 ```bash
-pnpm test
-pnpm typecheck
-pnpm build
-pnpm test:pi-integration
-pnpm test:electron-recovery
-pnpm test-map:check
-pnpm docs:check
+pnpm test           单侧，回归，集成测试，基准测试
+pnpm typecheck      版本检查
+pnpm build          构建
+pnpm test:pi-integration     pi测试
+pnpm test:electron-recovery  electron恢复测试
+pnpm test-map:check          图测
+pnpm docs:check              文档检查
 ```
 
 Pi child integration 和 Electron recovery 会使用临时目录，不读取真实用户会话。发布安装包由 CI quality gate 负责，不把本机旧产物当作验证结果。
@@ -228,11 +228,11 @@ Pi child integration 和 Electron recovery 会使用临时目录，不读取真�
 ### Pi Agent 专属开发工作流
 
 ```bash
-pnpm workflow:start
+pnpm workflow:start       开始工作流
 pnpm workflow:pi-reference -- query "Pi 会话恢复为什么失败"
-pnpm workflow:review -- --fast
+pnpm workflow:review -- --fast     code-graph-review
 pnpm workflow:review -- --full
-pnpm workflow:status
+pnpm workflow:status      健康状态
 ```
 
 该工作流随仓库提交，clean clone 安装依赖后即可使用。离线门禁会校验 3 个 bundled Pi runtime package 的版本、对应 lockfile package entry 的精确 integrity、声明的源码 commit 和本地 source/doc 文件，并通过 30 个场景测试 Pi 检索路由。需要联网核对 npm 发布元数据中的 `gitHead` 与 integrity 时，运行 `pnpm workflow:verify-pi-upstream`；它不属于 required gate，避免 registry 波动阻断 PR。Pi 官方资料入口包括 [Pi 文档](https://pi.dev/docs/latest)、[RPC](https://pi.dev/docs/latest/rpc)、[SDK](https://pi.dev/docs/latest/sdk) 和 [Skills](https://pi.dev/docs/latest/skills)；实际行为仍以当前 Harnss 实现及安装包锁定版本源码为准。

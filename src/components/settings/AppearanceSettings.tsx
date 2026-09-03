@@ -1,13 +1,13 @@
 import { memo } from "react";
 import { useTranslation } from "react-i18next";
-import { SunMoon, Layout, Blend, Wrench, Languages, Palette } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { SunMoon, Layout, Blend, Wrench, Languages } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { SettingRow, SettingsSelect, SettingsHeader, SettingsSection } from "@/components/settings/shared";
 import { useSettingsStore, deriveMacBackgroundEffect } from "@/stores/settings-store";
 import { isMac } from "@/lib/utils";
-import { DEFAULT_ACCENT_COLOR } from "@/lib/theme-colors";
+import { ThemeCustomizationSection } from "@/components/settings/ThemeCustomizationSection";
+import { useResolvedTheme } from "@/hooks/useTheme";
 
 // ── Props ──
 
@@ -27,8 +27,6 @@ export const AppearanceSettings = memo(function AppearanceSettings({
   // ── Read all appearance settings from the Zustand store ──
   const theme = useSettingsStore((s) => s.theme);
   const setTheme = useSettingsStore((s) => s.setTheme);
-  const accentColor = useSettingsStore((s) => s.accentColor);
-  const setAccentColor = useSettingsStore((s) => s.setAccentColor);
   const language = useSettingsStore((s) => s.language);
   const setLanguage = useSettingsStore((s) => s.setLanguage);
   const islandLayout = useSettingsStore((s) => s.islandLayout);
@@ -70,7 +68,7 @@ export const AppearanceSettings = memo(function AppearanceSettings({
   const effectiveMacBackgroundEffect = !macLiquidGlassSupported && macBackgroundEffect === "liquid-glass"
     ? "vibrancy"
     : macBackgroundEffect;
-  const displayedAccentColor = accentColor ?? DEFAULT_ACCENT_COLOR;
+  const resolvedTheme = useResolvedTheme();
 
   return (
     <div className="flex h-full flex-col">
@@ -115,34 +113,7 @@ export const AppearanceSettings = memo(function AppearanceSettings({
           </SettingsSection>
 
           {/* ── Theme customization section ── */}
-          <SettingsSection icon={Palette} label={t("appearance.colors.section")}>
-            <SettingRow
-              label={t("appearance.colors.label")}
-              description={t("appearance.colors.description")}
-            >
-              <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  value={displayedAccentColor}
-                  onChange={(event) => setAccentColor(event.currentTarget.value)}
-                  aria-label={t("appearance.colors.label")}
-                  className="h-8 w-10 cursor-pointer rounded-md border border-border bg-transparent p-1"
-                />
-                <span className="min-w-16 text-end font-mono text-xs text-muted-foreground">
-                  {displayedAccentColor.toUpperCase()}
-                </span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setAccentColor(null)}
-                  disabled={accentColor === null}
-                >
-                  {t("appearance.colors.reset")}
-                </Button>
-              </div>
-            </SettingRow>
-          </SettingsSection>
+          <ThemeCustomizationSection resolvedTheme={resolvedTheme} />
 
           {/* ── Tools section ── */}
           <SettingsSection icon={Wrench} label={t("appearance.tools.section")}>

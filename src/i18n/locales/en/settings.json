@@ -49,11 +49,39 @@
       "light": "Light",
       "system": "System"
     },
-    "colors": {
+    "customization": {
       "section": "Theme customization",
-      "label": "Accent color",
-      "description": "Choose the primary accent color used throughout the interface. Other customization options are not available yet.",
-      "reset": "Reset"
+      "lightTheme": "Light theme",
+      "darkTheme": "Dark theme",
+      "description": "Customize colors, fonts, sidebar transparency, and contrast.",
+      "import": "Import",
+      "copy": "Copy theme",
+      "copySuccess": "Theme configuration copied",
+      "copyFailed": "Couldn't copy theme configuration",
+      "importSuccess": "Theme configuration imported",
+      "importFailed": "Invalid or unreadable theme configuration",
+      "accent": "Accent color",
+      "background": "Background",
+      "foreground": "Foreground",
+      "uiFont": "UI font",
+      "codeFont": "Code font",
+      "sidebarTransparency": "Transparent sidebar",
+      "sidebarTransparencyDesc": "Let part of the window background show through the sidebar.",
+      "contrast": "Contrast",
+      "reset": "Reset",
+      "fonts": {
+        "system": "System default",
+        "sourceSerif": "Source Serif 4",
+        "instrumentSerif": "Instrument Serif",
+        "cascadia": "Cascadia Code",
+        "courier": "Courier New"
+      },
+      "weights": {
+        "regular": "Regular",
+        "medium": "Medium",
+        "semibold": "Semibold",
+        "bold": "Bold"
+      }
     },
     "tools": {
       "section": "Tools",

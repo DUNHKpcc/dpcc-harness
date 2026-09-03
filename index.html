@@ -35,6 +35,28 @@
               var luminance = 0.2126 * linearize(red) + 0.7152 * linearize(green) + 0.0722 * linearize(blue);
               document.documentElement.style.setProperty("--theme-accent-foreground", luminance > 0.179 ? "#1c1917" : "#fffaf5");
             }
+            var colorKeys = ["lightBackgroundColor", "lightForegroundColor", "darkBackgroundColor", "darkForegroundColor"];
+            colorKeys.forEach(function(key) {
+              var color = parsed && parsed.state && parsed.state[key];
+              if (typeof color === "string" && /^#[0-9a-f]{6}$/i.test(color)) {
+                document.documentElement.style.setProperty("--theme-" + key.replace("Color", "").replace(/([A-Z])/g, "-$1").toLowerCase(), color.toLowerCase());
+              }
+            });
+            var state = parsed && parsed.state;
+            var uiFonts = {
+              "source-serif": '"Source Serif 4 Variable", "Noto Serif SC Variable", Georgia, "Songti SC", STSong, serif',
+              "instrument-serif": '"Instrument Serif", "Noto Serif SC Variable", Georgia, "Songti SC", STSong, serif'
+            };
+            var codeFonts = {
+              "cascadia": '"Cascadia Code", "SFMono-Regular", Consolas, monospace',
+              "courier": '"Courier New", Courier, monospace'
+            };
+            if (state && uiFonts[state.uiFontFamily]) document.documentElement.style.setProperty("--theme-ui-font", uiFonts[state.uiFontFamily]);
+            if (state && codeFonts[state.codeFontFamily]) document.documentElement.style.setProperty("--theme-code-font", codeFonts[state.codeFontFamily]);
+            if (state && /^(400|500|600|700)$/.test(state.uiFontWeight)) document.documentElement.style.setProperty("--theme-ui-weight", state.uiFontWeight);
+            if (state && /^(400|500|600|700)$/.test(state.codeFontWeight)) document.documentElement.style.setProperty("--theme-code-weight", state.codeFontWeight);
+            if (state && typeof state.contrast === "number" && isFinite(state.contrast)) document.documentElement.style.setProperty("--theme-contrast", String(Math.max(0, Math.min(100, Math.round(state.contrast)))));
+            if (state && state.sidebarTransparency === true) document.documentElement.classList.add("theme-sidebar-transparent");
           }
         } catch (_) {}
         if (!stored) {

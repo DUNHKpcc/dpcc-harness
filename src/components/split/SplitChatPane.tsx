@@ -10,7 +10,7 @@
  * BottomComposer; only the outer wrapper and tool strip differ.
  */
 
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "motion/react";
 import type { ChatSession, EngineId, InstalledAgent, TodoItem, BackgroundAgent } from "@/types";
 import type { SessionPaneState } from "@/hooks/session/useSessionPane";
@@ -20,6 +20,7 @@ import type { ToolId } from "@/types/tools";
 import { ChatHeader } from "@/components/ChatHeader";
 import { ChatView } from "@/components/ChatView";
 import { BottomComposer } from "@/components/BottomComposer";
+import { ContextInspector } from "@/components/input-bar/ContextInspector";
 import { TodoPanel } from "@/components/TodoPanel";
 import { BackgroundAgentsPanel } from "@/components/BackgroundAgentsPanel";
 import { SplitPaneToolStrip } from "@/components/split/SplitPaneToolStrip";
@@ -168,6 +169,12 @@ function SplitChatPaneInner({
 }: SplitChatPaneProps) {
   // ── Display preferences from Zustand store ──
   const expandEditToolCallsByDefault = useSettingsStore((s) => s.expandEditToolCallsByDefault);
+  const [contextInspectorSessionId, setContextInspectorSessionId] = useState<string | null>(null);
+  const isContextInspectorOpen = contextInspectorSessionId === sessionId;
+
+  useEffect(() => {
+    setContextInspectorSessionId((current) => current === sessionId ? current : null);
+  }, [sessionId]);
 
   // Build the pane controller inside the component (uses usePaneController hook)
   const paneController = usePaneController(
@@ -206,13 +213,15 @@ function SplitChatPaneInner({
     >
       <div className="flex min-h-0 flex-1">
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-          <div
-            className={`pointer-events-none absolute inset-x-0 top-0 z-[5] ${isIsland ? "h-20" : "h-24"}`}
-            style={{
-              opacity: "calc(var(--chat-fade-strength, 1) * var(--chat-top-progress, 0))",
-              background: topFadeBackground,
-            }}
-          />
+          {!isContextInspectorOpen && (
+            <div
+              className={`pointer-events-none absolute inset-x-0 top-0 z-[5] ${isIsland ? "h-20" : "h-24"}`}
+              style={{
+                opacity: "calc(var(--chat-fade-strength, 1) * var(--chat-top-progress, 0))",
+                background: topFadeBackground,
+              }}
+            />
+          )}
           <div
             className="chat-titlebar-bg pointer-events-none absolute inset-x-0 top-0 z-10"
             style={{ background: titlebarSurfaceColor }}
@@ -239,57 +248,71 @@ function SplitChatPaneInner({
               onClosePane={onClosePane}
             />
           </div>
-          <ChatView
-            spaceId={spaceId}
-            messages={paneState.messages}
-            isProcessing={paneState.isProcessing}
-            showThinking={showThinking}
-            extraBottomPadding={!!paneState.pendingPermission}
-            sessionId={sessionId}
-            onTopScrollProgress={onTopScrollProgress}
-          />
-          <div
-            className={`pointer-events-none absolute inset-x-0 bottom-0 z-[5] transition-opacity duration-200 ${isIsland ? "h-24" : "h-28"}`}
-            style={{ opacity: chatFadeStrength, background: bottomFadeBackground }}
-          />
-          <div data-chat-composer className="pointer-events-none absolute inset-x-0 bottom-0 z-10">
-            <BottomComposer
-              pendingPermission={paneState.pendingPermission}
-              onRespondPermission={paneState.engine.respondPermission}
-              onSend={paneController.handlePaneSend}
-              onClear={paneController.handlePaneClear}
-              onStop={paneController.handlePaneStop}
-              isProcessing={paneState.isProcessing}
-              queuedCount={isActiveSessionPane ? queuedCount : 0}
-              projectPath={projectPath}
-              contextSessionId={sessionId}
+          {isContextInspectorOpen ? (
+            <ContextInspector
+              sessionId={sessionId}
               contextUsage={paneState.contextUsage}
+              isProcessing={paneState.isProcessing}
               isCompacting={paneState.isCompacting}
-              isPiContextDormant={paneState.isRuntimeDormant}
-              hasPiContextInspector={paneState.hasPiContextInspector}
-              canCompact={paneState.canCompact}
-              onCompact={paneState.engine.compact}
-              agents={agents}
-              selectedAgent={paneController.selectedPaneAgent}
-              onAgentChange={paneController.handlePaneAgentChange}
-              slashCommands={paneController.paneSlashCommands}
-              acpConfigOptions={paneController.paneAcpConfigOptions}
-              acpConfigOptionsLoading={paneController.paneAcpConfigOptionsLoading}
-              acpConfigOptionsDormant={paneController.paneAcpConfigOptionsDormant}
-              onACPConfigChange={paneController.handlePaneAcpConfigChange}
-              acpPermissionBehavior={acpPermissionBehavior}
-              onAcpPermissionBehaviorChange={onAcpPermissionBehaviorChange}
-              grabbedElements={isActiveSessionPane ? grabbedElements : []}
-              onRemoveGrabbedElement={onRemoveGrabbedElement}
-              lockedEngine={isActiveSessionPane ? lockedEngine : (paneController.paneEngine ?? null)}
-              lockedAgentId={isActiveSessionPane ? lockedAgentId : (session?.agentId ?? null)}
-              readOnlyReason={readOnlyReason}
-              selectedWorktreePath={selectedWorktreePath}
-              onSelectWorktree={isActiveSessionPane ? onSelectWorktree : undefined}
-              isEmptySession={paneState.messages.length === 0}
-              onManageACPs={onManageACPs}
+              isRuntimeDormant={paneState.isRuntimeDormant}
+              onCompact={paneState.canCompact ? paneState.engine.compact : undefined}
+              onStop={paneController.handlePaneStop}
+              onClose={() => setContextInspectorSessionId(null)}
             />
-          </div>
+          ) : (
+            <>
+              <ChatView
+                spaceId={spaceId}
+                messages={paneState.messages}
+                isProcessing={paneState.isProcessing}
+                showThinking={showThinking}
+                extraBottomPadding={!!paneState.pendingPermission}
+                sessionId={sessionId}
+                onTopScrollProgress={onTopScrollProgress}
+              />
+              <div
+                className={`pointer-events-none absolute inset-x-0 bottom-0 z-[5] transition-opacity duration-200 ${isIsland ? "h-24" : "h-28"}`}
+                style={{ opacity: chatFadeStrength, background: bottomFadeBackground }}
+              />
+              <div data-chat-composer className="pointer-events-none absolute inset-x-0 bottom-0 z-10">
+                <BottomComposer
+                  pendingPermission={paneState.pendingPermission}
+                  onRespondPermission={paneState.engine.respondPermission}
+                  onSend={paneController.handlePaneSend}
+                  onClear={paneController.handlePaneClear}
+                  onStop={paneController.handlePaneStop}
+                  isProcessing={paneState.isProcessing}
+                  queuedCount={isActiveSessionPane ? queuedCount : 0}
+                  projectPath={projectPath}
+                  contextSessionId={sessionId}
+                  contextUsage={paneState.contextUsage}
+                  isCompacting={paneState.isCompacting}
+                  hasPiContextInspector={paneState.hasPiContextInspector}
+                  onCompact={paneState.engine.compact}
+                  onOpenContextInspector={() => setContextInspectorSessionId(sessionId)}
+                  agents={agents}
+                  selectedAgent={paneController.selectedPaneAgent}
+                  onAgentChange={paneController.handlePaneAgentChange}
+                  slashCommands={paneController.paneSlashCommands}
+                  acpConfigOptions={paneController.paneAcpConfigOptions}
+                  acpConfigOptionsLoading={paneController.paneAcpConfigOptionsLoading}
+                  acpConfigOptionsDormant={paneController.paneAcpConfigOptionsDormant}
+                  onACPConfigChange={paneController.handlePaneAcpConfigChange}
+                  acpPermissionBehavior={acpPermissionBehavior}
+                  onAcpPermissionBehaviorChange={onAcpPermissionBehaviorChange}
+                  grabbedElements={isActiveSessionPane ? grabbedElements : []}
+                  onRemoveGrabbedElement={onRemoveGrabbedElement}
+                  lockedEngine={isActiveSessionPane ? lockedEngine : (paneController.paneEngine ?? null)}
+                  lockedAgentId={isActiveSessionPane ? lockedAgentId : (session?.agentId ?? null)}
+                  readOnlyReason={readOnlyReason}
+                  selectedWorktreePath={selectedWorktreePath}
+                  onSelectWorktree={isActiveSessionPane ? onSelectWorktree : undefined}
+                  isEmptySession={paneState.messages.length === 0}
+                  onManageACPs={onManageACPs}
+                />
+              </div>
+            </>
+          )}
         </div>
         {activeContextualTool === "tasks" && (
           <div className="flex w-[280px] shrink-0 flex-col overflow-hidden border-s border-border/40 bg-background">

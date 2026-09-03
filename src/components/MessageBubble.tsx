@@ -276,6 +276,29 @@ export const MessageBubble = memo(function MessageBubble({
 
   if (message.role === "system") {
     const isError = message.isError;
+    const isCompactAcpPromptError = isError && message.content.startsWith("ACP prompt error:");
+
+    if (isCompactAcpPromptError) {
+      return (
+        <div
+          data-system-message="true"
+          data-system-error-presentation="compact"
+          className="mx-auto flex w-full max-w-3xl justify-center px-4 py-1 text-center text-xs text-muted-foreground"
+        >
+          <div className="flex min-w-0 max-w-full items-center gap-1.5">
+            <Info className="h-3 w-3 shrink-0" />
+            <span
+              data-system-message-content="true"
+              className="min-w-0 truncate whitespace-nowrap"
+              title={message.content}
+            >
+              {message.content}
+            </span>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className={cn(
         "mx-auto max-w-3xl px-4 py-1 text-center text-xs",

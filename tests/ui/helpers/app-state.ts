@@ -16,6 +16,7 @@ interface SeedProjectAndSessionOptions {
   model?: string;
   contextUsage?: unknown;
   piContextSnapshots?: unknown[];
+  messages?: unknown[];
 }
 
 export async function configureRenderer(
@@ -39,6 +40,7 @@ export async function seedProjectAndSession(
     model = "fixture/model",
     contextUsage,
     piContextSnapshots,
+    messages,
   }: SeedProjectAndSessionOptions = {},
 ): Promise<SeededProject> {
   const project = await page.evaluate(async () => {
@@ -60,6 +62,7 @@ export async function seedProjectAndSession(
     sessionModel,
     sessionContextUsage,
     sessionPiContextSnapshots,
+    sessionMessages,
   }) => {
     const bridge = (window as typeof window & {
       claude: { sessions: { save: (value: unknown) => Promise<{ ok?: boolean; error?: string }> } };
@@ -75,7 +78,7 @@ export async function seedProjectAndSession(
       agentId: "pi-acp",
       model: sessionModel,
       permissionMode: "default",
-      messages: [
+      messages: sessionMessages ?? [
         { id: "playwright-user", role: "user", content: "Inspect the workspace fixture", timestamp: now },
         { id: "playwright-assistant", role: "assistant", content: "The workspace fixture is ready.", timestamp: now + 1, isStreaming: false },
       ],
@@ -89,6 +92,7 @@ export async function seedProjectAndSession(
     sessionModel: model,
     sessionContextUsage: contextUsage,
     sessionPiContextSnapshots: piContextSnapshots,
+    sessionMessages: messages,
   });
   if (saved.error) throw new Error(saved.error);
 

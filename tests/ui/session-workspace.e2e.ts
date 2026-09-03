@@ -187,6 +187,28 @@ test("opens and renames a persisted session through the sidebar", async ({ page 
   }, { projectId: project.id })).toBe("Renamed by Playwright");
 });
 
+test("renders ACP prompt failures as one neutral truncated line", async ({ page }) => {
+  await configureRenderer(page);
+  const now = Date.now();
+  const error = "ACP prompt error: Error handling request { jsonrpc: '2.0', id: 12, method: 'session/prompt', params: { sessionId: '01a055a7-c08f-7ab8-a978-e69515084134', prompt: [ [Object] ] } } { code: -32603, message: 'Internal error', data: { details: 'pi compact failed: Nothing to compact (session too small)' } }";
+  await seedProjectAndSession(page, {
+    messages: [
+      { id: "playwright-user", role: "user", content: "Compact the context.", timestamp: now },
+      { id: "playwright-acp-error", role: "system", content: error, isError: true, timestamp: now + 1 },
+    ],
+  });
+
+  await page.getByRole("button", { name: "Playwright Session", exact: true }).click();
+  const systemError = page.locator('[data-message-id="playwright-acp-error"] [data-system-error-presentation="compact"]');
+  const content = systemError.locator("[data-system-message-content]");
+
+  await expect(systemError).toBeVisible();
+  await expect(systemError).toHaveClass(/text-muted-foreground/);
+  await expect(content).toHaveAttribute("title", error);
+  await expect(content).toHaveCSS("white-space", "nowrap");
+  await expect(content.evaluate((element) => element.scrollWidth > element.clientWidth)).resolves.toBe(true);
+});
+
 test("opens cached Pi context details without starting a dormant Pi session", async ({ electronApp, page }) => {
   await configureRenderer(page);
   await electronApp.evaluate(({ ipcMain }) => {
@@ -305,15 +327,9 @@ test("opens cached Pi context details without starting a dormant Pi session", as
 
   const inspector = page.locator("[data-context-inspector]");
   await expect(inspector).toBeVisible();
-  const [inspectorBox, viewport] = await Promise.all([
-    inspector.boundingBox(),
-    page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight })),
-  ]);
-  expect(inspectorBox).not.toBeNull();
-  expect(inspectorBox!.width / viewport.width).toBeGreaterThan(0.69);
-  expect(inspectorBox!.width / viewport.width).toBeLessThan(0.71);
-  expect(inspectorBox!.height / viewport.height).toBeGreaterThan(0.69);
-  expect(inspectorBox!.height / viewport.height).toBeLessThan(0.71);
+  await expect(inspector.locator("[data-context-inspector-header]")).toBeVisible();
+  await expect(page.locator('[role="dialog"]')).toHaveCount(0);
+  await expect(page.locator("[data-chat-composer]")).toHaveCount(0);
   await expect(inspector.locator("[data-context-cache-status]")).toHaveText("Cached");
   await expect(inspector.locator("[data-context-snapshot-index]")).toHaveText("Snapshot 2 of 2");
   await expect(inspector).toContainText("Kept the active implementation decisions and next steps.");
@@ -346,6 +362,25 @@ test("opens cached Pi context details without starting a dormant Pi session", as
   );
   await expect(inspector.locator("[data-context-timeline-detail]")).toContainText("Tool: read");
 
+  const assistantGroup = inspector
+    .locator('[data-context-timeline-marker][data-context-timeline-category="assistant"][data-context-timeline-grouped="true"]')
+    .first();
+  await expect(assistantGroup).toHaveAttribute("data-context-timeline-group-count", "2");
+  const assistantGroupBox = await assistantGroup.boundingBox();
+  expect(assistantGroupBox).not.toBeNull();
+  expect(assistantGroupBox!.width).toBeGreaterThanOrEqual(28);
+  expect(assistantGroupBox!.height).toBeGreaterThanOrEqual(28);
+  await assistantGroup.click();
+  const timelineGroup = inspector.locator("[data-context-timeline-group]");
+  await expect(timelineGroup).toHaveAttribute("data-context-timeline-group-count", "2");
+  await expect(timelineGroup.locator("[data-context-timeline-group-entry]")).toHaveCount(2);
+  await timelineGroup.locator('[data-context-timeline-group-entry-id="context-entry-3"]').click();
+  await expect(inspector.locator("[data-context-timeline-detail]")).toHaveAttribute(
+    "data-context-timeline-entry-id",
+    "context-entry-3",
+  );
+  await expect(inspector.locator("[data-context-timeline-detail]")).toContainText("Timeline fixture entry 3.");
+
   await inspector.locator("[data-context-previous]").click();
   await expect(inspector.locator("[data-context-snapshot-index]")).toHaveText("Snapshot 1 of 2");
   await expect(inspector.locator("[data-context-next]")).toBeEnabled();
@@ -366,6 +401,10 @@ test("opens cached Pi context details without starting a dormant Pi session", as
       __harnssPiContextCacheCounters?: { startCalls: number; reviveCalls: number };
     }
   ).__harnssPiContextCacheCounters)).toEqual({ startCalls: 0, reviveCalls: 0 });
+
+  await inspector.locator("[data-context-inspector-close]").click();
+  await expect(inspector).toHaveCount(0);
+  await expect(page.locator("[data-chat-composer]")).toBeVisible();
 });
 
 test("shows the cache-empty state for a dormant Pi session", async ({ page }) => {
@@ -379,6 +418,8 @@ test("shows the cache-empty state for a dormant Pi session", async ({ page }) =>
 
   const inspector = page.locator("[data-context-inspector]");
   await expect(inspector).toBeVisible();
+  await expect(page.locator('[role="dialog"]')).toHaveCount(0);
+  await expect(page.locator("[data-chat-composer]")).toHaveCount(0);
   await expect(inspector.locator("[data-context-cache-status]")).toHaveText("Cached");
   await expect(inspector.locator("[data-context-inspector-empty]")).toContainText("No context snapshots yet");
   await expect(inspector).toContainText("Pi has not saved a context snapshot for this session.");

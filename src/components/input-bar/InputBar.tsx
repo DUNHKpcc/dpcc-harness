@@ -63,7 +63,6 @@ import {
   splitComposerFiles,
 } from "./input-bar-utils";
 import { ContextGauge } from "./ContextGauge";
-import { ContextInspector } from "./ContextInspector";
 import { AttachmentPreview } from "./AttachmentPreview";
 import { EnginePickerDropdown } from "./EnginePickerDropdown";
 import { ModelThinkingDropdown } from "./ModelThinkingDropdown";
@@ -85,13 +84,11 @@ export interface InputBarProps {
   contextSessionId?: string | null;
   contextUsage?: ContextUsage | null;
   isCompacting?: boolean;
-  /** The context inspector is reading saved snapshots for a dormant Pi session. */
-  isPiContextDormant?: boolean;
   /** The current session uses the protected built-in Pi context bridge. */
   hasPiContextInspector?: boolean;
-  /** Whether this pane currently owns a live protected Pi runtime. */
-  canCompact?: boolean;
   onCompact?: () => void;
+  /** Replaces the current chat content with the session's context inspector. */
+  onOpenContextInspector?: () => void;
   agents?: InstalledAgent[];
   selectedAgent?: InstalledAgent | null;
   onAgentChange?: (agent: InstalledAgent | null) => void;
@@ -128,10 +125,9 @@ export const InputBar = memo(function InputBar({
   contextSessionId,
   contextUsage,
   isCompacting,
-  isPiContextDormant = false,
   hasPiContextInspector = false,
-  canCompact = false,
   onCompact,
+  onOpenContextInspector,
   agents,
   selectedAgent,
   onAgentChange,
@@ -159,7 +155,6 @@ export const InputBar = memo(function InputBar({
   const [isDragging, setIsDragging] = useState(false);
   const [editingAttachment, setEditingAttachment] = useState<ImageAttachment | null>(null);
   const [nativeCommandMenu, setNativeCommandMenu] = useState<"model" | null>(null);
-  const [contextInspectorOpen, setContextInspectorOpen] = useState(false);
 
   const piContextSnapshots = usePiContextSnapshots(contextSessionId);
   const legacyContextSnapshot = useMemo(
@@ -1063,22 +1058,12 @@ export const InputBar = memo(function InputBar({
             onCompact={onCompact}
             showWhenEmpty={hasPiContextInspector}
             onOpenInspector={hasPiContextInspector || contextInspectorSnapshots.length > 0
-              ? () => setContextInspectorOpen(true)
+              ? onOpenContextInspector
               : undefined}
             className="ms-auto"
           />
         )}
       </div>
-
-      <ContextInspector
-        open={contextInspectorOpen}
-        onOpenChange={setContextInspectorOpen}
-        snapshots={contextInspectorSnapshots}
-        isProcessing={isProcessing}
-        isCompacting={isCompacting ?? false}
-        isRuntimeDormant={isPiContextDormant}
-        onCompact={canCompact && latestPiContextSnapshot?.source === "pi-extension" ? onCompact : undefined}
-      />
 
       {/* Deep folder confirmation dialog */}
       <ConfirmDialog

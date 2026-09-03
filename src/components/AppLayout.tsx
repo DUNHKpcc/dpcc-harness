@@ -27,6 +27,7 @@ import { ChatHeader } from "./ChatHeader";
 import { ChatSearchBar } from "./ChatSearchBar";
 import { ChatView } from "./ChatView";
 import { BottomComposer } from "./BottomComposer";
+import { ContextInspector } from "./input-bar/ContextInspector";
 import { PANEL_TOOLS_MAP } from "./ToolPicker";
 import type { ToolId } from "@/types/tools";
 import { WelcomeScreen } from "./WelcomeScreen";
@@ -127,6 +128,16 @@ export function AppLayout() {
     sessionId: string;
   } | null>(null);
   const [sidebarWorkspaceView, setSidebarWorkspaceView] = useState<SidebarWorkspaceView>(null);
+  const [contextInspectorSessionId, setContextInspectorSessionId] = useState<string | null>(null);
+  const isContextInspectorOpen = contextInspectorSessionId === manager.activeSessionId;
+
+  useEffect(() => {
+    setContextInspectorSessionId((current) => current === manager.activeSessionId ? current : null);
+  }, [manager.activeSessionId]);
+
+  const handleOpenContextInspector = useCallback(() => {
+    if (manager.activeSessionId) setContextInspectorSessionId(manager.activeSessionId);
+  }, [manager.activeSessionId]);
   const {
     agents, selectedAgent, saveAgent, deleteAgent, handleAgentChange, lockedEngine, lockedAgentId,
     readOnlyReason,
@@ -1614,17 +1625,17 @@ export function AppLayout() {
               />
             ) : manager.activeSessionId ? (
               <>
-              {/* Top fade: only visible when chat is scrolled down. Island mode uses dark shadow; flat mode fades content into bg */}
-              {/* Island: gradient starts at top-0 (behind header, subtle bleed). Flat: starts at top-10 (right below header) so full gradient is visible and strong. */}
-              <div
-                className={`pointer-events-none absolute inset-x-0 top-0 z-[5] ${
-                  isIsland ? "h-20" : "h-24"
-                }`}
-                style={{
-                  opacity: "calc(var(--chat-fade-strength, 1) * var(--chat-top-progress, 0))",
-                  background: topFadeBackground,
-                }}
-              />
+              {!isContextInspectorOpen && (
+                <div
+                  className={`pointer-events-none absolute inset-x-0 top-0 z-[5] ${
+                    isIsland ? "h-20" : "h-24"
+                  }`}
+                  style={{
+                    opacity: "calc(var(--chat-fade-strength, 1) * var(--chat-top-progress, 0))",
+                    background: topFadeBackground,
+                  }}
+                />
+              )}
               <div
                 className="chat-titlebar-bg pointer-events-none absolute inset-x-0 top-0 z-10"
                 style={{ background: titlebarSurfaceColor }}
@@ -1655,72 +1666,86 @@ export function AppLayout() {
                   projectPath={activeProjectPath}
                 />
               </div>
-              {chatSearchOpen && (
+              {chatSearchOpen && !isContextInspectorOpen && (
                 <ChatSearchBar
                   messages={manager.messages}
                   onNavigate={setScrollToMessageId}
                   onClose={() => setChatSearchOpen(false)}
                 />
               )}
-              <ChatView
-                spaceId={spaceManager.activeSpaceId}
-                messages={manager.messages}
-                isProcessing={manager.isProcessing}
-                showThinking={showThinking}
-                extraBottomPadding={!!manager.pendingPermission}
-                scrollToMessageId={scrollToMessageId}
-                onScrolledToMessage={handleScrolledToMessage}
-                sessionId={manager.activeSessionId}
-                onTopScrollProgress={handleTopScrollProgress}
-                onSendQueuedNow={handleSendQueuedNow}
-                onUnqueueQueuedMessage={handleUnqueueMessage}
-                sendNextId={manager.sendNextId}
-              />
-              <div
-                className={`pointer-events-none absolute inset-x-0 bottom-0 z-[5] transition-opacity duration-200 ${isIsland ? "h-24" : "h-28"}`}
-                style={{
-                  opacity: chatFadeStrength,
-                  background: bottomFadeBackground,
-                }}
-              />
-              <div data-chat-composer className="pointer-events-none absolute inset-x-0 bottom-0 z-10">
-                <BottomComposer
-                  pendingPermission={manager.pendingPermission}
-                  onRespondPermission={manager.respondPermission}
-                  onSend={wrappedHandleSend}
-                  onClear={handleComposerClear}
-                  onStop={handleStop}
-                  isProcessing={manager.isProcessing}
-                  queuedCount={manager.queuedCount}
-                  projectPath={activeProjectPath}
-                  contextSessionId={manager.activeSessionId}
+              {isContextInspectorOpen ? (
+                <ContextInspector
+                  sessionId={manager.activeSessionId}
                   contextUsage={manager.contextUsage}
+                  isProcessing={manager.isProcessing}
                   isCompacting={manager.isCompacting}
-                  isPiContextDormant={manager.isRuntimeDormant}
-                  hasPiContextInspector={manager.hasPiContextInspector}
-                  canCompact={manager.canCompact}
-                  onCompact={manager.compact}
-                  agents={agents}
-                  selectedAgent={activePaneCtrl?.selectedPaneAgent ?? selectedAgent}
-                  onAgentChange={activePaneCtrl?.handlePaneAgentChange ?? handleAgentChange}
-                  slashCommands={activePaneCtrl?.paneSlashCommands ?? manager.slashCommands}
-                  acpConfigOptions={activePaneCtrl?.paneAcpConfigOptions ?? manager.acpConfigOptions}
-                  acpConfigOptionsLoading={activePaneCtrl?.paneAcpConfigOptionsLoading ?? manager.acpConfigOptionsLoading}
-                  acpConfigOptionsDormant={activePaneCtrl?.paneAcpConfigOptionsDormant ?? manager.acpConfigOptionsDormant}
-                  onACPConfigChange={activePaneCtrl?.handlePaneAcpConfigChange ?? manager.setACPConfig}
-                  acpPermissionBehavior={settings.acpPermissionBehavior}
-                  onAcpPermissionBehaviorChange={settings.setAcpPermissionBehavior}
-                  grabbedElements={grabbedElements}
-                  onRemoveGrabbedElement={handleRemoveGrabbedElement}
-                  lockedEngine={lockedEngine}
-                  lockedAgentId={lockedAgentId}
-                  readOnlyReason={readOnlyReason}
-                  selectedWorktreePath={activeSpaceTerminalCwd}
-                  onSelectWorktree={handleAgentWorktreeChange}
-                  isEmptySession={manager.messages.length === 0}
-                  onManageACPs={() => handleOpenSidebarWorkspace("acp-agents")}
+                  isRuntimeDormant={manager.isRuntimeDormant}
+                  onCompact={manager.canCompact ? manager.compact : undefined}
+                  onStop={handleStop}
+                  onClose={() => setContextInspectorSessionId(null)}
                 />
-              </div>
+              ) : (
+                <>
+                  <ChatView
+                    spaceId={spaceManager.activeSpaceId}
+                    messages={manager.messages}
+                    isProcessing={manager.isProcessing}
+                    showThinking={showThinking}
+                    extraBottomPadding={!!manager.pendingPermission}
+                    scrollToMessageId={scrollToMessageId}
+                    onScrolledToMessage={handleScrolledToMessage}
+                    sessionId={manager.activeSessionId}
+                    onTopScrollProgress={handleTopScrollProgress}
+                    onSendQueuedNow={handleSendQueuedNow}
+                    onUnqueueQueuedMessage={handleUnqueueMessage}
+                    sendNextId={manager.sendNextId}
+                  />
+                  <div
+                    className={`pointer-events-none absolute inset-x-0 bottom-0 z-[5] transition-opacity duration-200 ${isIsland ? "h-24" : "h-28"}`}
+                    style={{
+                      opacity: chatFadeStrength,
+                      background: bottomFadeBackground,
+                    }}
+                  />
+                  <div data-chat-composer className="pointer-events-none absolute inset-x-0 bottom-0 z-10">
+                    <BottomComposer
+                      pendingPermission={manager.pendingPermission}
+                      onRespondPermission={manager.respondPermission}
+                      onSend={wrappedHandleSend}
+                      onClear={handleComposerClear}
+                      onStop={handleStop}
+                      isProcessing={manager.isProcessing}
+                      queuedCount={manager.queuedCount}
+                      projectPath={activeProjectPath}
+                      contextSessionId={manager.activeSessionId}
+                      contextUsage={manager.contextUsage}
+                      isCompacting={manager.isCompacting}
+                      hasPiContextInspector={manager.hasPiContextInspector}
+                      onCompact={manager.compact}
+                      onOpenContextInspector={handleOpenContextInspector}
+                      agents={agents}
+                      selectedAgent={activePaneCtrl?.selectedPaneAgent ?? selectedAgent}
+                      onAgentChange={activePaneCtrl?.handlePaneAgentChange ?? handleAgentChange}
+                      slashCommands={activePaneCtrl?.paneSlashCommands ?? manager.slashCommands}
+                      acpConfigOptions={activePaneCtrl?.paneAcpConfigOptions ?? manager.acpConfigOptions}
+                      acpConfigOptionsLoading={activePaneCtrl?.paneAcpConfigOptionsLoading ?? manager.acpConfigOptionsLoading}
+                      acpConfigOptionsDormant={activePaneCtrl?.paneAcpConfigOptionsDormant ?? manager.acpConfigOptionsDormant}
+                      onACPConfigChange={activePaneCtrl?.handlePaneAcpConfigChange ?? manager.setACPConfig}
+                      acpPermissionBehavior={settings.acpPermissionBehavior}
+                      onAcpPermissionBehaviorChange={settings.setAcpPermissionBehavior}
+                      grabbedElements={grabbedElements}
+                      onRemoveGrabbedElement={handleRemoveGrabbedElement}
+                      lockedEngine={lockedEngine}
+                      lockedAgentId={lockedAgentId}
+                      readOnlyReason={readOnlyReason}
+                      selectedWorktreePath={activeSpaceTerminalCwd}
+                      onSelectWorktree={handleAgentWorktreeChange}
+                      isEmptySession={manager.messages.length === 0}
+                      onManageACPs={() => handleOpenSidebarWorkspace("acp-agents")}
+                    />
+                  </div>
+                </>
+              )}
               </>
             ) : (
               <>

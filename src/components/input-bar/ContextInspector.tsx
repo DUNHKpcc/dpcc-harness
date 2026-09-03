@@ -8,18 +8,12 @@ import {
   History,
   ListTree,
   Minimize2,
+  Square,
   UserRound,
   Wrench,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -32,6 +26,9 @@ import type {
   PiContextSnapshot,
   PiContextTimelineEntry,
 } from "@/types/pi-context";
+import type { ContextUsage } from "@/types";
+import { createLegacyPiContextSnapshot } from "@/lib/pi-context-bridge";
+import { usePiContextSnapshots } from "@/lib/pi-context-store";
 
 type TimelineCategory = "user" | "assistant" | "tool" | "system";
 
@@ -47,8 +44,17 @@ interface TimelineLayout {
   lastTimestamp: number | null;
 }
 
+interface TimelineMarkerGroup {
+  id: string;
+  category: TimelineCategory;
+  entries: PositionedTimelineEntry[];
+  firstPosition: number;
+  position: number;
+}
+
 const EMPTY_TIMELINE_ENTRIES: readonly PiContextTimelineEntry[] = [];
 const TIMELINE_CATEGORIES: readonly TimelineCategory[] = ["user", "assistant", "tool", "system"];
+const TIMELINE_MIN_INTERACTION_WIDTH_REM = 1.75;
 const TIMELINE_MARKER_CLASSES: Record<TimelineCategory, string> = {
   user: "bg-sky-600 dark:bg-sky-400",
   assistant: "bg-primary",
@@ -57,14 +63,15 @@ const TIMELINE_MARKER_CLASSES: Record<TimelineCategory, string> = {
 };
 
 interface ContextInspectorProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  snapshots: readonly PiContextSnapshot[];
+  sessionId: string | null | undefined;
+  contextUsage?: ContextUsage | null;
   isProcessing: boolean;
   isCompacting: boolean;
   /** Snapshots were restored from session storage; no Pi child is running. */
   isRuntimeDormant?: boolean;
   onCompact?: () => void;
+  onStop?: () => void;
+  onClose: () => void;
 }
 
 function formatTokenCount(count: number): string {
@@ -146,6 +153,40 @@ function buildTimelineLayout(entries: readonly PiContextTimelineEntry[]): Timeli
   };
 }
 
+/** Groups markers that would overlap at the timeline's minimum scroll width. */
+function buildTimelineMarkerGroups(
+  entries: readonly PositionedTimelineEntry[],
+  timelineWidthRem: number,
+): TimelineMarkerGroup[] {
+  const collisionGapPercent = (TIMELINE_MIN_INTERACTION_WIDTH_REM / timelineWidthRem) * 100;
+  const groups: TimelineMarkerGroup[] = [];
+
+  for (const category of TIMELINE_CATEGORIES) {
+    const categoryEntries = entries.filter((entry) => entry.category === category);
+    let currentGroup: TimelineMarkerGroup | null = null;
+
+    for (const entry of categoryEntries) {
+      if (currentGroup && entry.position - currentGroup.firstPosition <= collisionGapPercent) {
+        const currentCount = currentGroup.entries.length;
+        currentGroup.entries.push(entry);
+        currentGroup.position = ((currentGroup.position * currentCount) + entry.position) / (currentCount + 1);
+        continue;
+      }
+
+      currentGroup = {
+        id: `${category}:${entry.entry.id}`,
+        category,
+        entries: [entry],
+        firstPosition: entry.position,
+        position: entry.position,
+      };
+      groups.push(currentGroup);
+    }
+  }
+
+  return groups;
+}
+
 function closestDetails(
   snapshots: readonly PiContextSnapshot[],
   selectedIndex: number,
@@ -209,21 +250,83 @@ function ContextCacheStatus({ isRuntimeDormant }: Pick<ContextInspectorProps, "i
 }
 
 export function ContextInspector({
-  open,
-  onOpenChange,
-  snapshots,
+  sessionId,
+  contextUsage,
   isProcessing,
   isCompacting,
   isRuntimeDormant = false,
   onCompact,
+  onStop,
+  onClose,
 }: ContextInspectorProps) {
   const { t, i18n } = useTranslation("input");
+  const piContextSnapshots = usePiContextSnapshots(sessionId);
+  const legacyContextSnapshot = useMemo(
+    () => contextUsage ? createLegacyPiContextSnapshot(contextUsage) : null,
+    [contextUsage],
+  );
+  const snapshots = useMemo(
+    () => piContextSnapshots.length > 0
+      ? piContextSnapshots
+      : legacyContextSnapshot ? [legacyContextSnapshot] : [],
+    [legacyContextSnapshot, piContextSnapshots],
+  );
   const [selectedIndex, setSelectedIndex] = useState(() => Math.max(0, snapshots.length - 1));
   const [selectedTimelineEntryId, setSelectedTimelineEntryId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (open) setSelectedIndex(Math.max(0, snapshots.length - 1));
-  }, [open, snapshots.length]);
+    setSelectedIndex(Math.max(0, snapshots.length - 1));
+    setSelectedTimelineEntryId(null);
+  }, [sessionId, snapshots.length]);
+
+  const inspectorHeader = (
+    <div
+      data-context-inspector-header
+      className="flex shrink-0 items-start justify-between gap-4 border-b px-5 py-4"
+    >
+      <div className="min-w-0">
+        <div className="flex min-w-0 items-center gap-2">
+          <h2 className="text-base font-semibold">{t("context.inspectorTitle")}</h2>
+          <ContextCacheStatus isRuntimeDormant={isRuntimeDormant} />
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">{t("context.inspectorDescription")}</p>
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        {isProcessing && onStop ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                data-context-inspector-stop
+                aria-label={t("action.stop", { ns: "common" })}
+                onClick={onStop}
+              >
+                <Square />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{t("action.stop", { ns: "common" })}</TooltipContent>
+          </Tooltip>
+        ) : null}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              data-context-inspector-close
+              aria-label={t("context.closeInspector")}
+              onClick={onClose}
+            >
+              <X />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{t("context.closeInspector")}</TooltipContent>
+        </Tooltip>
+      </div>
+    </div>
+  );
 
   const snapshot = snapshots[Math.min(selectedIndex, Math.max(0, snapshots.length - 1))] ?? null;
   const snapshotTime = useMemo(
@@ -243,29 +346,23 @@ export function ContextInspector({
     () => buildTimelineLayout(detailTimeline),
     [detailTimeline],
   );
+  const timelineMinimumWidth = Math.max(48, Math.ceil(timelineLayout.entries.length * 1.25));
+  const timelineMarkerGroups = useMemo(
+    () => buildTimelineMarkerGroups(timelineLayout.entries, timelineMinimumWidth),
+    [timelineLayout.entries, timelineMinimumWidth],
+  );
 
   if (!snapshot) {
     return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent
-          data-context-inspector
-          className="w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] gap-0 p-0 sm:w-[min(70vw,80rem)] sm:max-w-[min(70vw,80rem)]"
-        >
-          <DialogHeader className="gap-1 border-b px-5 py-4 pe-12">
-            <div className="flex min-w-0 items-center gap-2">
-              <DialogTitle className="text-base">{t("context.inspectorTitle")}</DialogTitle>
-              <ContextCacheStatus isRuntimeDormant={isRuntimeDormant} />
-            </div>
-            <DialogDescription>{t("context.inspectorDescription")}</DialogDescription>
-          </DialogHeader>
-          <div data-context-inspector-empty className="px-5 py-8 text-sm text-muted-foreground">
-            <p className="font-medium text-foreground/80">{t("context.noSnapshots")}</p>
-            <p className="mt-1 text-xs">
-              {t(isRuntimeDormant ? "context.noSnapshotsDormant" : "context.noSnapshotsDescription")}
-            </p>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <section data-context-inspector className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background pt-14">
+        {inspectorHeader}
+        <div data-context-inspector-empty className="px-5 py-8 text-sm text-muted-foreground">
+          <p className="font-medium text-foreground/80">{t("context.noSnapshots")}</p>
+          <p className="mt-1 text-xs">
+            {t(isRuntimeDormant ? "context.noSnapshotsDormant" : "context.noSnapshotsDescription")}
+          </p>
+        </div>
+      </section>
     );
   }
 
@@ -298,6 +395,11 @@ export function ContextInspector({
   const selectedTimelineEntry = timelineLayout.entries.find(({ entry }) => (
     entry.id === selectedTimelineEntryId
   )) ?? timelineLayout.entries.at(-1) ?? null;
+  const selectedTimelineGroup = selectedTimelineEntry
+    ? timelineMarkerGroups.find((group) => group.entries.some(({ entry }) => (
+      entry.id === selectedTimelineEntry.entry.id
+    ))) ?? null
+    : null;
   const selectedTimelineLabel = selectedTimelineEntry
     ? selectedTimelineEntry.entry.label ?? t(`context.timelineKind.${selectedTimelineEntry.entry.kind}`)
     : null;
@@ -311,23 +413,11 @@ export function ContextInspector({
   const timelineEndTime = timelineLayout.lastTimestamp === null
     ? null
     : formatTimelineTime(timelineLayout.lastTimestamp, i18n.language);
-  const timelineMinimumWidth = Math.max(48, Math.ceil(timelineLayout.entries.length * 1.25));
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        data-context-inspector
-        className="flex h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 sm:h-[min(70vh,52rem)] sm:w-[min(70vw,80rem)] sm:max-w-[min(70vw,80rem)]"
-      >
-        <DialogHeader className="shrink-0 gap-1 border-b px-5 py-4 pe-12">
-          <div className="flex min-w-0 items-center gap-2">
-            <DialogTitle className="text-base">{t("context.inspectorTitle")}</DialogTitle>
-            <ContextCacheStatus isRuntimeDormant={isRuntimeDormant} />
-          </div>
-          <DialogDescription>{t("context.inspectorDescription")}</DialogDescription>
-        </DialogHeader>
+    <section data-context-inspector className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background pt-14">
+      {inspectorHeader}
 
-        <div className="flex shrink-0 items-center justify-between border-b px-4 py-2">
+      <div className="flex shrink-0 items-center justify-between border-b px-4 py-2">
           <div className="min-w-0 text-xs text-muted-foreground">
             <span data-context-snapshot-index>
               {t("context.snapshotOf", { current: selectedIndex + 1, total: snapshots.length })}
@@ -368,9 +458,9 @@ export function ContextInspector({
               <TooltipContent>{t("context.nextSnapshot")}</TooltipContent>
             </Tooltip>
           </div>
-        </div>
+      </div>
 
-        <ScrollArea data-context-inspector-scroll className="min-h-0 flex-1">
+      <ScrollArea data-context-inspector-scroll className="min-h-0 flex-1">
           <Tabs defaultValue="overview" className="gap-0">
             <TabsList variant="line" className="h-10 w-full justify-start gap-4 border-b px-5">
               <TabsTrigger value="overview">{t("context.overview")}</TabsTrigger>
@@ -579,8 +669,8 @@ export function ContextInspector({
                         <div data-context-timeline-canvas className="overflow-x-auto border-y py-3">
                           <div className="space-y-2.5" style={{ minWidth: `${timelineMinimumWidth}rem` }}>
                             {TIMELINE_CATEGORIES.map((category) => {
-                              const categoryEntries = timelineLayout.entries.filter((item) => item.category === category);
-                              if (categoryEntries.length === 0) return null;
+                              const categoryGroups = timelineMarkerGroups.filter((group) => group.category === category);
+                              if (categoryGroups.length === 0) return null;
                               return (
                                 <div
                                   key={category}
@@ -593,29 +683,46 @@ export function ContextInspector({
                                   </div>
                                   <div className="relative h-8">
                                     <div className="absolute inset-x-0 top-1/2 h-px bg-border" aria-hidden="true" />
-                                    {categoryEntries.map(({ entry, position }) => {
-                                      const entryTime = entry.timestamp === null
+                                    {categoryGroups.map((group) => {
+                                      const isGrouped = group.entries.length > 1;
+                                      const representative = group.entries.at(-1)!;
+                                      const entryTime = representative.entry.timestamp === null
                                         ? null
-                                        : formatTimelineTime(entry.timestamp, i18n.language);
-                                      const label = entry.label ?? t(`context.timelineKind.${entry.kind}`);
-                                      const isSelected = selectedTimelineEntry.entry.id === entry.id;
+                                        : formatTimelineTime(representative.entry.timestamp, i18n.language);
+                                      const label = representative.entry.label
+                                        ?? t(`context.timelineKind.${representative.entry.kind}`);
+                                      const isSelected = group.entries.some(({ entry }) => (
+                                        selectedTimelineEntry.entry.id === entry.id
+                                      ));
+                                      const markerLabel = isGrouped
+                                        ? t("context.timelineGroupLabel", {
+                                          category: t(`context.timelineCategory.${category}`),
+                                          count: group.entries.length,
+                                        })
+                                        : `${t(`context.timelineCategory.${category}`)}: ${label}`;
                                       return (
-                                        <Tooltip key={entry.id}>
+                                        <Tooltip key={group.id}>
                                           <TooltipTrigger asChild>
                                             <button
                                               type="button"
                                               data-context-timeline-marker
                                               data-context-timeline-category={category}
-                                              data-context-timeline-entry-id={entry.id}
-                                              aria-label={`${t(`context.timelineCategory.${category}`)}: ${label}`}
+                                              data-context-timeline-entry-id={representative.entry.id}
+                                              data-context-timeline-grouped={isGrouped || undefined}
+                                              data-context-timeline-group-count={group.entries.length}
+                                              aria-label={markerLabel}
                                               aria-pressed={isSelected}
-                                              onClick={() => setSelectedTimelineEntryId(entry.id)}
-                                              className={`absolute top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background shadow-sm transition-transform hover:scale-110 focus-visible:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${TIMELINE_MARKER_CLASSES[category]} ${isSelected ? "ring-2 ring-foreground ring-offset-2" : ""}`}
-                                              style={{ left: `${position}%` }}
-                                            />
+                                              onClick={() => setSelectedTimelineEntryId(representative.entry.id)}
+                                              className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background font-mono text-[10px] font-semibold leading-none text-primary-foreground shadow-sm transition-transform hover:scale-110 focus-visible:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${isGrouped ? "h-7 min-w-7 px-1" : "size-7"} ${TIMELINE_MARKER_CLASSES[category]} ${isSelected ? "ring-2 ring-foreground ring-offset-2" : ""}`}
+                                              style={{ left: `${group.position}%` }}
+                                            >
+                                              {isGrouped ? group.entries.length : null}
+                                            </button>
                                           </TooltipTrigger>
                                           <TooltipContent side="top" className="max-w-56">
-                                            <p className="font-medium">{label}</p>
+                                            <p className="font-medium">
+                                              {isGrouped ? t("context.timelineGroup", { count: group.entries.length }) : label}
+                                            </p>
                                             <p className="mt-0.5 text-xs text-muted-foreground">
                                               {t(`context.timelineCategory.${category}`)}
                                               {entryTime ? ` · ${entryTime}` : ""}
@@ -642,6 +749,53 @@ export function ContextInspector({
                             ) : null}
                           </div>
                         </div>
+
+                        {selectedTimelineGroup && selectedTimelineGroup.entries.length > 1 ? (
+                          <section
+                            data-context-timeline-group
+                            data-context-timeline-group-count={selectedTimelineGroup.entries.length}
+                            className="space-y-2 border-b pb-4"
+                          >
+                            <div className="flex items-center justify-between gap-4 text-sm font-medium">
+                              <div className="flex min-w-0 items-center gap-2">
+                                <TimelineCategoryIcon category={selectedTimelineGroup.category} />
+                                <h3>{t("context.timelineGroup", { count: selectedTimelineGroup.entries.length })}</h3>
+                              </div>
+                              <span className="shrink-0 text-xs text-muted-foreground">
+                                {t(`context.timelineCategory.${selectedTimelineGroup.category}`)}
+                              </span>
+                            </div>
+                            <div className="divide-y border-y">
+                              {selectedTimelineGroup.entries.map((item) => {
+                                const itemLabel = item.entry.label ?? t(`context.timelineKind.${item.entry.kind}`);
+                                const itemTime = item.entry.timestamp === null
+                                  ? null
+                                  : formatTimelineTime(item.entry.timestamp, i18n.language);
+                                const isSelected = selectedTimelineEntry.entry.id === item.entry.id;
+                                return (
+                                  <button
+                                    key={item.entry.id}
+                                    type="button"
+                                    data-context-timeline-group-entry
+                                    data-context-timeline-group-entry-id={item.entry.id}
+                                    aria-current={isSelected ? "true" : undefined}
+                                    onClick={() => setSelectedTimelineEntryId(item.entry.id)}
+                                    className={`flex w-full items-center gap-3 px-3 py-2 text-left text-xs transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset ${isSelected ? "bg-muted" : ""}`}
+                                  >
+                                    <TimelineIcon kind={item.entry.kind} />
+                                    <span className="min-w-0 flex-1 truncate font-medium">{itemLabel}</span>
+                                    {itemTime ? (
+                                      <span className="shrink-0 font-mono tabular-nums text-muted-foreground">{itemTime}</span>
+                                    ) : null}
+                                    <span className="shrink-0 font-mono tabular-nums text-muted-foreground">
+                                      {formatTokenCount(item.entry.tokenEstimate)}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </section>
+                        ) : null}
 
                         <section
                           data-context-timeline-detail
@@ -701,22 +855,21 @@ export function ContextInspector({
               </div>
             </TabsContent>
           </Tabs>
-        </ScrollArea>
+      </ScrollArea>
 
-        {canCompact ? (
-          <DialogFooter data-context-inspector-footer className="shrink-0 border-t px-5 py-3">
-            <Button
-              type="button"
-              size="sm"
-              onClick={onCompact}
-              disabled={isProcessing || isCompacting}
-            >
-              <Minimize2 />
-              {t("context.compactNow")}
-            </Button>
-          </DialogFooter>
-        ) : null}
-      </DialogContent>
-    </Dialog>
+      {canCompact ? (
+        <div data-context-inspector-footer className="flex shrink-0 justify-end border-t px-5 py-3">
+          <Button
+            type="button"
+            size="sm"
+            onClick={onCompact}
+            disabled={isProcessing || isCompacting}
+          >
+            <Minimize2 />
+            {t("context.compactNow")}
+          </Button>
+        </div>
+      ) : null}
+    </section>
   );
 }

@@ -5,6 +5,14 @@ import type { ToolId } from "@/types/tools";
 import type { AcpPermissionBehavior, ClaudeEffort, EngineId, LanguageOption, MacBackgroundEffect, ThemeOption } from "@/types";
 import { reportSettingsSaveFailure, setAppSettingsChecked } from "@/lib/app-settings-ipc";
 import { normalizeAccentColor } from "@/lib/theme-colors";
+import {
+  DEFAULT_THEME_CUSTOMIZATION,
+  normalizeThemeCustomization,
+  type CodeFontFamily,
+  type ThemeCustomization,
+  type ThemeFontWeight,
+  type UiFontFamily,
+} from "@/lib/theme-customization";
 
 // ── Constants ──
 
@@ -131,9 +139,8 @@ export interface ProjectSettings {
 }
 
 /** Global settings state (not per-project) */
-interface GlobalSettingsState {
+interface GlobalSettingsState extends ThemeCustomization {
   theme: ThemeOption;
-  accentColor: string | null;
   language: LanguageOption;
   /**
    * Most recently selected model per engine, independent of project/session.
@@ -169,6 +176,17 @@ interface SettingsActions {
   // Global setters
   setTheme: (t: ThemeOption) => void;
   setAccentColor: (color: string | null) => void;
+  setLightBackgroundColor: (color: string | null) => void;
+  setLightForegroundColor: (color: string | null) => void;
+  setDarkBackgroundColor: (color: string | null) => void;
+  setDarkForegroundColor: (color: string | null) => void;
+  setUiFontFamily: (family: UiFontFamily) => void;
+  setUiFontWeight: (weight: ThemeFontWeight) => void;
+  setCodeFontFamily: (family: CodeFontFamily) => void;
+  setCodeFontWeight: (weight: ThemeFontWeight) => void;
+  setSidebarTransparency: (enabled: boolean) => void;
+  setContrast: (value: number) => void;
+  setThemeCustomization: (customization: ThemeCustomization) => void;
   setLanguage: (l: LanguageOption) => void;
   setIslandLayout: (enabled: boolean) => void;
   setIslandShine: (enabled: boolean) => void;
@@ -362,7 +380,7 @@ function readLegacyGlobalSettings(): GlobalSettingsState {
 
   return {
     theme,
-    accentColor: null,
+    ...DEFAULT_THEME_CUSTOMIZATION,
     language,
     // Legacy storage had no global last-model; default and let it populate on next pick.
     lastModelByEngine: DEFAULT_ENGINE_MODELS,
@@ -479,8 +497,8 @@ export const useSettingsStore = create<SettingsStore>()(
   persist(
     (set, get) => ({
       // ── Global state defaults ──
+      ...DEFAULT_THEME_CUSTOMIZATION,
       theme: "light",
-      accentColor: null,
       language: "system",
       lastModelByEngine: DEFAULT_ENGINE_MODELS,
       islandLayout: false,
@@ -511,6 +529,28 @@ export const useSettingsStore = create<SettingsStore>()(
       },
 
       setAccentColor: (color) => set({ accentColor: normalizeAccentColor(color) }),
+
+      setLightBackgroundColor: (color) => set({ lightBackgroundColor: normalizeThemeCustomization({ lightBackgroundColor: color }).lightBackgroundColor }),
+
+      setLightForegroundColor: (color) => set({ lightForegroundColor: normalizeThemeCustomization({ lightForegroundColor: color }).lightForegroundColor }),
+
+      setDarkBackgroundColor: (color) => set({ darkBackgroundColor: normalizeThemeCustomization({ darkBackgroundColor: color }).darkBackgroundColor }),
+
+      setDarkForegroundColor: (color) => set({ darkForegroundColor: normalizeThemeCustomization({ darkForegroundColor: color }).darkForegroundColor }),
+
+      setUiFontFamily: (family) => set({ uiFontFamily: normalizeThemeCustomization({ uiFontFamily: family }).uiFontFamily }),
+
+      setUiFontWeight: (weight) => set({ uiFontWeight: normalizeThemeCustomization({ uiFontWeight: weight }).uiFontWeight }),
+
+      setCodeFontFamily: (family) => set({ codeFontFamily: normalizeThemeCustomization({ codeFontFamily: family }).codeFontFamily }),
+
+      setCodeFontWeight: (weight) => set({ codeFontWeight: normalizeThemeCustomization({ codeFontWeight: weight }).codeFontWeight }),
+
+      setSidebarTransparency: (enabled) => set({ sidebarTransparency: enabled }),
+
+      setContrast: (value) => set({ contrast: normalizeThemeCustomization({ contrast: value }).contrast }),
+
+      setThemeCustomization: (customization) => set(normalizeThemeCustomization(customization)),
 
       setLanguage: (l) => set({ language: l }),
 
@@ -696,6 +736,16 @@ export const useSettingsStore = create<SettingsStore>()(
         // Global state
         theme: state.theme,
         accentColor: state.accentColor,
+        lightBackgroundColor: state.lightBackgroundColor,
+        lightForegroundColor: state.lightForegroundColor,
+        darkBackgroundColor: state.darkBackgroundColor,
+        darkForegroundColor: state.darkForegroundColor,
+        uiFontFamily: state.uiFontFamily,
+        uiFontWeight: state.uiFontWeight,
+        codeFontFamily: state.codeFontFamily,
+        codeFontWeight: state.codeFontWeight,
+        sidebarTransparency: state.sidebarTransparency,
+        contrast: state.contrast,
         language: state.language,
         lastModelByEngine: state.lastModelByEngine,
         islandLayout: state.islandLayout,
@@ -722,12 +772,23 @@ export const useSettingsStore = create<SettingsStore>()(
       merge: (persisted, current) => {
         const incoming = persisted as Partial<SettingsStore> | undefined;
         if (!incoming) return current;
+        const themeCustomization = normalizeThemeCustomization(incoming, {
+          accentColor: current.accentColor,
+          lightBackgroundColor: current.lightBackgroundColor,
+          lightForegroundColor: current.lightForegroundColor,
+          darkBackgroundColor: current.darkBackgroundColor,
+          darkForegroundColor: current.darkForegroundColor,
+          uiFontFamily: current.uiFontFamily,
+          uiFontWeight: current.uiFontWeight,
+          codeFontFamily: current.codeFontFamily,
+          codeFontWeight: current.codeFontWeight,
+          sidebarTransparency: current.sidebarTransparency,
+          contrast: current.contrast,
+        });
         return {
           ...current,
           ...incoming,
-          accentColor: incoming.accentColor === undefined
-            ? current.accentColor
-            : normalizeAccentColor(incoming.accentColor),
+          ...themeCustomization,
           // Ensure projects is always an object, never undefined
           projects: incoming.projects ?? current.projects,
         };

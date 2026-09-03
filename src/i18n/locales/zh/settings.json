@@ -49,6 +49,40 @@
       "light": "浅色",
       "system": "跟随系统"
     },
+    "customization": {
+      "section": "主题自定义",
+      "lightTheme": "浅色主题",
+      "darkTheme": "深色主题",
+      "description": "自定义颜色、字体、侧边栏透明度和对比度。",
+      "import": "导入",
+      "copy": "复制主题",
+      "copySuccess": "主题配置已复制",
+      "copyFailed": "复制主题配置失败",
+      "importSuccess": "主题配置已导入",
+      "importFailed": "主题配置无效或无法读取",
+      "accent": "强调色",
+      "background": "背景",
+      "foreground": "前景",
+      "uiFont": "UI 字体",
+      "codeFont": "代码字体",
+      "sidebarTransparency": "半透明侧边栏",
+      "sidebarTransparencyDesc": "让侧边栏保留部分窗口背景透出效果。",
+      "contrast": "对比度",
+      "reset": "恢复默认",
+      "fonts": {
+        "system": "系统默认",
+        "sourceSerif": "Source Serif 4",
+        "instrumentSerif": "Instrument Serif",
+        "cascadia": "Cascadia Code",
+        "courier": "Courier New"
+      },
+      "weights": {
+        "regular": "常规",
+        "medium": "中等",
+        "semibold": "半粗",
+        "bold": "粗体"
+      }
+    },
     "tools": {
       "section": "工具",
       "autoGroup": "自动分组工具",

@@ -6,6 +6,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { SettingRow, SettingsSelect, SettingsHeader, SettingsSection } from "@/components/settings/shared";
 import { useSettingsStore, deriveMacBackgroundEffect } from "@/stores/settings-store";
 import { isMac } from "@/lib/utils";
+import { ThemeCustomizationSection } from "@/components/settings/ThemeCustomizationSection";
+import { useResolvedTheme } from "@/hooks/useTheme";
 
 // ── Props ──
 
@@ -66,6 +68,7 @@ export const AppearanceSettings = memo(function AppearanceSettings({
   const effectiveMacBackgroundEffect = !macLiquidGlassSupported && macBackgroundEffect === "liquid-glass"
     ? "vibrancy"
     : macBackgroundEffect;
+  const resolvedTheme = useResolvedTheme();
 
   return (
     <div className="flex h-full flex-col">
@@ -108,6 +111,9 @@ export const AppearanceSettings = memo(function AppearanceSettings({
               />
             </SettingRow>
           </SettingsSection>
+
+          {/* ── Theme customization section ── */}
+          <ThemeCustomizationSection resolvedTheme={resolvedTheme} />
 
           {/* ── Tools section ── */}
           <SettingsSection icon={Wrench} label={t("appearance.tools.section")}>

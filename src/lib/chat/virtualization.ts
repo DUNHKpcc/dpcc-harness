@@ -1,4 +1,8 @@
 import type { RowDescriptor } from "@/components/ChatView";
+import {
+  CHAT_IMAGE_THUMBNAIL_SIZE_PX,
+  CHAT_IMAGE_THUMBNAIL_STACK_GAP_PX,
+} from "@/components/lib/chat-layout";
 
 // ── Constants ──
 
@@ -82,9 +86,18 @@ export function estimateRowHeight(row: RowDescriptor): number {
   if (msg.role === "user") {
     const text = msg.displayContent ?? msg.content;
     const lines = estimateLineCount(text);
-    const imageRows = msg.images ? Math.ceil(msg.images.length / 3) : 0;
-    // Base padding (48px) + text lines + image rows (200px each)
-    return Math.min(400, 48 + lines * LINE_HEIGHT_PX + imageRows * 200);
+    const hasImages = (msg.images?.length ?? 0) > 0;
+    const hasTextBubble = text.trim().length > 0 || !!msg.isQueued;
+    const imageHeight = hasImages ? CHAT_IMAGE_THUMBNAIL_SIZE_PX : 0;
+
+    if (!hasTextBubble) {
+      // Image-only messages render without a text bubble.
+      return imageHeight > 0 ? imageHeight + 8 : 8;
+    }
+
+    // The attachment strip stays on one responsive, horizontally scrollable row.
+    const attachmentGap = hasImages ? CHAT_IMAGE_THUMBNAIL_STACK_GAP_PX : 0;
+    return Math.min(400, 48 + lines * LINE_HEIGHT_PX + imageHeight + attachmentGap);
   }
 
   // assistant — most complex: prose + optional thinking + code blocks

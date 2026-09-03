@@ -18,6 +18,8 @@ const MermaidDiagram = lazy(() =>
   import("./MermaidDiagram").then((m) => ({ default: m.MermaidDiagram })),
 );
 import {
+  CHAT_IMAGE_THUMBNAIL_SIZE_CLASS,
+  CHAT_IMAGE_THUMBNAIL_STACK_GAP_CLASS,
   CHAT_CONTENT_STACK_CLASS,
   CHAT_PROSE_EDGE_CLASS,
   CHAT_ROW_CLASS,
@@ -243,6 +245,10 @@ export const MessageBubble = memo(function MessageBubble({
   const [viewingImage, setViewingImage] = useState<ImageAttachment | null>(null);
   const time = useMemo(() => new Date(message.timestamp).toLocaleTimeString(), [message.timestamp]);
   const displayContent = useMemo(() => isUser ? (message.displayContent ?? stripFileContext(message.content)) : message.content, [isUser, message.content, message.displayContent]);
+  const messageImages = message.images ?? [];
+  const hasMessageImages = messageImages.length > 0;
+  const hasUserTextContent = isUser && displayContent.trim().length > 0;
+  const shouldRenderUserTextBubble = hasUserTextContent || !!message.isQueued;
 
   // Per-token fade-in animation via DOM surgery in useLayoutEffect.
   // Always renders ReactMarkdown (real-time markdown parsing) — the hook
@@ -315,63 +321,82 @@ export const MessageBubble = memo(function MessageBubble({
   if (isUser) {
     return (
       <div className={cn("group/user flex justify-end", CHAT_ROW_CLASS, message.isQueued && "opacity-60")}>
-        <div className="relative max-w-[var(--chat-user-message-max-width,80%)]">
+        <div className="relative flex min-w-0 max-w-[var(--chat-user-message-max-width,80%)] flex-col items-end">
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className={cn(
-                "rounded-2xl rounded-tr-sm bg-foreground/[0.06] px-3.5 py-2 text-sm text-foreground wrap-break-word whitespace-pre-wrap",
-                message.isQueued && !isSendNextQueued && "border border-dashed border-foreground/10",
-                message.isQueued && isSendNextQueued && "border border-dashed border-red-400/50",
-              )}>
-                {message.images && message.images.length > 0 && (
-                  <div className="mb-2 flex flex-wrap gap-2">
-                    {message.images.map((img) => (
-                      <img
+              <div className="flex min-w-0 max-w-full flex-col items-end">
+                {hasMessageImages && (
+                  <div
+                    data-slot="message-image-strip"
+                    className={cn(
+                      "flex w-fit min-w-0 max-w-full gap-1.5 overflow-x-auto overflow-y-hidden overscroll-x-contain scrollbar-none",
+                      shouldRenderUserTextBubble && CHAT_IMAGE_THUMBNAIL_STACK_GAP_CLASS,
+                    )}
+                  >
+                    {messageImages.map((img) => (
+                      <button
                         key={img.id}
-                        src={`data:${img.mediaType};base64,${img.data}`}
-                        alt={img.fileName ?? t("message.attachedImage")}
-                        className="max-h-48 cursor-pointer rounded-lg transition-opacity hover:opacity-90"
+                        type="button"
+                        data-slot="message-image-thumbnail"
+                        className={cn(
+                          CHAT_IMAGE_THUMBNAIL_SIZE_CLASS,
+                          "shrink-0 cursor-pointer overflow-hidden rounded-lg border border-border/20 bg-muted/30 p-0 transition-opacity hover:opacity-90 focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
+                        )}
                         onClick={() => setViewingImage(img)}
-                      />
+                        title={img.fileName ?? t("message.attachedImage")}
+                        aria-label={img.fileName ?? t("message.attachedImage")}
+                      >
+                        <img
+                          src={`data:${img.mediaType};base64,${img.data}`}
+                          alt={img.fileName ?? t("message.attachedImage")}
+                          className="h-full w-full object-cover"
+                        />
+                      </button>
                     ))}
                   </div>
                 )}
-                <ImageLightbox
-                  image={viewingImage}
-                  open={!!viewingImage}
-                  onOpenChange={(isOpen) => { if (!isOpen) setViewingImage(null); }}
-                />
-                {renderWithMentions(displayContent)}
-                {message.isQueued && (
-                  <div className="mt-2 flex items-center gap-2 border-t border-foreground/[0.06] pt-2 text-[11px] text-muted-foreground">
-                    <Clock className="h-3 w-3 shrink-0" />
-                    <span>{t("message.queued")}</span>
-                    {(onSendQueuedNow || onUnqueueQueued) && (
-                      <div className="ms-auto flex items-center gap-1">
-                        {onSendQueuedNow && (
-                          <button
-                            type="button"
-                            className={cn(
-                              "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium transition-all",
-                              isSendNextQueued
-                                ? "bg-primary/15 text-primary hover:bg-primary/25"
-                                : "text-muted-foreground hover:bg-foreground/[0.08] hover:text-foreground",
+                {shouldRenderUserTextBubble && (
+                  <div
+                    data-slot="user-message-bubble"
+                    className={cn(
+                      "rounded-2xl rounded-tr-sm bg-foreground/[0.06] px-3.5 py-2 text-sm text-foreground wrap-break-word whitespace-pre-wrap",
+                      message.isQueued && !isSendNextQueued && "border border-dashed border-foreground/10",
+                      message.isQueued && isSendNextQueued && "border border-dashed border-red-400/50",
+                    )}
+                  >
+                    {hasUserTextContent && renderWithMentions(displayContent)}
+                    {message.isQueued && (
+                      <div className="mt-2 flex items-center gap-2 border-t border-foreground/[0.06] pt-2 text-[11px] text-muted-foreground">
+                        <Clock className="h-3 w-3 shrink-0" />
+                        <span>{t("message.queued")}</span>
+                        {(onSendQueuedNow || onUnqueueQueued) && (
+                          <div className="ms-auto flex items-center gap-1">
+                            {onSendQueuedNow && (
+                              <button
+                                type="button"
+                                className={cn(
+                                  "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium transition-all",
+                                  isSendNextQueued
+                                    ? "bg-primary/15 text-primary hover:bg-primary/25"
+                                    : "text-muted-foreground hover:bg-foreground/[0.08] hover:text-foreground",
+                                )}
+                                onClick={() => onSendQueuedNow(message.id)}
+                              >
+                                <Send className="h-2.5 w-2.5" />
+                                {t("message.sendNext")}
+                              </button>
                             )}
-                            onClick={() => onSendQueuedNow(message.id)}
-                          >
-                            <Send className="h-2.5 w-2.5" />
-                            {t("message.sendNext")}
-                          </button>
-                        )}
-                        {onUnqueueQueued && (
-                          <button
-                            type="button"
-                            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium text-muted-foreground transition-all hover:bg-destructive/10 hover:text-destructive"
-                            onClick={() => onUnqueueQueued(message.id)}
-                          >
-                            <X className="h-2.5 w-2.5" />
-                            {t("message.unqueue")}
-                          </button>
+                            {onUnqueueQueued && (
+                              <button
+                                type="button"
+                                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium text-muted-foreground transition-all hover:bg-destructive/10 hover:text-destructive"
+                                onClick={() => onUnqueueQueued(message.id)}
+                              >
+                                <X className="h-2.5 w-2.5" />
+                                {t("message.unqueue")}
+                              </button>
+                            )}
+                          </div>
                         )}
                       </div>
                     )}
@@ -383,6 +408,11 @@ export const MessageBubble = memo(function MessageBubble({
               <p className="text-xs">{time}</p>
             </TooltipContent>
           </Tooltip>
+          <ImageLightbox
+            image={viewingImage}
+            open={!!viewingImage}
+            onOpenChange={(isOpen) => { if (!isOpen) setViewingImage(null); }}
+          />
         </div>
       </div>
     );

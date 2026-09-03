@@ -25,7 +25,7 @@ export const ImageLightbox = React.memo(function ImageLightbox({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] max-w-[90vw] items-center justify-center border-none bg-transparent p-0 shadow-none">
+      <DialogContent className="flex h-[min(76vh,640px)] w-[min(92vw,960px)] max-w-none items-center justify-center overflow-hidden border-border/40 bg-background/95 p-4 shadow-2xl sm:max-w-none">
         <DialogTitle className="sr-only">{t("imageLightbox.title")}</DialogTitle>
         <DialogDescription className="sr-only">
           {t("imageLightbox.description")}
@@ -33,7 +33,7 @@ export const ImageLightbox = React.memo(function ImageLightbox({
         <img
           src={`data:${image.mediaType};base64,${image.data}`}
           alt={image.fileName ?? "attached image"}
-          className="max-h-[85vh] max-w-[88vw] rounded-lg object-contain"
+          className="h-full w-full rounded-lg object-contain"
         />
       </DialogContent>
     </Dialog>

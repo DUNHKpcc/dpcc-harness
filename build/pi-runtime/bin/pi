@@ -31,4 +31,12 @@ if [ -n "${PCC_AGENT_PI_MCP_EXTENSION:-}" ] || [ -n "${PCC_AGENT_PI_MCP_CONFIG:-
   set -- "$@" --extension "$PCC_AGENT_PI_MCP_EXTENSION"
 fi
 
+if [ -n "${PCC_AGENT_PI_PACKAGE_CONFIG:-}" ]; then
+  if [ -z "${PCC_AGENT_PI_PACKAGE_BOOTSTRAP:-}" ] || [ ! -f "$PCC_AGENT_PI_PACKAGE_BOOTSTRAP" ]; then
+    printf '%s\n' 'PccAgent bundled Pi package launcher is unavailable.' >&2
+    exit 78
+  fi
+  exec "$PCC_AGENT_PI_RUNTIME_HOST" "$PCC_AGENT_PI_PACKAGE_BOOTSTRAP" "$@"
+fi
+
 exec "$PCC_AGENT_PI_RUNTIME_HOST" "$PCC_AGENT_PI_ENTRY" "$@"

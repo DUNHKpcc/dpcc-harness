@@ -1008,6 +1008,8 @@ export function buildAcpLifecycleErrorDetails(
     || code === "pi_acp_bundled_package_missing"
     || code === "pi_mcp_bundled_package_missing"
     || code === "pi_mcp_bridge_missing"
+    || code === "pi_context_bridge_missing"
+    || code === "pi_package_bootstrap_missing"
     || code === "pi_bundled_version_mismatch"
     || code === "pi_acp_bundled_version_mismatch"
     || code === "pi_mcp_bundled_version_mismatch"

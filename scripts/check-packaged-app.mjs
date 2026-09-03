@@ -133,16 +133,18 @@ function assertPackagedRenderer(asarPath) {
   const piRuntimeNotices = path.join(path.dirname(asarPath), "pi-runtime", "THIRD_PARTY_NOTICES.md");
   const piMcpBridge = path.join(path.dirname(asarPath), "pi-runtime", "extensions", "pcc-mcp.ts");
   const piContextBridge = path.join(path.dirname(asarPath), "pi-runtime", "extensions", "pcc-context-usage.ts");
+  const piPackageBootstrap = path.join(path.dirname(asarPath), "pi-runtime", "bin", "pcc-pi-package-launch.cjs");
   if (
     !fs.existsSync(piRuntimeLauncher)
     || !fs.existsSync(piRuntimeNotices)
     || !fs.existsSync(piMcpBridge)
     || !fs.existsSync(piContextBridge)
+    || !fs.existsSync(piPackageBootstrap)
   ) {
     throw new Error(`${asarPath} is missing bundled Pi extraResources`);
   }
 
-  return { asarPath, extraResourcesLogo, piRuntimeLauncher, piContextBridge };
+  return { asarPath, extraResourcesLogo, piRuntimeLauncher, piContextBridge, piPackageBootstrap };
 }
 
 function appRootForAsar(asarPath) {

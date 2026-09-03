@@ -162,11 +162,14 @@ export class PiAcpAdapter implements CLIAdapter {
   readonly displayName = "Pi";
 
   async isAvailable(): Promise<boolean> {
+    let launch: PiAcpLaunchDefinition | undefined;
     try {
-      await preparePiAcpLaunch(BUILTIN_PI_AGENT);
+      launch = await preparePiAcpLaunch(BUILTIN_PI_AGENT);
       return true;
     } catch {
       return false;
+    } finally {
+      launch?.cleanup?.();
     }
   }
 
@@ -409,6 +412,7 @@ export class PiAcpAdapter implements CLIAdapter {
     } finally {
       opts.signal.removeEventListener("abort", onAbort);
       killProcessTree(proc);
+      launch.cleanup?.();
     }
   }
 }

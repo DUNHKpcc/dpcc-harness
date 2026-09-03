@@ -24,6 +24,7 @@ function createContext(options: {
   includePiMcpAdapter?: boolean;
   includeMcpBridge?: boolean;
   includeContextBridge?: boolean;
+  includePackageBootstrap?: boolean;
   includeWrapper?: boolean;
 } = {}): BundledPiRuntimeContext {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "pcc-agent-bundled-pi-"));
@@ -82,6 +83,11 @@ function createContext(options: {
     const bridgePath = path.join(runtimeRoot, "extensions", "pcc-context-usage.ts");
     fs.mkdirSync(path.dirname(bridgePath), { recursive: true });
     fs.writeFileSync(bridgePath, "// fixture\n");
+  }
+  if (options.includePackageBootstrap !== false) {
+    const bootstrapPath = path.join(runtimeRoot, "bin", "pcc-pi-package-launch.cjs");
+    fs.mkdirSync(path.dirname(bootstrapPath), { recursive: true });
+    fs.writeFileSync(bootstrapPath, "// fixture\n");
   }
 
   return {
@@ -156,12 +162,15 @@ describe("bundled Pi runtime", () => {
       });
       expect(runtime.piCommandPath).toContain(path.join("build", "pi-runtime", "bin"));
       expect(runtime.piContextExtensionPath).toContain(path.join("build", "pi-runtime", "extensions"));
+      expect(runtime.piPackageBootstrapPath).toContain(path.join("build", "pi-runtime", "bin"));
       expect(bundledPiEnvironment(runtime)).toMatchObject({
         ELECTRON_RUN_AS_NODE: "1",
         PCC_AGENT_PI_RUNTIME_HOST: context.hostPath,
         PCC_AGENT_PI_ENTRY: runtime.pi.entryPath,
         PI_ACP_PI_COMMAND: runtime.piCommandPath,
         PCC_AGENT_PI_CONTEXT_EXTENSION: runtime.piContextExtensionPath,
+        PCC_AGENT_PI_PACKAGE_BOOTSTRAP: runtime.piPackageBootstrapPath,
+        PCC_AGENT_PI_PACKAGE_CONFIG: "",
       });
     } finally {
       process.env.PATH = originalPath;
@@ -202,6 +211,16 @@ describe("bundled Pi runtime", () => {
     expect(() => resolveBundledPiRuntime(context)).toThrow(expect.objectContaining({
       code: "pi_context_bridge_missing",
     }));
+  });
+
+  it("reports an unavailable package bootstrap without blocking base Pi startup", () => {
+    const context = createContext({ includePackageBootstrap: false });
+
+    expect(inspectBundledPiRuntime(context)).toMatchObject({
+      offlineReady: true,
+      piPackageBootstrapAvailable: false,
+    });
+    expect(resolveBundledPiRuntime(context).piPackageBootstrapPath).toContain("pcc-pi-package-launch.cjs");
   });
 
   it("does not accept a system installation when bundled packages are absent", () => {

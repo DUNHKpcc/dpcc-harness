@@ -1,6 +1,7 @@
 import { Suspense, lazy, memo } from "react";
 import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PiPackagesCatalog } from "./PiPackagesCatalog";
 import { SkillsCatalog } from "./SkillsCatalog";
 import type { McpServerConfig } from "@/types";
 
@@ -39,6 +40,13 @@ export const PluginCenter = memo(function PluginCenter({
         <div className="flex h-12 shrink-0 items-center border-b border-border/60 px-4">
           <TabsList className="h-9 gap-1 bg-transparent p-0">
             <TabsTrigger
+              value="packages"
+              data-plugin-tab="pi-packages"
+              className="h-8 flex-none px-3 text-sm data-[state=active]:bg-muted data-[state=active]:shadow-none"
+            >
+              {t("tabs.packages")}
+            </TabsTrigger>
+            <TabsTrigger
               value="skills"
               data-plugin-tab="skills"
               className="h-8 flex-none px-3 text-sm data-[state=active]:bg-muted data-[state=active]:shadow-none"
@@ -54,6 +62,9 @@ export const PluginCenter = memo(function PluginCenter({
             </TabsTrigger>
           </TabsList>
         </div>
+        <TabsContent value="packages" className="m-0 flex min-h-0 min-w-0 flex-1">
+          <PiPackagesCatalog />
+        </TabsContent>
         <TabsContent value="skills" className="m-0 flex min-h-0 min-w-0 flex-1">
           <SkillsCatalog />
         </TabsContent>

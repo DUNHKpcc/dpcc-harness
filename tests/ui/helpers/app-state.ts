@@ -114,6 +114,22 @@ export function seedLocalSkills(home: string, count = 8): void {
   }
 }
 
+export function seedUserPiExtension(home: string): void {
+  const agentDir = path.join(home, ".pi", "agent");
+  const extensionDir = path.join(agentDir, "extensions");
+  fs.mkdirSync(extensionDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(extensionDir, "local-fixture.ts"),
+    "export default function localFixture() {}\n",
+    "utf8",
+  );
+  fs.writeFileSync(
+    path.join(agentDir, "settings.json"),
+    JSON.stringify({ extensions: ["./extensions/local-fixture.ts"] }),
+    "utf8",
+  );
+}
+
 export function seedLocalMcpServers(home: string): void {
   fs.writeFileSync(path.join(home, ".mcp.json"), JSON.stringify({
     mcpServers: {

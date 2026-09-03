@@ -5,6 +5,7 @@ import runtimeManifest from "../../../scripts/pi-runtime-versions.json";
 export type BundledPiRuntimeErrorCode =
   | "pi_runtime_host_missing"
   | "pi_bundled_wrapper_missing"
+  | "pi_package_bootstrap_missing"
   | "pi_bundled_package_missing"
   | "pi_acp_bundled_package_missing"
   | "pi_mcp_bundled_package_missing"
@@ -35,6 +36,8 @@ export interface BundledPiRuntimeInspection {
   piMcpBridgeAvailable: boolean;
   piContextExtensionPath: string;
   piContextExtensionAvailable: boolean;
+  piPackageBootstrapPath: string;
+  piPackageBootstrapAvailable: boolean;
   pi: BundledPiRuntimeComponent;
   piAcp: BundledPiRuntimeComponent;
   piMcpAdapter: BundledPiRuntimeComponent;
@@ -217,6 +220,10 @@ function piContextExtensionPath(context: BundledPiRuntimeContext): string {
   return path.join(piRuntimeResourceRoot(context), "pi-runtime", "extensions", "pcc-context-usage.ts");
 }
 
+function piPackageBootstrapPath(context: BundledPiRuntimeContext): string {
+  return path.join(piRuntimeResourceRoot(context), "pi-runtime", "bin", "pcc-pi-package-launch.cjs");
+}
+
 export function inspectBundledPiRuntime(
   overrides: Partial<BundledPiRuntimeContext> = {},
 ): BundledPiRuntimeInspection {
@@ -224,10 +231,12 @@ export function inspectBundledPiRuntime(
   const commandPath = piCommandPath(context);
   const mcpBridgePath = piMcpBridgePath(context);
   const contextExtensionPath = piContextExtensionPath(context);
+  const packageBootstrapPath = piPackageBootstrapPath(context);
   const hostAvailable = canAccess(context.hostPath, true, context.platform);
   const piCommandAvailable = canAccess(commandPath, true, context.platform);
   const piMcpBridgeAvailable = canAccess(mcpBridgePath, false, context.platform);
   const piContextExtensionAvailable = canAccess(contextExtensionPath, false, context.platform);
+  const piPackageBootstrapAvailable = canAccess(packageBootstrapPath, false, context.platform);
   const pi = inspectComponent(
     runtimeManifest.binaries.pi.package,
     runtimeManifest.binaries.pi.version,
@@ -263,6 +272,8 @@ export function inspectBundledPiRuntime(
     piMcpBridgeAvailable,
     piContextExtensionPath: contextExtensionPath,
     piContextExtensionAvailable,
+    piPackageBootstrapPath: packageBootstrapPath,
+    piPackageBootstrapAvailable,
     pi,
     piAcp,
     piMcpAdapter,
@@ -335,5 +346,7 @@ export function bundledPiEnvironment(
     PCC_AGENT_PI_ENTRY: runtime.pi.entryPath,
     PI_ACP_PI_COMMAND: piCommand,
     PCC_AGENT_PI_CONTEXT_EXTENSION: runtime.piContextExtensionPath,
+    PCC_AGENT_PI_PACKAGE_BOOTSTRAP: runtime.piPackageBootstrapPath,
+    PCC_AGENT_PI_PACKAGE_CONFIG: "",
   };
 }

@@ -22,6 +22,8 @@ interface DoctorResult {
     runtimeHost: { ok: boolean; path: string; code?: string };
     launcher: { ok: boolean; path: string; code?: string };
     mcpBridge: { ok: boolean; path: string; code?: string };
+    contextBridge: { ok: boolean; path: string; code?: string };
+    packageBootstrap: { ok: boolean; path: string; code?: string };
     distribution: { ok: boolean; systemPathPolicy: string };
     catalog: { ok: boolean; code?: string };
     credential: { ok: boolean; code?: string };
@@ -88,6 +90,8 @@ describe("Pi runtime doctor", () => {
         runtimeHost: { ok: true },
         launcher: { ok: true },
         mcpBridge: { ok: true },
+        contextBridge: { ok: true },
+        packageBootstrap: { ok: true },
         distribution: { ok: true, systemPathPolicy: "ignored" },
         acpInitialize: { ok: true },
       },

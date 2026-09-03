@@ -134,6 +134,8 @@ function runtimeEnvironment(hostPath, piEntryPath, piCommandPath, isolation) {
     PCC_AGENT_PI_MCP_CONFIG: "",
     PCC_AGENT_PI_MCP_ADAPTER: "",
     PCC_AGENT_PI_CONTEXT_EXTENSION: "",
+    PCC_AGENT_PI_PACKAGE_BOOTSTRAP: "",
+    PCC_AGENT_PI_PACKAGE_CONFIG: "",
     HOME: isolation.home,
     USERPROFILE: isolation.home,
     XDG_CONFIG_HOME: isolation.config,
@@ -362,9 +364,11 @@ async function buildResult(manifest) {
   const wrapperPath = path.join(repoRoot, "build", "pi-runtime", "bin", process.platform === "win32" ? "pi.cmd" : "pi");
   const mcpBridgePath = path.join(repoRoot, "build", "pi-runtime", "extensions", "pcc-mcp.ts");
   const contextExtensionPath = path.join(repoRoot, "build", "pi-runtime", "extensions", "pcc-context-usage.ts");
+  const packageBootstrapPath = path.join(repoRoot, "build", "pi-runtime", "bin", "pcc-pi-package-launch.cjs");
   const isolation = createIsolationDirectory();
   const env = runtimeEnvironment(hostPath, pi.entryPath, wrapperPath, isolation);
   env.PCC_AGENT_PI_CONTEXT_EXTENSION = contextExtensionPath;
+  env.PCC_AGENT_PI_PACKAGE_BOOTSTRAP = packageBootstrapPath;
   const hostVersion = runVersion(hostPath, ["--version"], env);
   const minimumNode = parseSemver(manifest.node.minimum);
   const actualNode = parseSemver(hostVersion.version);
@@ -405,6 +409,12 @@ async function buildResult(manifest) {
     ok: fileAvailable(contextExtensionPath),
     code: fileAvailable(contextExtensionPath) ? null : "pi_context_bridge_missing",
   };
+  const packageBootstrap = {
+    source: "bundled-resource",
+    path: packageBootstrapPath,
+    ok: fileAvailable(packageBootstrapPath),
+    code: fileAvailable(packageBootstrapPath) ? null : "pi_package_bootstrap_missing",
+  };
   const piFamily = (manifest.piFamily?.packages ?? []).map((packageName) => {
     const expectedVersion = manifest.piFamily.version;
     const lockEntry = lockfile.packages?.[`${packageName}@${expectedVersion}`];
@@ -443,7 +453,7 @@ async function buildResult(manifest) {
   const provider = await checkProvider(catalog);
   const acpInitialize = await probeAcpInitialize(hostPath, piAcp.entryPath, env, isolation.path);
   const libraries = Object.entries(manifest.libraries ?? {}).map(([name, expected]) => checkLibrary(name, expected));
-  const checks = { runtimeHost, launcher, mcpBridge, contextBridge, distribution, platform: platformCheck, catalog, credential, provider, acpInitialize };
+  const checks = { runtimeHost, launcher, mcpBridge, contextBridge, packageBootstrap, distribution, platform: platformCheck, catalog, credential, provider, acpInitialize };
   const issues = [
     ...[pi, piAcp, piMcpAdapter, ...Object.values(checks), ...libraries, ...piFamily]
       .flatMap((check) => check.ok || !check.code ? [] : [check.code]),
@@ -459,6 +469,7 @@ async function buildResult(manifest) {
       && launcher.ok
       && mcpBridge.ok
       && contextBridge.ok
+      && packageBootstrap.ok
       && distribution.ok
       && platformCheck.ok,
     binaries: [pi, piAcp, piMcpAdapter],

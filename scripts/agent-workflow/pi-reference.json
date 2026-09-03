@@ -15,10 +15,13 @@
         "docs/rpc.md",
         "docs/sdk.md",
         "docs/skills.md",
+        "docs/packages.md",
         "docs/extensions.md",
         "docs/environment-variables.md",
         "docs/security.md",
         "dist/core/agent-session.js",
+        "dist/core/package-manager.js",
+        "dist/core/settings-manager.js",
         "dist/modes/rpc/rpc-mode.js"
       ]
     },
@@ -66,6 +69,10 @@
     {
       "id": "pi-skills",
       "url": "https://pi.dev/docs/latest/skills"
+    },
+    {
+      "id": "pi-packages",
+      "url": "https://pi.dev/docs/latest/packages"
     },
     {
       "id": "pi-extensions",
@@ -367,6 +374,42 @@
       ],
       "docRefs": [
         "pi-skills",
+        "pi-security"
+      ]
+    },
+    {
+      "id": "packages",
+      "title": "Pi package discovery, local configuration, and protected launch injection",
+      "keywords": [
+        "pi package",
+        "local pi extension",
+        "existing pi config",
+        "~/.pi/agent/settings.json",
+        "package resolver",
+        "package resource",
+        "extension local config",
+        "Pi Package",
+        "本机 Pi 配置",
+        "Pi extension"
+      ],
+      "appPaths": [
+        "shared/types/plugins.ts",
+        "electron/src/lib/pi-package-store.ts",
+        "electron/src/lib/pi-acp-config.ts",
+        "electron/src/ipc/plugins.ts",
+        "build/pi-runtime/bin/pi",
+        "build/pi-runtime/bin/pi.cmd",
+        "build/pi-runtime/bin/pcc-pi-package-launch.cjs",
+        "src/components/plugins/PluginCenter.tsx",
+        "src/components/plugins/PiPackagesCatalog.tsx"
+      ],
+      "sourceRefs": [
+        "pi:docs/packages.md",
+        "pi:dist/core/package-manager.js",
+        "pi:dist/core/settings-manager.js"
+      ],
+      "docRefs": [
+        "pi-packages",
         "pi-security"
       ]
     },

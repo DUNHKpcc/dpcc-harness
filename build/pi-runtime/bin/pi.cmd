@@ -15,6 +15,18 @@ if "%PCC_AGENT_PI_CONTEXT_EXTENSION%"=="" (
   echo PccAgent bundled Pi context bridge is not configured. 1>&2
   exit /b 78
 )
+set "PCC_AGENT_PI_LAUNCH_TARGET=%PCC_AGENT_PI_ENTRY%"
+if not "%PCC_AGENT_PI_PACKAGE_CONFIG%"=="" (
+  if "%PCC_AGENT_PI_PACKAGE_BOOTSTRAP%"=="" (
+    echo PccAgent bundled Pi package launcher is unavailable. 1>&2
+    exit /b 78
+  )
+  if not exist "%PCC_AGENT_PI_PACKAGE_BOOTSTRAP%" (
+    echo PccAgent bundled Pi package launcher is unavailable. 1>&2
+    exit /b 78
+  )
+  set "PCC_AGENT_PI_LAUNCH_TARGET=%PCC_AGENT_PI_PACKAGE_BOOTSTRAP%"
+)
 if not "%PCC_AGENT_PI_MCP_EXTENSION%"=="" (
   if "%PCC_AGENT_PI_MCP_CONFIG%"=="" (
     echo PccAgent bundled Pi MCP runtime is incomplete. 1>&2
@@ -26,17 +38,17 @@ if not "%PCC_AGENT_PI_MCP_EXTENSION%"=="" (
   )
   if not "%PCC_AGENT_PI_PROJECT_SKILLS%"=="" (
     if not "%PCC_AGENT_PI_GLOBAL_SKILLS%"=="" (
-      "%PCC_AGENT_PI_RUNTIME_HOST%" "%PCC_AGENT_PI_ENTRY%" %* --skill "%PCC_AGENT_PI_GLOBAL_SKILLS%" --skill "%PCC_AGENT_PI_PROJECT_SKILLS%" --extension "%PCC_AGENT_PI_CONTEXT_EXTENSION%" --extension "%PCC_AGENT_PI_MCP_EXTENSION%"
+      call :run %* --skill "%PCC_AGENT_PI_GLOBAL_SKILLS%" --skill "%PCC_AGENT_PI_PROJECT_SKILLS%" --extension "%PCC_AGENT_PI_CONTEXT_EXTENSION%" --extension "%PCC_AGENT_PI_MCP_EXTENSION%"
       exit /b %ERRORLEVEL%
     )
-    "%PCC_AGENT_PI_RUNTIME_HOST%" "%PCC_AGENT_PI_ENTRY%" %* --skill "%PCC_AGENT_PI_PROJECT_SKILLS%" --extension "%PCC_AGENT_PI_CONTEXT_EXTENSION%" --extension "%PCC_AGENT_PI_MCP_EXTENSION%"
+    call :run %* --skill "%PCC_AGENT_PI_PROJECT_SKILLS%" --extension "%PCC_AGENT_PI_CONTEXT_EXTENSION%" --extension "%PCC_AGENT_PI_MCP_EXTENSION%"
     exit /b %ERRORLEVEL%
   )
   if not "%PCC_AGENT_PI_GLOBAL_SKILLS%"=="" (
-    "%PCC_AGENT_PI_RUNTIME_HOST%" "%PCC_AGENT_PI_ENTRY%" %* --skill "%PCC_AGENT_PI_GLOBAL_SKILLS%" --extension "%PCC_AGENT_PI_CONTEXT_EXTENSION%" --extension "%PCC_AGENT_PI_MCP_EXTENSION%"
+    call :run %* --skill "%PCC_AGENT_PI_GLOBAL_SKILLS%" --extension "%PCC_AGENT_PI_CONTEXT_EXTENSION%" --extension "%PCC_AGENT_PI_MCP_EXTENSION%"
     exit /b %ERRORLEVEL%
   )
-  "%PCC_AGENT_PI_RUNTIME_HOST%" "%PCC_AGENT_PI_ENTRY%" %* --extension "%PCC_AGENT_PI_CONTEXT_EXTENSION%" --extension "%PCC_AGENT_PI_MCP_EXTENSION%"
+  call :run %* --extension "%PCC_AGENT_PI_CONTEXT_EXTENSION%" --extension "%PCC_AGENT_PI_MCP_EXTENSION%"
   exit /b %ERRORLEVEL%
 )
 if not "%PCC_AGENT_PI_MCP_CONFIG%"=="" (
@@ -49,15 +61,19 @@ if not "%PCC_AGENT_PI_MCP_ADAPTER%"=="" (
 )
 if not "%PCC_AGENT_PI_PROJECT_SKILLS%"=="" (
   if not "%PCC_AGENT_PI_GLOBAL_SKILLS%"=="" (
-    "%PCC_AGENT_PI_RUNTIME_HOST%" "%PCC_AGENT_PI_ENTRY%" %* --skill "%PCC_AGENT_PI_GLOBAL_SKILLS%" --skill "%PCC_AGENT_PI_PROJECT_SKILLS%" --extension "%PCC_AGENT_PI_CONTEXT_EXTENSION%"
+    call :run %* --skill "%PCC_AGENT_PI_GLOBAL_SKILLS%" --skill "%PCC_AGENT_PI_PROJECT_SKILLS%" --extension "%PCC_AGENT_PI_CONTEXT_EXTENSION%"
     exit /b %ERRORLEVEL%
   )
-  "%PCC_AGENT_PI_RUNTIME_HOST%" "%PCC_AGENT_PI_ENTRY%" %* --skill "%PCC_AGENT_PI_PROJECT_SKILLS%" --extension "%PCC_AGENT_PI_CONTEXT_EXTENSION%"
+  call :run %* --skill "%PCC_AGENT_PI_PROJECT_SKILLS%" --extension "%PCC_AGENT_PI_CONTEXT_EXTENSION%"
   exit /b %ERRORLEVEL%
 )
 if not "%PCC_AGENT_PI_GLOBAL_SKILLS%"=="" (
-  "%PCC_AGENT_PI_RUNTIME_HOST%" "%PCC_AGENT_PI_ENTRY%" %* --skill "%PCC_AGENT_PI_GLOBAL_SKILLS%" --extension "%PCC_AGENT_PI_CONTEXT_EXTENSION%"
+  call :run %* --skill "%PCC_AGENT_PI_GLOBAL_SKILLS%" --extension "%PCC_AGENT_PI_CONTEXT_EXTENSION%"
   exit /b %ERRORLEVEL%
 )
-"%PCC_AGENT_PI_RUNTIME_HOST%" "%PCC_AGENT_PI_ENTRY%" %* --extension "%PCC_AGENT_PI_CONTEXT_EXTENSION%"
+call :run %* --extension "%PCC_AGENT_PI_CONTEXT_EXTENSION%"
+exit /b %ERRORLEVEL%
+
+:run
+"%PCC_AGENT_PI_RUNTIME_HOST%" "%PCC_AGENT_PI_LAUNCH_TARGET%" %*
 exit /b %ERRORLEVEL%

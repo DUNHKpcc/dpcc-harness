@@ -328,6 +328,13 @@ contextBridge.exposeInMainWorld("claude", {
       install: (request: unknown) => ipcRenderer.invoke("plugins:skills:install", request),
       remove: (id: string) => ipcRenderer.invoke("plugins:skills:remove", id),
     },
+    piPackages: {
+      listInstalled: () => ipcRenderer.invoke("plugins:pi-packages:list-installed"),
+      install: (request: unknown) => ipcRenderer.invoke("plugins:pi-packages:install", request),
+      setEnabled: (id: string, enabled: boolean) =>
+        ipcRenderer.invoke("plugins:pi-packages:set-enabled", id, enabled),
+      remove: (id: string) => ipcRenderer.invoke("plugins:pi-packages:remove", id),
+    },
     mcp: {
       list: (query: string) => ipcRenderer.invoke("plugins:mcp:list", query),
       listInstalled: () => ipcRenderer.invoke("plugins:mcp:list-installed"),

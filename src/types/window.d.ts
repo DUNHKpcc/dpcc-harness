@@ -19,10 +19,12 @@ import type { AccountAuthActionResult, AccountAuthSnapshot } from "@shared/types
 import type {
   CatalogResult,
   InstalledMcpRecord,
+  InstalledPiPackageRecord,
   InstalledSkillRecord,
   McpCatalogInstallRequest,
   McpCatalogInstallResult,
   McpCatalogItem,
+  PiPackageInstallRequest,
   SkillCatalogItem,
   SkillInstallRequest,
 } from "@shared/types/plugins";
@@ -312,6 +314,16 @@ declare global {
           install: (request: SkillInstallRequest) => Promise<
             { item: InstalledSkillRecord }
             | { error: string; requiresConfirmation?: boolean }
+          >;
+          remove: (id: string) => Promise<IpcResult>;
+        };
+        piPackages: {
+          listInstalled: () => Promise<{ items: InstalledPiPackageRecord[] } | { error: string }>;
+          install: (request: PiPackageInstallRequest) => Promise<
+            { item: InstalledPiPackageRecord } | { error: string }
+          >;
+          setEnabled: (id: string, enabled: boolean) => Promise<
+            { item: InstalledPiPackageRecord } | { error: string }
           >;
           remove: (id: string) => Promise<IpcResult>;
         };

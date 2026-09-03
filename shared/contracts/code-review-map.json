@@ -111,6 +111,7 @@
         "tsup.electron.config.ts",
         "build/pi-runtime/bin/pi",
         "build/pi-runtime/bin/pi.cmd",
+        "build/pi-runtime/bin/pcc-pi-package-launch.cjs",
         "build/pi-runtime/extensions/pcc-mcp.ts",
         "electron/src/lib/bundled-pi-runtime.ts",
         "electron/src/lib/pi-runtime-status.ts",
@@ -160,13 +161,19 @@
         "shared/types/plugins.ts",
         "electron/src/lib/skill-installer.ts",
         "electron/src/lib/plugin-catalog.ts",
+        "electron/src/lib/pi-package-store.ts",
         "electron/src/ipc/plugins.ts",
+        "electron/src/preload.ts",
+        "src/types/window.d.ts",
+        "src/components/plugins/PluginCenter.tsx",
+        "src/components/plugins/PiPackagesCatalog.tsx",
         "src/components/plugins/SkillsCatalog.tsx",
         "src/components/plugins/McpCatalog.tsx",
         "electron/src/lib/pi-acp-config.ts",
         "electron/src/ipc/acp-sessions.ts",
         "build/pi-runtime/bin/pi",
         "build/pi-runtime/bin/pi.cmd",
+        "build/pi-runtime/bin/pcc-pi-package-launch.cjs",
         "build/pi-runtime/extensions/pcc-mcp.ts"
       ],
       "tests": [
@@ -175,7 +182,8 @@
         "electron/src/lib/pi-acp-config.test.ts",
         "electron/src/ipc/__tests__/acp-sessions.test.ts",
         "electron/src/lib/__tests__/electron-builder-config.test.ts",
-        "scripts/test-pi-native-integration.mjs"
+        "scripts/test-pi-native-integration.mjs",
+        "tests/ui/plugins-responsive.e2e.ts"
       ]
     },
     {
@@ -220,6 +228,7 @@
         "src/components/ProjectFilesPanel.tsx",
         "src/components/workspace/MainTopToolArea.tsx",
         "src/components/plugins/PluginCenter.tsx",
+        "src/components/plugins/PiPackagesCatalog.tsx",
         "src/components/plugins/SkillsCatalog.tsx",
         "src/hooks/useFileBrowserResize.ts",
         "src/hooks/useMainToolAreaLayout.ts",

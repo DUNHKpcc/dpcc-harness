@@ -15,6 +15,10 @@
     "stopDictation": "停止听写",
     "dictation": "语音听写"
   },
+  "attachments": {
+    "editImage": "编辑图片",
+    "removeImage": "移除图片"
+  },
   "commands": {
     "clear": {
       "label": "新对话",

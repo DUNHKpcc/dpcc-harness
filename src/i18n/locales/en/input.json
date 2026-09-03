@@ -15,6 +15,10 @@
     "stopDictation": "Stop dictation",
     "dictation": "Voice dictation"
   },
+  "attachments": {
+    "editImage": "Edit image",
+    "removeImage": "Remove image"
+  },
   "commands": {
     "clear": {
       "label": "New chat",

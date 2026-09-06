@@ -1,7 +1,8 @@
 {
   "title": "Plugins",
-  "subtitle": "Manage discoverable local Skills and global MCP servers",
+  "subtitle": "Manage Pi packages, discover local Pi resources, and configure global Skills and MCP servers",
   "tabs": {
+    "packages": "Pi Packages",
     "skills": "Skills",
     "mcp": "MCP"
   },
@@ -25,6 +26,7 @@
     "empty": "No matching plugins",
     "loading": "Loading catalog...",
     "noInstalledSkills": "No local Skills found",
+    "noInstalledPiPackages": "No managed Pi packages installed",
     "noInstalledMcp": "No global MCP servers found",
     "sessionBusy": "Wait for the current turn to finish before changing MCP servers."
   },
@@ -51,6 +53,34 @@
     "installedAt": "Installed {{date}}",
     "installSuccess": "{{name}} installed",
     "removeSuccess": "{{name}} removed"
+  },
+  "packages": {
+    "subtitle": "Managed packages plus resources discovered from your local Pi configuration",
+    "add": "Add package",
+    "source": "Package source",
+    "sourcePlaceholder": "npm:@scope/package@1.2.3 or git:github.com/owner/repo@v1.2.3",
+    "sourceHint": "Use an exact npm version or a GitHub source with an explicit ref.",
+    "installDescription": "Pi resolves package resources before a new session starts.",
+    "reviewSource": "Open source",
+    "reviewed": "I reviewed this source and understand that Pi packages can execute code with my account permissions.",
+    "securityNotice": "Installing a package runs its package installation process. Only install code you trust.",
+    "toggle": "Enable {{name}}",
+    "details": "Package details",
+    "statusLabel": "Status",
+    "resources": "Resolved resources",
+    "noResources": "No launchable resources are available.",
+    "status": {
+      "ready": "Ready",
+      "disabled": "Disabled",
+      "missing": "Missing files"
+    },
+    "origin": {
+      "userPi": "Local Pi"
+    },
+    "installSuccess": "{{name}} installed",
+    "removeSuccess": "{{name}} removed",
+    "enabled": "{{name}} enabled",
+    "disabled": "{{name}} disabled"
   },
   "mcp": {
     "subtitle": "Install globally for PccAgent and discover local Codex, Claude Code, and generic MCP settings",

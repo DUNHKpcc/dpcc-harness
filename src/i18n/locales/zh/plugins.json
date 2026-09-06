@@ -1,7 +1,8 @@
 {
   "title": "插件",
-  "subtitle": "统一管理本机可发现的 Skill 与全局 MCP Server",
+  "subtitle": "管理 Pi Package、发现本机 Pi 资源，并统一配置全局 Skill 与 MCP Server",
   "tabs": {
+    "packages": "Pi Packages",
     "skills": "Skills",
     "mcp": "MCP"
   },
@@ -25,6 +26,7 @@
     "empty": "没有匹配的插件",
     "loading": "正在加载目录...",
     "noInstalledSkills": "尚未发现本机 Skill",
+    "noInstalledPiPackages": "尚未安装受 PccAgent 管理的 Pi Package",
     "noInstalledMcp": "尚未发现全局 MCP Server",
     "sessionBusy": "请等待当前任务完成后再更改 MCP Server。"
   },
@@ -51,6 +53,34 @@
     "installedAt": "安装于 {{date}}",
     "installSuccess": "已安装 {{name}}",
     "removeSuccess": "已移除 {{name}}"
+  },
+  "packages": {
+    "subtitle": "受 PccAgent 管理的 Package，以及从本机 Pi 配置发现的资源",
+    "add": "添加 Package",
+    "source": "Package 来源",
+    "sourcePlaceholder": "npm:@scope/package@1.2.3 或 git:github.com/owner/repo@v1.2.3",
+    "sourceHint": "仅接受精确 npm 版本，或带明确 ref 的 GitHub 来源。",
+    "installDescription": "Pi 会在新会话启动前解析 Package 资源。",
+    "reviewSource": "打开源码",
+    "reviewed": "我已审查此来源，并知悉 Pi Package 可使用当前账户权限执行代码。",
+    "securityNotice": "安装 Package 会运行其安装过程。请仅安装你信任的代码。",
+    "toggle": "启用 {{name}}",
+    "details": "Package 详情",
+    "statusLabel": "状态",
+    "resources": "已解析资源",
+    "noResources": "没有可供启动时加载的资源。",
+    "status": {
+      "ready": "可用",
+      "disabled": "已禁用",
+      "missing": "文件缺失"
+    },
+    "origin": {
+      "userPi": "本机 Pi"
+    },
+    "installSuccess": "已安装 {{name}}",
+    "removeSuccess": "已移除 {{name}}",
+    "enabled": "已启用 {{name}}",
+    "disabled": "已禁用 {{name}}"
   },
   "mcp": {
     "subtitle": "全局安装到 PccAgent，读取本机 Codex、Claude Code 与通用 MCP 配置",

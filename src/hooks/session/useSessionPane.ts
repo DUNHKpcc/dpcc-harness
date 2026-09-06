@@ -42,6 +42,8 @@ export interface UseSessionPaneOptions {
   runtimeEnabled?: boolean;
   /** Whether the main process currently owns this session's ACP transport. */
   runtimeAvailable?: boolean;
+  /** Only the protected built-in Pi process can emit PccAgent context markers. */
+  usesPiContextBridge?: boolean;
 
   // Initial state for session restoration.
   initialMessages: UIMessage[];
@@ -69,6 +71,10 @@ export interface SessionPaneState {
   isProcessing: boolean;
   isConnected: boolean;
   isRuntimeDormant: boolean;
+  /** The pane belongs to the protected built-in Pi identity and can inspect saved context. */
+  hasPiContextInspector: boolean;
+  /** The current pane has a live protected Pi runtime that accepts `/compact`. */
+  canCompact: boolean;
   isCompacting: boolean;
   sessionInfo: SessionInfo | null;
   pendingPermission: PermissionRequest | null;
@@ -108,6 +114,7 @@ export function useSessionPane({
   acpSessionId,
   runtimeEnabled,
   runtimeAvailable,
+  usesPiContextBridge,
   initialMessages,
   initialMeta,
   initialPermission,
@@ -142,6 +149,7 @@ export function useSessionPane({
     initialPermission,
     initialRawAcpPermission: runtimeInitialState.initialRawAcpPermission,
     acpPermissionBehavior,
+    usesPiContextBridge,
   });
 
   useEffect(() => {
@@ -185,6 +193,8 @@ export function useSessionPane({
     isProcessing: acp.isProcessing,
     isConnected: acp.isConnected,
     isRuntimeDormant: isRuntimeEnabled && !isRuntimeAvailable,
+    hasPiContextInspector: usesPiContextBridge === true,
+    canCompact: usesPiContextBridge === true && isRuntimeAvailable,
     isCompacting: acp.isCompacting,
     sessionInfo: acp.sessionInfo,
     pendingPermission: acp.pendingPermission,

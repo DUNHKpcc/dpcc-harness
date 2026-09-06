@@ -9,8 +9,17 @@ import {
 import { extractTaskSubagentSteps, getTaskStatus, isTaskToolName } from "@/lib/engine/acp-task-adapter";
 import { createSystemMessage, nextId } from "@/lib/message-factory";
 import { markInFlightToolCallsFailed } from "@/lib/chat/in-flight-tools";
+import {
+  contextUsageFromPiSnapshot,
+  piContextSummaryMessage,
+} from "@/lib/pi-context-bridge";
+import { recordPiContextBridgeMessage } from "@/lib/pi-context-store";
 
 const MAX_TERMINAL_ACP_TURN_IDS = 128;
+
+export interface ACPEventHandlingOptions {
+  acceptsPiContextBridge?: boolean;
+}
 
 /**
  * Terminal notifications can be replayed during pane handoff, and an older
@@ -74,13 +83,30 @@ export function closePendingACPTools(state: InternalState): void {
 /**
  * Process an ACP session event for a background session, mutating `state` in place.
  */
-export function handleACPEvent(state: InternalState, event: ACPSessionEvent): void {
+export function handleACPEvent(
+  state: InternalState,
+  event: ACPSessionEvent,
+  options: ACPEventHandlingOptions = {},
+): void {
   state.isConnected = true;
   const update = event.update;
 
   switch (update.sessionUpdate) {
     case "agent_message_chunk": {
       if (update.content?.type === "text" && update.content.text) {
+        const snapshot = options.acceptsPiContextBridge
+          ? recordPiContextBridgeMessage(event._sessionId, update.content.text)
+          : null;
+        if (snapshot) {
+          state.contextUsage = contextUsageFromPiSnapshot(snapshot);
+          state.isCompacting = snapshot.phase === "compacting";
+          if (snapshot.phase === "compacting") state.turnSawCompaction = true;
+          const summary = piContextSummaryMessage(snapshot);
+          if (summary && !state.messages.some((message) => message.id === summary.id)) {
+            state.messages.push(summary);
+          }
+          break;
+        }
         // If an ACP task has inner tools running, accumulate text as task content
         if (state.activeTask?.hasInnerTools) {
           state.activeTask.textBuffer += update.content.text;

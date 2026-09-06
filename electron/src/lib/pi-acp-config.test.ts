@@ -9,12 +9,14 @@ const {
   dataDirRef,
   mockBundledPiEnvironment,
   mockFetchUpstreamModels,
+  mockGetPiPackageLaunchResources,
   mockResolveBundledPiRuntime,
   mockResolvePiUpstream,
 } = vi.hoisted(() => ({
   dataDirRef: { current: "" },
   mockBundledPiEnvironment: vi.fn(),
   mockFetchUpstreamModels: vi.fn(),
+  mockGetPiPackageLaunchResources: vi.fn(),
   mockResolveBundledPiRuntime: vi.fn(),
   mockResolvePiUpstream: vi.fn(),
 }));
@@ -25,6 +27,8 @@ const BUNDLED_PI_ENTRY = "/embedded/app.asar/node_modules/pi/dist/cli.js";
 const BUNDLED_PI_ACP_ENTRY = "/embedded/app.asar/node_modules/pi-acp/dist/index.js";
 const BUNDLED_PI_MCP_ENTRY = "/embedded/app.asar/node_modules/pi-mcp-adapter/index.ts";
 const BUNDLED_PI_MCP_BRIDGE = "/embedded/resources/pi-runtime/extensions/pcc-mcp.ts";
+const BUNDLED_PI_CONTEXT_BRIDGE = "/embedded/resources/pi-runtime/extensions/pcc-context-usage.ts";
+const BUNDLED_PI_PACKAGE_BOOTSTRAP = "/embedded/resources/pi-runtime/bin/pcc-pi-package-launch.cjs";
 
 vi.mock("./data-dir", () => ({
   getDataDir: () => dataDirRef.current,
@@ -44,6 +48,10 @@ vi.mock("./upstream-resolver", () => ({
 vi.mock("./bundled-pi-runtime", () => ({
   resolveBundledPiRuntime: mockResolveBundledPiRuntime,
   bundledPiEnvironment: mockBundledPiEnvironment,
+}));
+
+vi.mock("./pi-package-store", () => ({
+  getPiPackageLaunchResources: mockGetPiPackageLaunchResources,
 }));
 
 async function loadModule() {
@@ -99,7 +107,10 @@ function piAgent(adapterPath: string, piPath: string): InstalledAgent {
       PCC_AGENT_PI_MCP_EXTENSION: "/tmp/ambient-extension.ts",
       PCC_AGENT_PI_MCP_CONFIG: "/tmp/ambient-mcp.json",
       PCC_AGENT_PI_MCP_ADAPTER: "/tmp/ambient-adapter.ts",
+      PCC_AGENT_PI_CONTEXT_EXTENSION: "/tmp/ambient-context.ts",
       PCC_AGENT_PI_GLOBAL_SKILLS: "/tmp/ambient-skills",
+      PCC_AGENT_PI_PACKAGE_BOOTSTRAP: "/tmp/ambient-package-launch.cjs",
+      PCC_AGENT_PI_PACKAGE_CONFIG: "/tmp/ambient-package-config.json",
       KEEP_ME: "yes",
     },
     registryId: "pi-acp",
@@ -120,9 +131,16 @@ describe("Pi ACP config", () => {
     dataDirRef.current = fs.mkdtempSync(path.join(os.tmpdir(), "pcc-agent-pi-"));
     homeDirSpy = vi.spyOn(os, "homedir").mockReturnValue(path.join(dataDirRef.current, "home"));
     mockFetchUpstreamModels.mockReset();
+    mockGetPiPackageLaunchResources.mockReset();
     mockResolvePiUpstream.mockReset();
     mockResolveBundledPiRuntime.mockReset();
     mockBundledPiEnvironment.mockReset();
+    mockGetPiPackageLaunchResources.mockReturnValue({
+      extensions: [],
+      skills: [],
+      prompts: [],
+      themes: [],
+    });
     mockResolveBundledPiRuntime.mockReturnValue({
       source: "bundled",
       isPackaged: true,
@@ -132,6 +150,10 @@ describe("Pi ACP config", () => {
       piCommandAvailable: true,
       piMcpBridgePath: BUNDLED_PI_MCP_BRIDGE,
       piMcpBridgeAvailable: true,
+      piContextExtensionPath: BUNDLED_PI_CONTEXT_BRIDGE,
+      piContextExtensionAvailable: true,
+      piPackageBootstrapPath: BUNDLED_PI_PACKAGE_BOOTSTRAP,
+      piPackageBootstrapAvailable: true,
       pi: {
         packageName: "@earendil-works/pi-coding-agent",
         expectedVersion: "0.84.1",
@@ -166,6 +188,9 @@ describe("Pi ACP config", () => {
       PCC_AGENT_PI_RUNTIME_HOST: BUNDLED_HOST,
       PCC_AGENT_PI_ENTRY: BUNDLED_PI_ENTRY,
       PI_ACP_PI_COMMAND: piCommand,
+      PCC_AGENT_PI_CONTEXT_EXTENSION: BUNDLED_PI_CONTEXT_BRIDGE,
+      PCC_AGENT_PI_PACKAGE_BOOTSTRAP: BUNDLED_PI_PACKAGE_BOOTSTRAP,
+      PCC_AGENT_PI_PACKAGE_CONFIG: "",
     }));
     mockResolvePiUpstream.mockReturnValue(dpccUpstream());
     mockFetchUpstreamModels.mockImplementation(async (_baseUrl: string, token: string) => ({
@@ -296,7 +321,10 @@ describe("Pi ACP config", () => {
       PCC_AGENT_PI_MCP_EXTENSION: "",
       PCC_AGENT_PI_MCP_CONFIG: "",
       PCC_AGENT_PI_MCP_ADAPTER: "",
+      PCC_AGENT_PI_CONTEXT_EXTENSION: BUNDLED_PI_CONTEXT_BRIDGE,
       PCC_AGENT_PI_GLOBAL_SKILLS: "",
+      PCC_AGENT_PI_PACKAGE_BOOTSTRAP: BUNDLED_PI_PACKAGE_BOOTSTRAP,
+      PCC_AGENT_PI_PACKAGE_CONFIG: "",
     });
     expect(launch.env?.OPENAI_API_KEY).toBeUndefined();
     expect(launch.env?.ANTHROPIC_AUTH_TOKEN).toBeUndefined();
@@ -426,7 +454,10 @@ describe("Pi ACP config", () => {
       PCC_AGENT_PI_MCP_EXTENSION: "",
       PCC_AGENT_PI_MCP_CONFIG: "",
       PCC_AGENT_PI_MCP_ADAPTER: "",
+      PCC_AGENT_PI_CONTEXT_EXTENSION: BUNDLED_PI_CONTEXT_BRIDGE,
       PCC_AGENT_PI_GLOBAL_SKILLS: "",
+      PCC_AGENT_PI_PACKAGE_BOOTSTRAP: BUNDLED_PI_PACKAGE_BOOTSTRAP,
+      PCC_AGENT_PI_PACKAGE_CONFIG: "",
     });
     expect(fs.existsSync(path.join(dataDirRef.current, "pi-agent"))).toBe(false);
     expect(mockFetchUpstreamModels).not.toHaveBeenCalled();
@@ -478,6 +509,40 @@ describe("Pi ACP config", () => {
           url: "https://mcp.example.test/mcp",
           headers: { Authorization: "Bearer remote-secret" },
         },
+      },
+    });
+    if (process.platform !== "win32") {
+      expect(fs.statSync(configPath!).mode & 0o077).toBe(0);
+    }
+
+    launch.cleanup?.();
+    expect(fs.existsSync(configPath!)).toBe(false);
+  });
+
+  it("injects managed Pi package resources through a disposable launch config", async () => {
+    mockResolvePiUpstream.mockReturnValue({ tier: "local", providers: [], model: "" });
+    mockGetPiPackageLaunchResources.mockReturnValue({
+      extensions: ["/managed/pi-package/extensions/fixture.ts"],
+      skills: ["/managed/pi-package/skills/fixture/SKILL.md"],
+      prompts: ["/managed/pi-package/prompts/fixture.md"],
+      themes: ["/managed/pi-package/themes/fixture.json"],
+    });
+    const { preparePiAcpLaunch } = await loadModule();
+
+    const launch = await preparePiAcpLaunch(piAgent("ignored-pi-acp", "ignored-pi"));
+
+    expect(launch.env).toMatchObject({
+      PCC_AGENT_PI_PACKAGE_BOOTSTRAP: BUNDLED_PI_PACKAGE_BOOTSTRAP,
+    });
+    const configPath = launch.env?.PCC_AGENT_PI_PACKAGE_CONFIG;
+    expect(configPath).toContain(path.join(dataDirRef.current, "pi-package-launch"));
+    expect(JSON.parse(fs.readFileSync(configPath!, "utf8"))).toEqual({
+      version: 1,
+      resources: {
+        extensions: ["/managed/pi-package/extensions/fixture.ts"],
+        skills: ["/managed/pi-package/skills/fixture/SKILL.md"],
+        prompts: ["/managed/pi-package/prompts/fixture.md"],
+        themes: ["/managed/pi-package/themes/fixture.json"],
       },
     });
     if (process.platform !== "win32") {

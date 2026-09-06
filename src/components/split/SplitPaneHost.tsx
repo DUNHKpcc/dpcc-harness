@@ -60,6 +60,7 @@ export function SplitPaneHost({
     activeEngine,
     runtimeEnabled,
     runtimeAvailable: loader.runtimeAvailable,
+    usesPiContextBridge: loader.usesPiContextBridge,
     acpSessionId: runtimeEnabled ? loader.readyId : null,
     initialMessages: loader.initialMessages,
     initialMeta: loader.initialMeta,

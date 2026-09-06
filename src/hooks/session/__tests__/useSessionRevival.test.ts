@@ -85,6 +85,7 @@ describe("useSessionRevival", () => {
         requestLogRef: { current: [] },
         contextUsageRef: { current: null },
         liveSessionIdsRef,
+        installedAgentsRef: { current: [] },
         acpAgentIdRef: { current: null },
         acpAgentSessionIdRef: { current: null },
         acpConfigOptionsRef: { current: configOptions },

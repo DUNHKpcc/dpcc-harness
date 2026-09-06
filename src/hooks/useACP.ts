@@ -28,6 +28,11 @@ import { useEngineBase } from "./useEngineBase";
 import { normalizeAcpCommands } from "../lib/engine/command-prewarm";
 import { getAcpPromptTransportErrorMessage, hasAcpPromptTransportEvent } from "@shared/lib/acp-turn";
 import { updateCachedAcpConfigValue } from "@shared/lib/acp-config-cache";
+import {
+  contextUsageFromPiSnapshot,
+  piContextSummaryMessage,
+} from "@/lib/pi-context-bridge";
+import { recordPiContextBridgeMessage } from "@/lib/pi-context-store";
 
 interface UseACPOptions {
   sessionId: string | null;
@@ -41,6 +46,8 @@ interface UseACPOptions {
   initialRawAcpPermission?: ACPPermissionEvent | null;
   /** Client-side ACP permission behavior — controls auto-response to permission requests */
   acpPermissionBehavior?: AcpPermissionBehavior;
+  /** Accept PccAgent context markers only from the protected built-in Pi runtime. */
+  usesPiContextBridge?: boolean;
 }
 
 const MAX_TERMINAL_TURN_IDS = 128;
@@ -61,7 +68,7 @@ function acpLog(label: string, data: unknown): void {
   window.claude.acp.log(label, data);
 }
 
-export function useACP({ sessionId, initialMessages, initialConfigOptions, initialSlashCommands, initialMeta, initialPermission, initialRawAcpPermission, acpPermissionBehavior }: UseACPOptions) {
+export function useACP({ sessionId, initialMessages, initialConfigOptions, initialSlashCommands, initialMeta, initialPermission, initialRawAcpPermission, acpPermissionBehavior, usesPiContextBridge = false }: UseACPOptions) {
   const base = useEngineBase({ sessionId, initialMessages, initialMeta, initialPermission });
   const {
     messages, setMessages,
@@ -73,7 +80,7 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
     requestLog, setRequestLog,
     pendingPermission, setPendingPermission,
     contextUsage, setContextUsage,
-    isCompacting,
+    isCompacting, setIsCompacting,
     sessionIdRef,
     scheduleFlush: scheduleRaf,
     cancelPendingFlush,
@@ -224,6 +231,20 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
     if (kind === "agent_message_chunk" || kind === "agent_thought_chunk") {
       const content = update.content as { type: string; text?: string } | undefined;
       if (content?.type === "text" && content.text) {
+        if (kind === "agent_message_chunk" && usesPiContextBridge) {
+          const snapshot = recordPiContextBridgeMessage(event._sessionId, content.text);
+          if (snapshot) {
+            setContextUsage(contextUsageFromPiSnapshot(snapshot));
+            setIsCompacting(snapshot.phase === "compacting");
+            const summary = piContextSummaryMessage(snapshot);
+            if (summary) {
+              setMessages((previous) => previous.some((message) => message.id === summary.id)
+                ? previous
+                : [...previous, summary]);
+            }
+            return;
+          }
+        }
         // If an ACP task has inner tools running, accumulate text as task content
         // (this is the subagent's output text, not the outer agent's)
         if (activeTaskRef.current?.hasInnerTools && kind === "agent_message_chunk") {
@@ -485,7 +506,7 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
       const p = update as Extract<typeof update, { sessionUpdate: "plan" }>;
       acpLog("PLAN", { entryCount: p.entries?.length });
     }
-  }, [ensureStreamingMessage, finalizeStreamingMessage, scheduleFlush]);
+  }, [ensureStreamingMessage, finalizeStreamingMessage, scheduleFlush, usesPiContextBridge]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -843,7 +864,12 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
     }
   }, [sessionId]);
 
-  const compact = useCallback(async () => { /* no-op for ACP */ }, []);
+  const compact = useCallback(async () => {
+    // `pi-acp` owns `/compact`; custom ACP agents must not receive a Pi-only
+    // slash command merely because they report generic context usage.
+    if (!usesPiContextBridge || !sessionId || isProcessing) return;
+    await sendRaw("/compact");
+  }, [isProcessing, sendRaw, sessionId, usesPiContextBridge]);
   const setPermissionMode = useCallback(async (_mode: string) => { /* no-op for ACP */ }, []);
   const authenticate = useCallback(async (methodId: string) => {
     if (!sessionId) return { error: "ACP session not found." };

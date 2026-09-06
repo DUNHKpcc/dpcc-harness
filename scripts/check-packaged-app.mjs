@@ -132,15 +132,19 @@ function assertPackagedRenderer(asarPath) {
   );
   const piRuntimeNotices = path.join(path.dirname(asarPath), "pi-runtime", "THIRD_PARTY_NOTICES.md");
   const piMcpBridge = path.join(path.dirname(asarPath), "pi-runtime", "extensions", "pcc-mcp.ts");
+  const piContextBridge = path.join(path.dirname(asarPath), "pi-runtime", "extensions", "pcc-context-usage.ts");
+  const piPackageBootstrap = path.join(path.dirname(asarPath), "pi-runtime", "bin", "pcc-pi-package-launch.cjs");
   if (
     !fs.existsSync(piRuntimeLauncher)
     || !fs.existsSync(piRuntimeNotices)
     || !fs.existsSync(piMcpBridge)
+    || !fs.existsSync(piContextBridge)
+    || !fs.existsSync(piPackageBootstrap)
   ) {
     throw new Error(`${asarPath} is missing bundled Pi extraResources`);
   }
 
-  return { asarPath, extraResourcesLogo, piRuntimeLauncher };
+  return { asarPath, extraResourcesLogo, piRuntimeLauncher, piContextBridge, piPackageBootstrap };
 }
 
 function appRootForAsar(asarPath) {
@@ -296,7 +300,7 @@ function runPackagedApp(executable, appRoot, extraResourcesLogo) {
   });
 }
 
-function runPackagedPiVersion(runtimeHost, asarPath, launcherPath) {
+function runPackagedPiVersion(runtimeHost, asarPath, launcherPath, contextBridgePath) {
   const piEntry = path.join(
     asarPath,
     "node_modules",
@@ -312,6 +316,7 @@ function runPackagedPiVersion(runtimeHost, asarPath, launcherPath) {
       ELECTRON_RUN_AS_NODE: "1",
       PCC_AGENT_PI_RUNTIME_HOST: runtimeHost,
       PCC_AGENT_PI_ENTRY: piEntry,
+      PCC_AGENT_PI_CONTEXT_EXTENSION: contextBridgePath,
       PATH: "",
     },
     shell: process.platform === "win32",
@@ -375,6 +380,7 @@ const bundledPiVersion = await runPackagedPiVersion(
   runtimeHost,
   runtimeCandidate.asarPath,
   runtimeCandidate.piRuntimeLauncher,
+  runtimeCandidate.piContextBridge,
 );
 
 console.log(

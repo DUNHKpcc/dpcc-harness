@@ -112,6 +112,21 @@ export type {
   McpServerStatus,
 } from "./mcp";
 
+// ── Pi context telemetry ──
+
+export type {
+  PiContextSnapshotPhase,
+  PiContextCompactionReason,
+  PiContextBreakdown,
+  PiContextCompaction,
+  PiContextSystemPromptDetails,
+  PiContextToolDetails,
+  PiContextTimelineKind,
+  PiContextTimelineEntry,
+  PiContextDetails,
+  PiContextSnapshot,
+} from "./pi-context";
+
 // ── Plugin catalog types (shared) ──
 
 export type {
@@ -122,6 +137,12 @@ export type {
   SkillTarget,
   SkillInstallRequest,
   InstalledSkillRecord,
+  PiPackageResourceKind,
+  PiPackageResource,
+  PiPackageStatus,
+  PiPackageOrigin,
+  PiPackageInstallRequest,
+  InstalledPiPackageRecord,
   McpCatalogInstallKind,
   McpCatalogTransport,
   McpCatalogInput,

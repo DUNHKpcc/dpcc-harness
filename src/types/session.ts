@@ -2,6 +2,7 @@ import type { ToolUseResult } from "./protocol";
 import type { EngineId } from "./engine";
 import type { ImageAttachment } from "./attachments";
 import type { ContextUsage } from "./mcp";
+import type { PiContextSnapshot } from "./pi-context";
 
 // ── Effort ──
 
@@ -220,6 +221,8 @@ export interface ChatSession extends SessionBase {
 export interface PersistedSession extends SessionBase {
   messages: UIMessage[];
   contextUsage?: ContextUsage | null;
+  /** Bounded Pi context telemetry and optional Pi-generated compaction summaries. */
+  piContextSnapshots?: PiContextSnapshot[];
 }
 
 export interface CCSessionInfo {

@@ -97,12 +97,12 @@ export class BackgroundSessionStore {
     return state;
   }
 
-  handleACPEvent(event: ACPSessionEvent): void {
+  handleACPEvent(event: ACPSessionEvent, acceptsPiContextBridge = false): void {
     const sessionId = event._sessionId;
     if (!sessionId) return;
 
     const state = this.getOrCreate(sessionId);
-    acpHandler(state, event);
+    acpHandler(state, event, { acceptsPiContextBridge });
   }
 
   /** Handle ACP turn completion — finalize streaming, close tools, reset processing. */

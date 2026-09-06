@@ -196,6 +196,7 @@ describe("electron-builder config", () => {
 
     const unixLauncher = path.join(repoRoot, "build", "pi-runtime", "bin", "pi");
     const windowsLauncher = path.join(repoRoot, "build", "pi-runtime", "bin", "pi.cmd");
+    const packageBootstrap = path.join(repoRoot, "build", "pi-runtime", "bin", "pcc-pi-package-launch.cjs");
     expect(fs.statSync(unixLauncher).isFile()).toBe(true);
     expect(fs.statSync(unixLauncher).mode & 0o111).not.toBe(0);
     expect(fs.statSync(windowsLauncher).isFile()).toBe(true);
@@ -205,6 +206,9 @@ describe("electron-builder config", () => {
     expect(fs.readFileSync(unixLauncher, "utf8")).toContain('--extension "$PCC_AGENT_PI_MCP_EXTENSION"');
     expect(fs.readFileSync(unixLauncher, "utf8")).toContain('--skill "$PCC_AGENT_PI_PROJECT_SKILLS"');
     expect(fs.readFileSync(windowsLauncher, "utf8")).toContain('--skill "%PCC_AGENT_PI_PROJECT_SKILLS%"');
+    expect(fs.readFileSync(unixLauncher, "utf8")).toContain("PCC_AGENT_PI_PACKAGE_CONFIG");
+    expect(fs.readFileSync(windowsLauncher, "utf8")).toContain("PCC_AGENT_PI_PACKAGE_CONFIG");
+    expect(fs.statSync(packageBootstrap).isFile()).toBe(true);
     expect(fs.readFileSync(unixLauncher, "utf8")).not.toContain("--approve");
     expect(fs.readFileSync(windowsLauncher, "utf8")).not.toContain("--approve");
     expect(fs.existsSync(path.join(repoRoot, "build", "pi-runtime", "extensions", "pcc-mcp.ts"))).toBe(true);

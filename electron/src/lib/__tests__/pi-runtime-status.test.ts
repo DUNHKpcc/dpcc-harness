@@ -14,6 +14,10 @@ function inspection(
     piCommandAvailable: true,
     piMcpBridgePath: "/Applications/PccAgent/Resources/pi-runtime/extensions/pcc-mcp.ts",
     piMcpBridgeAvailable: true,
+    piContextExtensionPath: "/Applications/PccAgent/Resources/pi-runtime/extensions/pcc-context-usage.ts",
+    piContextExtensionAvailable: true,
+    piPackageBootstrapPath: "/Applications/PccAgent/Resources/pi-runtime/bin/pcc-pi-package-launch.cjs",
+    piPackageBootstrapAvailable: true,
     pi: {
       packageName: "@earendil-works/pi-coding-agent",
       expectedVersion: "0.84.1",

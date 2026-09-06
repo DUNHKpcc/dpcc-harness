@@ -16,14 +16,13 @@ import {
   type PiProviderUpstream,
   type PiUpstream,
 } from "./upstream-resolver";
-import {
-  BUILTIN_PI_AGENT_ID,
-  type InstalledAgent,
-} from "@shared/types/registry";
+import { type InstalledAgent } from "@shared/types/registry";
+import { isProtectedBuiltInPiAgent } from "@shared/lib/session-runtime";
 import {
   bundledPiEnvironment,
   resolveBundledPiRuntime,
 } from "./bundled-pi-runtime";
+import { getPiPackageLaunchResources } from "./pi-package-store";
 
 const PI_DPCC_CLAUDE_ENV_KEY = "PCC_AGENT_PI_DPCC_CLAUDE_KEY";
 const PI_DPCC_CODEX_ENV_KEY = "PCC_AGENT_PI_DPCC_CODEX_KEY";
@@ -31,8 +30,11 @@ const PI_GATEWAY_ENV_KEY = "PCC_AGENT_PI_GATEWAY_KEY";
 const PI_MCP_EXTENSION_ENV_KEY = "PCC_AGENT_PI_MCP_EXTENSION";
 const PI_MCP_CONFIG_ENV_KEY = "PCC_AGENT_PI_MCP_CONFIG";
 const PI_MCP_ADAPTER_ENV_KEY = "PCC_AGENT_PI_MCP_ADAPTER";
+const PI_CONTEXT_EXTENSION_ENV_KEY = "PCC_AGENT_PI_CONTEXT_EXTENSION";
 const PI_GLOBAL_SKILLS_ENV_KEY = "PCC_AGENT_PI_GLOBAL_SKILLS";
 const PI_PROJECT_SKILLS_ENV_KEY = "PCC_AGENT_PI_PROJECT_SKILLS";
+const PI_PACKAGE_BOOTSTRAP_ENV_KEY = "PCC_AGENT_PI_PACKAGE_BOOTSTRAP";
+const PI_PACKAGE_CONFIG_ENV_KEY = "PCC_AGENT_PI_PACKAGE_CONFIG";
 
 function piRuntimeError(code: string, message: string): Error & { code: string } {
   const error = new Error(message) as Error & { code: string };
@@ -108,8 +110,11 @@ const PI_PROVIDER_ROUTING_KEYS = new Set([
   PI_MCP_EXTENSION_ENV_KEY,
   PI_MCP_CONFIG_ENV_KEY,
   PI_MCP_ADAPTER_ENV_KEY,
+  PI_CONTEXT_EXTENSION_ENV_KEY,
   PI_GLOBAL_SKILLS_ENV_KEY,
   PI_PROJECT_SKILLS_ENV_KEY,
+  PI_PACKAGE_BOOTSTRAP_ENV_KEY,
+  PI_PACKAGE_CONFIG_ENV_KEY,
   "PI_CODING_AGENT_DIR",
 ]);
 
@@ -348,6 +353,70 @@ function preparePiMcpEnvironment(
   };
 }
 
+function combineCleanupCallbacks(
+  callbacks: Array<(() => void) | undefined>,
+): (() => void) | undefined {
+  const activeCallbacks = callbacks.filter((callback): callback is () => void => Boolean(callback));
+  if (activeCallbacks.length === 0) return undefined;
+  let cleaned = false;
+  return () => {
+    if (cleaned) return;
+    cleaned = true;
+    for (const callback of activeCallbacks) {
+      try {
+        callback();
+      } catch {
+        // Best-effort cleanup keeps other per-session artifacts from leaking.
+      }
+    }
+  };
+}
+
+async function preparePiPackageEnvironment(
+  runtime: ReturnType<typeof resolveBundledPiRuntime>,
+): Promise<{ env: NodeJS.ProcessEnv; cleanup?: () => void }> {
+  const resources = await getPiPackageLaunchResources();
+  const resourceCount = Object.values(resources).reduce((total, paths) => total + paths.length, 0);
+  if (resourceCount === 0) {
+    return { env: { [PI_PACKAGE_CONFIG_ENV_KEY]: "" } };
+  }
+  if (!runtime.piPackageBootstrapAvailable) {
+    throw piRuntimeError("pi_package_bootstrap_missing", "The bundled Pi package launcher is unavailable.");
+  }
+
+  const configDirectory = path.join(getDataDir(), "pi-package-launch");
+  fs.mkdirSync(configDirectory, { recursive: true, mode: 0o700 });
+  const configPath = path.join(configDirectory, `${process.pid}-${crypto.randomUUID()}.json`);
+  writeFileAtomic(configPath, `${JSON.stringify({ version: 1, resources }, null, 2)}\n`);
+
+  let cleaned = false;
+  return {
+    env: { [PI_PACKAGE_CONFIG_ENV_KEY]: configPath },
+    cleanup: () => {
+      if (cleaned) return;
+      cleaned = true;
+      fs.rmSync(configPath, { force: true });
+    },
+  };
+}
+
+async function preparePiManagedLaunchEnvironment(
+  runtime: ReturnType<typeof resolveBundledPiRuntime>,
+  options: PreparePiAcpLaunchOptions,
+): Promise<{ env: NodeJS.ProcessEnv; cleanup?: () => void }> {
+  const mcp = preparePiMcpEnvironment(runtime, options);
+  try {
+    const packages = await preparePiPackageEnvironment(runtime);
+    return {
+      env: { ...mcp.env, ...packages.env },
+      cleanup: combineCleanupCallbacks([mcp.cleanup, packages.cleanup]),
+    };
+  } catch (error) {
+    mcp.cleanup?.();
+    throw error;
+  }
+}
+
 function preparePiSkillEnvironment(cwd?: string): NodeJS.ProcessEnv {
   const globalSkillsPath = path.join(os.homedir(), ".agents", "skills");
   const projectSkillsPath = cwd && path.isAbsolute(cwd)
@@ -472,10 +541,7 @@ function buildIsolatedPiEnvironment(
 export function isOfficialPiAcpAgent(
   agent: Pick<InstalledAgent, "id" | "engine" | "builtIn" | "registryId">,
 ): boolean {
-  return agent.id === BUILTIN_PI_AGENT_ID
-    && agent.engine === "acp"
-    && agent.builtIn === true
-    && agent.registryId?.trim() === BUILTIN_PI_AGENT_ID;
+  return isProtectedBuiltInPiAgent(agent);
 }
 
 function e2ePiCommandOverride(): string | undefined {
@@ -500,6 +566,11 @@ export async function preparePiAcpLaunch(
   const runtime = resolveBundledPiRuntime();
   const piCommand = e2ePiCommandOverride() ?? runtime.piCommandPath;
   const runtimeEnv = bundledPiEnvironment(runtime, piCommand);
+  const contextEnv: NodeJS.ProcessEnv = {
+    [PI_CONTEXT_EXTENSION_ENV_KEY]: runtime.piContextExtensionPath,
+    [PI_PACKAGE_BOOTSTRAP_ENV_KEY]: runtime.piPackageBootstrapPath,
+    [PI_PACKAGE_CONFIG_ENV_KEY]: "",
+  };
   const skillEnv = preparePiSkillEnvironment(options.cwd);
 
   const upstream = resolvePiUpstream();
@@ -513,11 +584,11 @@ export async function preparePiAcpLaunch(
     runtimeSource: "bundled" as const,
   };
   if (upstream.tier === "local") {
-    const mcp = preparePiMcpEnvironment(runtime, options);
+    const managed = await preparePiManagedLaunchEnvironment(runtime, options);
     return {
       ...baseLaunch,
-      env: { ...agent.env, ...runtimeEnv, ...skillEnv, ...mcp.env },
-      cleanup: mcp.cleanup,
+      env: { ...agent.env, ...runtimeEnv, ...contextEnv, ...skillEnv, ...managed.env },
+      cleanup: managed.cleanup,
     };
   }
   //如果dpcc上游没有返回url和key
@@ -543,7 +614,7 @@ export async function preparePiAcpLaunch(
 
   const selected = selectDefaultModel(upstream, catalogResult.catalogs, cachedPiModel(agent));
   const agentDir = preparePiAgentDirectory(upstream, catalogResult.catalogs, selected);
-  const mcp = preparePiMcpEnvironment(runtime, options);
+  const managed = await preparePiManagedLaunchEnvironment(runtime, options);
   return {
     ...baseLaunch,
     env: {
@@ -554,10 +625,11 @@ export async function preparePiAcpLaunch(
         agentDir,
         piCommand,
       ),
+      ...contextEnv,
       ...skillEnv,
-      ...mcp.env,
+      ...managed.env,
     },
     replaceEnvironment: true,
-    cleanup: mcp.cleanup,
+    cleanup: managed.cleanup,
   };
 }

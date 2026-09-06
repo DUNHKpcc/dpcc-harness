@@ -3,6 +3,7 @@ import {
   BUILTIN_PI_AGENT_ID,
   canUseSessionRuntime,
   getSessionRuntimeDisposition,
+  isProtectedBuiltInPiAgent,
   newPiSessionIdentity,
 } from "@shared/lib/session-runtime";
 import { BUILTIN_PI_AGENT, PI_OFFICIAL_ICON } from "@shared/types/registry";
@@ -54,6 +55,12 @@ describe("session runtime disposition", () => {
 });
 
 describe("Pi visual identity", () => {
+  it("requires the complete built-in identity before enabling Pi-only behavior", () => {
+    expect(isProtectedBuiltInPiAgent(BUILTIN_PI_AGENT)).toBe(true);
+    expect(isProtectedBuiltInPiAgent({ ...BUILTIN_PI_AGENT, registryId: "custom-pi" })).toBe(false);
+    expect(isProtectedBuiltInPiAgent({ ...BUILTIN_PI_AGENT, engine: "claude" })).toBe(false);
+  });
+
   it("routes every built-in Pi identity to the official badge", () => {
     expect(BUILTIN_PI_AGENT.icon).toBe(PI_OFFICIAL_ICON);
     expect(getAgentIcon(BUILTIN_PI_AGENT)).toBe(PI_OFFICIAL_ICON);

@@ -12,9 +12,16 @@ import {
   removeSkill,
   SkillFilesModifiedError,
 } from "../lib/skill-installer";
+import {
+  installPiPackage,
+  listInstalledPiPackages,
+  removePiPackage,
+  setPiPackageEnabled,
+} from "../lib/pi-package-store";
 import { reportError } from "../lib/error-utils";
 import type {
   McpCatalogInstallRequest,
+  PiPackageInstallRequest,
   SkillInstallRequest,
 } from "../../../shared/types/plugins";
 
@@ -52,6 +59,46 @@ export function register(): void {
       return { ok: true };
     } catch (error) {
       return { error: reportError("PLUGIN_SKILL_REMOVE_ERR", error) };
+    }
+  });
+
+  ipcMain.handle("plugins:pi-packages:list-installed", async () => {
+    try {
+      return { items: await listInstalledPiPackages() };
+    } catch (error) {
+      return { error: reportError("PLUGIN_PI_PACKAGE_LIST_ERR", error) };
+    }
+  });
+
+  ipcMain.handle("plugins:pi-packages:install", async (_event, request: PiPackageInstallRequest) => {
+    try {
+      if (!request || typeof request.source !== "string" || request.reviewed !== true) {
+        return { error: "Review the package source and acknowledge its execution risk before installing" };
+      }
+      return { item: await installPiPackage(request) };
+    } catch (error) {
+      return { error: reportError("PLUGIN_PI_PACKAGE_INSTALL_ERR", error) };
+    }
+  });
+
+  ipcMain.handle("plugins:pi-packages:set-enabled", async (_event, id: string, enabled: boolean) => {
+    try {
+      if (typeof id !== "string" || typeof enabled !== "boolean") {
+        return { error: "Invalid Pi package state update" };
+      }
+      return { item: await setPiPackageEnabled(id, enabled) };
+    } catch (error) {
+      return { error: reportError("PLUGIN_PI_PACKAGE_SET_ENABLED_ERR", error) };
+    }
+  });
+
+  ipcMain.handle("plugins:pi-packages:remove", async (_event, id: string) => {
+    try {
+      if (typeof id !== "string") return { error: "Invalid Pi package id" };
+      await removePiPackage(id);
+      return { ok: true };
+    } catch (error) {
+      return { error: reportError("PLUGIN_PI_PACKAGE_REMOVE_ERR", error) };
     }
   });
 

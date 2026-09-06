@@ -3,6 +3,7 @@ import {
   configureRenderer,
   seedLocalMcpServers,
   seedLocalSkills,
+  seedUserPiExtension,
 } from "./helpers/app-state";
 
 test("keeps the plugin workspace responsive and scrolls installed skills internally", async ({
@@ -12,11 +13,18 @@ test("keeps the plugin workspace responsive and scrolls installed skills interna
 }) => {
   seedLocalSkills(uiProfile.home);
   seedLocalMcpServers(uiProfile.home);
+  seedUserPiExtension(uiProfile.home);
   await configureRenderer(page);
   await page.locator('[data-sidebar-plugin-entry="true"]').click();
 
   const pluginCenter = page.locator('[data-plugin-center="true"]');
   await expect(pluginCenter).toBeVisible();
+  await page.locator('[data-plugin-tab="pi-packages"]').click();
+  await expect(page.getByRole("heading", { name: "Pi Packages", exact: true })).toBeVisible();
+  await expect(page.getByText("local-fixture.ts", { exact: true })).toBeVisible();
+  await expect(page.getByText("Local Pi", { exact: true })).toBeVisible();
+
+  await page.locator('[data-plugin-tab="skills"]').click();
   await expect(page.getByRole("heading", { name: "Skills", exact: true })).toBeVisible();
 
   const installed = page.locator('[data-installed-list="skills"]');

@@ -71,6 +71,8 @@ import { MentionPicker } from "./MentionPicker";
 import { useMentionAutocomplete } from "./useMentionAutocomplete";
 import { CommandPicker } from "./CommandPicker";
 import { useCommandAutocomplete } from "./CommandPicker";
+import { createLegacyPiContextSnapshot } from "@/lib/pi-context-bridge";
+import { usePiContextSnapshots } from "@/lib/pi-context-store";
 
 export interface InputBarProps {
   onSend: (text: string, images?: ImageAttachment[], displayText?: string, fileReferences?: FileReference[]) => void;
@@ -78,9 +80,15 @@ export interface InputBarProps {
   onStop: () => void;
   isProcessing: boolean;
   projectPath?: string;
+  /** Session identity used to read Pi context snapshots without starting a runtime. */
+  contextSessionId?: string | null;
   contextUsage?: ContextUsage | null;
   isCompacting?: boolean;
+  /** The current session uses the protected built-in Pi context bridge. */
+  hasPiContextInspector?: boolean;
   onCompact?: () => void;
+  /** Replaces the current chat content with the session's context inspector. */
+  onOpenContextInspector?: () => void;
   agents?: InstalledAgent[];
   selectedAgent?: InstalledAgent | null;
   onAgentChange?: (agent: InstalledAgent | null) => void;
@@ -114,9 +122,12 @@ export const InputBar = memo(function InputBar({
   onStop,
   isProcessing,
   projectPath,
+  contextSessionId,
   contextUsage,
   isCompacting,
+  hasPiContextInspector = false,
   onCompact,
+  onOpenContextInspector,
   agents,
   selectedAgent,
   onAgentChange,
@@ -144,6 +155,19 @@ export const InputBar = memo(function InputBar({
   const [isDragging, setIsDragging] = useState(false);
   const [editingAttachment, setEditingAttachment] = useState<ImageAttachment | null>(null);
   const [nativeCommandMenu, setNativeCommandMenu] = useState<"model" | null>(null);
+
+  const piContextSnapshots = usePiContextSnapshots(contextSessionId);
+  const legacyContextSnapshot = useMemo(
+    () => contextUsage ? createLegacyPiContextSnapshot(contextUsage) : null,
+    [contextUsage],
+  );
+  const contextInspectorSnapshots = useMemo(
+    () => piContextSnapshots.length > 0
+      ? piContextSnapshots
+      : legacyContextSnapshot ? [legacyContextSnapshot] : [],
+    [legacyContextSnapshot, piContextSnapshots],
+  );
+  const latestPiContextSnapshot = piContextSnapshots[piContextSnapshots.length - 1] ?? null;
 
   // Deep folder confirmation
   const [showDeepFolderConfirm, setShowDeepFolderConfirm] = useState(false);
@@ -1025,12 +1049,17 @@ export const InputBar = memo(function InputBar({
             />
           )
         ) : null}
-        {contextUsage && contextUsage.contextWindow > 0 && onCompact && (
+        {(hasPiContextInspector || latestPiContextSnapshot || (contextUsage && contextUsage.contextWindow > 0)) && (
           <ContextGauge
             contextUsage={contextUsage}
+            contextSnapshot={latestPiContextSnapshot}
             isCompacting={isCompacting ?? false}
             isProcessing={isProcessing}
             onCompact={onCompact}
+            showWhenEmpty={hasPiContextInspector}
+            onOpenInspector={hasPiContextInspector || contextInspectorSnapshots.length > 0
+              ? onOpenContextInspector
+              : undefined}
             className="ms-auto"
           />
         )}

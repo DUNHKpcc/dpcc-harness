@@ -55,6 +55,7 @@ export interface MaterializedDraftSession {
 export interface SessionPaneBootstrap {
   session: ChatSession;
   runtimeAvailable: boolean;
+  usesPiContextBridge: boolean;
   initialMessages: UIMessage[];
   initialMeta: InitialMeta | null;
   initialPermission: PermissionRequest | null;

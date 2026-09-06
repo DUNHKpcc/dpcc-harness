@@ -83,12 +83,16 @@ function resolveBundledPi() {
     process.platform === "win32" ? "pi.cmd" : "pi",
   );
   const mcpBridgePath = path.join(REPO_ROOT, "build", "pi-runtime", "extensions", "pcc-mcp.ts");
+  const contextBridgePath = path.join(REPO_ROOT, "build", "pi-runtime", "extensions", "pcc-context-usage.ts");
+  const packageBootstrapPath = path.join(REPO_ROOT, "build", "pi-runtime", "bin", "pcc-pi-package-launch.cjs");
   try {
     fs.accessSync(hostPath, process.platform === "win32" ? fs.constants.F_OK : fs.constants.X_OK);
     fs.accessSync(entryPath, fs.constants.F_OK);
     fs.accessSync(mcpAdapterEntryPath, fs.constants.F_OK);
     fs.accessSync(wrapperPath, process.platform === "win32" ? fs.constants.F_OK : fs.constants.X_OK);
     fs.accessSync(mcpBridgePath, fs.constants.F_OK);
+    fs.accessSync(contextBridgePath, fs.constants.F_OK);
+    fs.accessSync(packageBootstrapPath, fs.constants.F_OK);
     fs.accessSync(MCP_FIXTURE_PATH, fs.constants.F_OK);
   } catch {
     throw codedError("pi_bundled_package_missing", "bundled Pi runtime is unavailable");
@@ -101,6 +105,8 @@ function resolveBundledPi() {
     mcpAdapterVersion: mcpAdapter.version,
     wrapperPath,
     mcpBridgePath,
+    contextBridgePath,
+    packageBootstrapPath,
   };
 }
 
@@ -189,7 +195,7 @@ function killProcess(child) {
   }
 }
 
-async function runPi({ runtime, paths, baseUrl, sessionId, prompt, mcpConfigPath, skillPath }) {
+async function runPi({ runtime, paths, baseUrl, sessionId, prompt, mcpConfigPath, skillPath, packageConfigPath }) {
   const args = [
     "--mode", "json",
     "--print",
@@ -206,14 +212,18 @@ async function runPi({ runtime, paths, baseUrl, sessionId, prompt, mcpConfigPath
     "--offline",
     prompt,
   ];
-  if (skillPath) args.splice(args.indexOf("--no-skills"), 1);
-  if (!mcpConfigPath) {
+  if (skillPath || packageConfigPath) args.splice(args.indexOf("--no-skills"), 1);
+  if (packageConfigPath) {
+    args.splice(args.indexOf("--no-prompt-templates"), 1);
+    args.splice(args.indexOf("--no-themes"), 1);
+  }
+  if (!mcpConfigPath && !packageConfigPath) {
     args.splice(args.indexOf("--no-skills"), 0, "--no-extensions");
   }
-  if (!mcpConfigPath && !skillPath) {
+  if (!mcpConfigPath && !skillPath && !packageConfigPath) {
     args.splice(args.indexOf("--offline"), 0, "--no-tools");
   }
-  const useWrapper = Boolean(mcpConfigPath || skillPath);
+  const useWrapper = Boolean(mcpConfigPath || skillPath || packageConfigPath);
   const env = {
     ...isolatedEnvironment(paths, baseUrl),
     ELECTRON_RUN_AS_NODE: "1",
@@ -229,13 +239,20 @@ async function runPi({ runtime, paths, baseUrl, sessionId, prompt, mcpConfigPath
       PCC_AGENT_PI_MCP_CONFIG: mcpConfigPath,
       PCC_AGENT_PI_MCP_ADAPTER: runtime.mcpAdapterEntryPath,
     } : {}),
+    ...(packageConfigPath ? {
+      PCC_AGENT_PI_PACKAGE_BOOTSTRAP: runtime.packageBootstrapPath,
+      PCC_AGENT_PI_PACKAGE_CONFIG: packageConfigPath,
+    } : {}),
+    ...(useWrapper ? {
+      PCC_AGENT_PI_CONTEXT_EXTENSION: runtime.contextBridgePath,
+    } : {}),
   };
   const command = useWrapper ? runtime.wrapperPath : runtime.hostPath;
   const commandArgs = useWrapper ? args : [runtime.entryPath, ...args];
   const child = spawn(command, commandArgs, {
     cwd: paths.workspace,
     env,
-    shell: Boolean(mcpConfigPath && process.platform === "win32"),
+    shell: Boolean(useWrapper && process.platform === "win32"),
     windowsHide: true,
     detached: process.platform !== "win32",
     stdio: ["ignore", "pipe", "pipe"],
@@ -285,6 +302,124 @@ async function runPi({ runtime, paths, baseUrl, sessionId, prompt, mcpConfigPath
     stderrBytes: Buffer.byteLength(stderr.join("")),
     stderrTail: stderr.join("").slice(-2_000),
   };
+}
+
+/**
+ * Starts the real bundled Pi RPC mode through the packaged launcher and proves
+ * that the context extension emits the read-only UI bridge notification.
+ */
+async function runContextBridgeRpc(runtime, paths) {
+  const fixture = await startPiNativeProviderFixture({ mode: "success", apiKey: FIXTURE_API_KEY });
+  try {
+    await writeModelsConfig(paths, fixture.baseUrl);
+    const child = spawn(runtime.wrapperPath, [
+      "--mode", "rpc",
+      "--provider", PROVIDER_ID,
+      "--model", MODEL_ID,
+      "--api-key", FIXTURE_API_KEY,
+      "--session-dir", paths.sessionDir,
+      "--session-id", `native-context-${crypto.randomUUID().slice(0, 8)}`,
+      "--thinking", "off",
+      "--no-skills",
+      "--no-prompt-templates",
+      "--no-themes",
+      "--no-context-files",
+      "--offline",
+    ], {
+      cwd: paths.workspace,
+      env: {
+        ...isolatedEnvironment(paths, fixture.baseUrl),
+        ELECTRON_RUN_AS_NODE: "1",
+        PCC_AGENT_PI_RUNTIME_HOST: runtime.hostPath,
+        PCC_AGENT_PI_ENTRY: runtime.entryPath,
+        PCC_AGENT_PI_CONTEXT_EXTENSION: runtime.contextBridgePath,
+      },
+      shell: process.platform === "win32",
+      windowsHide: true,
+      detached: process.platform !== "win32",
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+
+    const bridge = await new Promise((resolve, reject) => {
+      let buffer = "";
+      let stderr = "";
+      let settled = false;
+      const timeout = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        killProcess(child);
+        reject(codedError("cli_timeout", `Pi context bridge did not emit within ${TEST_TIMEOUT_MS}ms`));
+      }, TEST_TIMEOUT_MS);
+      const finish = (callback, value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        killProcess(child);
+        callback(value);
+      };
+
+      child.on("error", () => finish(reject, codedError("cli_spawn_error", "Pi context bridge could not be started")));
+      child.on("exit", (code, signal) => {
+        finish(reject, codedError(
+          "cli_exit_unexpected",
+          `Pi context bridge exited before emitting (code=${code ?? "null"}, signal=${signal ?? "null"}): ${stderr.slice(-500)}`,
+        ));
+      });
+      child.stderr.on("data", (chunk) => { stderr = `${stderr}${chunk}`.slice(-2_000); });
+      child.stdout.on("data", (chunk) => {
+        buffer += chunk;
+        let newline = buffer.indexOf("\n");
+        while (newline >= 0) {
+          const line = buffer.slice(0, newline).trim();
+          buffer = buffer.slice(newline + 1);
+          newline = buffer.indexOf("\n");
+          if (!line) continue;
+          let event;
+          try {
+            event = JSON.parse(line);
+          } catch {
+            finish(reject, codedError("native_protocol_error", "Pi RPC emitted an invalid JSON line"));
+            return;
+          }
+          if (
+            event?.type === "extension_ui_request"
+            && event.method === "notify"
+            && typeof event.message === "string"
+            && event.message.startsWith("__PCC_AGENT_PI_CONTEXT_V1__:")
+          ) {
+            finish(resolve, event.message.slice("__PCC_AGENT_PI_CONTEXT_V1__:".length));
+            return;
+          }
+        }
+      });
+    });
+
+    let snapshot;
+    try {
+      snapshot = JSON.parse(String(bridge));
+    } catch {
+      throw codedError("native_protocol_error", "Pi context bridge payload is not JSON");
+    }
+    assertCondition(snapshot?.version === 1, "Pi context bridge emitted an unsupported payload");
+    assertCondition(snapshot?.phase === "session_start", "Pi context bridge did not emit the startup snapshot");
+    assertCondition(snapshot?.contextWindow === 128000, "Pi context bridge lost the native model context window");
+    assertCondition(typeof snapshot?.usedTokens === "number" || snapshot?.usedTokens === null, "Pi context bridge usage is invalid");
+    assertCondition(
+      typeof snapshot?.details?.systemPrompt?.characterCount === "number"
+        && typeof snapshot?.details?.systemPrompt?.tokenEstimate === "number",
+      "Pi context bridge did not emit inspectable composition details",
+    );
+    assertCondition(Array.isArray(snapshot?.details?.timeline), "Pi context bridge timeline is invalid");
+    return {
+      phase: snapshot.phase,
+      contextWindow: snapshot.contextWindow,
+      detailEntries: snapshot.details.timeline.length,
+    };
+  } finally {
+    await fixture.close();
+  }
 }
 
 function assertCondition(condition, message, code = "assertion_failed") {
@@ -468,6 +603,54 @@ async function runProjectSkillExposure(runtime, paths) {
   }
 }
 
+/** Prove managed package resources are appended by the bundled launcher, not from ~/.pi. */
+async function runPackageSkillExposure(runtime, paths) {
+  const fixture = await startPiNativeProviderFixture({ mode: "success", apiKey: FIXTURE_API_KEY });
+  try {
+    await writeModelsConfig(paths, fixture.baseUrl);
+    const skillName = "pcc-agent-package-fixture";
+    const skillMarker = "PCC_AGENT_PACKAGE_SKILL_VISIBLE";
+    const packageRoot = path.join(paths.root, "pi-package");
+    const skillFile = path.join(packageRoot, "skills", skillName, "SKILL.md");
+    const configPath = path.join(paths.root, "pi-package-launch.json");
+    await fsp.mkdir(path.dirname(skillFile), { recursive: true });
+    await fsp.writeFile(skillFile, [
+      "---",
+      `name: ${skillName}`,
+      `description: ${skillMarker}`,
+      "---",
+      "Use this fixture only for Pi package launch verification.",
+      "",
+    ].join("\n"), "utf8");
+    await fsp.writeFile(configPath, JSON.stringify({
+      version: 1,
+      resources: {
+        extensions: [],
+        skills: [skillFile],
+        prompts: [],
+        themes: [],
+      },
+    }, null, 2), { encoding: "utf8", mode: 0o600 });
+
+    const result = await runPi({
+      runtime,
+      paths,
+      baseUrl: fixture.baseUrl,
+      sessionId: `native-package-${crypto.randomUUID().slice(0, 8)}`,
+      prompt: "confirm the managed Pi package Skill is visible",
+      packageConfigPath: configPath,
+    });
+    assertCondition(result.code === 0, "Pi package-enabled prompt exited unsuccessfully");
+    assertCondition(
+      fixture.requests.some((request) => request.messageText.includes(skillMarker)),
+      "Pi did not include the managed package Skill in model context",
+    );
+    return { requests: fixture.requestCount, skillName };
+  } finally {
+    await fixture.close();
+  }
+}
+
 async function runFailureDoesNotSucceed(runtime, paths, mode) {
   const fixture = await startPiNativeProviderFixture({ mode, apiKey: FIXTURE_API_KEY });
   try {
@@ -500,8 +683,10 @@ async function main() {
   const paths = await makePaths();
   try {
     const success = await runSuccessAndContinuation(runtime, paths);
+    const contextBridge = await runContextBridgeRpc(runtime, paths);
     const recovered = await runRecoverAfterRetry(runtime, paths);
     const skill = await runProjectSkillExposure(runtime, paths);
+    const packageSkill = await runPackageSkillExposure(runtime, paths);
     const mcp = await runMcpExposure(runtime, paths);
     const disconnected = await runFailureDoesNotSucceed(runtime, paths, "disconnect");
     const httpFailure = await runFailureDoesNotSucceed(runtime, paths, "http-failure");
@@ -512,8 +697,10 @@ async function main() {
       mcpAdapterVersion,
       scenarios: {
         successAndContinuation: success,
+        contextBridge,
         recoverAfterRetry: recovered,
         projectSkillExposure: skill,
+        packageSkillExposure: packageSkill,
         mcpExposure: mcp,
         disconnectFailure: disconnected,
         httpFailure,

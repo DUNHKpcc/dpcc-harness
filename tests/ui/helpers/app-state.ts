@@ -14,6 +14,9 @@ interface ConfigureRendererOptions {
 
 interface SeedProjectAndSessionOptions {
   model?: string;
+  contextUsage?: unknown;
+  piContextSnapshots?: unknown[];
+  messages?: unknown[];
 }
 
 export async function configureRenderer(
@@ -33,7 +36,12 @@ export async function configureRenderer(
 
 export async function seedProjectAndSession(
   page: Page,
-  { model = "fixture/model" }: SeedProjectAndSessionOptions = {},
+  {
+    model = "fixture/model",
+    contextUsage,
+    piContextSnapshots,
+    messages,
+  }: SeedProjectAndSessionOptions = {},
 ): Promise<SeededProject> {
   const project = await page.evaluate(async () => {
     const bridge = (window as typeof window & {
@@ -49,7 +57,13 @@ export async function seedProjectAndSession(
   fs.writeFileSync(path.join(project.path, "src", "workspace.ts"), "export const ready = true;\n", "utf8");
   fs.writeFileSync(path.join(project.path, "notes", "overview.md"), "# Overview\n\nStable UI workflow.\n", "utf8");
 
-  const saved = await page.evaluate(async ({ projectId, sessionModel }) => {
+  const saved = await page.evaluate(async ({
+    projectId,
+    sessionModel,
+    sessionContextUsage,
+    sessionPiContextSnapshots,
+    sessionMessages,
+  }) => {
     const bridge = (window as typeof window & {
       claude: { sessions: { save: (value: unknown) => Promise<{ ok?: boolean; error?: string }> } };
     }).claude;
@@ -64,14 +78,22 @@ export async function seedProjectAndSession(
       agentId: "pi-acp",
       model: sessionModel,
       permissionMode: "default",
-      messages: [
+      messages: sessionMessages ?? [
         { id: "playwright-user", role: "user", content: "Inspect the workspace fixture", timestamp: now },
         { id: "playwright-assistant", role: "assistant", content: "The workspace fixture is ready.", timestamp: now + 1, isStreaming: false },
       ],
       totalCost: 0,
       isProcessing: false,
+      ...(sessionContextUsage ? { contextUsage: sessionContextUsage } : {}),
+      ...(sessionPiContextSnapshots ? { piContextSnapshots: sessionPiContextSnapshots } : {}),
     });
-  }, { projectId: project.id, sessionModel: model });
+  }, {
+    projectId: project.id,
+    sessionModel: model,
+    sessionContextUsage: contextUsage,
+    sessionPiContextSnapshots: piContextSnapshots,
+    sessionMessages: messages,
+  });
   if (saved.error) throw new Error(saved.error);
 
   await page.reload({ waitUntil: "domcontentloaded" });
@@ -90,6 +112,22 @@ export function seedLocalSkills(home: string, count = 8): void {
       "utf8",
     );
   }
+}
+
+export function seedUserPiExtension(home: string): void {
+  const agentDir = path.join(home, ".pi", "agent");
+  const extensionDir = path.join(agentDir, "extensions");
+  fs.mkdirSync(extensionDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(extensionDir, "local-fixture.ts"),
+    "export default function localFixture() {}\n",
+    "utf8",
+  );
+  fs.writeFileSync(
+    path.join(agentDir, "settings.json"),
+    JSON.stringify({ extensions: ["./extensions/local-fixture.ts"] }),
+    "utf8",
+  );
 }
 
 export function seedLocalMcpServers(home: string): void {

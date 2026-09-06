@@ -1,3 +1,5 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { SlashCommand } from "@/types";
 import { BUILTIN_PI_AGENT } from "@/types";
@@ -14,6 +16,8 @@ import {
   isProtectedBuiltInPiAgent,
 } from "../input-bar/command-presentation";
 import { resolveModelOptionsDisplayState } from "../input-bar/ModelThinkingDropdown";
+import { AttachmentPreview } from "../input-bar/AttachmentPreview";
+import { TooltipProvider } from "../ui/tooltip";
 
 const translations: Record<string, string> = {
   "commands.compact.label": "压缩上下文",
@@ -144,5 +148,43 @@ describe("Pi model option display state", () => {
     [{ hasOptions: false, loading: false, dormant: false }, "unavailable"],
   ] as const)("maps %o to %s", (input, expected) => {
     expect(resolveModelOptionsDisplayState(input)).toBe(expected);
+  });
+});
+
+describe("image attachment preview", () => {
+  it("keeps edit and remove controls outside the image thumbnail", () => {
+    const html = renderToStaticMarkup(
+      createElement(
+        TooltipProvider,
+        null,
+        createElement(AttachmentPreview, {
+          attachments: [{
+            id: "image-1",
+            data: "aGVsbG8=",
+            mediaType: "image/png",
+            fileName: "screen.png",
+          }],
+          onRemoveAttachment: () => {},
+          onEditAttachment: () => {},
+          fileAttachments: [],
+          onRemoveFileAttachment: () => {},
+          grabbedElements: [],
+          onRemoveGrabbedElement: () => {},
+        }),
+      ),
+    );
+
+    const thumbnailStart = html.indexOf('data-slot="image-attachment-thumbnail"');
+    const thumbnailEnd = html.indexOf("</button>", thumbnailStart);
+    const thumbnail = html.slice(thumbnailStart, thumbnailEnd);
+
+    expect(thumbnailStart).toBeGreaterThan(-1);
+    expect(thumbnailEnd).toBeGreaterThan(thumbnailStart);
+    expect(thumbnail).toContain("<img");
+    expect(thumbnail).not.toContain('data-slot="image-attachment-edit"');
+    expect(thumbnail).not.toContain('data-slot="image-attachment-remove"');
+    expect(html).toContain('data-slot="image-attachment-actions"');
+    expect(html).toContain('aria-label="Edit image"');
+    expect(html).toContain('aria-label="Remove image"');
   });
 });

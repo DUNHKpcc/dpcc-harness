@@ -51,6 +51,49 @@ export interface InstalledSkillRecord {
   origin?: "PccAgent" | "Claude Code" | "Codex" | "Local Agent";
 }
 
+/** Pi package resources are resolved by the bundled Pi runtime before launch. */
+export type PiPackageResourceKind = "extensions" | "skills" | "prompts" | "themes";
+
+export interface PiPackageResource {
+  kind: PiPackageResourceKind;
+  path: string;
+  relativePath: string;
+  /** False when Pi's existing local configuration explicitly disables this resource. */
+  enabled?: boolean;
+}
+
+export type PiPackageStatus = "ready" | "disabled" | "missing";
+export type PiPackageOrigin = "pcc-agent" | "user-pi";
+
+export interface PiPackageInstallRequest {
+  /** An explicitly pinned `npm:` or `git:` Pi package source. */
+  source: string;
+  /** The user reviewed the source and acknowledges Pi package execution risk. */
+  reviewed: boolean;
+}
+
+/**
+ * A Pi package or resource group visible to PccAgent. PccAgent-managed records
+ * are separate from read-only discoveries in the user's existing `~/.pi`.
+ */
+export interface InstalledPiPackageRecord {
+  id: string;
+  source: string;
+  name: string;
+  version?: string;
+  sourceRevision?: string;
+  reviewUrl?: string;
+  installPath: string;
+  resources: PiPackageResource[];
+  enabled: boolean;
+  status: PiPackageStatus;
+  installedAt: string;
+  updatedAt: string;
+  /** User Pi records are discovered read-only and cannot be changed by PccAgent. */
+  managed?: boolean;
+  origin?: PiPackageOrigin;
+}
+
 export type McpCatalogInstallKind = "remote" | "npm";
 export type McpCatalogTransport = "http" | "sse" | "stdio";
 

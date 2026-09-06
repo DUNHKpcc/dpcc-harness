@@ -12,7 +12,13 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "motion/react";
-import type { ChatSession, EngineId, InstalledAgent, TodoItem, BackgroundAgent } from "@/types";
+import type {
+  BackgroundAgent,
+  ChatSession,
+  EngineId,
+  InstalledAgent,
+  TodoItem,
+} from "@/types";
 import type { SessionPaneState } from "@/hooks/session/useSessionPane";
 import { usePaneController, type PaneControllerContext } from "@/hooks/usePaneController";
 import { useSettingsStore } from "@/stores/settings-store";

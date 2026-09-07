@@ -321,13 +321,25 @@ export function useSpaceTheme(
     root.style.setProperty("--space-chroma", String(chroma));
 
     if (isDark) {
-      root.style.setProperty("--background", `oklch(${darkBgLightness} ${bgChroma} ${hue})`);
+      root.style.setProperty(
+        "--background",
+        `var(--theme-dark-background, oklch(${darkBgLightness} ${bgChroma} ${hue}))`,
+      );
       root.style.setProperty("--accent", `oklch(${darkSurfaceLightness} ${surfaceChroma} ${hue})`);
-      root.style.setProperty("--border", `oklch(${darkBorderLightness} ${borderChroma} ${hue})`);
+      root.style.setProperty(
+        "--border",
+        `var(--theme-dark-border, oklch(${darkBorderLightness} ${borderChroma} ${hue}))`,
+      );
       root.style.setProperty("--muted", `oklch(${darkSurfaceLightness} ${surfaceChroma} ${hue})`);
       root.style.setProperty("--secondary", `oklch(${darkSurfaceLightness} ${surfaceChroma} ${hue})`);
-      root.style.setProperty("--card", `oklch(${darkCardLightness} ${bgChroma} ${hue})`);
-      root.style.setProperty("--input", `oklch(${darkBorderLightness} ${borderChroma} ${hue})`);
+      root.style.setProperty(
+        "--card",
+        `var(--theme-dark-background, oklch(${darkCardLightness} ${bgChroma} ${hue}))`,
+      );
+      root.style.setProperty(
+        "--input",
+        `var(--theme-dark-border, oklch(${darkBorderLightness} ${borderChroma} ${hue}))`,
+      );
       // Island fill with alpha for per-space opacity (--background stays opaque for gradient fades)
       if (opacity < 1) {
         root.style.setProperty("--island-fill", `oklch(${darkBgLightness} ${bgChroma} ${hue} / ${opacity})`);
@@ -347,13 +359,25 @@ export function useSpaceTheme(
         sidebarBorderLightness: isGlass ? shellDarkSidebarBorderLightness : darkSidebarBorderLightness,
       });
     } else {
-      root.style.setProperty("--background", `oklch(${lightBgLightness} ${bgChroma} ${hue})`);
+      root.style.setProperty(
+        "--background",
+        `var(--theme-light-background, oklch(${lightBgLightness} ${bgChroma} ${hue}))`,
+      );
       root.style.setProperty("--accent", `oklch(${lightSurfaceLightness} ${surfaceChroma} ${hue})`);
-      root.style.setProperty("--border", `oklch(${lightBorderLightness} ${borderChroma} ${hue})`);
+      root.style.setProperty(
+        "--border",
+        `var(--theme-light-border, oklch(${lightBorderLightness} ${borderChroma} ${hue}))`,
+      );
       root.style.setProperty("--muted", `oklch(${lightSurfaceLightness} ${surfaceChroma} ${hue})`);
       root.style.setProperty("--secondary", `oklch(${lightSurfaceLightness} ${surfaceChroma} ${hue})`);
-      root.style.setProperty("--card", `oklch(${lightCardLightness} ${bgChroma} ${hue})`);
-      root.style.setProperty("--input", `oklch(${lightBorderLightness} ${borderChroma} ${hue})`);
+      root.style.setProperty(
+        "--card",
+        `var(--theme-light-background, oklch(${lightCardLightness} ${bgChroma} ${hue}))`,
+      );
+      root.style.setProperty(
+        "--input",
+        `var(--theme-light-border, oklch(${lightBorderLightness} ${borderChroma} ${hue}))`,
+      );
       // Island fill with alpha for per-space opacity
       if (opacity < 1) {
         root.style.setProperty("--island-fill", `oklch(${lightBgLightness} ${bgChroma} ${hue} / ${opacity})`);

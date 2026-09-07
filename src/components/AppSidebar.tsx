@@ -536,7 +536,7 @@ export const AppSidebar = memo(function AppSidebar({
       initial={false}
       animate={{ width: isOpen ? width : 0 }}
       transition={isResizing ? { duration: 0 } : { type: "spring", stiffness: 380, damping: 34, mass: 0.65 }}
-      className={`flex shrink-0 flex-col overflow-hidden bg-sidebar ${
+      className={`sidebar-shell flex shrink-0 flex-col overflow-hidden bg-sidebar ${
         isOpen ? (islandLayout ? "ps-[var(--island-gap)]" : "ps-2") : ""
       }`}
       style={{ minWidth: 0 }}

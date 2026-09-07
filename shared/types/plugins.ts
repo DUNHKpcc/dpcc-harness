@@ -165,3 +165,25 @@ export interface McpCatalogInstallResult {
   };
   error?: string;
 }
+
+export type PiPackageCatalogType = "extension" | "skill" | "prompt" | "theme";
+
+/** A package listed by the public Pi Package Catalog. */
+export interface PiPackageCatalogItem {
+  id: string;
+  name: string;
+  description?: string;
+  author?: string;
+  types: PiPackageCatalogType[];
+  latestVersion?: string;
+  npmUrl: string;
+  repositoryUrl?: string;
+  installSource: string;
+  installable: boolean;
+}
+
+export interface PiPackageCatalogQuery {
+  query?: string;
+  type?: PiPackageCatalogType;
+  page?: number;
+}

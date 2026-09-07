@@ -7,6 +7,9 @@ import type {
   McpCatalogItem,
   McpCatalogInstallRequest,
   McpCatalogInstallResult,
+  PiPackageCatalogItem,
+  PiPackageCatalogQuery,
+  PiPackageCatalogType,
   SkillCatalogItem,
 } from "../../../shared/types/plugins";
 
@@ -26,6 +29,15 @@ const HEADER_NAME_PATTERN = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 const SKILL_SOURCE_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const SKILL_CATALOG_LIMIT = 30;
 const MCP_CATALOG_LIMIT = 50;
+const PI_PACKAGE_CATALOG_PAGE_SIZE = 50;
+const PI_PACKAGE_CATALOG_URL = "https://pi.dev/packages";
+const PI_PACKAGE_CATALOG_TYPES = new Set<PiPackageCatalogType>([
+  "extension",
+  "skill",
+  "prompt",
+  "theme",
+]);
+const NPM_EXACT_VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const RASTER_ICON_MIME_TYPES = new Set([
   "image/png",
   "image/jpeg",
@@ -53,8 +65,14 @@ const mcpCache = new JsonFileStore<CachedCatalog<McpCatalogItem>>({
   label: "MCP_CATALOG_CACHE",
 });
 
+const piPackageCache = new JsonFileStore<CachedCatalog<PiPackageCatalogItem>>({
+  subDir: "plugins/catalog-cache/pi-packages",
+  label: "PI_PACKAGE_CATALOG_CACHE",
+});
+
 const skillRequests = new Map<string, Promise<CatalogResult<SkillCatalogItem>>>();
 const mcpRequests = new Map<string, Promise<CatalogResult<McpCatalogItem>>>();
+const piPackageRequests = new Map<string, Promise<CatalogResult<PiPackageCatalogItem>>>();
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -350,6 +368,114 @@ export async function normalizeSkillLeaderboardHtml(
   return Array.from(items.values());
 }
 
+function piCatalogType(value: string): PiPackageCatalogType | null {
+  return PI_PACKAGE_CATALOG_TYPES.has(value as PiPackageCatalogType)
+    ? value as PiPackageCatalogType
+    : null;
+}
+
+function piCatalogExactVersion(card: { querySelector: (selector: string) => { getAttribute: (name: string) => string | undefined } | null }, name: string): string | undefined {
+  const href = card.querySelector(".packages-links a[href*='package-version']")?.getAttribute("href");
+  if (!href) return undefined;
+  try {
+    const url = new URL(href);
+    const version = url.searchParams.get("package-version") ?? "";
+    if (
+      url.protocol === "https:"
+      && url.hostname === "github.com"
+      && url.searchParams.get("package-name") === name
+      && NPM_EXACT_VERSION_PATTERN.test(version)
+    ) return version;
+  } catch {
+    // Ignore malformed report links and leave the package non-installable.
+  }
+  return undefined;
+}
+
+export async function normalizePiPackageCatalogHtml(
+  html: string,
+  catalogBaseUrl = PI_PACKAGE_CATALOG_URL,
+): Promise<PiPackageCatalogItem[]> {
+  const { parse } = await import("node-html-parser");
+  const root = parse(html);
+  const baseUrl = new URL(`${catalogBaseUrl.replace(/\/+$/, "")}/`);
+  const items = new Map<string, PiPackageCatalogItem>();
+
+  for (const card of root.querySelectorAll("article[data-package-card='true']")) {
+    if (items.size >= PI_PACKAGE_CATALOG_PAGE_SIZE) break;
+
+    const name = stringValue(card.getAttribute("data-package-name"));
+    const packageLink = card.querySelector("a[data-package-link='true'][href]");
+    const packageHref = packageLink?.getAttribute("href");
+    if (!name || !NPM_PACKAGE_PATTERN.test(name) || !packageHref || items.has(name)) continue;
+
+    try {
+      const packageUrl = new URL(packageHref, baseUrl);
+      if (
+        packageUrl.origin !== baseUrl.origin
+        || decodeURIComponent(packageUrl.pathname) !== `/packages/${name}`
+      ) continue;
+    } catch {
+      continue;
+    }
+
+    const npmAnchor = card.querySelector(".packages-links a[href*='npmjs.com/package/']");
+    const npmHref = npmAnchor?.getAttribute("href");
+    if (!npmHref) continue;
+
+    let npmUrl: URL;
+    try {
+      npmUrl = new URL(npmHref);
+      if (
+        npmUrl.protocol !== "https:"
+        || !["npmjs.com", "www.npmjs.com"].includes(npmUrl.hostname)
+        || decodeURIComponent(npmUrl.pathname) !== `/package/${name}`
+      ) continue;
+    } catch {
+      continue;
+    }
+
+    const types = (card.getAttribute("data-package-types") ?? "")
+      .split(/\s+/)
+      .map(piCatalogType)
+      .filter((type): type is PiPackageCatalogType => type !== null);
+    let repositoryUrl: string | undefined;
+    for (const anchor of card.querySelectorAll(".packages-links a[href]")) {
+      const repositoryHref = anchor.getAttribute("href");
+      if (!repositoryHref) continue;
+      try {
+        const url = new URL(repositoryHref);
+        if (
+          url.protocol === "https:"
+          && url.hostname === "github.com"
+          && !url.searchParams.has("package-version")
+        ) {
+          repositoryUrl = url.toString();
+          break;
+        }
+      } catch {
+        // Repository links are optional metadata.
+      }
+    }
+
+    const latestVersion = piCatalogExactVersion(card, name);
+    items.set(name, {
+      id: name,
+      name,
+      description: stringValue(card.querySelector(".packages-desc")?.text),
+      author: stringValue(card.querySelector(".packages-meta span")?.text),
+      types,
+      latestVersion,
+      npmUrl: npmUrl.toString(),
+      repositoryUrl,
+      installSource: latestVersion ? `npm:${name}@${latestVersion}` : "",
+      installable: latestVersion !== undefined,
+    });
+  }
+
+  return Array.from(items.values());
+}
+
 function normalizeInput(
   key: string,
   value: unknown,
@@ -532,6 +658,40 @@ export async function searchSkillCatalog(query: string): Promise<CatalogResult<S
       return catalogResult(items, source, fetchedAt, "fresh");
     } catch (error) {
       const fallback = cached ?? skillCache.load(key);
+      if (fallback) return catalogResult(fallback.items, source, fallback.fetchedAt, "stale");
+      throw error;
+    }
+  });
+}
+
+export async function searchPiPackageCatalog(
+  query: PiPackageCatalogQuery = {},
+): Promise<CatalogResult<PiPackageCatalogItem>> {
+  const normalizedQuery = typeof query.query === "string" ? query.query.trim().slice(0, 200) : "";
+  const type = query.type && PI_PACKAGE_CATALOG_TYPES.has(query.type) ? query.type : undefined;
+  const page = typeof query.page === "number" && Number.isFinite(query.page)
+    ? Math.max(1, Math.floor(query.page))
+    : 1;
+  const key = cacheKey(`pi-packages:${normalizedQuery}:${type ?? "all"}:${page}`);
+  const cached = piPackageCache.load(key);
+  const source = "pi.dev/packages";
+
+  if (isFreshCatalog(cached)) {
+    return catalogResult(cached.items, source, cached.fetchedAt, "fresh");
+  }
+
+  return dedupeCatalogRequest(piPackageRequests, key, async () => {
+    try {
+      const url = new URL(PI_PACKAGE_CATALOG_URL);
+      if (normalizedQuery) url.searchParams.set("name", normalizedQuery);
+      if (type) url.searchParams.set("type", type);
+      if (page > 1) url.searchParams.set("page", String(page));
+      const items = await normalizePiPackageCatalogHtml(await fetchText(url.toString(), "text/html"));
+      const fetchedAt = new Date().toISOString();
+      piPackageCache.save(key, { items, fetchedAt });
+      return catalogResult(items, source, fetchedAt, "fresh");
+    } catch (error) {
+      const fallback = cached ?? piPackageCache.load(key);
       if (fallback) return catalogResult(fallback.items, source, fallback.fetchedAt, "stale");
       throw error;
     }

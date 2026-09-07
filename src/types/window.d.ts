@@ -24,6 +24,8 @@ import type {
   McpCatalogInstallRequest,
   McpCatalogInstallResult,
   McpCatalogItem,
+  PiPackageCatalogItem,
+  PiPackageCatalogQuery,
   PiPackageInstallRequest,
   SkillCatalogItem,
   SkillInstallRequest,
@@ -318,6 +320,9 @@ declare global {
           remove: (id: string) => Promise<IpcResult>;
         };
         piPackages: {
+          search: (query: PiPackageCatalogQuery) => Promise<
+            CatalogResult<PiPackageCatalogItem> | { error: string }
+          >;
           listInstalled: () => Promise<{ items: InstalledPiPackageRecord[] } | { error: string }>;
           install: (request: PiPackageInstallRequest) => Promise<
             { item: InstalledPiPackageRecord } | { error: string }

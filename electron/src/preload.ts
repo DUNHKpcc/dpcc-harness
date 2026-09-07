@@ -329,6 +329,7 @@ contextBridge.exposeInMainWorld("claude", {
       remove: (id: string) => ipcRenderer.invoke("plugins:skills:remove", id),
     },
     piPackages: {
+      search: (query: unknown) => ipcRenderer.invoke("plugins:pi-packages:search", query),
       listInstalled: () => ipcRenderer.invoke("plugins:pi-packages:list-installed"),
       install: (request: unknown) => ipcRenderer.invoke("plugins:pi-packages:install", request),
       setEnabled: (id: string, enabled: boolean) =>

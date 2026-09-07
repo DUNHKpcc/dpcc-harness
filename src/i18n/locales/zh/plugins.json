@@ -14,11 +14,13 @@
   },
   "search": {
     "skills": "搜索 skills.sh",
-    "mcp": "搜索 Official MCP Registry"
+    "mcp": "搜索 Official MCP Registry",
+    "piPackages": "搜索 pi.dev Package"
   },
   "source": {
     "skills": "skills.sh",
     "mcp": "Official MCP Registry",
+    "piPackages": "pi.dev/packages",
     "stale": "缓存结果"
   },
   "state": {
@@ -56,6 +58,7 @@
   },
   "packages": {
     "subtitle": "受 PccAgent 管理的 Package，以及从本机 Pi 配置发现的资源",
+    "catalogDescription": "浏览官方 Pi Package Catalog 中带精确版本的 Package。",
     "add": "添加 Package",
     "source": "Package 来源",
     "sourcePlaceholder": "npm:@scope/package@1.2.3 或 git:github.com/owner/repo@v1.2.3",
@@ -78,9 +81,21 @@
       "userPi": "本机 Pi"
     },
     "installSuccess": "已安装 {{name}}",
+    "restartRequired": "将在新建或重启后的内置 Pi 会话中可用；当前运行的 Pi 不会热加载。",
     "removeSuccess": "已移除 {{name}}",
     "enabled": "已启用 {{name}}",
-    "disabled": "已禁用 {{name}}"
+    "disabled": "已禁用 {{name}}",
+    "types": {
+      "all": "全部类型",
+      "extension": "扩展",
+      "skill": "Skill",
+      "prompt": "提示词",
+      "theme": "主题"
+    },
+    "unpinned": "此条目没有精确版本，不能安全安装。",
+    "previousPage": "上一页",
+    "nextPage": "下一页",
+    "page": "第 {{page}} 页"
   },
   "mcp": {
     "subtitle": "全局安装到 PccAgent，读取本机 Codex、Claude Code 与通用 MCP 配置",

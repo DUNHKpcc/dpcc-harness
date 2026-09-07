@@ -4,6 +4,7 @@ import { discoverLocalMcpServers } from "../lib/local-mcp-discovery";
 import {
   resolveMcpCatalogInstall,
   searchMcpCatalog,
+  searchPiPackageCatalog,
   searchSkillCatalog,
 } from "../lib/plugin-catalog";
 import {
@@ -21,6 +22,7 @@ import {
 import { reportError } from "../lib/error-utils";
 import type {
   McpCatalogInstallRequest,
+  PiPackageCatalogQuery,
   PiPackageInstallRequest,
   SkillInstallRequest,
 } from "../../../shared/types/plugins";
@@ -67,6 +69,17 @@ export function register(): void {
       return { items: await listInstalledPiPackages() };
     } catch (error) {
       return { error: reportError("PLUGIN_PI_PACKAGE_LIST_ERR", error) };
+    }
+  });
+
+  ipcMain.handle("plugins:pi-packages:search", async (_event, query: unknown) => {
+    try {
+      const request = query && typeof query === "object" && !Array.isArray(query)
+        ? query as PiPackageCatalogQuery
+        : {};
+      return await searchPiPackageCatalog(request);
+    } catch (error) {
+      return { error: reportError("PLUGIN_PI_PACKAGE_SEARCH_ERR", error) };
     }
   });
 

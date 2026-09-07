@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ExternalLink, Info, Loader2, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, ExternalLink, Info, Loader2, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,17 +14,29 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { PiLogo } from "@/components/PiLogo";
 import { PluginIcon } from "./PluginIcon";
 import type {
+  CatalogFreshness,
   InstalledPiPackageRecord,
+  PiPackageCatalogItem,
+  PiPackageCatalogType,
   PiPackageResourceKind,
   PiPackageStatus,
 } from "@/types";
 
 const RESOURCE_KINDS: PiPackageResourceKind[] = ["extensions", "skills", "prompts", "themes"];
+const PI_PACKAGE_CATALOG_PAGE_SIZE = 50;
+const PI_PACKAGE_TYPES: PiPackageCatalogType[] = ["extension", "skill", "prompt", "theme"];
 
 function reviewUrlForSource(source: string): string | null {
   const npm = source.trim().match(/^npm:((?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*)@(\S+)$/i);
@@ -51,8 +63,15 @@ function resourceCounts(record: InstalledPiPackageRecord): string[] {
 export function PiPackagesCatalog() {
   const { t } = useTranslation("plugins");
   const [packages, setPackages] = useState<InstalledPiPackageRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [installedLoading, setInstalledLoading] = useState(true);
+  const [installedError, setInstalledError] = useState<string | null>(null);
+  const [catalogQuery, setCatalogQuery] = useState("");
+  const [catalogType, setCatalogType] = useState<PiPackageCatalogType | "all">("all");
+  const [catalogPage, setCatalogPage] = useState(1);
+  const [catalogItems, setCatalogItems] = useState<PiPackageCatalogItem[]>([]);
+  const [catalogFreshness, setCatalogFreshness] = useState<CatalogFreshness>("fresh");
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
   const [installOpen, setInstallOpen] = useState(false);
   const [source, setSource] = useState("");
   const [reviewed, setReviewed] = useState(false);
@@ -61,20 +80,49 @@ export function PiPackagesCatalog() {
   const [selected, setSelected] = useState<InstalledPiPackageRecord | null>(null);
 
   const refresh = useCallback(async () => {
-    setLoading(true);
+    setInstalledLoading(true);
     const response = await window.claude.plugins.piPackages.listInstalled();
     if ("error" in response) {
-      setError(response.error);
+      setInstalledError(response.error);
     } else {
-      setError(null);
+      setInstalledError(null);
       setPackages(response.items);
     }
-    setLoading(false);
+    setInstalledLoading(false);
   }, []);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      setCatalogLoading(true);
+      setCatalogError(null);
+      void window.claude.plugins.piPackages.search({
+        query: catalogQuery.trim(),
+        type: catalogType === "all" ? undefined : catalogType,
+        page: catalogPage,
+      }).then((response) => {
+        if (cancelled) return;
+        if ("error" in response) {
+          setCatalogError(response.error);
+          setCatalogItems([]);
+          return;
+        }
+        setCatalogItems(response.items);
+        setCatalogFreshness(response.freshness);
+      }).finally(() => {
+        if (!cancelled) setCatalogLoading(false);
+      });
+    }, catalogQuery.trim() ? 250 : 0);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [catalogPage, catalogQuery, catalogType]);
 
   const reviewUrl = useMemo(() => reviewUrlForSource(source), [source]);
 
@@ -82,6 +130,13 @@ export function PiPackagesCatalog() {
     setInstallOpen(false);
     setSource("");
     setReviewed(false);
+  }, []);
+
+  const openCatalogInstall = useCallback((item: PiPackageCatalogItem) => {
+    if (!item.installable) return;
+    setSource(item.installSource);
+    setReviewed(false);
+    setInstallOpen(true);
   }, []);
 
   const install = useCallback(async () => {
@@ -97,7 +152,9 @@ export function PiPackagesCatalog() {
       toast.error(response.error);
       return;
     }
-    toast.success(t("packages.installSuccess", { name: response.item.name }));
+    toast.success(t("packages.installSuccess", { name: response.item.name }), {
+      description: t("packages.restartRequired"),
+    });
     closeInstall();
     await refresh();
   }, [closeInstall, refresh, reviewed, source, t]);
@@ -154,9 +211,9 @@ export function PiPackagesCatalog() {
               <span className="text-xs tabular-nums text-muted-foreground">{packages.length}</span>
             </div>
 
-            {error ? (
-              <div className="py-10 text-center text-sm text-destructive">{error}</div>
-            ) : loading ? (
+            {installedError ? (
+              <div className="py-10 text-center text-sm text-destructive">{installedError}</div>
+            ) : installedLoading ? (
               <div className="py-10 text-center text-sm text-muted-foreground">{t("state.loading")}</div>
             ) : packages.length === 0 ? (
               <div className="py-10 text-center text-sm text-muted-foreground">{t("state.noInstalledPiPackages")}</div>
@@ -230,6 +287,138 @@ export function PiPackagesCatalog() {
                   );
                 })}
               </div>
+            )}
+          </section>
+
+          <section className="mt-10">
+            <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border/60 pb-3">
+              <div>
+                <h2 className="text-sm font-semibold">{t("views.discover")}</h2>
+                <p className="mt-1 text-xs text-muted-foreground">{t("packages.catalogDescription")}</p>
+              </div>
+              <span className="text-[11px] text-muted-foreground">
+                {catalogFreshness === "stale" ? t("source.stale") : t("source.piPackages")}
+              </span>
+            </div>
+
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+              <label className="relative block min-w-0 flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={catalogQuery}
+                  onChange={(event) => {
+                    setCatalogQuery(event.target.value);
+                    setCatalogPage(1);
+                  }}
+                  placeholder={t("search.piPackages")}
+                  className="h-10 pl-9"
+                />
+              </label>
+              <Select
+                value={catalogType}
+                onValueChange={(value) => {
+                  setCatalogType(value as PiPackageCatalogType | "all");
+                  setCatalogPage(1);
+                }}
+              >
+                <SelectTrigger className="h-10 w-full sm:w-40">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("packages.types.all")}</SelectItem>
+                  {PI_PACKAGE_TYPES.map((type) => (
+                    <SelectItem key={type} value={type}>{t(`packages.types.${type}`)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {catalogError ? (
+              <div className="py-10 text-center text-sm text-destructive">{catalogError}</div>
+            ) : catalogLoading ? (
+              <div className="py-10 text-center text-sm text-muted-foreground">{t("state.loading")}</div>
+            ) : catalogItems.length === 0 ? (
+              <div className="py-10 text-center text-sm text-muted-foreground">{t("state.empty")}</div>
+            ) : (
+              <>
+                <div
+                  data-pi-package-catalog-list="true"
+                  className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,22rem),1fr))] gap-x-10"
+                >
+                  {catalogItems.map((item) => {
+                    const installed = packages.some((record) => record.source === item.installSource);
+                    return (
+                      <div key={item.id} className="flex min-h-28 min-w-0 items-center gap-3 border-b border-border/55 py-4">
+                        <PluginIcon name={item.name} size="sm" />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className="truncate text-sm font-medium">{item.name}</span>
+                            {installed && <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" />}
+                          </div>
+                          {item.description && <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.description}</p>}
+                          <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                            {item.author && <span className="max-w-32 truncate">{item.author}</span>}
+                            {item.latestVersion && <span>v{item.latestVersion}</span>}
+                            {item.types.map((type) => <Badge key={type} variant="secondary" className="h-5 px-1.5 text-[10px]">{type}</Badge>)}
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                type="button"
+                                size="icon-xs"
+                                variant="ghost"
+                                aria-label={t("packages.reviewSource")}
+                                onClick={() => void window.claude.openExternal(item.repositoryUrl ?? item.npmUrl)}
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>{t("packages.reviewSource")}</TooltipContent>
+                          </Tooltip>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-8 rounded-full px-3"
+                            disabled={!item.installable}
+                            onClick={() => openCatalogInstall(item)}
+                            title={!item.installable ? t("packages.unpinned") : undefined}
+                          >
+                            {t(installed ? "action.update" : "action.install")}
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="mt-5 flex items-center justify-center gap-2">
+                  <Button
+                    type="button"
+                    size="icon-sm"
+                    variant="outline"
+                    disabled={catalogPage === 1 || catalogLoading}
+                    aria-label={t("packages.previousPage")}
+                    onClick={() => setCatalogPage((page) => Math.max(1, page - 1))}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="min-w-14 text-center text-xs tabular-nums text-muted-foreground">
+                    {t("packages.page", { page: catalogPage })}
+                  </span>
+                  <Button
+                    type="button"
+                    size="icon-sm"
+                    variant="outline"
+                    disabled={catalogItems.length < PI_PACKAGE_CATALOG_PAGE_SIZE || catalogLoading}
+                    aria-label={t("packages.nextPage")}
+                    onClick={() => setCatalogPage((page) => page + 1)}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </>
             )}
           </section>
         </div>

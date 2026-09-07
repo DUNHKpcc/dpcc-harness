@@ -14,11 +14,13 @@
   },
   "search": {
     "skills": "Search skills.sh",
-    "mcp": "Search Official MCP Registry"
+    "mcp": "Search Official MCP Registry",
+    "piPackages": "Search pi.dev packages"
   },
   "source": {
     "skills": "skills.sh",
     "mcp": "Official MCP Registry",
+    "piPackages": "pi.dev/packages",
     "stale": "Cached results"
   },
   "state": {
@@ -56,6 +58,7 @@
   },
   "packages": {
     "subtitle": "Managed packages plus resources discovered from your local Pi configuration",
+    "catalogDescription": "Browse pinned versions from the official Pi Package Catalog.",
     "add": "Add package",
     "source": "Package source",
     "sourcePlaceholder": "npm:@scope/package@1.2.3 or git:github.com/owner/repo@v1.2.3",
@@ -78,9 +81,21 @@
       "userPi": "Local Pi"
     },
     "installSuccess": "{{name}} installed",
+    "restartRequired": "Available in a new or restarted built-in Pi session. The current Pi session is not hot-loaded.",
     "removeSuccess": "{{name}} removed",
     "enabled": "{{name}} enabled",
-    "disabled": "{{name}} disabled"
+    "disabled": "{{name}} disabled",
+    "types": {
+      "all": "All types",
+      "extension": "Extension",
+      "skill": "Skill",
+      "prompt": "Prompt",
+      "theme": "Theme"
+    },
+    "unpinned": "This catalog entry has no exact version and cannot be installed safely.",
+    "previousPage": "Previous page",
+    "nextPage": "Next page",
+    "page": "Page {{page}}"
   },
   "mcp": {
     "subtitle": "Install globally for PccAgent and discover local Codex, Claude Code, and generic MCP settings",

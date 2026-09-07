@@ -19,10 +19,12 @@ vi.mock("../json-file-store", () => ({
 
 import {
   normalizeMcpRegistryResponse,
+  normalizePiPackageCatalogHtml,
   normalizeSkillLeaderboardHtml,
   normalizeSkillSearchResponse,
   resolveMcpCatalogInstall,
   searchMcpCatalog,
+  searchPiPackageCatalog,
   searchSkillCatalog,
 } from "../plugin-catalog";
 
@@ -120,6 +122,52 @@ describe("plugin catalog normalization", () => {
     expect(items).toEqual([]);
   });
 
+  it("maps official Pi package cards to pinned install sources", async () => {
+    const items = await normalizePiPackageCatalogHtml(`
+      <article data-package-card="true" data-package-name="@scope/pi-tools" data-package-types="extension skill">
+        <h3><a data-package-link="true" href="/packages/@scope/pi-tools">@scope/pi-tools</a></h3>
+        <p class="packages-desc">Useful Pi tools</p>
+        <div class="packages-meta"><span>example-author</span></div>
+        <div class="packages-links">
+          <a href="https://www.npmjs.com/package/%40scope%2Fpi-tools">npm</a>
+          <a href="https://github.com/example/pi-tools">repo</a>
+          <a href="https://github.com/earendil-works/pi/issues/new?package-name=%40scope%2Fpi-tools&package-version=1.2.3">report</a>
+        </div>
+      </article>
+    `);
+
+    expect(items).toEqual([{
+      id: "@scope/pi-tools",
+      name: "@scope/pi-tools",
+      description: "Useful Pi tools",
+      author: "example-author",
+      types: ["extension", "skill"],
+      latestVersion: "1.2.3",
+      npmUrl: "https://www.npmjs.com/package/%40scope%2Fpi-tools",
+      repositoryUrl: "https://github.com/example/pi-tools",
+      installSource: "npm:@scope/pi-tools@1.2.3",
+      installable: true,
+    }]);
+  });
+
+  it("keeps a Pi package visible but non-installable without an exact version", async () => {
+    const items = await normalizePiPackageCatalogHtml(`
+      <article data-package-card="true" data-package-name="pi-unpinned" data-package-types="extension">
+        <a data-package-link="true" href="/packages/pi-unpinned">pi-unpinned</a>
+        <div class="packages-links">
+          <a href="https://www.npmjs.com/package/pi-unpinned">npm</a>
+        </div>
+      </article>
+    `);
+
+    expect(items[0]).toMatchObject({
+      name: "pi-unpinned",
+      latestVersion: undefined,
+      installSource: "",
+      installable: false,
+    });
+  });
+
   it("loads the public Trending page when the Skill query is shorter than two characters", async () => {
     const html = `
       <a href="/owner/repo/useful-skill">
@@ -163,6 +211,32 @@ describe("plugin catalog normalization", () => {
       expect.objectContaining({ headers: { Accept: "application/json" } }),
     );
     expect(result.items[0]).toMatchObject({ id: "owner/repo/ui", installs: 12 });
+  });
+
+  it("passes Pi catalog filters and pagination to the official catalog", async () => {
+    const html = `
+      <article data-package-card="true" data-package-name="pi-filtered" data-package-types="extension">
+        <a data-package-link="true" href="/packages/pi-filtered">pi-filtered</a>
+        <div class="packages-links">
+          <a href="https://www.npmjs.com/package/pi-filtered">npm</a>
+          <a href="https://github.com/earendil-works/pi/issues/new?package-name=pi-filtered&package-version=1.2.3">report</a>
+        </div>
+      </article>
+    `;
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      catalogResponse("https://pi.dev/packages?name=adapter&type=extension&page=2", html),
+    );
+
+    const result = await searchPiPackageCatalog({ query: " adapter ", type: "extension", page: 2 });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://pi.dev/packages?name=adapter&type=extension&page=2",
+      expect.objectContaining({ headers: { Accept: "text/html" } }),
+    );
+    expect(result.items[0]).toMatchObject({
+      installSource: "npm:pi-filtered@1.2.3",
+      installable: true,
+    });
   });
 
   it("rejects npm packages with runtime arguments while keeping plain stdio packages supported", () => {

@@ -16,6 +16,7 @@ import type {
 import type { WeChatBridgeState, WeChatBridgeConfig, WeChatBridgeEvent } from "@shared/types/wechat";
 import type { AccountConfig, AccountBalanceResult, AccountModelsResult, AccountOverview, AccountStatus, UsageStats, UsageStatsResult } from "@shared/types/account";
 import type { AccountAuthActionResult, AccountAuthSnapshot } from "@shared/types/account-auth";
+import type { FilePreviewResult } from "@shared/types/file-preview";
 import type {
   CatalogResult,
   InstalledMcpRecord,
@@ -109,6 +110,7 @@ declare global {
         setTheme: (theme: "light" | "dark" | "system") => void;
       };
       readFile: (filePath: string) => Promise<{ content?: string; error?: string }>;
+      previewFile: (filePath: string) => Promise<FilePreviewResult>;
       getDroppedFilePath: (file: File) => string;
       renameFile: (oldPath: string, newPath: string) => Promise<IpcResult>;
       trashItem: (filePath: string) => Promise<IpcResult>;

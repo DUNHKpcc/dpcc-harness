@@ -11,6 +11,7 @@ import { reportError } from "../lib/error-utils";
 import { safeSend } from "../lib/safe-send";
 import { openExternalUrl } from "../lib/open-external";
 import { checkPromptTextFile, readPromptTextFile } from "../lib/prompt-file-read";
+import { readFilePreview } from "../lib/file-preview";
 import {
   mergeFileWatchEvents,
   normalizeFileWatchPath,
@@ -622,6 +623,10 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
       const errMsg = reportError("FILE:READ_ERR", err, { filePath });
       return { error: errMsg };
     }
+  });
+
+  ipcMain.handle("file:preview", async (_event, filePath: string) => {
+    return readFilePreview(filePath);
   });
 
   ipcMain.handle("file:open-in-editor", async (_event, { filePath, line, editor: editorOverride }: { filePath: string; line?: number; editor?: string }) => {

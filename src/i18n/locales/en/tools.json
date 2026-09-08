@@ -30,6 +30,10 @@
   "filePreview": {
     "selectFile": "Select a file from the list to preview",
     "readError": "Unable to read file",
+    "markdownMode": "Markdown display mode",
+    "preview": "Preview",
+    "source": "Source",
+    "unsupported": "This file cannot be previewed in PccAgent.",
     "lines_one": "{{count}} line",
     "lines_other": "{{count}} lines"
   },

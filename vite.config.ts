@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import { fileViewerRenderers } from "@file-viewer/vite-plugin";
 import path from "path";
 
 export function manualChunks(id: string): string | undefined {
@@ -50,7 +51,18 @@ export function manualChunks(id: string): string | undefined {
 }
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    fileViewerRenderers({
+      formats: ["pdf", "word", "spreadsheet", "presentation", "presentation-binary", "presentation-openxml", "text", "image"],
+      autoPresets: false,
+      inject: false,
+      copyAssets: true,
+      chunkStrategy: "renderer",
+      stabilizeInteropChunks: true,
+    }),
+  ],
   base: "./",
   resolve: {
     alias: {

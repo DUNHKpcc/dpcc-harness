@@ -1,11 +1,22 @@
 import { lazy, memo, Suspense, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { File, Loader2 } from "lucide-react";
+import { File, FileWarning, Loader2 } from "lucide-react";
+import FileViewer from "@file-viewer/react";
+import { officeRenderers } from "@file-viewer/preset-office";
+import { liteRenderers } from "@file-viewer/preset-lite";
 import { OpenInEditorButton } from "./OpenInEditorButton";
+import { Button } from "./ui/button";
 import { useResolvedTheme } from "@/hooks/useTheme";
+import {
+  decodePreviewText,
+  shouldUseMonacoPreview,
+  toPreviewArrayBuffer,
+  type MarkdownPreviewMode,
+} from "@/lib/file-preview";
 import { getLanguageFromPath } from "@/lib/languages";
 import { disableMonacoDiagnostics, getMonacoLanguageFromPath } from "@/lib/monaco";
 import { captureException } from "@/lib/analytics/analytics";
+import type { FilePreviewResult } from "@shared/types/file-preview";
 
 const MonacoEditor = lazy(() =>
   import("@monaco-editor/react").then((mod) => ({ default: mod.default })),
@@ -23,14 +34,15 @@ export const InlineFilePreview = memo(function InlineFilePreview({
   filePath: string | null;
 }) {
   const { t } = useTranslation("tools");
-  const [content, setContent] = useState<string | null>(null);
+  const [preview, setPreview] = useState<FilePreviewResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [markdownMode, setMarkdownMode] = useState<MarkdownPreviewMode>("preview");
   const resolvedTheme = useResolvedTheme();
 
   useEffect(() => {
     if (!filePath) {
-      setContent(null);
+      setPreview(null);
       setError(null);
       setLoading(false);
       return;
@@ -39,16 +51,18 @@ export const InlineFilePreview = memo(function InlineFilePreview({
     let cancelled = false;
     setLoading(true);
     setError(null);
-    setContent(null);
+    setPreview(null);
+    setMarkdownMode("preview");
 
-    void window.claude.readFile(filePath)
+    void window.claude.previewFile(filePath)
       .then((result) => {
         if (cancelled) return;
-        if (result.error) {
-          setError(result.error);
-        } else {
-          setContent(result.content ?? "");
+        if (result.kind === "unsupported") {
+          setPreview(result);
+          return;
         }
+        if (result.error) setError(result.error);
+        else setPreview(result);
       })
       .catch((err) => {
         if (cancelled) return;
@@ -69,8 +83,10 @@ export const InlineFilePreview = memo(function InlineFilePreview({
   const dirPath = filePath?.split("/").slice(0, -1).join("/") ?? "";
   const language = filePath ? getLanguageFromPath(filePath) : "";
   const monacoLanguage = filePath ? getMonacoLanguageFromPath(filePath) : "plaintext";
+  const content = preview && shouldUseMonacoPreview(preview.kind, markdownMode)
+    ? decodePreviewText(preview.data)
+    : null;
   const lineCount = content ? content.split("\n").length : 0;
-  const fileSize = content ? formatFileSize(new Blob([content]).size) : "";
 
   if (!filePath) {
     return (
@@ -88,6 +104,28 @@ export const InlineFilePreview = memo(function InlineFilePreview({
           <div className="truncate text-xs font-medium text-foreground">{fileName}</div>
           <div className="truncate text-[10px] text-muted-foreground/60">{dirPath}</div>
         </div>
+        {preview?.kind === "markdown" && (
+          <div className="flex shrink-0 rounded-md bg-muted p-0.5" role="group" aria-label={t("filePreview.markdownMode")}>
+            <Button
+              type="button"
+              size="xs"
+              variant={markdownMode === "preview" ? "secondary" : "ghost"}
+              className="h-5 px-1.5 text-[10px]"
+              onClick={() => setMarkdownMode("preview")}
+            >
+              {t("filePreview.preview")}
+            </Button>
+            <Button
+              type="button"
+              size="xs"
+              variant={markdownMode === "source" ? "secondary" : "ghost"}
+              className="h-5 px-1.5 text-[10px]"
+              onClick={() => setMarkdownMode("source")}
+            >
+              {t("filePreview.source")}
+            </Button>
+          </div>
+        )}
         <OpenInEditorButton filePath={filePath} />
       </div>
 
@@ -134,17 +172,45 @@ export const InlineFilePreview = memo(function InlineFilePreview({
             />
           </Suspense>
         )}
+        {preview && !loading && content === null && preview.data && (
+          <FileViewer
+            className="h-full min-h-0"
+            buffer={toPreviewArrayBuffer(preview.data)}
+            name={preview.fileName}
+            type={preview.extension.slice(1)}
+            size={preview.size}
+            options={{
+              preset: [officeRenderers, liteRenderers],
+              rendererMode: "replace",
+              theme: resolvedTheme === "dark" ? "dark" : "light",
+              styleIsolation: "auto",
+              toolbar: { download: false, print: false, exportHtml: false },
+              ui: { density: "compact", surfaceBackground: "transparent" },
+            }}
+          />
+        )}
+        {preview?.kind === "unsupported" && !loading && (
+          <UnsupportedPreview error={preview.error ?? t("filePreview.unsupported")} />
+        )}
       </div>
 
-      {content !== null && !loading && (
+      {preview && !loading && (
         <div className="flex items-center gap-2 border-t border-foreground/[0.08] px-3 py-1 text-[10px] text-muted-foreground/50">
-          <span>{t("filePreview.lines", { count: lineCount })}</span>
-          <span className="text-muted-foreground/30">•</span>
-          <span>{language}</span>
-          <span className="text-muted-foreground/30">•</span>
-          <span>{fileSize}</span>
+          {content !== null && <><span>{t("filePreview.lines", { count: lineCount })}</span><span className="text-muted-foreground/30">•</span><span>{language}</span><span className="text-muted-foreground/30">•</span></>}
+          <span>{formatFileSize(preview.size)}</span>
         </div>
       )}
     </div>
   );
 });
+
+function UnsupportedPreview({ error }: { error: string }) {
+  return (
+    <div className="flex h-full items-center justify-center p-6">
+      <div className="flex max-w-sm flex-col items-center gap-2 text-center text-xs text-muted-foreground/60">
+        <FileWarning className="h-5 w-5" />
+        <p>{error}</p>
+      </div>
+    </div>
+  );
+}

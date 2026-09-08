@@ -59,6 +59,10 @@
   "dependencies": {
     "@agentclientprotocol/sdk": "^0.15.0",
     "@earendil-works/pi-coding-agent": "0.84.1",
+    "@file-viewer/ppt": "0.3.3",
+    "@file-viewer/preset-lite": "3.0.2",
+    "@file-viewer/preset-office": "3.0.2",
+    "@file-viewer/react": "3.0.2",
     "@fontsource-variable/noto-serif-sc": "^5.2.10",
     "@fontsource-variable/source-serif-4": "^5.2.9",
     "@fontsource/instrument-serif": "^5.2.8",
@@ -91,6 +95,7 @@
     "@electron/asar": "3.4.1",
     "@electron/notarize": "^3.1.0",
     "@electron/rebuild": "^4.0.3",
+    "@file-viewer/vite-plugin": "3.0.2",
     "@playwright/test": "1.62.1",
     "@tailwindcss/typography": "^0.5.19",
     "@tailwindcss/vite": "^4.1.18",

@@ -22,5 +22,9 @@ build/.icon-backup-orig/
 !.serena/project.yml
 .harnss/agent-workflow/
 
+# Generated locally by @file-viewer/vite-plugin; it recreates these during dev and build.
+public/flyfish-viewer-assets.json
+public/vendor/
+
 # Added by code-review-graph
 .code-review-graph/

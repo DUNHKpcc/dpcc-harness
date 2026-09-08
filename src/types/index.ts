@@ -82,6 +82,11 @@ export type {
   GrabbedElement,
 } from "./attachments";
 
+export type {
+  FilePreviewKind,
+  FilePreviewResult,
+} from "@shared/types/file-preview";
+
 // ── Permission types ──
 
 export type {

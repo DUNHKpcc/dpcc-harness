@@ -30,6 +30,10 @@
   "filePreview": {
     "selectFile": "从右侧选择文件以预览",
     "readError": "无法读取文件",
+    "markdownMode": "Markdown 显示模式",
+    "preview": "预览",
+    "source": "源码",
+    "unsupported": "PccAgent 暂不支持预览此文件。",
     "lines_other": "{{count}} 行"
   },
   "projectFiles": {

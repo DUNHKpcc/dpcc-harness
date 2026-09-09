@@ -9,6 +9,7 @@ import {
   PI_CONTEXT_BRIDGE_PREFIX,
   piContextSummaryMessage,
 } from "../pi-context-bridge";
+import { getPiContextSnapshots, recordPiContextSnapshot, replacePiContextSnapshots, clearPiContextSnapshots } from "../pi-context-store";
 
 function payload(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -31,6 +32,20 @@ function payload(overrides: Record<string, unknown> = {}): Record<string, unknow
 }
 
 describe("Pi context bridge", () => {
+  it("does not cache empty snapshots but keeps populated ones", () => {
+    const sessionId = "cache-test";
+    clearPiContextSnapshots(sessionId);
+    const empty = parsePiContextSnapshot(payload({ usedTokens: 0, breakdown: {} }));
+    const populated = parsePiContextSnapshot(payload({ usedTokens: 12 }));
+    if (!empty || !populated) throw new Error("cache fixtures did not parse");
+    recordPiContextSnapshot(sessionId, empty);
+    expect(getPiContextSnapshots(sessionId)).toHaveLength(0);
+    recordPiContextSnapshot(sessionId, populated);
+    expect(getPiContextSnapshots(sessionId)).toHaveLength(1);
+    replacePiContextSnapshots(sessionId, [payload({ id: "empty", usedTokens: 0, breakdown: {} })]);
+    expect(getPiContextSnapshots(sessionId)).toHaveLength(0);
+    clearPiContextSnapshots(sessionId);
+  });
   it("accepts bounded Pi composition metadata", () => {
     const snapshot = parsePiContextBridgeMessage(
       `${PI_CONTEXT_BRIDGE_PREFIX}${JSON.stringify(payload({

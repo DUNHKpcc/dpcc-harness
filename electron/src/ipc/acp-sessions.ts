@@ -1065,9 +1065,9 @@ async function createAcpConnection(
   log(
     logLabel,
     `Launched ${agentDef.name} host=${path.basename(agentDef.binary)} pid=${proc.pid ?? "pending"}`
-      + ` piAcp=${agentDef.adapterVersion ?? "custom"}`
-      + ` pi=${agentDef.piVersion ?? "n/a"}`
-      + ` piMcp=${agentDef.mcpAdapterVersion ?? "n/a"}`,
+    + ` piAcp=${agentDef.adapterVersion ?? "custom"}`
+    + ` pi=${agentDef.piVersion ?? "n/a"}`
+    + ` piMcp=${agentDef.mcpAdapterVersion ?? "n/a"}`,
   );
   reclaimMacDockFocus(getMainWindow, "acp-start");
   onSpawn?.(internalId, proc);
@@ -1214,7 +1214,8 @@ async function createAcpConnection(
         const eventKind = (update as { sessionUpdate: string }).sessionUpdate;
         if (eventKind === "agent_message_chunk" && !observed.diagnostic) {
           const text = (update as { content?: { text?: string } }).content?.text ?? "";
-          if (text && entry.utilityTextBuffers) {
+          // 忽略该字段，避免污染session title.
+          if (text && !text.startsWith("__PCC_AGENT_PI_CONTEXT_V1__:") && entry.utilityTextBuffers) {
             const current = entry.utilityTextBuffers.get(acpSessionId) ?? "";
             entry.utilityTextBuffers.set(acpSessionId, current + text);
           }

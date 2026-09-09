@@ -10,6 +10,14 @@ const snapshotsBySession = new Map<string, PiContextSnapshot[]>();
 const listeners = new Set<() => void>();
 const EMPTY_SNAPSHOTS: readonly PiContextSnapshot[] = [];
 
+//仅保留有内容的快照
+function hasSnapshotContent(snapshot: PiContextSnapshot): boolean {
+  return (snapshot.usedTokens ?? 0) > 0
+    || Boolean(snapshot.compaction)
+    || Boolean(snapshot.details && (snapshot.details.systemPrompt.tokenEstimate > 0
+      || snapshot.details.tools.length > 0 || snapshot.details.timeline.length > 0));
+}
+
 function notify(): void {
   for (const listener of listeners) listener();
 }
@@ -20,6 +28,7 @@ export function getPiContextSnapshots(sessionId: string | null | undefined): rea
 }
 
 export function recordPiContextSnapshot(sessionId: string, snapshot: PiContextSnapshot): void {
+  if (!hasSnapshotContent(snapshot)) return;
   const previous = snapshotsBySession.get(sessionId) ?? EMPTY_SNAPSHOTS;
   const next = appendPiContextSnapshot(previous, snapshot);
   snapshotsBySession.set(sessionId, next);
@@ -44,7 +53,7 @@ export function replacePiContextSnapshots(sessionId: string, values: readonly un
       ? "legacy"
       : "pi-extension";
     const snapshot = parsePiContextSnapshot(value, source);
-    if (snapshot) next = appendPiContextSnapshot(next, snapshot);
+    if (snapshot && hasSnapshotContent(snapshot)) next = appendPiContextSnapshot(next, snapshot);
   }
   if (next.length === 0) {
     snapshotsBySession.delete(sessionId);

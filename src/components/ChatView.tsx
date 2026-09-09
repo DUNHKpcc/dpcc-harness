@@ -25,7 +25,7 @@ import {
   shouldUnlockBottomLock,
 } from "@/lib/chat/scroll";
 import { estimateRowHeight } from "@/lib/chat/virtualization";
-import { CHAT_ROW_CLASS } from "@/components/lib/chat-layout";
+import { CHAT_CONTENT_WIDTH_CLASS, CHAT_ROW_CLASS } from "@/components/lib/chat-layout";
 import { useSettingsStore } from "@/stores/settings-store";
 
 // ── Row model ──
@@ -852,7 +852,7 @@ function ChatViewContent({
         onScroll={handleScroll}
         onPointerDown={handlePointerDown}
       >
-        <div style={chatContentStyle}>
+        <div className={CHAT_CONTENT_WIDTH_CLASS} style={chatContentStyle}>
           {/* Single spacer for all unhydrated rows — 1 div instead of hundreds */}
           {unhydratedHeight > 0 && (
             <div style={{ height: `${unhydratedHeight}px` }} aria-hidden />

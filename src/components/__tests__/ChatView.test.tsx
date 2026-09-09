@@ -5,6 +5,8 @@ import type { UIMessage } from "@/types";
 import { estimateRowHeight } from "@/lib/chat/virtualization";
 import { shouldRenderChatContentImmediately } from "../ChatView";
 import { MessageBubble } from "../MessageBubble";
+import { CHAT_CONTENT_WIDTH_CLASS } from "../lib/chat-layout";
+import { BOTTOM_CHAT_MAX_WIDTH_CLASS } from "@/lib/layout/constants";
 import { TooltipProvider } from "../ui/tooltip";
 
 function createImageMessage(imageCount: number): UIMessage {
@@ -29,6 +31,10 @@ describe("ChatView", () => {
 
   it("keeps the empty initial state available for deferred loading", () => {
     expect(shouldRenderChatContentImmediately(0)).toBe(false);
+  });
+
+  it("uses the same width boundary as the bottom composer", () => {
+    expect(CHAT_CONTENT_WIDTH_CLASS).toBe(`mx-auto w-full ${BOTTOM_CHAT_MAX_WIDTH_CLASS}`);
   });
 
   it("keeps sent image attachments outside the text bubble in a responsive horizontal strip", () => {

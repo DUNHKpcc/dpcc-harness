@@ -1,4 +1,7 @@
+import { BOTTOM_CHAT_MAX_WIDTH_CLASS } from "@/lib/layout/constants";
+
 export const CHAT_ROW_CLASS = "px-4 py-1";
+export const CHAT_CONTENT_WIDTH_CLASS = `mx-auto w-full ${BOTTOM_CHAT_MAX_WIDTH_CLASS}`;
 export const CHAT_ROW_WIDTH_CLASS = "min-w-0 max-w-[85%]";
 export const CHAT_CARD_ROW_MARGIN_CLASS = "mx-4 my-1";
 export const CHAT_CONTENT_STACK_CLASS = "space-y-2";

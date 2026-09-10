@@ -120,11 +120,12 @@ export const ProjectFilesPanel = memo(function ProjectFilesPanel({
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
-  const fileBrowserResize = useFileBrowserResize();
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Inline creation state: { parentDir (relative), type }
   const [creating, setCreating] = useState<{ parentDir: string; type: "file" | "folder" } | null>(null);
+  const fileBrowserResize = useFileBrowserResize("project-files");
+  const isListHidden = fileBrowserResize.isListHidden;
 
   // Debounce search input
   const handleSearchChange = useCallback((value: string) => {
@@ -239,107 +240,115 @@ export const ProjectFilesPanel = memo(function ProjectFilesPanel({
   }
 
   return (
-    <div data-file-browser-layout="project-files" className="file-browser-layout flex h-full min-h-0 min-w-0 flex-col">
+    <div
+      data-file-browser-layout="project-files"
+      data-file-browser-list-hidden={isListHidden ? "true" : "false"}
+      className="file-browser-layout relative flex h-full min-h-0 min-w-0 flex-col"
+    >
       <div ref={fileBrowserResize.contentRef} className="file-browser-content min-h-0 flex-1" style={fileBrowserResize.contentStyle}>
         <section data-file-browser-preview className="file-browser-preview">
-          <InlineFilePreview filePath={selectedFilePath} />
+          <InlineFilePreview filePath={selectedFilePath} isListHidden={isListHidden} onToggleList={fileBrowserResize.toggleListVisibility} listToggleLabel={isListHidden ? t("projectFiles.showList") : t("projectFiles.hideList")} />
         </section>
-        <div
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="调整文件列表宽度"
-          data-file-browser-resize-handle
-          className="file-browser-resize-handle group flex w-2 shrink-0 cursor-col-resize items-center justify-center"
-          onMouseDown={fileBrowserResize.handleResizeStart}
-        >
-          <div className={`h-10 w-0.5 rounded-full transition-colors duration-150 ${fileBrowserResize.isResizing ? "bg-foreground/40" : "bg-transparent group-hover:bg-foreground/25"}`} />
-        </div>
-        <aside data-file-browser-list className="file-browser-list flex flex-col">
-          <PanelHeader icon={FolderTree} label={t("projectFiles.title")} iconClass="text-teal-600/70 dark:text-teal-200/50">
-            {totalFiles > 0 && (
-              <span className="text-[10px] tabular-nums text-foreground/35">{totalFiles}</span>
-            )}
-            <button
-              type="button"
-              onClick={refresh}
-              className="inline-flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-md text-foreground/35 transition-colors hover:bg-foreground/[0.06] hover:text-foreground/60"
-              title={t("projectFiles.refresh")}
+        {!isListHidden && (
+          <>
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="调整文件列表宽度"
+              data-file-browser-resize-handle
+              className="file-browser-resize-handle group flex w-2 shrink-0 cursor-col-resize items-center justify-center"
+              onMouseDown={fileBrowserResize.handleResizeStart}
             >
-              <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
-            </button>
-            {headerControls}
-          </PanelHeader>
+              <div className={`h-10 w-0.5 rounded-full transition-colors duration-150 ${fileBrowserResize.isResizing ? "bg-foreground/40" : "bg-transparent group-hover:bg-foreground/25"}`} />
+            </div>
+            <aside data-file-browser-list className="file-browser-list flex flex-col">
+              <PanelHeader icon={FolderTree} label={t("projectFiles.title")} iconClass="text-teal-600/70 dark:text-teal-200/50">
+                {totalFiles > 0 && (
+                  <span className="text-[10px] tabular-nums text-foreground/35">{totalFiles}</span>
+                )}
+                <button
+                  type="button"
+                  onClick={refresh}
+                  className="inline-flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-md text-foreground/35 transition-colors hover:bg-foreground/[0.06] hover:text-foreground/60"
+                  title={t("projectFiles.refresh")}
+                >
+                  <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
+                </button>
+                {headerControls}
+              </PanelHeader>
 
-          <div className="flex items-center gap-1.5 px-3 py-1">
-            <Search className="h-3 w-3 shrink-0 text-foreground/25" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              placeholder={t("projectFiles.searchPlaceholder")}
-              className="h-5 w-full bg-transparent text-[11px] text-foreground/75 outline-none placeholder:text-foreground/25"
-            />
-          </div>
-          <div className="mx-2"><div className="h-px bg-foreground/[0.06]" /></div>
+              <div className="flex items-center gap-1.5 px-3 py-1">
+                <Search className="h-3 w-3 shrink-0 text-foreground/25" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  placeholder={t("projectFiles.searchPlaceholder")}
+                  className="h-5 w-full bg-transparent text-[11px] text-foreground/75 outline-none placeholder:text-foreground/25"
+                />
+              </div>
+              <div className="mx-2"><div className="h-px bg-foreground/[0.06]" /></div>
 
-          <ScrollArea className="min-h-0 flex-1">
-        {loading && !tree && (
-          <div className="flex flex-col items-center justify-center gap-1 py-6">
-            <RefreshCw className="h-3 w-3 animate-spin text-foreground/25" />
-            <p className="text-[10px] text-foreground/30">{t("projectFiles.loading")}</p>
-          </div>
+              <ScrollArea className="min-h-0 flex-1">
+                {loading && !tree && (
+                  <div className="flex flex-col items-center justify-center gap-1 py-6">
+                    <RefreshCw className="h-3 w-3 animate-spin text-foreground/25" />
+                    <p className="text-[10px] text-foreground/30">{t("projectFiles.loading")}</p>
+                  </div>
+                )}
+
+                {error && (
+                  <div className="px-3 py-2">
+                    <p className="text-[10px] text-destructive">{error}</p>
+                  </div>
+                )}
+
+                {flatItems.length === 0 && !loading && !error && tree && (
+                  <div className="flex items-center justify-center py-6">
+                    <p className="text-[10px] text-foreground/30">
+                      {debouncedQuery ? t("projectFiles.noMatches", { query: debouncedQuery }) : t("projectFiles.noFiles")}
+                    </p>
+                  </div>
+                )}
+
+                <div className="py-1">
+                  {flatItems.map((item) => (
+                    <FileTreeRow
+                      key={item.node.path}
+                      node={item.node}
+                      depth={item.depth}
+                      isExpanded={item.isExpanded}
+                      isSelected={selectedFilePath === `${cwd}/${item.node.path}`}
+                      cwd={cwd}
+                      t={t}
+                      onToggleDir={toggleDir}
+                      onFileClick={handleFileClick}
+                      onRefresh={refresh}
+                      onStartCreate={handleStartCreate}
+                      creatingUnder={
+                        creating && creating.parentDir === item.node.path
+                          ? creating.type
+                          : null
+                      }
+                      onCommitCreate={handleCommitCreate}
+                      onCancelCreate={handleCancelCreate}
+                    />
+                  ))}
+                  {/* Inline creation at root level */}
+                  {creating && creating.parentDir === "" && (
+                    <InlineCreateInput
+                      depth={0}
+                      type={creating.type}
+                      t={t}
+                      onCommit={handleCommitCreate}
+                      onCancel={handleCancelCreate}
+                    />
+                  )}
+                </div>
+              </ScrollArea>
+            </aside>
+          </>
         )}
-
-        {error && (
-          <div className="px-3 py-2">
-            <p className="text-[10px] text-destructive">{error}</p>
-          </div>
-        )}
-
-        {flatItems.length === 0 && !loading && !error && tree && (
-          <div className="flex items-center justify-center py-6">
-            <p className="text-[10px] text-foreground/30">
-              {debouncedQuery ? t("projectFiles.noMatches", { query: debouncedQuery }) : t("projectFiles.noFiles")}
-            </p>
-          </div>
-        )}
-
-        <div className="py-1">
-          {flatItems.map((item) => (
-            <FileTreeRow
-              key={item.node.path}
-              node={item.node}
-              depth={item.depth}
-              isExpanded={item.isExpanded}
-              isSelected={selectedFilePath === `${cwd}/${item.node.path}`}
-              cwd={cwd}
-              t={t}
-              onToggleDir={toggleDir}
-              onFileClick={handleFileClick}
-              onRefresh={refresh}
-              onStartCreate={handleStartCreate}
-              creatingUnder={
-                creating && creating.parentDir === item.node.path
-                  ? creating.type
-                  : null
-              }
-              onCommitCreate={handleCommitCreate}
-              onCancelCreate={handleCancelCreate}
-            />
-          ))}
-          {/* Inline creation at root level */}
-          {creating && creating.parentDir === "" && (
-            <InlineCreateInput
-              depth={0}
-              type={creating.type}
-              t={t}
-              onCommit={handleCommitCreate}
-              onCancel={handleCancelCreate}
-            />
-          )}
-        </div>
-          </ScrollArea>
-        </aside>
       </div>
     </div>
   );

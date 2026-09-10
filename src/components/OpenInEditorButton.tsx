@@ -31,8 +31,8 @@ export const OpenInEditorButton = memo(function OpenInEditorButton({
           type="button"
           onClick={handleClick}
           className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md
-            text-foreground/0 transition-all duration-150
-            group-hover:text-foreground/25 hover:!text-foreground/60 hover:bg-foreground/[0.06]
+            text-foreground/35 transition-colors duration-150
+            hover:text-foreground/70 hover:bg-foreground/[0.06]
             active:scale-90 cursor-pointer ${className}`}
         >
           <ExternalLink className="h-3 w-3" strokeWidth={2} />

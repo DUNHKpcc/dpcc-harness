@@ -25,7 +25,9 @@
   "files": {
     "title": "打开的文件",
     "indexing": "正在索引…",
-    "empty": "访问过的文件将显示在这里"
+    "empty": "访问过的文件将显示在这里",
+    "hideList": "隐藏文件列表",
+    "showList": "显示文件列表"
   },
   "filePreview": {
     "selectFile": "从右侧选择文件以预览",
@@ -41,6 +43,8 @@
     "noProject": "未选择项目",
     "refresh": "刷新文件",
     "searchPlaceholder": "搜索文件…",
+    "hideList": "隐藏文件列表",
+    "showList": "显示文件列表",
     "loading": "加载中…",
     "noMatches": "未找到与 \"{{query}}\" 匹配的内容",
     "noFiles": "未找到文件",

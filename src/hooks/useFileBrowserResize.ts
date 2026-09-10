@@ -6,18 +6,21 @@ import {
   FILE_BROWSER_RESIZE_HANDLE_WIDTH,
 } from "@/lib/layout/constants";
 
-const STORAGE_KEY = "harnss-file-browser-list-width";
 const DEFAULT_LIST_WIDTH = 360;
+const STORAGE_KEY_PREFIX = "harnss-file-browser";
 
-function getStoredWidth(): number {
-  const stored = Number(window.localStorage.getItem(STORAGE_KEY));
-  return Number.isFinite(stored) && stored >= FILE_BROWSER_LIST_MIN_WIDTH
-    ? stored
-    : DEFAULT_LIST_WIDTH;
-}
+export function useFileBrowserResize(storageKeyPrefix = "default") {
+  const widthStorageKey = `${STORAGE_KEY_PREFIX}-list-width-${storageKeyPrefix}`;
+  const hiddenStorageKey = `${STORAGE_KEY_PREFIX}-list-hidden-${storageKeyPrefix}`;
 
-export function useFileBrowserResize() {
-  const [listWidth, setListWidth] = useState(getStoredWidth);
+  const [listWidth, setListWidth] = useState(() => {
+    const stored = Number(window.localStorage.getItem(widthStorageKey));
+    return Number.isFinite(stored) && stored >= FILE_BROWSER_LIST_MIN_WIDTH
+      ? stored
+      : DEFAULT_LIST_WIDTH;
+  });
+
+  const [isListHidden, setIsListHidden] = useState(() => window.localStorage.getItem(hiddenStorageKey) === "true");
   const [isResizing, setIsResizing] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const listWidthRef = useRef(listWidth);
@@ -47,15 +50,25 @@ export function useFileBrowserResize() {
       },
       () => {
         setIsResizing(false);
-        window.localStorage.setItem(STORAGE_KEY, String(Math.round(listWidthRef.current)));
+        window.localStorage.setItem(widthStorageKey, String(Math.round(listWidthRef.current)));
       },
     );
-  }, [bindDocumentMouseDrag]);
+  }, [bindDocumentMouseDrag, widthStorageKey]);
+
+  const toggleListVisibility = useCallback(() => {
+    setIsListHidden((current) => {
+      const next = !current;
+      window.localStorage.setItem(hiddenStorageKey, String(next));
+      return next;
+    });
+  }, [hiddenStorageKey]);
 
   return {
     contentRef,
     isResizing,
+    isListHidden,
     handleResizeStart,
+    toggleListVisibility,
     contentStyle: {
       "--file-browser-list-width": `${listWidth}px`,
       "--file-browser-list-min-width": `${FILE_BROWSER_LIST_MIN_WIDTH}px`,

@@ -25,7 +25,9 @@
   "files": {
     "title": "Open Files",
     "indexing": "Indexing…",
-    "empty": "Accessed files will appear here"
+    "empty": "Accessed files will appear here",
+    "hideList": "Hide file list",
+    "showList": "Show file list"
   },
   "filePreview": {
     "selectFile": "Select a file from the list to preview",
@@ -42,6 +44,8 @@
     "noProject": "No project selected",
     "refresh": "Refresh files",
     "searchPlaceholder": "Search files…",
+    "hideList": "Hide file list",
+    "showList": "Show file list",
     "loading": "Loading…",
     "noMatches": "No matches for \"{{query}}\"",
     "noFiles": "No files found",

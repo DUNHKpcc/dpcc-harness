@@ -18,8 +18,10 @@ export const WINDOWS_FRAME_BUFFER_WIDTH = 16;
 export const MIN_RIGHT_PANEL_WIDTH = 200;
 export const MIN_TOOLS_PANEL_WIDTH = 280;
 
-export const FILE_BROWSER_LIST_MIN_WIDTH = 280;
-export const FILE_BROWSER_PREVIEW_MIN_WIDTH = 240;
+// Keep the file list usable but give the selected-file preview the dominant
+// share of narrow tool panels.
+export const FILE_BROWSER_LIST_MIN_WIDTH = 200;
+export const FILE_BROWSER_PREVIEW_MIN_WIDTH = 320;
 export const FILE_BROWSER_RESIZE_HANDLE_WIDTH = 8;
 export const FILE_BROWSER_PANEL_MIN_WIDTH =
   FILE_BROWSER_LIST_MIN_WIDTH

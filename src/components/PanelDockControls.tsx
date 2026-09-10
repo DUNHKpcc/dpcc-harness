@@ -31,6 +31,22 @@ export const PanelDockControls = memo(function PanelDockControls({
 
   return (
     <>
+      {onClose && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-foreground/25 transition-colors hover:bg-foreground/[0.05] hover:text-foreground/55"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="left" sideOffset={8}>
+            <p className="text-xs font-medium">{resolvedCloseLabel}</p>
+          </TooltipContent>
+        </Tooltip>
+      )}
       <Tooltip>
         <TooltipTrigger asChild>
           <button
@@ -61,22 +77,6 @@ export const PanelDockControls = memo(function PanelDockControls({
           <p className="text-xs font-medium">{t("dock.dragToDock")}</p>
         </TooltipContent>
       </Tooltip>
-      {onClose && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex h-5 w-5 items-center justify-center rounded-md text-foreground/25 transition-colors hover:bg-foreground/[0.05] hover:text-foreground/55"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="left" sideOffset={8}>
-            <p className="text-xs font-medium">{resolvedCloseLabel}</p>
-          </TooltipContent>
-        </Tooltip>
-      )}
     </>
   );
 });

@@ -202,6 +202,50 @@
   background: var(--background);
 }
 
+.inline-file-preview-shell {
+  @apply flex h-full min-h-0 min-w-0 flex-col;
+}
+
+.inline-file-preview-placeholder {
+  @apply flex h-full min-h-0 items-center justify-center p-6 text-center text-xs text-muted-foreground/50;
+}
+
+.inline-file-preview-header {
+  @apply flex min-w-0 items-center gap-2 border-b border-foreground/[0.08] px-3 py-2;
+}
+
+.inline-file-preview-mode-switch {
+  @apply relative grid shrink-0 grid-cols-2 rounded-md bg-muted p-0.5;
+}
+
+.inline-file-preview-mode-thumb {
+  @apply pointer-events-none absolute inset-y-0.5 left-0.5 w-[calc(50%-0.125rem)] rounded-[5px] bg-secondary shadow-none transition-transform duration-150;
+}
+
+.inline-file-preview-mode-switch.is-source .inline-file-preview-mode-thumb {
+  transform: translateX(100%);
+}
+
+.inline-file-preview-list-toggle {
+  @apply inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-foreground/25 transition-colors hover:bg-foreground/[0.05] hover:text-foreground/55;
+}
+
+.inline-file-preview-content {
+  @apply relative min-h-0 flex-1 overflow-hidden;
+}
+
+.inline-file-preview-state {
+  @apply flex h-full items-center justify-center p-6;
+}
+
+.inline-file-preview-empty {
+  @apply flex max-w-sm flex-col items-center gap-2 text-center text-xs text-muted-foreground/60;
+}
+
+.inline-file-preview-footer {
+  @apply flex items-center gap-2 border-t border-foreground/[0.08] px-3 py-1 text-[10px] text-muted-foreground/50;
+}
+
 /* Monaco's built-in light theme paints pure white. Let the surrounding
    workspace surface show through so previews use the active project's tint. */
 .file-browser-preview .monaco-editor,

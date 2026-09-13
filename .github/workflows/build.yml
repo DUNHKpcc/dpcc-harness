@@ -82,6 +82,8 @@ jobs:
         run: pnpm install
 
       - name: Build app
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
         run: pnpm build
 
       - name: Package (mac arm64 + x64)
@@ -160,6 +162,8 @@ jobs:
         run: pnpm install --no-frozen-lockfile
 
       - name: Build app
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
         run: pnpm build
 
       - name: Bundle PortableGit (win x64)
@@ -286,6 +290,8 @@ jobs:
         run: pnpm install --no-frozen-lockfile
 
       - name: Build app
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
         run: pnpm build
 
       - name: Package (linux x64)

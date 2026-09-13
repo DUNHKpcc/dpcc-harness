@@ -20,6 +20,12 @@ function release(version: string, date: string, changeKeys: readonly string[]): 
 
 /** Bundled release history, newest first, so settings remain useful offline. */
 export const RELEASE_HISTORY: readonly ReleaseHistoryEntry[] = [
+  release("3.0.0", "2026-09-13", [
+    "piFirstRuntime",
+    "workspaceTools",
+    "fileWorkspace",
+    "sessionReliability",
+  ]),
   release("2.2.4", "2026-08-18", [
     "piConfiguration",
     "modelThinkingControls",

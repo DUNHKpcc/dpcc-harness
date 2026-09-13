@@ -26,9 +26,9 @@ describe("AboutSettings", () => {
 
     expect(INITIAL_RELEASE_HISTORY_LIMIT).toBe(3);
     expect(html).toContain("Release history");
-    expect(html).toContain("v2.2.2");
+    expect(html).toContain("v3.0.0");
     expect(html).toContain('aria-expanded="true"');
-    expect(html).toContain("release-details-v2_2_4");
+    expect(html).toContain("release-details-v3_0_0");
     expect(html).toContain("Show older releases");
   });
 

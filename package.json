@@ -1,6 +1,6 @@
 {
   "name": "pcc-agent",
-  "version": "2.2.4",
+  "version": "3.0.0",
   "productName": "PccAgent",
   "description": "Desktop client for Pi and custom ACP coding agents",
   "author": {

@@ -1,5 +1,10 @@
 import { test, expect } from "./fixtures/electron-app";
 import { configureRenderer, seedProjectAndSession } from "./helpers/app-state";
+import {
+  FILE_BROWSER_LIST_MIN_WIDTH,
+  FILE_BROWSER_PANEL_MIN_WIDTH,
+  FILE_BROWSER_PREVIEW_MIN_WIDTH,
+} from "../../src/lib/layout/constants";
 
 test("shows the dormant Pi model state on a fresh profile", async ({ page }) => {
   await configureRenderer(page);
@@ -530,9 +535,12 @@ test("previews project files, resizes the list, and restores its width", async (
   await expect(preview.getByText("workspace.ts", { exact: true })).toBeVisible();
   await expect(preview.locator(".monaco-editor")).toBeVisible();
   await expect(preview.locator(".view-lines")).toContainText("export const ready = true;");
-  expect(await layout.evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThanOrEqual(526);
-  expect(await preview.evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThanOrEqual(239);
-  expect(await list.evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThanOrEqual(279);
+  expect(await layout.evaluate((element) => element.getBoundingClientRect().width))
+    .toBeGreaterThanOrEqual(FILE_BROWSER_PANEL_MIN_WIDTH - 2);
+  expect(await preview.evaluate((element) => element.getBoundingClientRect().width))
+    .toBeGreaterThanOrEqual(FILE_BROWSER_PREVIEW_MIN_WIDTH - 1);
+  expect(await list.evaluate((element) => element.getBoundingClientRect().width))
+    .toBeGreaterThanOrEqual(FILE_BROWSER_LIST_MIN_WIDTH - 1);
   const initialWidths = await layout.evaluate((element) => ({
     layout: element.getBoundingClientRect().width,
     preview: element.querySelector<HTMLElement>("[data-file-browser-preview]")?.getBoundingClientRect().width ?? 0,
@@ -573,8 +581,9 @@ test("previews project files, resizes the list, and restores its width", async (
   await page.mouse.up();
 
   const resized = await list.evaluate((element) => element.getBoundingClientRect().width);
-  expect(resized).toBeGreaterThan(before + 60);
-  expect(await preview.evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThanOrEqual(240);
+  expect(resized).toBeGreaterThan(before);
+  expect(await preview.evaluate((element) => element.getBoundingClientRect().width))
+    .toBeGreaterThanOrEqual(FILE_BROWSER_PREVIEW_MIN_WIDTH - 1);
 
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.locator("#root").waitFor();

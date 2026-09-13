@@ -533,6 +533,13 @@
       "showOlder": "显示更早版本",
       "showLess": "收起早期版本",
       "entries": {
+        "v3_0_0": {
+          "title": "Pi 优先运行时与全新工作区",
+          "piFirstRuntime": "PccAgent 现以内置离线 Pi ACP runtime 作为唯一内置 live Agent，同时继续支持使用独立配置和凭证的自定义 ACP agent。",
+          "workspaceTools": "工作区重新整合 Project Files、文件预览、MCP 工具、上下文查看和 Session 控件，布局更加清晰统一。",
+          "fileWorkspace": "Files 与 Project Files 现在采用预览和列表并排布局，支持渲染/源码预览切换、持久化列表显示与宽度，以及直接在编辑器中打开文件。",
+          "sessionReliability": "Pi Session 在休眠时会保留缓存的 Model 和命令控件，仅在真正发送 Prompt 时启动，并更可靠地恢复 turn、工具和上下文状态。"
+        },
         "v2_2_4": {
           "title": "独立 Pi 路由与原生 macOS 控制",
           "piConfiguration": "Pi ACP 现可独立选择 DPCC、本机 Pi 配置或专属第三方网关，不再跟随 Claude 与 Codex；托管模式的凭证仅注入隔离的 Pi 进程。",

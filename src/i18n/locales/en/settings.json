@@ -533,6 +533,13 @@
       "showOlder": "Show older releases",
       "showLess": "Hide older releases",
       "entries": {
+        "v3_0_0": {
+          "title": "Pi-first runtime and a refreshed workspace",
+          "piFirstRuntime": "PccAgent now uses the bundled offline Pi ACP runtime as its built-in live Agent, while custom ACP agents remain supported with their own configuration and credentials.",
+          "workspaceTools": "The workspace now brings project files, file previews, MCP tools, context inspection, and session controls together with a clearer, more consistent layout.",
+          "fileWorkspace": "Files and Project Files use a side-by-side preview and list, with rendered/source preview modes, persistent list visibility and width, and a direct Open in Editor action.",
+          "sessionReliability": "Pi sessions now preserve cached model and command controls while dormant, start only when a real prompt is sent, and recover turn, tool, and context state more reliably."
+        },
         "v2_2_4": {
           "title": "Independent Pi routing and native macOS controls",
           "piConfiguration": "Pi ACP can now use DPCC, the local Pi configuration, or its own third-party gateway independently from Claude and Codex, with managed credentials isolated to the Pi process.",

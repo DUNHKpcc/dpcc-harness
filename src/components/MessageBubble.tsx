@@ -321,10 +321,10 @@ export const MessageBubble = memo(function MessageBubble({
   if (isUser) {
     return (
       <div className={cn("group/user flex justify-end", CHAT_ROW_CLASS, message.isQueued && "opacity-60")}>
-        <div className="relative flex min-w-0 max-w-[var(--chat-user-message-max-width,80%)] flex-col items-end">
+        <div className="relative flex w-full min-w-0 max-w-[var(--chat-user-message-max-width,80%)] flex-col items-end">
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className="flex min-w-0 max-w-full flex-col items-end">
+              <div className="flex w-full min-w-0 max-w-full flex-col items-end">
                 {hasMessageImages && (
                   <div
                     data-slot="message-image-strip"
@@ -359,7 +359,7 @@ export const MessageBubble = memo(function MessageBubble({
                   <div
                     data-slot="user-message-bubble"
                     className={cn(
-                      "rounded-2xl rounded-tr-sm bg-foreground/[0.06] px-3.5 py-2 text-sm text-foreground wrap-break-word whitespace-pre-wrap",
+                      "max-w-full rounded-2xl rounded-tr-sm bg-foreground/[0.06] px-3.5 py-2 text-sm text-foreground wrap-anywhere whitespace-pre-wrap",
                       message.isQueued && !isSendNextQueued && "border border-dashed border-foreground/10",
                       message.isQueued && isSendNextQueued && "border border-dashed border-red-400/50",
                     )}

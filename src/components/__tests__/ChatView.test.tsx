@@ -70,4 +70,24 @@ describe("ChatView", () => {
     expect(stripIndex).toBeGreaterThanOrEqual(0);
     expect(bubbleIndex).toBeGreaterThan(stripIndex);
   });
+
+  it("keeps long unbroken user text inside the chat width", () => {
+    const message: UIMessage = {
+      id: "long-user-message",
+      role: "user",
+      content: "at cn.edu.neu.service.impl.UserServiceImpl.addUser(UserServiceImpl.java:62)".repeat(20),
+      timestamp: 0,
+    };
+    const markup = renderToStaticMarkup(
+      createElement(
+        TooltipProvider,
+        null,
+        createElement(MessageBubble, { message }),
+      ),
+    );
+
+    expect(markup).toContain("w-full min-w-0 max-w-[var(--chat-user-message-max-width,80%)]");
+    expect(markup).toContain("max-w-full rounded-2xl");
+    expect(markup).toContain("wrap-anywhere whitespace-pre-wrap");
+  });
 });

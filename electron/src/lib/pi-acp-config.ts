@@ -23,6 +23,8 @@ import {
   resolveBundledPiRuntime,
 } from "./bundled-pi-runtime";
 import { getPiPackageLaunchResources } from "./pi-package-store";
+import { getAppSetting } from "./app-settings";
+import { resolveTerminalShell } from "./terminal-shell";
 
 const PI_DPCC_CLAUDE_ENV_KEY = "PCC_AGENT_PI_DPCC_CLAUDE_KEY";
 const PI_DPCC_CODEX_ENV_KEY = "PCC_AGENT_PI_DPCC_CODEX_KEY";
@@ -40,6 +42,45 @@ function piRuntimeError(code: string, message: string): Error & { code: string }
   const error = new Error(message) as Error & { code: string };
   error.code = code;
   return error;
+}
+
+function appendPathEntry(env: NodeJS.ProcessEnv, entry: string): NodeJS.ProcessEnv {
+  if (!entry.trim()) return env;
+  const pathKey = Object.keys(env).find((key) => key.toLowerCase() === "path") ?? "PATH";
+  const current = env[pathKey] ?? "";
+  const delimiter = process.platform === "win32" ? ";" : ":";
+  const entries = current.split(delimiter).filter(Boolean);
+  const normalizedEntry = process.platform === "win32" ? entry.toLowerCase() : entry;
+  if (!entries.some((candidate) => (
+    process.platform === "win32" ? candidate.toLowerCase() : candidate
+  ) === normalizedEntry)) {
+    entries.unshift(entry);
+  }
+  const updated = entries.join(delimiter);
+  return { ...env, PATH: updated, [pathKey]: updated };
+}
+
+/** 用户本地Local Bash工具path传给 内置Pi */
+type TerminalShellResolutionRuntime = NonNullable<Parameters<typeof resolveTerminalShell>[2]>;
+
+export function resolvePiShellPath(
+  platform: NodeJS.Platform = process.platform,
+  runtime: TerminalShellResolutionRuntime = {},
+): string | undefined {
+  const configuredShell = getAppSetting("terminalShell");
+  const customPath = getAppSetting("terminalCustomShellPath");
+  const shell = platform === "win32"
+    ? configuredShell === "custom" || configuredShell === "git-bash"
+      ? configuredShell
+      : "git-bash"
+    : configuredShell;
+
+  try {
+    return resolveTerminalShell(shell, customPath, { ...runtime, platform }).shellPath;
+  } catch {
+    // Let Pi retain its own fallback behavior when no configured shell exists.
+    return undefined;
+  }
 }
 
 const PI_PROVIDER_CREDENTIAL_KEYS = new Set([
@@ -449,6 +490,7 @@ function preparePiAgentDirectory(
   upstream: PiUpstream,
   catalogs: PiProviderCatalog[],
   selected: { provider: string; model: string },
+  shellPath?: string,
 ): string {
   const sessionDir = path.join(getDataDir(), "pi-sessions");
   const fingerprint = crypto.createHash("sha256").update(JSON.stringify({
@@ -510,6 +552,7 @@ function preparePiAgentDirectory(
     defaultModel: selected.model,
     sessionDir,
     quietStartup: true,
+    ...(shellPath ? { shellPath } : {}),
   }, null, 2)}\n`);
   fs.rmSync(path.join(agentDir, "auth.json"), { force: true });
   return agentDir;
@@ -569,6 +612,7 @@ export async function preparePiAcpLaunch(
   const runtime = resolveBundledPiRuntime();
   const piCommand = e2ePiCommandOverride() ?? runtime.piCommandPath;
   const runtimeEnv = bundledPiEnvironment(runtime, piCommand);
+  const piShellPath = resolvePiShellPath();
   const contextEnv: NodeJS.ProcessEnv = {
     [PI_CONTEXT_EXTENSION_ENV_KEY]: runtime.piContextExtensionPath,
     [PI_PACKAGE_BOOTSTRAP_ENV_KEY]: runtime.piPackageBootstrapPath,
@@ -590,7 +634,12 @@ export async function preparePiAcpLaunch(
     const managed = await preparePiManagedLaunchEnvironment(runtime, options);
     return {
       ...baseLaunch,
-      env: { ...agent.env, ...runtimeEnv, ...contextEnv, ...skillEnv, ...managed.env },
+      env: {
+        ...appendPathEntry(
+          { ...agent.env, ...runtimeEnv, ...contextEnv, ...skillEnv, ...managed.env },
+          piShellPath ? path.dirname(piShellPath) : "",
+        ),
+      },
       cleanup: managed.cleanup,
     };
   }
@@ -616,17 +665,20 @@ export async function preparePiAcpLaunch(
   }
 
   const selected = selectDefaultModel(upstream, catalogResult.catalogs, cachedPiModel(agent));
-  const agentDir = preparePiAgentDirectory(upstream, catalogResult.catalogs, selected);
+  const agentDir = preparePiAgentDirectory(upstream, catalogResult.catalogs, selected, piShellPath);
   const managed = await preparePiManagedLaunchEnvironment(runtime, options);
   return {
     ...baseLaunch,
     env: {
-      ...buildIsolatedPiEnvironment(
-        process.env,
-        { ...agent.env, ...runtimeEnv },
-        upstream,
-        agentDir,
-        piCommand,
+      ...appendPathEntry(
+        buildIsolatedPiEnvironment(
+          process.env,
+          { ...agent.env, ...runtimeEnv },
+          upstream,
+          agentDir,
+          piCommand,
+        ),
+        piShellPath ? path.dirname(piShellPath) : "",
       ),
       ...contextEnv,
       ...skillEnv,

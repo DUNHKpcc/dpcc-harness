@@ -10,12 +10,14 @@ const {
   mockBundledPiEnvironment,
   mockFetchUpstreamModels,
   mockGetPiPackageLaunchResources,
+  mockGetAppSetting,
   mockResolveBundledPiRuntime,
   mockResolvePiUpstream,
 } = vi.hoisted(() => ({
   dataDirRef: { current: "" },
   mockBundledPiEnvironment: vi.fn(),
   mockFetchUpstreamModels: vi.fn(),
+  mockGetAppSetting: vi.fn(),
   mockGetPiPackageLaunchResources: vi.fn(),
   mockResolveBundledPiRuntime: vi.fn(),
   mockResolvePiUpstream: vi.fn(),
@@ -52,6 +54,10 @@ vi.mock("./bundled-pi-runtime", () => ({
 
 vi.mock("./pi-package-store", () => ({
   getPiPackageLaunchResources: mockGetPiPackageLaunchResources,
+}));
+
+vi.mock("./app-settings", () => ({
+  getAppSetting: mockGetAppSetting,
 }));
 
 async function loadModule() {
@@ -132,6 +138,7 @@ describe("Pi ACP config", () => {
     homeDirSpy = vi.spyOn(os, "homedir").mockReturnValue(path.join(dataDirRef.current, "home"));
     mockFetchUpstreamModels.mockReset();
     mockGetPiPackageLaunchResources.mockReset();
+    mockGetAppSetting.mockReset();
     mockResolvePiUpstream.mockReset();
     mockResolveBundledPiRuntime.mockReset();
     mockBundledPiEnvironment.mockReset();
@@ -140,6 +147,11 @@ describe("Pi ACP config", () => {
       skills: [],
       prompts: [],
       themes: [],
+    });
+    mockGetAppSetting.mockImplementation((key: string) => {
+      if (key === "terminalShell") return "auto";
+      if (key === "terminalCustomShellPath") return "";
+      return undefined;
     });
     mockResolveBundledPiRuntime.mockReturnValue({
       source: "bundled",
@@ -360,6 +372,48 @@ describe("Pi ACP config", () => {
       sessionDir: path.join(dataDirRef.current, "pi-sessions"),
     });
     expect(fs.existsSync(path.join(agentDir!, "auth.json"))).toBe(false);
+  });
+
+  it("passes the General terminal shell path into managed Pi settings and PATH", async () => {
+    const adapterPath = executable("pi-acp");
+    const piPath = executable("pi");
+    const shellPath = executable("bash");
+    mockGetAppSetting.mockImplementation((key: string) => {
+      if (key === "terminalShell") return "custom";
+      if (key === "terminalCustomShellPath") return shellPath;
+      return undefined;
+    });
+
+    const { preparePiAcpLaunch } = await loadModule();
+    const launch = await preparePiAcpLaunch(piAgent(adapterPath, piPath));
+    const agentDir = launch.env?.PI_CODING_AGENT_DIR;
+    const settings = JSON.parse(fs.readFileSync(path.join(agentDir!, "settings.json"), "utf-8")) as {
+      shellPath?: string;
+    };
+
+    expect(settings.shellPath).toBe(shellPath);
+    expect(launch.env?.PATH).toContain(path.dirname(shellPath));
+  });
+
+  it("resolves Git Bash for Windows when General settings is set to auto", async () => {
+    const shellPath = "C:\\Users\\dev\\AppData\\Local\\Programs\\Git\\bin\\bash.exe";
+    mockGetAppSetting.mockImplementation((key: string) => {
+      if (key === "terminalShell") return "auto";
+      if (key === "terminalCustomShellPath") return "";
+      return undefined;
+    });
+    const { resolvePiShellPath } = await loadModule();
+    const runtime = {
+      env: {
+        LOCALAPPDATA: "C:\\Users\\dev\\AppData\\Local",
+        ProgramFiles: "C:\\Program Files",
+      },
+      fileExists: (candidate: string) => candidate === shellPath,
+      fileIsExecutable: (candidate: string) => candidate === shellPath,
+      findExecutable: () => null,
+    };
+
+    expect(resolvePiShellPath("win32", runtime)).toBe(shellPath);
   });
 
   it("preserves the direct bundled host command for isolated Windows launches", async () => {

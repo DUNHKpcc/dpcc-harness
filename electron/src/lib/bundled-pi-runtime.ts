@@ -340,11 +340,20 @@ export function bundledPiEnvironment(
   runtime: BundledPiRuntime,
   piCommand = runtime.piCommandPath,
 ): NodeJS.ProcessEnv {
+  // Windows cannot spawn a .cmd file through the piped ACP child without
+  // shell=true. Invoke the bundled Electron host directly instead and let the
+  // resource launcher forward the Pi entry point and runtime resources.
+  const useDirectWindowsLaunch = runtime.piPackageBootstrapAvailable
+    && path.resolve(piCommand) === path.resolve(runtime.piCommandPath)
+    && /\.(?:cmd|bat)$/i.test(piCommand);
   return {
     ELECTRON_RUN_AS_NODE: "1",
     PCC_AGENT_PI_RUNTIME_HOST: runtime.hostPath,
     PCC_AGENT_PI_ENTRY: runtime.pi.entryPath,
-    PI_ACP_PI_COMMAND: piCommand,
+    PI_ACP_PI_COMMAND: useDirectWindowsLaunch ? runtime.hostPath : piCommand,
+    PI_ACP_PI_COMMAND_ARGS: useDirectWindowsLaunch
+      ? JSON.stringify([runtime.piPackageBootstrapPath])
+      : "",
     PCC_AGENT_PI_CONTEXT_EXTENSION: runtime.piContextExtensionPath,
     PCC_AGENT_PI_PACKAGE_BOOTSTRAP: runtime.piPackageBootstrapPath,
     PCC_AGENT_PI_PACKAGE_CONFIG: "",

@@ -7,6 +7,12 @@ const { spawn } = require("child_process");
 const CONFIG_ENV_KEY = "PCC_AGENT_PI_PACKAGE_CONFIG";
 const HOST_ENV_KEY = "PCC_AGENT_PI_RUNTIME_HOST";
 const ENTRY_ENV_KEY = "PCC_AGENT_PI_ENTRY";
+const CONTEXT_ENV_KEY = "PCC_AGENT_PI_CONTEXT_EXTENSION";
+const GLOBAL_SKILLS_ENV_KEY = "PCC_AGENT_PI_GLOBAL_SKILLS";
+const PROJECT_SKILLS_ENV_KEY = "PCC_AGENT_PI_PROJECT_SKILLS";
+const MCP_EXTENSION_ENV_KEY = "PCC_AGENT_PI_MCP_EXTENSION";
+const MCP_CONFIG_ENV_KEY = "PCC_AGENT_PI_MCP_CONFIG";
+const MCP_ADAPTER_ENV_KEY = "PCC_AGENT_PI_MCP_ADAPTER";
 const MAX_CONFIG_BYTES = 512 * 1024;
 const MAX_RESOURCES = 500;
 const RESOURCE_FLAGS = {
@@ -59,25 +65,52 @@ function readPackageArguments(configPath) {
   return args;
 }
 
+function readRuntimeArguments(existingArgs) {
+  const contextExtension = process.env[CONTEXT_ENV_KEY]?.trim();
+  if (!contextExtension) throw new Error("context bridge is unavailable");
+
+  const args = [];
+  const hasArgument = (flag, value) => existingArgs.some((arg, index) => arg === flag && existingArgs[index + 1] === value);
+  if (!hasArgument("--extension", contextExtension)) args.push("--extension", contextExtension);
+  for (const key of [GLOBAL_SKILLS_ENV_KEY, PROJECT_SKILLS_ENV_KEY]) {
+    const skillPath = process.env[key]?.trim();
+    if (skillPath && !hasArgument("--skill", skillPath)) args.push("--skill", skillPath);
+  }
+
+  const mcpExtension = process.env[MCP_EXTENSION_ENV_KEY]?.trim();
+  const mcpConfig = process.env[MCP_CONFIG_ENV_KEY]?.trim();
+  const mcpAdapter = process.env[MCP_ADAPTER_ENV_KEY]?.trim();
+  if (mcpExtension || mcpConfig || mcpAdapter) {
+    if (!mcpExtension || !mcpConfig || !mcpAdapter) {
+      throw new Error("MCP runtime is incomplete");
+    }
+    if (!hasArgument("--extension", mcpExtension)) args.push("--extension", mcpExtension);
+  }
+  return args;
+}
+
 function main() {
   const host = process.env[HOST_ENV_KEY]?.trim();
   const entry = process.env[ENTRY_ENV_KEY]?.trim();
   const configPath = process.env[CONFIG_ENV_KEY]?.trim();
-  if (!host || !entry || !configPath) {
-    fail("runtime or package configuration is unavailable");
+  if (!host || !entry) {
+    fail("runtime configuration is unavailable");
     return;
   }
 
+  let runtimeArgs;
   let packageArgs;
+  const forwardedArgs = process.argv.slice(2);
   try {
-    packageArgs = readPackageArguments(configPath);
+    runtimeArgs = readRuntimeArguments(forwardedArgs);
+    packageArgs = configPath ? readPackageArguments(configPath) : [];
   } catch {
-    fail("package configuration is invalid or no longer available");
+    fail("runtime or package configuration is invalid or no longer available");
     return;
   }
 
   process.env.ELECTRON_RUN_AS_NODE = "1";
-  const child = spawn(host, [entry, ...process.argv.slice(2), ...packageArgs], {
+  const child = spawn(host, [entry, ...forwardedArgs, ...runtimeArgs, ...packageArgs], {
     env: process.env,
     stdio: "inherit",
     windowsHide: true,

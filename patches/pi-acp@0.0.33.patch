@@ -1,0 +1,86 @@
+diff --git a/dist/index.js b/dist/index.js
+index ead9809cabc9f3b203f1769db3cabb8327dd758a..ad98ea63a2b3b63f53b9aae788d7023aa18d32fc 100755
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -68,6 +68,16 @@ function shouldUseShellForPiCommand(cmd) {
+   const normalized = cmd.trim().toLowerCase();
+   return normalized.endsWith(".cmd") || normalized.endsWith(".bat");
+ }
++function getPiCommandPrefixArgs() {
++  const raw = process.env.PI_ACP_PI_COMMAND_ARGS?.trim();
++  if (!raw) return [];
++  try {
++    const value = JSON.parse(raw);
++    return Array.isArray(value) && value.every((item) => typeof item === "string") ? value : [];
++  } catch {
++    return [];
++  }
++}
+
+ // src/pi-rpc/process.ts
+ var PiRpcSpawnError = class extends Error {
+@@ -94,8 +104,16 @@ var PiRpcProcess = class _PiRpcProcess {
+   pending = /* @__PURE__ */ new Map();
+   eventHandlers = [];
+   preludeLines = [];
++  stderrTail = "";
+   constructor(child) {
+     this.child = child;
++    child.stdin.on("error", (err) => {
++      for (const [, p] of this.pending) p.reject(err);
++      this.pending.clear();
++    });
++    child.stderr.on("data", (chunk) => {
++      this.stderrTail = `${this.stderrTail}${String(chunk)}`.slice(-8 * 1024);
++    });
+     const rl = readline.createInterface({ input: child.stdout });
+     rl.on("line", (line) => {
+       if (!line.trim()) return;
+@@ -121,7 +139,8 @@ var PiRpcProcess = class _PiRpcProcess {
+       for (const h of this.eventHandlers) h(msg);
+     });
+     child.on("exit", (code, signal) => {
+-      const err = new Error(`pi process exited (code=${code}, signal=${signal})`);
++      const detail = this.stderrTail.trim();
++      const err = new Error(`pi process exited (code=${code}, signal=${signal})${detail ? `: ${detail}` : ""}`);
+       for (const [, p] of this.pending) p.reject(err);
+       this.pending.clear();
+     });
+@@ -132,7 +151,7 @@ var PiRpcProcess = class _PiRpcProcess {
+   }
+   static async spawn(params) {
+     const cmd = getPiCommand(params.piCommand);
+-    const args = ["--mode", "rpc", "--no-themes"];
++    const args = [...getPiCommandPrefixArgs(), "--mode", "rpc", "--no-themes"];
+     if (params.sessionPath) args.push("--session", params.sessionPath);
+     const child = spawn(cmd, args, {
+       cwd: params.cwd,
+@@ -170,8 +189,6 @@ var PiRpcProcess = class _PiRpcProcess {
+       }
+       throw new PiRpcSpawnError(`Could not start pi (command: ${cmd}).`, { code, cause: e });
+     }
+-    child.stderr.on("data", () => {
+-    });
+     const proc = new _PiRpcProcess(child);
+     try {
+       const state = await proc.getState();
+@@ -298,6 +315,10 @@ var PiRpcProcess = class _PiRpcProcess {
+   }
+   writeLine(line) {
+     return new Promise((resolve4, reject) => {
++      if (this.child.stdin.destroyed || !this.child.stdin.writable) {
++        reject(new Error("pi process stdin is unavailable"));
++        return;
++      }
+       try {
+         this.child.stdin.write(line, (error) => {
+           if (error) {
+@@ -2982,7 +3003,7 @@ function readNearestPackageJson(metaUrl) {
+ if (process.argv.includes("--terminal-login")) {
+   const { spawnSync: spawnSync2 } = await import("child_process");
+   const cmd = getPiCommand(process.env.PI_ACP_PI_COMMAND);
+-  const res = spawnSync2(cmd, [], {
++  const res = spawnSync2(cmd, getPiCommandPrefixArgs(), {
+     stdio: "inherit",
+     env: process.env,
+     shell: shouldUseShellForPiCommand(cmd)

@@ -533,6 +533,11 @@
       "showOlder": "显示更早版本",
       "showLess": "收起早期版本",
       "entries": {
+        "v3_0_1": {
+          "title": "可靠的 Windows Pi ACP 启动",
+          "windowsPiAcpStartup": "修复 Windows 上 Pi ACP Session 启动失败问题，绕过不稳定的 .cmd shell 路径，直接启动内置 runtime。",
+          "sessionReliability": "更安全地处理已销毁的子进程流，并在内置 Pi 进程异常退出时保留诊断信息。"
+        },
         "v3_0_0": {
           "title": "Pi 优先运行时与全新工作区",
           "piFirstRuntime": "PccAgent 现以内置离线 Pi ACP runtime 作为唯一内置 live Agent，同时继续支持使用独立配置和凭证的自定义 ACP agent。",

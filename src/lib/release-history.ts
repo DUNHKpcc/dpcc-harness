@@ -20,6 +20,10 @@ function release(version: string, date: string, changeKeys: readonly string[]): 
 
 /** Bundled release history, newest first, so settings remain useful offline. */
 export const RELEASE_HISTORY: readonly ReleaseHistoryEntry[] = [
+  release("3.0.1", "2026-09-14", [
+    "windowsPiAcpStartup",
+    "sessionReliability",
+  ]),
   release("3.0.0", "2026-09-13", [
     "piFirstRuntime",
     "workspaceTools",

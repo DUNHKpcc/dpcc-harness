@@ -309,7 +309,11 @@ function runPackagedPiVersion(runtimeHost, asarPath, launcherPath, contextBridge
     "dist",
     "cli.js",
   );
-  const child = spawn(launcherPath, ["--version"], {
+  // Windows ACP uses the Electron host directly to avoid Node's deprecated
+  // shell=true .cmd path. Keep this smoke check on the same invocation path.
+  const command = process.platform === "win32" ? runtimeHost : launcherPath;
+  const commandArgs = process.platform === "win32" ? [launcherPath, "--version"] : ["--version"];
+  const child = spawn(command, commandArgs, {
     cwd: path.dirname(launcherPath),
     env: {
       ...process.env,
@@ -319,7 +323,7 @@ function runPackagedPiVersion(runtimeHost, asarPath, launcherPath, contextBridge
       PCC_AGENT_PI_CONTEXT_EXTENSION: contextBridgePath,
       PATH: "",
     },
-    shell: process.platform === "win32",
+    shell: false,
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
   });

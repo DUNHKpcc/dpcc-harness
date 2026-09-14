@@ -12,6 +12,11 @@ overrides:
   '@earendil-works/pi-telemetry': 0.84.1
   '@earendil-works/pi-tui': 0.84.1
 
+patchedDependencies:
+  pi-acp@0.0.33:
+    hash: dbf24b8b7dae71083672568076be5ba00b38e0a577b0761d51b7faea03dc2cea
+    path: patches/pi-acp@0.0.33.patch
+
 importers:
 
   .:
@@ -90,7 +95,7 @@ importers:
         version: 1.1.0
       pi-acp:
         specifier: 0.0.33
-        version: 0.0.33
+        version: 0.0.33(patch_hash=dbf24b8b7dae71083672568076be5ba00b38e0a577b0761d51b7faea03dc2cea)
       pi-mcp-adapter:
         specifier: 2.31.0
         version: 2.31.0(@earendil-works/pi-ai@0.84.1(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(ws@8.21.3)(zod@4.4.3))(@earendil-works/pi-tui@0.84.1)(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typebox@1.3.7)(zod@4.4.3)
@@ -11969,7 +11974,7 @@ snapshots:
 
   pend@1.2.0: {}
 
-  pi-acp@0.0.33:
+  pi-acp@0.0.33(patch_hash=dbf24b8b7dae71083672568076be5ba00b38e0a577b0761d51b7faea03dc2cea):
     dependencies:
       '@agentclientprotocol/sdk': 0.26.0(zod@3.25.76)
       zod: 3.25.76

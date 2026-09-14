@@ -533,6 +533,11 @@
       "showOlder": "Show older releases",
       "showLess": "Hide older releases",
       "entries": {
+        "v3_0_1": {
+          "title": "Reliable Windows Pi ACP startup",
+          "windowsPiAcpStartup": "Fixed Windows Pi ACP session startup by bypassing the fragile .cmd shell path and launching the bundled runtime directly.",
+          "sessionReliability": "Handled destroyed child streams more safely and preserved diagnostics when a bundled Pi process exits unexpectedly."
+        },
         "v3_0_0": {
           "title": "Pi-first runtime and a refreshed workspace",
           "piFirstRuntime": "PccAgent now uses the bundled offline Pi ACP runtime as its built-in live Agent, while custom ACP agents remain supported with their own configuration and credentials.",

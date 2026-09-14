@@ -362,6 +362,25 @@ describe("Pi ACP config", () => {
     expect(fs.existsSync(path.join(agentDir!, "auth.json"))).toBe(false);
   });
 
+  it("preserves the direct bundled host command for isolated Windows launches", async () => {
+    mockBundledPiEnvironment.mockReturnValueOnce({
+      ELECTRON_RUN_AS_NODE: "1",
+      PCC_AGENT_PI_RUNTIME_HOST: BUNDLED_HOST,
+      PCC_AGENT_PI_ENTRY: BUNDLED_PI_ENTRY,
+      PI_ACP_PI_COMMAND: BUNDLED_HOST,
+      PI_ACP_PI_COMMAND_ARGS: JSON.stringify([BUNDLED_PI_PACKAGE_BOOTSTRAP]),
+      PCC_AGENT_PI_CONTEXT_EXTENSION: BUNDLED_PI_CONTEXT_BRIDGE,
+      PCC_AGENT_PI_PACKAGE_BOOTSTRAP: BUNDLED_PI_PACKAGE_BOOTSTRAP,
+      PCC_AGENT_PI_PACKAGE_CONFIG: "",
+    });
+    const launch = await (await loadModule()).preparePiAcpLaunch(piAgent("ignored-pi-acp", "ignored-pi"));
+
+    expect(launch.env).toMatchObject({
+      PI_ACP_PI_COMMAND: BUNDLED_HOST,
+      PI_ACP_PI_COMMAND_ARGS: JSON.stringify([BUNDLED_PI_PACKAGE_BOOTSTRAP]),
+    });
+  });
+
   it("writes documented per-model thinking capabilities into the managed Pi catalog", async () => {
     mockFetchUpstreamModels.mockImplementation(async (_baseUrl: string, token: string) => ({
       models: token.endsWith("claude")

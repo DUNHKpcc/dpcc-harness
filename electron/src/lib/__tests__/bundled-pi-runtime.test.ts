@@ -26,6 +26,7 @@ function createContext(options: {
   includeContextBridge?: boolean;
   includePackageBootstrap?: boolean;
   includeWrapper?: boolean;
+  platform?: NodeJS.Platform;
 } = {}): BundledPiRuntimeContext {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "pcc-agent-bundled-pi-"));
   temporaryDirectories.push(root);
@@ -68,7 +69,7 @@ function createContext(options: {
   const wrapperPath = path.join(
     runtimeRoot,
     "bin",
-    process.platform === "win32" ? "pi.cmd" : "pi",
+    options.platform === "win32" ? "pi.cmd" : "pi",
   );
   if (options.includeWrapper !== false) {
     fs.mkdirSync(path.dirname(wrapperPath), { recursive: true });
@@ -95,7 +96,7 @@ function createContext(options: {
     resourcesPath,
     hostPath,
     isPackaged,
-    platform: process.platform,
+    platform: options.platform ?? process.platform,
     modulePaths: [modulesRoot],
   };
 }
@@ -168,6 +169,7 @@ describe("bundled Pi runtime", () => {
         PCC_AGENT_PI_RUNTIME_HOST: context.hostPath,
         PCC_AGENT_PI_ENTRY: runtime.pi.entryPath,
         PI_ACP_PI_COMMAND: runtime.piCommandPath,
+        PI_ACP_PI_COMMAND_ARGS: "",
         PCC_AGENT_PI_CONTEXT_EXTENSION: runtime.piContextExtensionPath,
         PCC_AGENT_PI_PACKAGE_BOOTSTRAP: runtime.piPackageBootstrapPath,
         PCC_AGENT_PI_PACKAGE_CONFIG: "",
@@ -175,6 +177,16 @@ describe("bundled Pi runtime", () => {
     } finally {
       process.env.PATH = originalPath;
     }
+  });
+
+  it("bypasses the Windows .cmd shell path for the bundled ACP child", () => {
+    const context = createContext({ platform: "win32" });
+    const runtime = resolveBundledPiRuntime(context);
+
+    expect(bundledPiEnvironment(runtime)).toMatchObject({
+      PI_ACP_PI_COMMAND: runtime.hostPath,
+      PI_ACP_PI_COMMAND_ARGS: JSON.stringify([runtime.piPackageBootstrapPath]),
+    });
   });
 
   it("uses the packaged extraResources launcher path", () => {

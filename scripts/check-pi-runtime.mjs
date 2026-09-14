@@ -123,13 +123,17 @@ function inspectBundledComponent(key, expected, packageJson, lockfile) {
   };
 }
 
-function runtimeEnvironment(hostPath, piEntryPath, piCommandPath, isolation) {
+function runtimeEnvironment(hostPath, piEntryPath, piCommandPath, packageBootstrapPath, isolation) {
+  const useDirectWindowsLaunch = process.platform === "win32";
   const env = {
     ...process.env,
     ELECTRON_RUN_AS_NODE: "1",
     PCC_AGENT_PI_RUNTIME_HOST: hostPath,
     PCC_AGENT_PI_ENTRY: piEntryPath,
-    PI_ACP_PI_COMMAND: piCommandPath,
+    PI_ACP_PI_COMMAND: useDirectWindowsLaunch ? hostPath : piCommandPath,
+    PI_ACP_PI_COMMAND_ARGS: useDirectWindowsLaunch
+      ? JSON.stringify([packageBootstrapPath])
+      : "",
     PCC_AGENT_PI_MCP_EXTENSION: "",
     PCC_AGENT_PI_MCP_CONFIG: "",
     PCC_AGENT_PI_MCP_ADAPTER: "",
@@ -366,7 +370,7 @@ async function buildResult(manifest) {
   const contextExtensionPath = path.join(repoRoot, "build", "pi-runtime", "extensions", "pcc-context-usage.ts");
   const packageBootstrapPath = path.join(repoRoot, "build", "pi-runtime", "bin", "pcc-pi-package-launch.cjs");
   const isolation = createIsolationDirectory();
-  const env = runtimeEnvironment(hostPath, pi.entryPath, wrapperPath, isolation);
+  const env = runtimeEnvironment(hostPath, pi.entryPath, wrapperPath, packageBootstrapPath, isolation);
   env.PCC_AGENT_PI_CONTEXT_EXTENSION = contextExtensionPath;
   env.PCC_AGENT_PI_PACKAGE_BOOTSTRAP = packageBootstrapPath;
   const hostVersion = runVersion(hostPath, ["--version"], env);

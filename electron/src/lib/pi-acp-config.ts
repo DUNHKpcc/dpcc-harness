@@ -531,7 +531,10 @@ function buildIsolatedPiEnvironment(
     }
   }
   env.PI_CODING_AGENT_DIR = agentDir;
-  env.PI_ACP_PI_COMMAND = piCommand;
+  // bundledPiEnvironment may replace the Windows .cmd wrapper with the
+  // Electron host plus a launcher prefix. Preserve that resolved command;
+  // only fall back to the requested Pi command for custom environments.
+  if (!env.PI_ACP_PI_COMMAND) env.PI_ACP_PI_COMMAND = piCommand;
   for (const provider of upstream.providers) {
     env[providerEnvKey(provider.id)] = provider.apiKey;
   }

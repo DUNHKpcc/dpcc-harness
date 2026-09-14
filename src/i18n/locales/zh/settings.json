@@ -533,6 +533,11 @@
       "showOlder": "显示更早版本",
       "showLess": "收起早期版本",
       "entries": {
+        "v3_0_2": {
+          "title": "可靠的 Windows 生产包检查",
+          "windowsPiPackagedSmoke": "修复 Windows 生产包检查，确保通过正确的 runtime 入口启动内置 Pi 并验证版本。",
+          "sessionReliability": "Windows 发布验证现在会使用与应用一致的内置 Pi 启动路径。"
+        },
         "v3_0_1": {
           "title": "可靠的 Windows Pi ACP 启动",
           "windowsPiAcpStartup": "修复 Windows 上 Pi ACP Session 启动失败问题，绕过不稳定的 .cmd shell 路径，直接启动内置 runtime。",

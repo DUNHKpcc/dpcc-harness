@@ -533,6 +533,11 @@
       "showOlder": "Show older releases",
       "showLess": "Hide older releases",
       "entries": {
+        "v3_0_2": {
+          "title": "Reliable Windows packaged app checks",
+          "windowsPiPackagedSmoke": "Fixed the Windows packaged-app check so the bundled Pi version is launched through the correct runtime entry point.",
+          "sessionReliability": "Windows release validation now follows the same bundled Pi startup path used by the app."
+        },
         "v3_0_1": {
           "title": "Reliable Windows Pi ACP startup",
           "windowsPiAcpStartup": "Fixed Windows Pi ACP session startup by bypassing the fragile .cmd shell path and launching the bundled runtime directly.",

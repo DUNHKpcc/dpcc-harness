@@ -300,7 +300,7 @@ function runPackagedApp(executable, appRoot, extraResourcesLogo) {
   });
 }
 
-function runPackagedPiVersion(runtimeHost, asarPath, launcherPath, contextBridgePath) {
+function runPackagedPiVersion(runtimeHost, asarPath, launcherPath, packageBootstrapPath, contextBridgePath) {
   const piEntry = path.join(
     asarPath,
     "node_modules",
@@ -312,7 +312,7 @@ function runPackagedPiVersion(runtimeHost, asarPath, launcherPath, contextBridge
   // Windows ACP uses the Electron host directly to avoid Node's deprecated
   // shell=true .cmd path. Keep this smoke check on the same invocation path.
   const command = process.platform === "win32" ? runtimeHost : launcherPath;
-  const commandArgs = process.platform === "win32" ? [launcherPath, "--version"] : ["--version"];
+  const commandArgs = process.platform === "win32" ? [packageBootstrapPath, "--version"] : ["--version"];
   const child = spawn(command, commandArgs, {
     cwd: path.dirname(launcherPath),
     env: {
@@ -321,6 +321,7 @@ function runPackagedPiVersion(runtimeHost, asarPath, launcherPath, contextBridge
       PCC_AGENT_PI_RUNTIME_HOST: runtimeHost,
       PCC_AGENT_PI_ENTRY: piEntry,
       PCC_AGENT_PI_CONTEXT_EXTENSION: contextBridgePath,
+      PCC_AGENT_PI_PACKAGE_BOOTSTRAP: packageBootstrapPath,
       PATH: "",
     },
     shell: false,
@@ -384,6 +385,7 @@ const bundledPiVersion = await runPackagedPiVersion(
   runtimeHost,
   runtimeCandidate.asarPath,
   runtimeCandidate.piRuntimeLauncher,
+  runtimeCandidate.piPackageBootstrap,
   runtimeCandidate.piContextBridge,
 );
 

@@ -506,6 +506,12 @@ describe("Pi ACP config", () => {
     mockResolvePiUpstream.mockReturnValue({ tier: "local", providers: [], model: "" });
     const adapterPath = executable("pi-acp");
     const piPath = executable("pi");
+    const shellPath = executable("bash");
+    mockGetAppSetting.mockImplementation((key: string) => {
+      if (key === "terminalShell") return "custom";
+      if (key === "terminalCustomShellPath") return shellPath;
+      return undefined;
+    });
     const { preparePiAcpLaunch } = await loadModule();
 
     const launch = await preparePiAcpLaunch(piAgent(adapterPath, piPath));
@@ -532,6 +538,9 @@ describe("Pi ACP config", () => {
       PCC_AGENT_PI_PACKAGE_BOOTSTRAP: BUNDLED_PI_PACKAGE_BOOTSTRAP,
       PCC_AGENT_PI_PACKAGE_CONFIG: "",
     });
+    expect(launch.env?.PATH).toBe(
+      [path.dirname(shellPath), process.env.PATH].filter(Boolean).join(path.delimiter),
+    );
     expect(fs.existsSync(path.join(dataDirRef.current, "pi-agent"))).toBe(false);
     expect(mockFetchUpstreamModels).not.toHaveBeenCalled();
   });

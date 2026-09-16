@@ -47,7 +47,7 @@ function piRuntimeError(code: string, message: string): Error & { code: string }
 function appendPathEntry(env: NodeJS.ProcessEnv, entry: string): NodeJS.ProcessEnv {
   if (!entry.trim()) return env;
   const pathKey = Object.keys(env).find((key) => key.toLowerCase() === "path") ?? "PATH";
-  const current = env[pathKey] ?? "";
+  const current = env[pathKey] ?? process.env[pathKey] ?? process.env.PATH ?? "";
   const delimiter = process.platform === "win32" ? ";" : ":";
   const entries = current.split(delimiter).filter(Boolean);
   const normalizedEntry = process.platform === "win32" ? entry.toLowerCase() : entry;
@@ -78,7 +78,7 @@ export function resolvePiShellPath(
   try {
     return resolveTerminalShell(shell, customPath, { ...runtime, platform }).shellPath;
   } catch {
-    // Let Pi retain its own fallback behavior when no configured shell exists.
+    // fallback措施，shell不存在，返回undefined
     return undefined;
   }
 }

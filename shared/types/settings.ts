@@ -192,6 +192,8 @@ export interface AppSettings {
   windowBounds: WindowBounds | null;
   /** Whether the main window was maximized when its state was last saved */
   windowMaximized: boolean;
+  /** Whether the main window should stay above other application windows */
+  alwaysOnTop: boolean;
   /** Per-event notification and sound configuration */
   notifications: NotificationSettings;
   /** Low-balance monitoring for the connected DPCC account */

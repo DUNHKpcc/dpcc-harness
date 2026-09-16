@@ -74,6 +74,7 @@ import { readUiE2EConfig } from "./lib/e2e/ui-test-mode";
 import { getPiRuntimeStatus } from "./lib/pi-runtime-status";
 
 const diagnosticBuild = __PCC_DIAGNOSTIC_BUILD__;
+const useBuiltRenderer = process.env.PCC_USE_BUILT_RENDERER === "1";
 const packageSmokeCheck = isPackageSmokeCheckRequested();
 const acpRecoveryE2E = app.isPackaged ? null : readAcpRecoveryE2EConfig();
 const uiE2E = readUiE2EConfig(app.isPackaged);
@@ -780,6 +781,7 @@ function createWindow(): void {
 
   mainWindow = new BrowserWindow(windowOptions);
   const createdWindow = mainWindow;
+  if (appSettings.alwaysOnTop) mainWindow.setAlwaysOnTop(true);
   if (appSettings.windowMaximized) mainWindow.maximize();
   if (process.platform === "darwin") applyMacBackgroundEffect(initialMacBackgroundEffect);
 
@@ -895,7 +897,7 @@ function createWindow(): void {
     });
   }
 
-  const isDev = !app.isPackaged && !packageSmokeCheck && !acpRecoveryE2E;
+  const isDev = !app.isPackaged && !useBuiltRenderer && !packageSmokeCheck && !acpRecoveryE2E;
   if (acpRecoveryE2E) {
     mainWindow.loadURL(buildAcpRecoveryRendererUrl(acpRecoveryE2E));
   } else if (isDev) {
@@ -936,6 +938,26 @@ ipcMain.handle("app:get-mac-background-effect-support", () => {
 
 ipcMain.on("app:set-theme-source", (_event, themeSource: unknown) => {
   nativeTheme.themeSource = normalizeThemeSource(themeSource);
+});
+
+ipcMain.handle("app:get-always-on-top", () => {
+  return mainWindow?.isAlwaysOnTop() ?? false;
+});
+
+ipcMain.handle("app:set-always-on-top", (_event, value: unknown) => {
+  if (!mainWindow || mainWindow.isDestroyed() || typeof value !== "boolean") {
+    return { ok: false, error: "Main window is unavailable or value is invalid" };
+  }
+
+  const previousValue = mainWindow.isAlwaysOnTop();
+  try {
+    mainWindow.setAlwaysOnTop(value);
+    setAppSettings({ alwaysOnTop: value });
+    return { ok: true, alwaysOnTop: value };
+  } catch (err) {
+    mainWindow.setAlwaysOnTop(previousValue);
+    return { ok: false, error: reportError("WINDOW_ALWAYS_ON_TOP", err) };
+  }
 });
 
 ipcMain.on("app:set-mac-background-effect", (_event, effect: unknown) => {

@@ -8,6 +8,9 @@
   },
   "header": {
     "closePane": "Close pane",
+    "pinWindow": "Keep window on top",
+    "unpinWindow": "Stop keeping window on top",
+    "pinWindowFailed": "Couldn't change the window's always-on-top state.",
     "devFill": "Dev Fill",
     "fillCurrentChat": "Fill current chat",
     "fillCurrentSpace": "Fill current space (3 projects, 10 chats)",

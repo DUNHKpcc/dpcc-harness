@@ -57,6 +57,8 @@ export interface SplitTopRowItemProps {
   // Glass / animation
   isIsland: boolean;
   shouldAnimateTopRowLayout: boolean;
+  alwaysOnTop: boolean;
+  onToggleAlwaysOnTop?: () => void;
   chatFadeStrength: number;
   topFadeBackground: string;
   titlebarSurfaceColor: string;
@@ -408,7 +410,7 @@ function SplitTopRowItemInner(props: SplitTopRowItemProps) {
     loadSplitPaneBootstrap,
     projects, activeProjectPath,
     splitView, paneControllerCtx,
-    isIsland, shouldAnimateTopRowLayout,
+    isIsland, shouldAnimateTopRowLayout, alwaysOnTop, onToggleAlwaysOnTop,
     chatFadeStrength, topFadeBackground, titlebarSurfaceColor, bottomFadeBackground,
     splitToolDrag, setSplitToolDrag, commitSplitToolDrop, resetSplitToolDrag,
     sidebarOpen, sidebarToggle,
@@ -511,6 +513,8 @@ function SplitTopRowItemInner(props: SplitTopRowItemProps) {
       sidebarOpen,
       onToggleSidebar: sidebarToggle,
       showThinking,
+      alwaysOnTop: isActiveSessionPane ? alwaysOnTop : false,
+      onToggleAlwaysOnTop: isActiveSessionPane ? onToggleAlwaysOnTop : undefined,
       acpPermissionBehavior,
       onAcpPermissionBehaviorChange: setAcpPermissionBehavior,
       agents,

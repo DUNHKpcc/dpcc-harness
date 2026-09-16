@@ -8,6 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ToolPickerMenu } from "./ToolPickerMenu";
+import { WindowPinButton } from "./WindowPinButton";
 import { ModelLabel } from "./ModelIcon";
 import { UPSTREAM_REQUEST_SCROLL_AREA_CLASS } from "@/components/lib/chat-header-layout";
 import { isMac } from "@/lib/utils";
@@ -40,6 +41,9 @@ interface ChatHeaderProps {
   onSeedDevExampleSpaceData?: () => void;
   /** Close this split pane (renders an X button on the right). */
   onClosePane?: () => void;
+  /** Pin the application window above other windows. */
+  alwaysOnTop?: boolean;
+  onToggleAlwaysOnTop?: () => void;
   /** Tool picker menu props */
   activeTools?: Set<ToolId>;
   onToggleTool?: (toolId: ToolId) => void;
@@ -158,6 +162,8 @@ export const ChatHeader = memo(function ChatHeader({
   onSeedDevExampleConversation,
   onSeedDevExampleSpaceData,
   onClosePane,
+  alwaysOnTop = false,
+  onToggleAlwaysOnTop,
   activeTools,
   onToggleTool,
   availableContextual,
@@ -275,6 +281,12 @@ export const ChatHeader = memo(function ChatHeader({
               availableContextual={availableContextual}
               toolOrder={toolOrder}
               projectPath={projectPath}
+            />
+          )}
+          {onToggleAlwaysOnTop && (
+            <WindowPinButton
+              alwaysOnTop={alwaysOnTop}
+              onToggle={onToggleAlwaysOnTop}
             />
           )}
           {onClosePane && (
@@ -411,6 +423,8 @@ export const ChatHeader = memo(function ChatHeader({
   if (prev.acpPermissionBehavior !== next.acpPermissionBehavior) return false;
   if (prev.onToggleSidebar !== next.onToggleSidebar) return false;
   if (prev.onClosePane !== next.onClosePane) return false;
+  if (prev.alwaysOnTop !== next.alwaysOnTop) return false;
+  if (prev.onToggleAlwaysOnTop !== next.onToggleAlwaysOnTop) return false;
   if (prev.onToggleTool !== next.onToggleTool) return false;
   if (prev.projectPath !== next.projectPath) return false;
   if (prev.toolOrder !== next.toolOrder) return false;

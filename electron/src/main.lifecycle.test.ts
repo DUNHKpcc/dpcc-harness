@@ -53,6 +53,7 @@ interface MainState {
     macBackgroundEffect: string;
     windowBounds: TestWindowBounds | null;
     windowMaximized: boolean;
+    alwaysOnTop: boolean;
   };
   settingsPatches: Array<Record<string, unknown>>;
   screenWorkArea: TestWindowBounds;
@@ -123,6 +124,7 @@ const state = vi.hoisted<MainState>(() => ({
     macBackgroundEffect: "liquid-glass",
     windowBounds: null,
     windowMaximized: false,
+    alwaysOnTop: false,
   },
   settingsPatches: [],
   screenWorkArea: { x: 0, y: 0, width: 2560, height: 1440 },
@@ -159,6 +161,7 @@ function resetState(): void {
     macBackgroundEffect: "liquid-glass",
     windowBounds: null,
     windowMaximized: false,
+    alwaysOnTop: false,
   };
   state.settingsPatches = [];
   state.screenWorkArea = { x: 0, y: 0, width: 2560, height: 1440 };
@@ -263,6 +266,7 @@ class FakeBrowserWindow {
   public maximizeCalls = 0;
   public moveTopCalls = 0;
   public alwaysOnTopCalls: boolean[] = [];
+  public setAlwaysOnTopError = false;
 
   constructor(options: Record<string, unknown> = {}) {
     this.webContents = new FakeWebContents(this);
@@ -328,6 +332,7 @@ class FakeBrowserWindow {
   }
 
   setAlwaysOnTop(value: boolean): void {
+    if (this.setAlwaysOnTopError) throw new Error("always-on-top failed");
     this.alwaysOnTop = value;
     this.alwaysOnTopCalls.push(value);
   }
@@ -607,6 +612,9 @@ vi.mock("./lib/app-settings", () => ({
     if ("windowMaximized" in patch) {
       state.appSettings.windowMaximized = patch.windowMaximized === true;
     }
+    if ("alwaysOnTop" in patch) {
+      state.appSettings.alwaysOnTop = patch.alwaysOnTop === true;
+    }
     return state.appSettings;
   }),
 }));
@@ -756,6 +764,7 @@ async function loadMainModule(options: {
   sessionsForTray?: unknown[];
   windowBounds?: TestWindowBounds | null;
   windowMaximized?: boolean;
+  alwaysOnTop?: boolean;
   screenWorkArea?: TestWindowBounds;
   appIsPackaged?: boolean;
   loginItemOpenAtLogin?: boolean;
@@ -769,6 +778,7 @@ async function loadMainModule(options: {
   state.sessionsForTray = options.sessionsForTray ?? [];
   state.appSettings.windowBounds = options.windowBounds ?? null;
   state.appSettings.windowMaximized = options.windowMaximized ?? false;
+  state.appSettings.alwaysOnTop = options.alwaysOnTop ?? false;
   state.screenWorkArea = options.screenWorkArea ?? state.screenWorkArea;
   state.appIsPackaged = options.appIsPackaged ?? false;
   state.loginItemOpenAtLogin = options.loginItemOpenAtLogin ?? false;
@@ -876,6 +886,12 @@ describe("main lifecycle / tray navigation", () => {
       height: 900,
     });
     expect(state.browserWindows[0]?.maximizeCalls).toBe(1);
+  });
+
+  it("restores the saved always-on-top state", async () => {
+    await loadMainModule({ alwaysOnTop: true });
+
+    expect(state.browserWindows[0]?.alwaysOnTopCalls).toEqual([true]);
   });
 
   it("restores a saved compact window without applying the all-panels bootstrap width", async () => {

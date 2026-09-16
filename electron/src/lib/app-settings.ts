@@ -55,6 +55,7 @@ const DEFAULTS: AppSettings = {
   terminalCustomShellPath: "",
   windowBounds: null,
   windowMaximized: false,
+  alwaysOnTop: false,
   notifications: NOTIFICATION_DEFAULTS,
   accountBalanceAlert: DEFAULT_ACCOUNT_BALANCE_ALERT_SETTINGS,
   codexClientName: "PccAgent",
@@ -351,6 +352,7 @@ export function getAppSettings(): AppSettings {
           : DEFAULTS.terminalCustomShellPath,
       windowBounds: normalizeWindowBounds(parsed.windowBounds),
       windowMaximized: parsed.windowMaximized === true,
+      alwaysOnTop: parsed.alwaysOnTop === true,
       notifications: {
         exitPlanMode: { ...NOTIFICATION_DEFAULTS.exitPlanMode, ...parsedNotif?.exitPlanMode },
         permissions: { ...NOTIFICATION_DEFAULTS.permissions, ...parsedNotif?.permissions },
@@ -414,6 +416,9 @@ export function setAppSettings(patch: Partial<AppSettings>): AppSettings {
       : {}),
     ...(patch.windowMaximized !== undefined
       ? { windowMaximized: patch.windowMaximized === true }
+      : {}),
+    ...(patch.alwaysOnTop !== undefined
+      ? { alwaysOnTop: patch.alwaysOnTop === true }
       : {}),
     ...(patch.accountBalanceAlert !== undefined
       ? { accountBalanceAlert: normalizeAccountBalanceAlertSettings(patch.accountBalanceAlert) }

@@ -81,6 +81,8 @@ contextBridge.exposeInMainWorld("claude", {
   setMacBackgroundEffect: (effect: MacBackgroundEffect) => ipcRenderer.send("app:set-mac-background-effect", effect),
   relaunchApp: () => ipcRenderer.invoke("app:relaunch"),
   setMinWidth: (width: number) => ipcRenderer.send("app:set-min-width", width),
+  getAlwaysOnTop: () => ipcRenderer.invoke("app:get-always-on-top"),
+  setAlwaysOnTop: (value: boolean) => ipcRenderer.invoke("app:set-always-on-top", value),
   onBeforeClose: (callback: () => Promise<void> | void) => {
     const listener = (_event: IpcRendererEvent, requestId: number) => {
       void Promise.resolve()

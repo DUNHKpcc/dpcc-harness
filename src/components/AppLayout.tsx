@@ -24,6 +24,7 @@ import { BUILTIN_PI_AGENT } from "@/types";
 import type { FileReference, InstalledAgent } from "@/types";
 import { AppSidebar, type SidebarWorkspaceView } from "./AppSidebar";
 import { ChatHeader } from "./ChatHeader";
+import { WindowPinButton } from "./WindowPinButton";
 import { ChatSearchBar } from "./ChatSearchBar";
 import { ChatView } from "./ChatView";
 import { BottomComposer } from "./BottomComposer";
@@ -138,6 +139,7 @@ export function AppLayout() {
   const handleOpenContextInspector = useCallback(() => {
     if (manager.activeSessionId) setContextInspectorSessionId(manager.activeSessionId);
   }, [manager.activeSessionId]);
+  const [alwaysOnTop, setAlwaysOnTop] = useState(false);
   const {
     agents, selectedAgent, saveAgent, deleteAgent, handleAgentChange, lockedEngine, lockedAgentId,
     readOnlyReason,
@@ -295,7 +297,20 @@ export function AppLayout() {
 
   useEffect(() => {
     window.claude.windowActivationReady();
+    void window.claude.getAlwaysOnTop().then(setAlwaysOnTop).catch(() => {});
   }, []);
+
+  const handleToggleAlwaysOnTop = useCallback(async () => {
+    const next = !alwaysOnTop;
+    setAlwaysOnTop(next);
+    try {
+      const result = await window.claude.setAlwaysOnTop(next);
+      if (result.error) throw new Error(result.error);
+    } catch {
+      setAlwaysOnTop(!next);
+      toast.error(t("header.pinWindowFailed", { ns: "chat" }));
+    }
+  }, [alwaysOnTop, t]);
 
   useEffect(() => {
     if (!pendingExternalSession) return;
@@ -1408,6 +1423,8 @@ export function AppLayout() {
                             paneControllerCtx={paneControllerCtx}
                             isIsland={isIsland}
                             shouldAnimateTopRowLayout={shouldAnimateTopRowLayout}
+                            alwaysOnTop={alwaysOnTop}
+                            onToggleAlwaysOnTop={handleToggleAlwaysOnTop}
                             chatFadeStrength={chatFadeStrength}
                             topFadeBackground={topFadeBackground}
                             titlebarSurfaceColor={titlebarSurfaceColor}
@@ -1663,6 +1680,8 @@ export function AppLayout() {
                   availableContextual={availableContextual}
                   toolOrder={settings.toolOrder}
                   projectPath={activeProjectPath}
+                  alwaysOnTop={alwaysOnTop}
+                  onToggleAlwaysOnTop={handleToggleAlwaysOnTop}
                 />
               </div>
               {chatSearchOpen && !isContextInspectorOpen && (
@@ -1768,6 +1787,12 @@ export function AppLayout() {
                     <PanelLeft className="h-4 w-4" />
                   </Button>
                 )}
+                <div className="ms-auto">
+                  <WindowPinButton
+                    alwaysOnTop={alwaysOnTop}
+                    onToggle={handleToggleAlwaysOnTop}
+                  />
+                </div>
               </div>
               <WelcomeScreen
                 hasProjects={hasProjects}

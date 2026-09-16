@@ -8,6 +8,9 @@
   },
   "header": {
     "closePane": "关闭窗格",
+    "pinWindow": "窗口置顶",
+    "unpinWindow": "取消窗口置顶",
+    "pinWindowFailed": "修改窗口置顶状态失败。",
     "devFill": "开发填充",
     "fillCurrentChat": "填充当前对话",
     "fillCurrentSpace": "填充当前空间（3 个项目，10 个对话）",

@@ -95,6 +95,8 @@ declare global {
       setMacBackgroundEffect: (effect: MacBackgroundEffect) => void;
       relaunchApp: () => Promise<IpcResult>;
       setMinWidth: (width: number) => void;
+      getAlwaysOnTop: () => Promise<boolean>;
+      setAlwaysOnTop: (value: boolean) => Promise<IpcResult & { alwaysOnTop?: boolean }>;
       onBeforeClose: (callback: () => Promise<void> | void) => () => void;
       onTrayOpenSession: (
         callback: (target: { projectId: string; sessionId: string }) => void,

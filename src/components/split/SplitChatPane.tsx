@@ -49,6 +49,8 @@ export interface SplitChatPaneProps {
   minChatWidth?: number;
   isIsland: boolean;
   shouldAnimate: boolean;
+  alwaysOnTop?: boolean;
+  onToggleAlwaysOnTop?: () => void;
   chatFadeStrength: number;
   topFadeBackground: string;
   titlebarSurfaceColor: string;
@@ -134,6 +136,8 @@ function SplitChatPaneInner({
   minChatWidth,
   isIsland,
   shouldAnimate,
+  alwaysOnTop,
+  onToggleAlwaysOnTop,
   chatFadeStrength,
   topFadeBackground,
   titlebarSurfaceColor,
@@ -252,6 +256,8 @@ function SplitChatPaneInner({
               onSeedDevExampleConversation={isActiveSessionPane ? onSeedDevExampleConversation : undefined}
               onSeedDevExampleSpaceData={isActiveSessionPane ? onSeedDevExampleSpaceData : undefined}
               onClosePane={onClosePane}
+              alwaysOnTop={alwaysOnTop}
+              onToggleAlwaysOnTop={isActiveSessionPane ? onToggleAlwaysOnTop : undefined}
             />
           </div>
           {isContextInspectorOpen ? (

@@ -5,6 +5,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { ComponentProps } from "react";
 import { UPSTREAM_REQUEST_SCROLL_AREA_CLASS } from "@/components/lib/chat-header-layout";
 import { ChatHeader } from "../ChatHeader";
+import { WindowPinButton } from "../WindowPinButton";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { ModelLabel } from "../ModelIcon";
 import { ChatSection } from "../sidebar/ChatSection";
 import { SidebarActionsProvider, type SidebarActions } from "../sidebar/SidebarActionsContext";
@@ -27,6 +29,20 @@ function createProps(overrides: Partial<ChatHeaderProps> = {}): ChatHeaderProps 
     ...overrides,
   };
 }
+
+describe("WindowPinButton", () => {
+  it("renders the active state and accessible toggle label", () => {
+    const markup = renderToStaticMarkup(
+      <TooltipProvider>
+        <WindowPinButton alwaysOnTop={true} onToggle={vi.fn()} />
+      </TooltipProvider>,
+    );
+
+    expect(markup).toContain('aria-label="Stop keeping window on top"');
+    expect(markup).toContain('aria-pressed="true"');
+    expect(markup).toContain("lucide-pin");
+  });
+});
 
 describe("ChatHeader", () => {
   it("shows the aggregated upstream request count on the details trigger", () => {

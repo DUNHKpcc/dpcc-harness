@@ -16,6 +16,7 @@ import {
   extractSessionMeta,
   type SessionMeta,
 } from "@shared/lib/session-persistence";
+import { normalizePersistedSessionTitle } from "@shared/lib/session-title";
 import { selectRecentTraySessions } from "../lib/tray-menu";
 
 interface SearchResult {
@@ -57,7 +58,8 @@ export async function listProjectSessions(projectId: string): Promise<SessionMet
       ...metaFiles.map(async (file): Promise<SessionMeta | null> => {
         try {
           const raw = await fs.promises.readFile(path.join(dir, file), "utf-8");
-          return JSON.parse(raw) as SessionMeta;
+          const meta = JSON.parse(raw) as SessionMeta;
+          return { ...meta, title: normalizePersistedSessionTitle(meta.title) };
         } catch {
           return null;
         }

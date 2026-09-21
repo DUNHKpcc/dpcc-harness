@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   classifyAcpTurn,
   createAcpTurnObservation,
+  isAcpNotifyUpdate,
   isPiRetryNotice,
   isPiStartupBanner,
   observeAcpTurnUpdate,
@@ -116,5 +117,18 @@ describe("ACP turn outcome", () => {
       content: { type: "text", text: "Retrying (attempt 1/3, waiting 2s)..." },
     }, { isPi: true, adapterVersion: "0.0.33" });
     expect(observation.retryNoticeCount).toBe(1);
+  });
+
+  it("recognizes Pi extension notifications carried as ACP message metadata", () => {
+    const update = {
+      sessionUpdate: "agent_message_chunk",
+      content: { type: "text", text: "__PCC_AGENT_PI_CONTEXT_V1__:{\"version\":1}" },
+      _meta: { piAcp: { notify: { level: "info" } } },
+    };
+    expect(isAcpNotifyUpdate(update)).toBe(true);
+    expect(isAcpNotifyUpdate({
+      sessionUpdate: "agent_message_chunk",
+      content: { type: "text", text: "正常回答" },
+    })).toBe(false);
   });
 });

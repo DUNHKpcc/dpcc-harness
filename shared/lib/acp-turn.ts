@@ -89,6 +89,19 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
+/** Pi ACP maps extension ui.notify calls to agent_message_chunk updates. */
+export function isAcpNotifyUpdate(update: unknown): boolean {
+  const record = asRecord(update);
+  if (!record) return false;
+  const metadata = [record._meta, record.meta, record.metadata]
+    .map(asRecord)
+    .filter((item): item is Record<string, unknown> => item != null);
+  return metadata.some((item) => {
+    const piAcp = asRecord(item.piAcp);
+    return asRecord(piAcp?.notify) != null;
+  });
+}
+
 function isErrorStage(value: unknown): value is ACPErrorStage {
   return value === "spawn"
     || value === "initialize"

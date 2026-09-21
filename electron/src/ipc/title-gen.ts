@@ -8,14 +8,7 @@ import {
   type UtilityRequestUsage,
 } from "../lib/upstream-request-tracker";
 import type { AcpUtilityPromptResult } from "../lib/acp-utility-prompt";
-
-function firstNonEmptyLine(text: string): string | undefined {
-  for (const line of text.split(/\r?\n/g)) {
-    const trimmed = line.trim();
-    if (trimmed) return trimmed;
-  }
-  return undefined;
-}
+import { localSessionTitle, normalizeGeneratedSessionTitle } from "@shared/lib/session-title";
 
 function lastNonEmptyLine(text: string): string | undefined {
   const lines = text.split(/\r?\n/g);
@@ -24,15 +17,6 @@ function lastNonEmptyLine(text: string): string | undefined {
     if (trimmed) return trimmed;
   }
   return undefined;
-}
-
-function localTitle(message: string): string {
-  const normalized = (firstNonEmptyLine(message) ?? "New chat")
-    .replace(/\s+/g, " ")
-    .replace(/[.!?。！？]+$/g, "")
-    .trim();
-  if (normalized.length <= 48) return normalized || "New chat";
-  return `${normalized.slice(0, 45).trimEnd()}...`;
 }
 
 function localCommitMessage(status: string): string {
@@ -83,7 +67,7 @@ export function register(): void {
     sessionId?: string;
   }) => {
     const truncated = message.length > 500 ? `${message.slice(0, 500)}...` : message;
-    const fallback = localTitle(truncated);
+    const fallback = localSessionTitle(truncated);
     if (engine !== "acp" || !sessionId) {
       log("TITLE_GEN", `Using local fallback for non-runtime session engine=${engine ?? "none"}`);
       return { title: fallback };
@@ -95,8 +79,7 @@ export function register(): void {
     try {
       const result = await runAcpUtility(sessionId, prompt, 15_000, true);
       utilityUsage = result.usage;
-      const title = lastNonEmptyLine(result.text);
-      if (!title) throw Object.assign(new Error("ACP utility prompt returned an empty title"), { code: "acp_utility_empty" });
+      const title = normalizeGeneratedSessionTitle(result.text, truncated);
       finishRequest?.(true, utilityUsage);
       return { title };
     } catch (error) {

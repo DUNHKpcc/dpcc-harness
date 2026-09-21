@@ -1,6 +1,7 @@
 /** Pure session persistence helpers shared between Electron and CLI. */
 
 import { isPersistedEngineId } from "./session-runtime";
+import { normalizePersistedSessionTitle } from "./session-title";
 import type { PersistedEngineId } from "../types/engine";
 
 export interface SessionMeta {
@@ -63,7 +64,7 @@ export function extractSessionMeta(data: Record<string, unknown>, lastMessageAt:
   return {
     id: data.id as string,
     projectId: data.projectId as string,
-    title: (data.title as string) || "Untitled",
+    title: normalizePersistedSessionTitle(data.title),
     createdAt: (data.createdAt as number) || 0,
     lastMessageAt,
     model: data.model as string | undefined,

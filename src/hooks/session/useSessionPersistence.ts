@@ -23,6 +23,7 @@ import {
   isProtectedBuiltInPiAgent,
 } from "@shared/lib/session-runtime";
 import { BUILTIN_PI_AGENT, BUILTIN_PI_AGENT_ID } from "@shared/types/registry";
+import { localSessionTitle, normalizeGeneratedSessionTitle } from "@shared/lib/session-title";
 
 interface UseSessionPersistenceParams {
   refs: SharedSessionRefs;
@@ -856,8 +857,7 @@ export function useSessionPersistence({
         ),
       );
 
-      const fallbackTitle =
-        message.length > 60 ? message.slice(0, 57) + "..." : message;
+      const fallbackTitle = localSessionTitle(message);
 
       try {
         // Pass engine + sessionId so the IPC handler routes to ACP if needed
@@ -872,7 +872,7 @@ export function useSessionPersistence({
         const current = sessionsRef.current.find((s) => s.id === sessionId);
         if (!current || !current.titleGenerating) return;
 
-        const title = result.title || fallbackTitle;
+        const title = normalizeGeneratedSessionTitle(result.title ?? "", message);
 
         setSessions((prev) =>
           prev.map((s) =>

@@ -62,6 +62,7 @@ import type { ACPTextFileParams } from "@shared/lib/acp-helpers";
 import {
   classifyAcpTurn,
   createAcpTurnObservation,
+  isAcpNotifyUpdate,
   isPiStartupBanner,
   isSupportedPiAcpAdapterVersion,
   observeAcpTurnUpdate,
@@ -1212,9 +1213,11 @@ async function createAcpConnection(
           })
           : { diagnostic: false };
         const eventKind = (update as { sessionUpdate: string }).sessionUpdate;
-        if (eventKind === "agent_message_chunk" && !observed.diagnostic) {
+        if (eventKind === "agent_message_chunk" && !observed.diagnostic && !isAcpNotifyUpdate(update)) {
           const text = (update as { content?: { text?: string } }).content?.text ?? "";
-          // 忽略该字段，避免污染session title.
+          // The bundled Pi context extension uses ui.notify for telemetry.
+          // pi-acp exposes it as agent_message_chunk, so never feed it into
+          // the utility title/commit accumulator.
           if (text && !text.startsWith("__PCC_AGENT_PI_CONTEXT_V1__:") && entry.utilityTextBuffers) {
             const current = entry.utilityTextBuffers.get(acpSessionId) ?? "";
             entry.utilityTextBuffers.set(acpSessionId, current + text);

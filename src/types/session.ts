@@ -49,6 +49,12 @@ interface UIMessageBase {
   isQueued?: boolean;
   /** When true, system message is rendered with error styling (red text, alert icon) */
   isError?: boolean;
+  /** Optional recovery action for a failed runtime operation. */
+  recoveryAction?: "retry" | "reauthenticate" | "settings" | "new_session";
+  /** User message to reuse when a recovery action retries the operation. */
+  recoveryMessageId?: string;
+  /** Prompt payload retained when revival failed before the user message was appended. */
+  recoveryPrompt?: { content: string; displayContent?: string; images?: ImageAttachment[] };
   compactTrigger?: "manual" | "auto";
   compactPreTokens?: number;
 }

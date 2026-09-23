@@ -5,12 +5,17 @@ export function nextId(prefix: string): string {
 }
 
 /** Create a system-role UIMessage (info or error). */
-export function createSystemMessage(content: string, isError?: boolean): UIMessage {
+export function createSystemMessage(
+  content: string,
+  isError?: boolean,
+  recovery?: Pick<UIMessage, "recoveryAction" | "recoveryMessageId" | "recoveryPrompt">,
+): UIMessage {
   return {
     id: nextId(isError ? "sys-err" : "sys"),
     role: "system",
     content,
     isError: isError || undefined,
+    ...recovery,
     timestamp: Date.now(),
   };
 }

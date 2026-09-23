@@ -114,6 +114,11 @@ export interface ACPErrorDetails {
   stage: ACPErrorStage;
   retryable: boolean;
   cause?: string;
+  httpStatus?: number;
+  retryAfterMs?: number;
+  providerId?: string;
+  category?: "upstream_transient" | "auth" | "configuration" | "runtime";
+  recoveryAction?: "retry" | "reauthenticate" | "settings" | "new_session";
 }
 
 /** The one terminal outcome shared by main, renderer, background and persistence. */

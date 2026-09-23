@@ -1716,6 +1716,7 @@ export function AppLayout() {
                     onTopScrollProgress={handleTopScrollProgress}
                     onSendQueuedNow={handleSendQueuedNow}
                     onUnqueueQueuedMessage={handleUnqueueMessage}
+                    onRetryRecovery={manager.retryFailedMessage}
                     sendNextId={manager.sendNextId}
                   />
                   <div

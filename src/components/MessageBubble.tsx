@@ -4,6 +4,7 @@ import { AlertCircle, Clock, Crosshair, File, Folder, Info, Send, X } from "luci
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { guessLanguage } from "@/lib/languages";
 import { useStreamingTextReveal } from "@/hooks/useStreamingTextReveal";
@@ -228,6 +229,7 @@ interface MessageBubbleProps {
   onSendQueuedNow?: (messageId: string) => void;
   /** Called when user removes a queued user message before it is sent */
   onUnqueueQueued?: (messageId: string) => void;
+  onRetryRecovery?: (messageId: string) => void;
 }
 
 export const MessageBubble = memo(function MessageBubble({
@@ -238,6 +240,7 @@ export const MessageBubble = memo(function MessageBubble({
   isSendNextQueued = false,
   onSendQueuedNow,
   onUnqueueQueued,
+  onRetryRecovery,
 }: MessageBubbleProps) {
   const { t } = useTranslation("chat");
   // All hooks must be called before any early returns (Rules of Hooks)
@@ -300,6 +303,17 @@ export const MessageBubble = memo(function MessageBubble({
             >
               {message.content}
             </span>
+            {message.recoveryAction === "retry" && (message.recoveryPrompt || message.recoveryMessageId) && onRetryRecovery && (
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                className="h-6 shrink-0 px-2 text-[11px]"
+                onClick={() => onRetryRecovery(message.id)}
+              >
+                {t("retry", { ns: "common" })}
+              </Button>
+            )}
           </div>
         </div>
       );
@@ -310,9 +324,20 @@ export const MessageBubble = memo(function MessageBubble({
         "mx-auto max-w-3xl px-4 py-1 text-center text-xs",
         isError ? "text-destructive" : "text-muted-foreground",
       )}>
-        <div className="inline-flex items-center gap-1.5">
+        <div className="inline-flex items-center gap-2">
           {isError ? <AlertCircle className="h-3 w-3" /> : <Info className="h-3 w-3" />}
-          {message.content}
+          <span>{message.content}</span>
+          {message.recoveryAction === "retry" && (message.recoveryPrompt || message.recoveryMessageId) && onRetryRecovery && (
+            <Button
+              type="button"
+              variant="outline"
+              size="xs"
+              className="h-6 px-2 text-[11px]"
+              onClick={() => onRetryRecovery(message.id)}
+            >
+              {t("retry", { ns: "common" })}
+            </Button>
+          )}
         </div>
       </div>
     );

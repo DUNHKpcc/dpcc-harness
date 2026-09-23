@@ -67,4 +67,57 @@ describe("fetchUpstreamModels", () => {
         error: null,
       });
   });
+
+  it("classifies rate limits and preserves Retry-After", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: false,
+      status: 429,
+      statusText: "Too Many Requests",
+      headers: { get: () => "12" },
+    })));
+
+    await expect(fetchUpstreamModels("https://api.dpcc.example", "sk-dpcc"))
+      .resolves.toMatchObject({
+        models: [],
+        error: "429 Too Many Requests",
+        errorCode: "upstream_rate_limited",
+        httpStatus: 429,
+        retryAfterMs: 12_000,
+      });
+  });
+
+  it("classifies gateway and service failures as retryable upstream errors", async () => {
+    for (const [status, errorCode] of [
+      [502, "upstream_bad_gateway"],
+      [503, "upstream_service_unavailable"],
+      [504, "upstream_gateway_timeout"],
+    ] as const) {
+      vi.stubGlobal("fetch", vi.fn(async () => ({
+        ok: false,
+        status,
+        statusText: "Upstream failure",
+        headers: { get: () => null },
+      })));
+
+      await expect(fetchUpstreamModels("https://api.dpcc.example", "sk-dpcc"))
+        .resolves.toMatchObject({ errorCode, httpStatus: status });
+    }
+  });
+
+  it("ignores an invalid Retry-After header instead of exposing NaN", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: false,
+      status: 429,
+      statusText: "Too Many Requests",
+      headers: { get: () => "not-a-date" },
+    })));
+
+    await expect(fetchUpstreamModels("https://api.dpcc.example", "sk-dpcc"))
+      .resolves.toMatchObject({
+        errorCode: "upstream_rate_limited",
+        httpStatus: 429,
+      });
+    await expect(fetchUpstreamModels("https://api.dpcc.example", "sk-dpcc"))
+      .resolves.not.toHaveProperty("retryAfterMs");
+  });
 });

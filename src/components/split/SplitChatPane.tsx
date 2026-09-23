@@ -10,7 +10,7 @@
  * BottomComposer; only the outer wrapper and tool strip differ.
  */
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "motion/react";
 import type {
   BackgroundAgent,
@@ -195,6 +195,23 @@ function SplitChatPaneInner({
     paneControllerCtx,
   );
 
+  const retryRecovery = useCallback(async (messageId: string) => {
+    const recovery = paneState.messages.find((message) => message.id === messageId);
+    if (!recovery || recovery.role !== "system" || recovery.recoveryAction !== "retry") return;
+    if (recovery.recoveryPrompt) {
+      await paneController.handlePaneSend(
+        recovery.recoveryPrompt.content,
+        recovery.recoveryPrompt.images,
+        recovery.recoveryPrompt.displayContent,
+      );
+      return;
+    }
+    const original = paneState.messages.find((message) => message.id === recovery.recoveryMessageId);
+    if (original?.role === "user") {
+      await paneController.handlePaneSend(original.content, original.images, original.displayContent);
+    }
+  }, [paneController, paneState.messages]);
+
   const openPanelTools = useMemo(() => {
     return new Set<ToolId>((
       ["terminal", "browser", "git", "files", "project-files", "mcp"] as const
@@ -281,6 +298,7 @@ function SplitChatPaneInner({
                 extraBottomPadding={!!paneState.pendingPermission}
                 sessionId={sessionId}
                 onTopScrollProgress={onTopScrollProgress}
+                onRetryRecovery={retryRecovery}
               />
               <div
                 className={`pointer-events-none absolute inset-x-0 bottom-0 z-[5] transition-opacity duration-200 ${isIsland ? "h-24" : "h-28"}`}

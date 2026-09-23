@@ -211,6 +211,30 @@ describe("useDraftMaterialization", () => {
     expect(params.setters.setAcpConfigOptionsLoading).toHaveBeenLastCalledWith(false);
   });
 
+  it("keeps the draft and preserves retry metadata when ACP startup throws", async () => {
+    const { useDraftMaterialization } = await import("../useDraftMaterialization");
+    const params = makeParams();
+    vi.mocked(window.claude.acp.start).mockRejectedValue(new Error("Pi catalog unavailable"));
+
+    const materialization = useDraftMaterialization(
+      params as unknown as Parameters<typeof useDraftMaterialization>[0],
+    );
+    await expect(materialization.materializeDraft("retry me")).resolves.toBeNull();
+
+    const updateSessions = params.setters.setSessions.mock.calls.at(-1)?.[0] as (value: Array<{ id: string }>) => Array<{ id: string }>;
+    expect(updateSessions([{ id: DRAFT_ID }])).toEqual([{ id: DRAFT_ID, titleGenerating: false }]);
+    expect(params.setters.setActiveSessionId).toHaveBeenCalledWith(DRAFT_ID);
+    const messages = params.setters.setInitialMessages.mock.calls.at(-1)?.[0] as Array<Record<string, unknown>>;
+    expect(messages).toHaveLength(2);
+    expect(messages[0]).toMatchObject({ role: "user", content: "retry me" });
+    expect(messages[1]).toMatchObject({
+      role: "system",
+      isError: true,
+      recoveryAction: "retry",
+      recoveryMessageId: messages[0].id,
+    });
+  });
+
   it("releases the materialization guard when MCP loading rejects", async () => {
     const { useDraftMaterialization } = await import("../useDraftMaterialization");
     const params = makeParams();

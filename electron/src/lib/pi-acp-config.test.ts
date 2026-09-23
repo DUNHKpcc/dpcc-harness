@@ -374,6 +374,35 @@ describe("Pi ACP config", () => {
     expect(fs.existsSync(path.join(agentDir!, "auth.json"))).toBe(false);
   });
 
+  it("uses the last cached Pi catalog when the upstream is temporarily unavailable", async () => {
+    mockFetchUpstreamModels.mockResolvedValue({
+      models: [],
+      error: "503 Service Unavailable",
+      errorCode: "upstream_service_unavailable",
+      httpStatus: 503,
+    });
+    const adapterPath = executable("pi-acp");
+    const piPath = executable("pi");
+    const agent = piAgent(adapterPath, piPath);
+    agent.cachedConfigOptions = [{
+      id: "model",
+      name: "Model",
+      type: "select",
+      currentValue: "pcc-agent-dpcc-claude/cached-claude",
+      options: [
+        { value: "pcc-agent-dpcc-claude/cached-claude", name: "Cached Claude" },
+        { value: "pcc-agent-dpcc-codex/cached-codex", name: "Cached Codex" },
+      ],
+    }];
+    const { preparePiAcpLaunch } = await loadModule();
+
+    const launch = await preparePiAcpLaunch(agent);
+    expect(launch.env?.PI_CODING_AGENT_DIR).toContain(path.join(dataDirRef.current, "pi-agent"));
+    expect(mockFetchUpstreamModels).toHaveBeenCalledTimes(2);
+    expect(fs.readFileSync(path.join(launch.env!.PI_CODING_AGENT_DIR!, "models.json"), "utf-8"))
+      .toContain("cached-claude");
+  });
+
   it("passes the General terminal shell path into managed Pi settings and PATH", async () => {
     const adapterPath = executable("pi-acp");
     const piPath = executable("pi");

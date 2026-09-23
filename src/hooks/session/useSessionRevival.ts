@@ -181,6 +181,10 @@ export function useSessionRevival({
         acp.setMessages((previous) => [...previous, createSystemMessage(
           `Failed to reconnect ACP session: ${error instanceof Error ? error.message : String(error)}`,
           true,
+          {
+            recoveryAction: "retry",
+            recoveryPrompt: { content: text, displayContent: displayText, images },
+          },
         )]);
       }
       return;
@@ -194,6 +198,11 @@ export function useSessionRevival({
             "Failed to reconnect ACP session. Please start a new session.",
           ),
           true,
+          {
+            recoveryAction: result.errorDetails?.recoveryAction
+              ?? (result.errorDetails?.retryable ? "retry" : undefined),
+            recoveryPrompt: { content: text, displayContent: displayText, images },
+          },
         )]);
       }
       return;

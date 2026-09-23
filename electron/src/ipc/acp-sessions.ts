@@ -374,7 +374,7 @@ function emitAcpTransportError(
   getMainWindow: () => BrowserWindow | null,
   entry: ACPSessionEntry,
   turnId: string,
-  error: ReturnType<typeof buildAcpErrorDetails>,
+  error: ACPErrorDetails,
 ): boolean {
   const terminalTurnIds = entry.terminalTurnIds ??= new Set<string>();
   if (terminalTurnIds.has(turnId)) return false;
@@ -941,12 +941,25 @@ function buildAcpErrorDetails(
 ) {
   const extracted = extractErrorDetails(err);
   const message = clipAcpText(extracted.message || options.fallbackMessage || "ACP operation failed.");
+  const code = options.code ?? (typeof extracted.code === "string" ? extracted.code : "acp_transport_error");
+  const transientUpstream = code === "pi_catalog_unavailable"
+    || code === "pi_upstream_error"
+    || /(?:\b429\b|\b502\b|\b503\b|\b504\b|timed out|timeout|temporarily unavailable|bad gateway)/i.test(message);
+  const category = transientUpstream
+    ? "upstream_transient" as const
+    : code === "acp_auth_required" || code === "acp_auth_failed"
+      ? "auth" as const
+      : code === "pi_config_incomplete" || code === "pi_catalog_missing" || code === "pi_model_unavailable"
+        ? "configuration" as const
+        : undefined;
   return {
-    code: options.code ?? (typeof extracted.code === "string" ? extracted.code : "acp_transport_error"),
+    code,
     message,
     source: options.source ?? "acp",
     stage: options.stage ?? "prompt",
     retryable: options.retryable ?? true,
+    ...(category ? { category } : {}),
+    ...(transientUpstream ? { recoveryAction: "retry" as const } : {}),
     ...(extracted.cause ? { cause: clipAcpText(extracted.cause, 1_000) } : {}),
   } as const;
 }
@@ -1017,7 +1030,6 @@ export function buildAcpLifecycleErrorDetails(
     || code === "pi_mcp_config_invalid"
     || code === "pi_e2e_command_invalid"
     || code === "pi_config_incomplete"
-    || code === "pi_catalog_unavailable"
     || code === "pi_catalog_missing"
     || code === "pi_model_unavailable"
     || code === "pi_provider_unsupported";
@@ -1028,7 +1040,7 @@ export function buildAcpLifecycleErrorDetails(
     code,
     source: code.startsWith("pi_") ? "pi" : "acp",
     stage,
-    retryable: !configurationFailure,
+    retryable: code === "pi_catalog_unavailable" || !configurationFailure,
   });
 }
 

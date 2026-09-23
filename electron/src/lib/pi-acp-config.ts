@@ -3,7 +3,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { getDataDir } from "./data-dir";
-import { fetchUpstreamModels } from "./upstream-models";
+import { fetchUpstreamModels, type UpstreamModelErrorCode } from "./upstream-models";
 import {
   buildPiThinkingLevelMap,
   getModelReasoningProfile,
@@ -194,6 +194,9 @@ interface PiProviderCatalog {
 interface PiModelListResult {
   models: string[];
   error: string | null;
+  errorCode?: UpstreamModelErrorCode;
+  httpStatus?: number;
+  retryAfterMs?: number;
 }
 
 function providerEnvKey(providerId: string): string {
@@ -224,6 +227,9 @@ function qualifyConfiguredModel(upstream: PiUpstream, model: string): string {
 async function fetchProviderCatalogs(upstream: PiUpstream): Promise<{
   catalogs: PiProviderCatalog[];
   error: string | null;
+  errorCode?: UpstreamModelErrorCode;
+  httpStatus?: number;
+  retryAfterMs?: number;
 }> {
   if (upstream.tier === "local") return { catalogs: [], error: "local_provider_unreadable" };
   if (upstream.providers.length === 0) return { catalogs: [], error: "no_endpoint" };
@@ -240,6 +246,9 @@ async function fetchProviderCatalogs(upstream: PiUpstream): Promise<{
     return {
       catalogs: [],
       error: failed.result.error ?? `${failed.provider.id}:empty_catalog`,
+      ...(failed.result.errorCode ? { errorCode: failed.result.errorCode } : {}),
+      ...(failed.result.httpStatus !== undefined ? { httpStatus: failed.result.httpStatus } : {}),
+      ...(failed.result.retryAfterMs !== undefined ? { retryAfterMs: failed.result.retryAfterMs } : {}),
     };
   }
   return {
@@ -252,13 +261,16 @@ async function fetchProviderCatalogs(upstream: PiUpstream): Promise<{
 export async function listPiUpstreamModels(
   upstream = resolvePiUpstream(),
 ): Promise<PiModelListResult> {
-  const { catalogs, error } = await fetchProviderCatalogs(upstream);
+  const { catalogs, error, errorCode, httpStatus, retryAfterMs } = await fetchProviderCatalogs(upstream);
   return {
     models: error
       ? []
       : catalogs.flatMap(({ provider, models }) =>
         models.map((modelId) => qualifyModel(provider.id, modelId))),
     error,
+    ...(errorCode ? { errorCode } : {}),
+    ...(httpStatus !== undefined ? { httpStatus } : {}),
+    ...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
   };
 }
 
@@ -273,6 +285,38 @@ function cachedPiModel(agent: InstalledAgent): string {
   return agent.cachedConfigOptions
     ?.find((option) => option.id === "model" || option.category === "model")
     ?.currentValue?.trim() ?? "";
+}
+
+function cachedPiCatalogs(upstream: PiUpstream, agent: InstalledAgent): PiProviderCatalog[] | null {
+  const option = agent.cachedConfigOptions?.find((candidate) => (
+    candidate.id === "model" || candidate.category === "model"
+  ));
+  if (!option) return null;
+  const values = option.options.flatMap((candidate) => (
+    "options" in candidate ? candidate.options.map((item) => item.value) : [candidate.value]
+  )).map((value) => value.trim()).filter(Boolean);
+  if (values.length === 0) return null;
+  const byProvider = new Map(upstream.providers.map((provider) => [provider.id, new Set<string>()]));
+  for (const value of values) {
+    const separator = value.indexOf("/");
+    if (separator <= 0) continue;
+    const models = byProvider.get(value.slice(0, separator));
+    if (models) models.add(value.slice(separator + 1));
+  }
+  if ([...byProvider.values()].some((models) => models.size === 0)) return null;
+  return upstream.providers.map((provider) => ({
+    provider,
+    models: [...(byProvider.get(provider.id) ?? new Set<string>())],
+  }));
+}
+
+function isTransientCatalogError(errorCode?: UpstreamModelErrorCode): boolean {
+  return errorCode === "upstream_timeout"
+    || errorCode === "upstream_rate_limited"
+    || errorCode === "upstream_bad_gateway"
+    || errorCode === "upstream_service_unavailable"
+    || errorCode === "upstream_gateway_timeout"
+    || errorCode === "upstream_network_error";
 }
 
 function selectDefaultModel(
@@ -654,18 +698,25 @@ export async function preparePiAcpLaunch(
   const catalogResult = upstream.tier === "default"
     ? await fetchProviderCatalogs(upstream)
     : { catalogs: gatewayCatalogs(upstream), error: null };
-  if (catalogResult.error) {
+  let catalogs = catalogResult.catalogs;
+  if (catalogResult.error && upstream.tier === "default" && isTransientCatalogError(catalogResult.errorCode)) {
+    catalogs = cachedPiCatalogs(upstream, agent) ?? [];
+  }
+  if (catalogResult.error && catalogs.length === 0) {
+    const retryHint = catalogResult.retryAfterMs !== undefined
+      ? ` Retry after ${Math.max(1, Math.ceil(catalogResult.retryAfterMs / 1000))} seconds.`
+      : "";
     throw piRuntimeError(
       "pi_catalog_unavailable",
-      `Pi ${upstream.tier === "default" ? "DPCC" : "gateway"} model catalog is unavailable: ${catalogResult.error}`,
+      `Pi ${upstream.tier === "default" ? "DPCC" : "gateway"} model catalog is unavailable: ${catalogResult.error}.${retryHint}`,
     );
   }
-  if (catalogResult.catalogs.some(({ models }) => models.length === 0)) {
+  if (catalogs.some(({ models }) => models.length === 0)) {
     throw piRuntimeError("pi_catalog_missing", "Pi gateway has no configured models.");
   }
 
-  const selected = selectDefaultModel(upstream, catalogResult.catalogs, cachedPiModel(agent));
-  const agentDir = preparePiAgentDirectory(upstream, catalogResult.catalogs, selected, piShellPath);
+  const selected = selectDefaultModel(upstream, catalogs, cachedPiModel(agent));
+  const agentDir = preparePiAgentDirectory(upstream, catalogs, selected, piShellPath);
   const managed = await preparePiManagedLaunchEnvironment(runtime, options);
   return {
     ...baseLaunch,

@@ -13,6 +13,22 @@ import { log } from "./logger";
 import { listPiUpstreamModels } from "./pi-acp-config";
 import { resolvePiUpstream } from "./upstream-resolver";
 
+function isTransientCatalogFailure(code?: string): boolean {
+  return code === "upstream_timeout"
+    || code === "upstream_rate_limited"
+    || code === "upstream_bad_gateway"
+    || code === "upstream_service_unavailable"
+    || code === "upstream_gateway_timeout"
+    || code === "upstream_network_error";
+}
+
+async function waitForCatalogRetry(attempt: number, retryAfterMs?: number): Promise<void> {
+  const delay = retryAfterMs !== undefined
+    ? Math.min(retryAfterMs, 60_000)
+    : attempt === 1 ? 1_000 : 3_000;
+  await new Promise((resolve) => setTimeout(resolve, delay));
+}
+
 function cachedModelName(
   value: string,
   providerNames: ReadonlyMap<string, string>,
@@ -43,7 +59,11 @@ async function performBuiltInPiModelCacheRefresh(): Promise<PiModelCacheRefreshR
       return { ok: false, error: "source_not_default", skipped: true };
     }
 
-    const result = await listPiUpstreamModels(upstream);
+    let result = await listPiUpstreamModels(upstream);
+    for (let attempt = 1; attempt <= 2 && result.error && isTransientCatalogFailure(result.errorCode); attempt += 1) {
+      await waitForCatalogRetry(attempt, result.retryAfterMs);
+      result = await listPiUpstreamModels(upstream);
+    }
     if (result.error || result.models.length === 0) {
       const error = result.error ?? "empty_catalog";
       log("PI_MODEL_CACHE_REFRESH", { status: "failed", error });

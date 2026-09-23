@@ -206,7 +206,7 @@ export function useDraftMaterialization({
       isActive: true,
       engine: "acp",
       agentId: identity.agentId,
-    }, ...previous.map((session) => ({ ...session, isActive: false }))]);
+    }, ...previous.filter((session) => session.id !== DRAFT_ID).map((session) => ({ ...session, isActive: false }))]);
 
     let result;
     try {
@@ -220,14 +220,26 @@ export function useDraftMaterialization({
     } catch (error) {
       captureException(error instanceof Error ? error : new Error(String(error)), { label: "MATERIALIZE_ACP_START_ERR" });
       if (isCurrent()) {
-        setSessions((previous) => previous.filter((session) => session.id !== DRAFT_ID));
-        acp.setMessages((previous) => [
-          ...previous,
-          createSystemMessage(
-            `Failed to start Pi ACP session: ${error instanceof Error ? error.message : String(error)}`,
-            true,
-          ),
-        ]);
+        const failedUserMessage = createUserMessage(text, images, displayText);
+        const message = createSystemMessage(
+          `Failed to start Pi ACP session: ${error instanceof Error ? error.message : String(error)}`,
+          true,
+          { recoveryAction: "retry", recoveryMessageId: failedUserMessage.id },
+        );
+        setSessions((previous) => previous.map((session) => (
+          session.id === DRAFT_ID ? { ...session, titleGenerating: false } : session
+        )));
+        setInitialMessages([failedUserMessage, message]);
+        setInitialMeta({
+          isProcessing: false,
+          isConnected: false,
+          sessionInfo: null,
+          totalCost: 0,
+          requestLog: [],
+          contextUsage: null,
+        });
+        setActiveSessionId(DRAFT_ID);
+        acp.setMessages([failedUserMessage, message]);
       }
       release();
       return null;
@@ -253,13 +265,22 @@ export function useDraftMaterialization({
     }
     if (!("sessionId" in result) || !result.sessionId) {
       const errorMessage = formatAcpOperationError(result, "Failed to start Pi ACP session");
-      const failedId = `failed-acp-${Date.now()}`;
+      const failedUserMessage = createUserMessage(text, images, displayText);
       const messages = [
-        createUserMessage(text, images, displayText),
-        createSystemMessage(errorMessage, true),
+        failedUserMessage,
+        createSystemMessage(errorMessage, true, {
+          recoveryAction: "errorDetails" in result
+            ? result.errorDetails?.recoveryAction
+              ?? (result.errorDetails?.retryable ? "retry" : undefined)
+            : undefined,
+          recoveryMessageId: failedUserMessage.id,
+        }),
       ];
+      // Keep the logical draft session in place. A transient upstream failure
+      // must not turn the chat into a dead `failed-acp-*` record with no way
+      // to retry the original prompt.
       setSessions((previous) => previous.map((session) => (
-        session.id === DRAFT_ID ? { ...session, id: failedId, titleGenerating: false } : session
+        session.id === DRAFT_ID ? { ...session, titleGenerating: false } : session
       )));
       setInitialMessages(messages);
       setInitialMeta({
@@ -270,21 +291,8 @@ export function useDraftMaterialization({
         requestLog: [],
         contextUsage: null,
       });
-      setActiveSessionId(failedId);
-      setDraftProjectId(null);
-      void window.claude.sessions.save({
-        id: failedId,
-        projectId: project.id,
-        title: "New Chat",
-        createdAt: Date.now(),
-        messages,
-        permissionMode: options.permissionMode,
-        planMode: !!options.planMode,
-        totalCost: 0,
-        requestLog: [],
-        engine: "acp",
-        agentId: identity.agentId,
-      });
+      setActiveSessionId(DRAFT_ID);
+      acp.setMessages(messages);
       release();
       return null;
     }

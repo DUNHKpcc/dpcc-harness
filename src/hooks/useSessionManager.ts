@@ -429,6 +429,23 @@ export function useSessionManager(
     clearQueue,
   });
 
+  const retryFailedMessage = useCallback(async (recoveryMessageId: string) => {
+    const recovery = messagesRef.current.find((message) => message.id === recoveryMessageId);
+    if (!recovery || recovery.role !== "system" || recovery.recoveryAction !== "retry") return;
+    if (recovery.recoveryPrompt) {
+      await send(
+        recovery.recoveryPrompt.content,
+        recovery.recoveryPrompt.images,
+        recovery.recoveryPrompt.displayContent,
+      );
+      return;
+    }
+    const original = messagesRef.current.find((message) => message.id === recovery.recoveryMessageId);
+    if (original?.role === "user") {
+      await send(original.content, original.images, original.displayContent);
+    }
+  }, [send]);
+
   const seedDevExampleConversation = useCallback(async () => {
     if (!import.meta.env.DEV) return;
     const { buildDevExampleConversation } = await import("../lib/dev-seeding/chat-seed");
@@ -735,6 +752,7 @@ export function useSessionManager(
     upstreamRequestCount: engine.upstreamRequestCount,
     requestLog: engine.requestLog,
     send,
+    retryFailedMessage,
     unqueueMessage,
     sendQueuedMessageNext,
     sendNextId,

@@ -146,6 +146,7 @@ interface ChatMessageRowProps {
   sendNextId?: string | null;
   onSendQueuedNow?: (messageId: string) => void;
   onUnqueueQueuedMessage?: (messageId: string) => void;
+  onRetryRecovery?: (messageId: string) => void;
 }
 
 const ChatMessageRow = memo(function ChatMessageRow({
@@ -157,6 +158,7 @@ const ChatMessageRow = memo(function ChatMessageRow({
   sendNextId,
   onSendQueuedNow,
   onUnqueueQueuedMessage,
+  onRetryRecovery,
 }: ChatMessageRowProps) {
   const { t } = useTranslation("chat");
   // ── Display preferences from Zustand store ──
@@ -238,6 +240,7 @@ const ChatMessageRow = memo(function ChatMessageRow({
         isSendNextQueued={sendNextId === msg.id}
         onSendQueuedNow={onSendQueuedNow}
         onUnqueueQueued={onUnqueueQueuedMessage}
+        onRetryRecovery={onRetryRecovery}
       />
     </div>
   );
@@ -249,7 +252,8 @@ const ChatMessageRow = memo(function ChatMessageRow({
   prev.continuationIds === next.continuationIds &&
   prev.sendNextId === next.sendNextId &&
   prev.onSendQueuedNow === next.onSendQueuedNow &&
-  prev.onUnqueueQueuedMessage === next.onUnqueueQueuedMessage,
+  prev.onUnqueueQueuedMessage === next.onUnqueueQueuedMessage &&
+  prev.onRetryRecovery === next.onRetryRecovery,
 );
 
 // ── ChatViewProps ──
@@ -265,6 +269,7 @@ interface ChatViewProps {
   onTopScrollProgress?: (progress: number) => void;
   onSendQueuedNow?: (messageId: string) => void;
   onUnqueueQueuedMessage?: (messageId: string) => void;
+  onRetryRecovery?: (messageId: string) => void;
   sendNextId?: string | null;
   /** Current space ID — included in remount key so space switches show spinner immediately */
   spaceId?: string;
@@ -357,6 +362,7 @@ function ChatViewContent({
   messages, isProcessing, showThinking, extraBottomPadding, scrollToMessageId, onScrolledToMessage,
   sessionId, onTopScrollProgress,
   onSendQueuedNow, onUnqueueQueuedMessage, sendNextId,
+  onRetryRecovery,
 }: ChatViewProps) {
   // ── Display preferences from Zustand store (only those used directly in ChatViewContent) ──
   const autoGroupTools = useSettingsStore((s) => s.autoGroupTools);
@@ -869,6 +875,7 @@ function ChatViewContent({
                 sendNextId={sendNextId}
                 onSendQueuedNow={onSendQueuedNow}
                 onUnqueueQueuedMessage={onUnqueueQueuedMessage}
+                onRetryRecovery={onRetryRecovery}
               />
             </div>
           ))}

@@ -958,6 +958,7 @@ function buildAcpErrorDetails(
     source: options.source ?? "acp",
     stage: options.stage ?? "prompt",
     retryable: options.retryable ?? true,
+    ...(message.match(/\b429\b/) ? { httpStatus: 429 } : {}),
     ...(category ? { category } : {}),
     ...(transientUpstream ? { recoveryAction: "retry" as const } : {}),
     ...(extracted.cause ? { cause: clipAcpText(extracted.cause, 1_000) } : {}),

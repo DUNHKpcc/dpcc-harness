@@ -220,13 +220,24 @@ function failure(
       source: options.source ?? "harnss",
       stage: options.stage ?? "settle",
       retryable: options.retryable ?? false,
+      failureStatus: "failed_before_completion",
+      ...(options.httpStatus !== undefined ? { httpStatus: options.httpStatus } : {}),
+      ...(options.retryAfterMs !== undefined ? { retryAfterMs: options.retryAfterMs } : {}),
+      ...(options.recoveryAction ? { recoveryAction: options.recoveryAction } : {}),
       ...(options.cause ? { cause: options.cause } : {}),
     },
   };
 }
 
 function isLikelyUpstreamMessage(message: string): boolean {
-  return /\b(connection|network|provider|upstream|rate.?limit|timeout|unauthori[sz]ed|api key|quota|fetch)\b/i.test(message);
+  return /\b(connection|network|provider|upstream|rate.?limit|timeout|unauthori[sz]ed|api key|quota|fetch|429)\b/i.test(message);
+}
+
+function readHttpStatus(message: string | undefined): number | undefined {
+  if (!message) return undefined;
+  const match = message.match(/\b(?:HTTP(?:\s+status)?|status(?:\s+code)?|error)\s*[:=]?\s*(\d{3})\b|\b(429)\b/i);
+  const status = Number(match?.[1] ?? match?.[2]);
+  return Number.isInteger(status) ? status : undefined;
 }
 
 /** Convert an ACP response plus observed Pi events into the app-level outcome. */
@@ -268,16 +279,16 @@ export function classifyAcpTurn(input: {
     ? undefined
     : extractErrorMessage(input.stderrError);
   const structuredError = observation.structuredError;
-  if (structuredError && observation.meaningfulTextLength === 0 && !observation.sawToolCall) {
-    return { status: "failed", error: structuredError };
+  if (structuredError) {
+    return { status: "failed", error: { ...structuredError, failureStatus: "failed_before_completion" } };
   }
 
   const hasOnlyRetryDiagnostics = input.isPi === true
     && observation.retryNoticeCount > 0
-    && observation.meaningfulTextLength === 0
-    && !observation.sawToolCall;
+    && observation.meaningfulTextLength === 0;
 
   if (hasOnlyRetryDiagnostics) {
+    const httpStatus = readHttpStatus(stderrMessage);
     return failure(
       "pi_retry_exhausted",
       stderrMessage || "Pi upstream request failed after automatic retries.",
@@ -285,11 +296,18 @@ export function classifyAcpTurn(input: {
         source: stderrMessage && isLikelyUpstreamMessage(stderrMessage) ? "upstream" : "pi",
         stage: "prompt",
         retryable: true,
+        ...(httpStatus ? { httpStatus } : {}),
+        recoveryAction: "retry",
       },
     );
   }
 
-  if (input.isPi === true && stderrMessage && observation.meaningfulTextLength === 0 && !observation.sawToolCall) {
+  const stderrHttpStatus = readHttpStatus(stderrMessage);
+  if (
+    input.isPi === true
+    && stderrMessage
+    && (observation.meaningfulTextLength === 0 || observation.retryNoticeCount > 0 || stderrHttpStatus === 429)
+  ) {
     return failure(
       isLikelyUpstreamMessage(stderrMessage) ? "pi_upstream_error" : "pi_runtime_error",
       stderrMessage,
@@ -297,6 +315,8 @@ export function classifyAcpTurn(input: {
         source: isLikelyUpstreamMessage(stderrMessage) ? "upstream" : "pi",
         stage: "prompt",
         retryable: true,
+        ...(stderrHttpStatus ? { httpStatus: stderrHttpStatus } : {}),
+        recoveryAction: "retry",
       },
     );
   }
@@ -320,6 +340,7 @@ export function toAcpPiTurnOutcome(
         source: "acp",
         stage: "settle",
         retryable: false,
+        failureStatus: "failed_before_completion",
       },
     };
   }

@@ -7,6 +7,7 @@ import {
   isPiStartupBanner,
   observeAcpTurnUpdate,
 } from "@shared/lib/acp-turn";
+import { createAcpFailureMessage, createPersistenceFailureMessage } from "@/lib/acp-failure";
 
 describe("ACP turn outcome", () => {
   it("recognizes adapter retry notices as diagnostics", () => {
@@ -59,7 +60,44 @@ describe("ACP turn outcome", () => {
         source: "upstream",
         stage: "prompt",
         retryable: true,
+        failureStatus: "failed_before_completion",
+        recoveryAction: "retry",
       },
+    });
+  });
+
+  it("fails after completed tools when the final provider request is rate-limited", () => {
+    const outcome = classifyAcpTurn({
+      stopReason: "end_turn",
+      isPi: true,
+      adapterVersion: "0.0.33",
+      observation: { retryNoticeCount: 3, toolCallCount: 4, sawToolCall: true },
+      stderrError: "HTTP 429 Too Many Requests",
+    });
+
+    expect(outcome).toMatchObject({
+      status: "failed",
+      error: {
+        code: "pi_retry_exhausted",
+        httpStatus: 429,
+        failureStatus: "failed_before_completion",
+        recoveryAction: "retry",
+      },
+    });
+  });
+
+  it("fails a partial answer when the provider reports HTTP 429 after retry notices", () => {
+    const outcome = classifyAcpTurn({
+      stopReason: "end_turn",
+      isPi: true,
+      adapterVersion: "0.0.33",
+      observation: { retryNoticeCount: 1, meaningfulTextLength: 24 },
+      stderrError: "HTTP 429 Too Many Requests",
+    });
+
+    expect(outcome).toMatchObject({
+      status: "failed",
+      error: { httpStatus: 429, failureStatus: "failed_before_completion" },
     });
   });
 
@@ -130,5 +168,32 @@ describe("ACP turn outcome", () => {
       sessionUpdate: "agent_message_chunk",
       content: { type: "text", text: "正常回答" },
     })).toBe(false);
+  });
+
+  it("makes a rate-limit failure explicit and retryable", () => {
+    const message = createAcpFailureMessage({
+      code: "pi_retry_exhausted",
+      message: "HTTP 429 Too Many Requests",
+      httpStatus: 429,
+      retryable: true,
+    }, { recoveryMessageId: "user-1" });
+
+    expect(message).toMatchObject({
+      role: "system",
+      isError: true,
+      failureStatus: "failed_before_completion",
+      recoveryAction: "retry",
+      recoveryMessageId: "user-1",
+    });
+    expect(message.content).toContain("API rate limit reached (HTTP 429)");
+    expect(message.content).toContain("answer was not completed");
+  });
+
+  it("separates local persistence failures from model failures", () => {
+    expect(createPersistenceFailureMessage(new Error("disk full"))).toMatchObject({
+      role: "system",
+      isError: true,
+      failureStatus: "persistence_failed",
+    });
   });
 });

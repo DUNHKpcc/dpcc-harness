@@ -21,6 +21,7 @@ import { extractTaskSubagentSteps, getTaskStatus, isTaskToolName } from "@/lib/e
 import { suppressNextSessionCompletion } from "@/lib/notification-utils";
 import { captureException } from "@/lib/analytics/analytics";
 import { createSystemMessage, createUserMessage, nextId } from "@/lib/message-factory";
+import { createAcpFailureMessage } from "@/lib/acp-failure";
 import { publishSessionSendFailure } from "@/lib/session-send-failure";
 import { toastText } from "@/lib/toast-i18n";
 import { markInFlightToolCallsFailed } from "@/lib/chat/in-flight-tools";
@@ -108,6 +109,10 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
   const activeTaskRef = useRef<{ msgId: string; toolCallId: string; hasInnerTools: boolean; textBuffer: string } | null>(null);
   const acpPermissionRef = useRef<ACPPermissionEvent | null>(null);
   const terminalTurnIdsRef = useRef(new Set<string>());
+  const currentTurnRecoveryRef = useRef<{
+    recoveryMessageId?: string;
+    recoveryPrompt?: { content: string; displayContent?: string; images?: ImageAttachment[] };
+  }>({});
   // Track latest permission behavior to avoid stale closures in event listeners
   const acpPermissionBehaviorRef = useRef<AcpPermissionBehavior>(acpPermissionBehavior ?? "ask");
   acpPermissionBehaviorRef.current = acpPermissionBehavior ?? "ask";
@@ -132,6 +137,7 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
     setAuthRequired(false);
     setAuthMethods([]);
     buffer.current.reset();
+    currentTurnRecoveryRef.current = {};
     cancelPendingFlush();
   }, [sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -164,6 +170,27 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
     ]);
   }, [setMessages]);
 
+  const appendAcpFailure = useCallback((error: Partial<import("@/types").ACPErrorDetails> | undefined) => {
+    setMessages((previous) => {
+      const recovery = currentTurnRecoveryRef.current.recoveryMessageId
+        ? currentTurnRecoveryRef.current
+        : (() => {
+            const user = [...previous].reverse().find((message) => message.role === "user");
+            return user?.role === "user"
+              ? {
+                  recoveryMessageId: user.id,
+                  recoveryPrompt: {
+                    content: user.content,
+                    displayContent: user.displayContent,
+                    images: user.images,
+                  },
+                }
+              : {};
+          })();
+      return [...previous, createAcpFailureMessage(error, recovery)];
+    });
+  }, [setMessages]);
+
   const ensureStreamingMessage = useCallback(() => {
     if (buffer.current.messageId) return;
     const id = nextId("stream");
@@ -189,16 +216,24 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
       textLen: snapshot.text.length,
       thinkingLen: snapshot.thinking.length,
     });
-    setMessages(prev => prev.map(m => {
-      if (m.id !== snapshot.messageId) return m;
-      return {
-        ...m,
-        content: snapshot.text,
-        thinking: snapshot.thinking || m.thinking,
-        ...(snapshot.thinkingComplete ? { thinkingComplete: true } : {}),
-        isStreaming: false,
-      };
-    }));
+    setMessages(prev => {
+      // A turn that only emitted protocol diagnostics must not leave a
+      // persistable blank assistant row behind. Tool calls and the explicit
+      // failure message remain in the conversation.
+      if (!snapshot.text.trim() && !snapshot.thinking.trim()) {
+        return prev.filter((message) => message.id !== snapshot.messageId);
+      }
+      return prev.map(m => {
+        if (m.id !== snapshot.messageId) return m;
+        return {
+          ...m,
+          content: snapshot.text,
+          thinking: snapshot.thinking || m.thinking,
+          ...(snapshot.thinkingComplete ? { thinkingComplete: true } : {}),
+          isStreaming: false,
+        };
+      });
+    });
     buf.reset();
   }, [cancelPendingFlush, setMessages]);
 
@@ -615,7 +650,7 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
       if (data.status === "failed") {
         const message = data.error?.message || "ACP prompt failed.";
         failPendingTools(message);
-        pushSystemError(`ACP prompt error: ${message}`);
+        appendAcpFailure(data.error);
       } else if (data.status === "cancelled") {
         // Cancellation is terminal, but it is not success: an interrupted
         // tool must never be rendered as completed.
@@ -637,7 +672,7 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
       });
       finalizeStreamingMessage();
       failPendingTools(message);
-      pushSystemError(`ACP prompt error: ${message}`);
+      appendAcpFailure(data.error);
       setIsProcessing(false);
     });
 
@@ -668,7 +703,7 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
       finalizeStreamingMessage();
       activeTaskRef.current = null;
       failPendingTools(errorDetail);
-      pushSystemError(message);
+      appendAcpFailure({ message, retryable: true });
     });
 
     // All listeners are now installed. This atomically releases any startup
@@ -692,13 +727,18 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
       unsubEvent(); unsubPermission(); unsubTurnComplete(); unsubTurnTransportError(); unsubExit();
       cancelPendingFlush();
     };
-  }, [closePendingTools, failPendingTools, finalizeStreamingMessage, handleSessionUpdate, initialConfigOptions, pushSystemError, sessionId]);
+  }, [appendAcpFailure, closePendingTools, failPendingTools, finalizeStreamingMessage, handleSessionUpdate, initialConfigOptions, pushSystemError, sessionId]);
 
   const send = useCallback(async (text: string, images?: ImageAttachment[], displayText?: string) => {
     if (!sessionId) return;
     const targetSessionId = sessionId;
     acpLog("SEND", { session: sessionId.slice(0, 8), textLen: text.length, images: images?.length ?? 0 });
-    setMessages(prev => [...prev, createUserMessage(text, images, displayText)]);
+    const userMessage = createUserMessage(text, images, displayText);
+    currentTurnRecoveryRef.current = {
+      recoveryMessageId: userMessage.id,
+      recoveryPrompt: { content: text, displayContent: displayText, images },
+    };
+    setMessages(prev => [...prev, userMessage]);
     setIsProcessing(true);
     try {
       const result = await window.claude.acp.prompt(sessionId, text, images);
@@ -706,7 +746,7 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
       if (promptError && !hasAcpPromptTransportEvent(result)) {
         acpLog("SEND_ERROR", { session: sessionId.slice(0, 8), error: promptError });
         if (sessionIdRef.current === targetSessionId) {
-          pushSystemError(`ACP prompt error: ${promptError}`);
+          appendAcpFailure({ message: promptError, retryable: true });
           setIsProcessing(false);
         } else {
           publishSessionSendFailure(
@@ -720,13 +760,13 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
       acpLog("SEND_ERROR", { session: sessionId.slice(0, 8), error: msg });
       captureException(err instanceof Error ? err : new Error(msg), { label: "ACP_SEND_ERR" });
       if (sessionIdRef.current === targetSessionId) {
-        pushSystemError(`ACP prompt error: ${msg}`);
+        appendAcpFailure({ message: msg, retryable: true });
         setIsProcessing(false);
       } else {
         publishSessionSendFailure(targetSessionId, `ACP prompt error: ${msg}`);
       }
     }
-  }, [sessionId, sessionIdRef, pushSystemError]);
+  }, [appendAcpFailure, sessionId, sessionIdRef, pushSystemError, setMessages]);
 
   /** Send a message without adding it to chat (used for queued messages already in the UI) */
   const sendRaw = useCallback(async (text: string, images?: ImageAttachment[]) => {

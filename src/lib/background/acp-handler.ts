@@ -1,4 +1,4 @@
-import type { ACPSessionEvent, ACPTurnCompleteEvent, ACPTransportErrorEvent } from "@/types";
+import type { ACPSessionEvent, ACPTurnCompleteEvent, ACPTransportErrorEvent, UIMessage } from "@/types";
 import type { InternalState } from "./session-store";
 import {
   mergeToolInput as acpMergeToolInput,
@@ -7,7 +7,8 @@ import {
   deriveToolName,
 } from "@/lib/engine/acp-adapter";
 import { extractTaskSubagentSteps, getTaskStatus, isTaskToolName } from "@/lib/engine/acp-task-adapter";
-import { createSystemMessage, nextId } from "@/lib/message-factory";
+import { nextId } from "@/lib/message-factory";
+import { createAcpFailureMessage } from "@/lib/acp-failure";
 import { markInFlightToolCallsFailed } from "@/lib/chat/in-flight-tools";
 import {
   contextUsageFromPiSnapshot,
@@ -60,12 +61,24 @@ export function finalizeACPStreamingMsg(state: InternalState): void {
   if (!state.currentStreamingMsgId) return;
   const target = state.messages.find(m => m.id === state.currentStreamingMsgId);
   if (target) {
+    if (!target.content.trim() && !target.thinking?.trim()) {
+      state.messages = state.messages.filter((message) => message.id !== target.id);
+      state.currentStreamingMsgId = null;
+      return;
+    }
     if (target.thinking && !target.thinkingComplete) {
       target.thinkingComplete = true;
     }
     target.isStreaming = false;
   }
   state.currentStreamingMsgId = null;
+}
+
+function latestUserMessageId(messages: UIMessage[]): string | undefined {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index].role === "user") return messages[index].id;
+  }
+  return undefined;
 }
 
 /** Mark pending tool_call messages as completed (fast tools that skip tool_call_update).
@@ -336,7 +349,9 @@ export function handleACPTurnComplete(state: InternalState, event?: ACPTurnCompl
   if (event?.status === "failed") {
     const reason = event.error?.message || "ACP prompt failed.";
     state.messages = markInFlightToolCallsFailed(state.messages, reason);
-    state.messages.push(createSystemMessage(`ACP prompt error: ${reason}`, true));
+    state.messages.push(createAcpFailureMessage(event.error, {
+      recoveryMessageId: latestUserMessageId(state.messages),
+    }));
   } else if (event?.status === "cancelled") {
     // A cancelled turn is terminal but not successful. Keep interrupted tools
     // visibly failed instead of closing them as completed.
@@ -355,7 +370,9 @@ export function handleACPTransportError(state: InternalState, event: ACPTranspor
   const reason = event.error.message || "ACP prompt transport failed.";
   finalizeACPStreamingMsg(state);
   state.messages = markInFlightToolCallsFailed(state.messages, reason);
-  state.messages.push(createSystemMessage(`ACP prompt error: ${reason}`, true));
+  state.messages.push(createAcpFailureMessage(event.error, {
+    recoveryMessageId: latestUserMessageId(state.messages),
+  }));
   state.activeTask = null;
   state.isProcessing = false;
   return true;

@@ -7,6 +7,7 @@ import { buildPersistedSession, toChatSession } from "../../lib/session/records"
 import { normalizeToolInput as acpNormalizeToolInput, pickAutoResponseOption } from "../../lib/engine/acp-adapter";
 import { DRAFT_ID } from "./types";
 import { createSystemMessage } from "@/lib/message-factory";
+import { createPersistenceFailureMessage } from "@/lib/acp-failure";
 import { getPiContextSnapshots } from "@/lib/pi-context-store";
 import {
   SESSION_SEND_FAILURE_EVENT,
@@ -91,6 +92,7 @@ export function useSessionPersistence({
   } | null>(null);
   const pendingPersistenceWritesRef = useRef(new Set<Promise<void>>());
   const persistenceGenerationRef = useRef(0);
+  const persistenceFailureReportedRef = useRef(new Set<string>());
 
   const persistRuntimeSession = useCallback((data: PersistedSession) => {
     const disposition = getSessionRuntimeDisposition({
@@ -115,7 +117,16 @@ export function useSessionPersistence({
         agentId: disposition.agentId,
       });
       if (result?.error) throw new Error(result.error);
-    })();
+    })().then(undefined, (error) => {
+      if (activeSessionIdRef.current === data.id && !persistenceFailureReportedRef.current.has(data.id)) {
+        persistenceFailureReportedRef.current.add(data.id);
+        acp.setMessages((previous) => [
+          ...previous,
+          createPersistenceFailureMessage(error),
+        ]);
+      }
+      throw error;
+    });
     pendingPersistenceWritesRef.current.add(write);
     void write.then(
       () => pendingPersistenceWritesRef.current.delete(write),

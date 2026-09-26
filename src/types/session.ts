@@ -51,6 +51,8 @@ interface UIMessageBase {
   isError?: boolean;
   /** Optional recovery action for a failed runtime operation. */
   recoveryAction?: "retry" | "reauthenticate" | "settings" | "new_session";
+  /** Stable user-visible failure classification for terminal runtime/persistence messages. */
+  failureStatus?: "failed_before_completion" | "persistence_failed";
   /** User message to reuse when a recovery action retries the operation. */
   recoveryMessageId?: string;
   /** Prompt payload retained when revival failed before the user message was appended. */

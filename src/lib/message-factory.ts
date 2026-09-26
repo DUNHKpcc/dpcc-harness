@@ -8,7 +8,7 @@ export function nextId(prefix: string): string {
 export function createSystemMessage(
   content: string,
   isError?: boolean,
-  recovery?: Pick<UIMessage, "recoveryAction" | "recoveryMessageId" | "recoveryPrompt">,
+  recovery?: Pick<UIMessage, "recoveryAction" | "recoveryMessageId" | "recoveryPrompt" | "failureStatus">,
 ): UIMessage {
   return {
     id: nextId(isError ? "sys-err" : "sys"),

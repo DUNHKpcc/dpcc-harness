@@ -167,6 +167,35 @@ describe("ACP turn terminal handlers", () => {
     expect(state.messages.at(-1)).toMatchObject({ role: "system", isError: true, content: "ACP prompt error: Connection closed" });
   });
 
+  it("removes a blank assistant placeholder but preserves completed tools and retry recovery", () => {
+    const state = makeState([
+      { id: "user-1", role: "user", content: "Summarize the video", timestamp: 1 },
+      { id: "assistant-empty", role: "assistant", content: "", isStreaming: true, timestamp: 2 },
+      { ...pendingTool("tool-screenshot"), toolResult: { status: "completed", content: "shot.png" } },
+    ]);
+    state.currentStreamingMsgId = "assistant-empty";
+
+    handleACPTurnComplete(state, {
+      ...completeEvent("turn-rate-limit", "failed"),
+      error: {
+        ...completeEvent("turn-rate-limit", "failed").error!,
+        message: "HTTP 429 Too Many Requests",
+        httpStatus: 429,
+        recoveryAction: "retry",
+      },
+    });
+
+    expect(state.messages.some((message) => message.id === "assistant-empty")).toBe(false);
+    expect(state.messages).toContainEqual(expect.objectContaining({ id: "tool-screenshot", toolResult: { status: "completed", content: "shot.png" } }));
+    expect(state.messages.at(-1)).toMatchObject({
+      role: "system",
+      failureStatus: "failed_before_completion",
+      recoveryAction: "retry",
+      recoveryMessageId: "user-1",
+    });
+    expect(state.messages.at(-1)?.content).toContain("HTTP 429");
+  });
+
   it("deduplicates an older terminal event after a newer turn has settled", () => {
     const state = makeState([pendingTool("tool-read")]);
 

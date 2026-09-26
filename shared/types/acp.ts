@@ -119,6 +119,8 @@ export interface ACPErrorDetails {
   providerId?: string;
   category?: "upstream_transient" | "auth" | "configuration" | "runtime";
   recoveryAction?: "retry" | "reauthenticate" | "settings" | "new_session";
+  /** The turn did not produce a completed assistant answer. */
+  failureStatus?: "failed_before_completion";
 }
 
 /** The one terminal outcome shared by main, renderer, background and persistence. */

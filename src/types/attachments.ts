@@ -26,6 +26,7 @@ export interface FileAttachment {
   fileName: string;
   /** File size in bytes — shown next to the filename in the chip. */
   size: number;
+  isDirectory?: boolean;
 }
 
 /** Element data captured by the browser inspector (Element Grab feature). */

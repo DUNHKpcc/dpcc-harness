@@ -108,6 +108,79 @@ async function listProjectFiles(cwd: string): Promise<string[]> {
   }
 }
 
+interface FileSizeResult {
+  totalSize: number;
+  fileCount: number;
+  isDirectory: boolean;
+  error?: string;
+}
+
+async function calculateFileSize(filePath: string): Promise<FileSizeResult> {
+  if (!path.isAbsolute(filePath)) {
+    return {
+      totalSize: 0,
+      fileCount: 0,
+      isDirectory: false,
+      error: "File path must be absolute",
+    };
+  }
+
+  try {
+    const rootStat = await fsPromises.stat(filePath);
+    if (!rootStat.isDirectory()) {
+      return {
+        totalSize: rootStat.size,
+        fileCount: 1,
+        isDirectory: false,
+      };
+    }
+
+    let totalSize = 0;
+    let fileCount = 0;
+    const pendingDirectories = [filePath];
+
+    while (pendingDirectories.length > 0) {
+      const directoryPath = pendingDirectories.pop()!;
+      let entries: fs.Dirent[];
+      try {
+        entries = await fsPromises.readdir(directoryPath, { withFileTypes: true });
+      } catch {
+        continue;
+      }
+
+      for (const entry of entries) {
+        const entryPath = path.join(directoryPath, entry.name);
+        try {
+          // lstat prevents symlinks/junctions from creating recursive loops or
+          // counting files outside the dropped directory more than once.
+          const entryStat = await fsPromises.lstat(entryPath);
+          if (entryStat.isDirectory()) {
+            pendingDirectories.push(entryPath);
+          } else if (entryStat.isFile()) {
+            totalSize += entryStat.size;
+            fileCount += 1;
+          }
+        } catch {
+          // Ignore entries that disappear or become inaccessible while scanning.
+        }
+      }
+
+      if (pendingDirectories.length > 0) {
+        await yieldToEventLoop();
+      }
+    }
+
+    return { totalSize, fileCount, isDirectory: true };
+  } catch (err) {
+    return {
+      totalSize: 0,
+      fileCount: 0,
+      isDirectory: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
 /** Dirs to skip in the full filesystem walk (VCS internals + massive dependency dirs). */
 const EXPLORER_SKIP = new Set([".git", ".hg", ".svn", "node_modules"]);
 
@@ -627,6 +700,10 @@ export function register(getMainWindow: () => BrowserWindow | null): void {
 
   ipcMain.handle("file:preview", async (_event, filePath: string) => {
     return readFilePreview(filePath);
+  });
+
+  ipcMain.handle("file:calculate-size", async (_event, filePath: string): Promise<FileSizeResult> => {
+    return calculateFileSize(filePath);
   });
 
   ipcMain.handle("file:open-in-editor", async (_event, { filePath, line, editor: editorOverride }: { filePath: string; line?: number; editor?: string }) => {

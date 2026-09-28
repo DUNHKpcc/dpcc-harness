@@ -84,6 +84,71 @@ describe("files IPC", () => {
     expect(result).toEqual({ content });
   });
 
+  it("calculates the aggregate size of a dropped folder", async () => {
+    const folderPath = path.join(tmpDir, "Dropped Folder");
+    const nestedPath = path.join(folderPath, "nested");
+    fs.mkdirSync(nestedPath, { recursive: true });
+    fs.writeFileSync(path.join(folderPath, "one.txt"), "12345", "utf-8");
+    fs.writeFileSync(path.join(nestedPath, "two.bin"), Buffer.alloc(7));
+
+    const { register } = await loadModule();
+    register(() => null);
+
+    const calculateSize = handlerFor<
+      [string],
+      { totalSize: number; fileCount: number; isDirectory: boolean; error?: string }
+    >("file:calculate-size");
+    expect(calculateSize).toBeDefined();
+
+    await expect(calculateSize!(null, folderPath)).resolves.toEqual({
+      totalSize: 12,
+      fileCount: 2,
+      isDirectory: true,
+    });
+  });
+
+  it("returns the size of a regular dropped file", async () => {
+    const filePath = path.join(tmpDir, "note.txt");
+    fs.writeFileSync(filePath, "hello", "utf-8");
+
+    const { register } = await loadModule();
+    register(() => null);
+
+    const calculateSize = handlerFor<
+      [string],
+      { totalSize: number; fileCount: number; isDirectory: boolean; error?: string }
+    >("file:calculate-size");
+    expect(calculateSize).toBeDefined();
+
+    await expect(calculateSize!(null, filePath)).resolves.toEqual({
+      totalSize: 5,
+      fileCount: 1,
+      isDirectory: false,
+    });
+  });
+
+  it("includes hidden and large files but does not follow nested symlinks", async () => {
+    const folderPath = path.join(tmpDir, "folder");
+    fs.mkdirSync(folderPath);
+    fs.writeFileSync(path.join(folderPath, ".hidden"), "abc");
+    fs.writeFileSync(path.join(folderPath, "large.bin"), Buffer.alloc(600_000));
+    fs.symlinkSync(folderPath, path.join(folderPath, "loop"), "dir");
+
+    const { register } = await loadModule();
+    register(() => null);
+    const calculateSize = handlerFor<
+      [string],
+      { totalSize: number; fileCount: number; isDirectory: boolean; error?: string }
+    >("file:calculate-size");
+
+    await expect(calculateSize!(null, folderPath)).resolves.toEqual({
+      totalSize: 600_003,
+      fileCount: 2,
+      isDirectory: true,
+    });
+    expect((await calculateSize!(null, "relative/path")).error).toBe("File path must be absolute");
+  });
+
   it("does not count known binary files against deep folder prompt size limits", async () => {
     const docsDir = path.join(tmpDir, "docs");
     fs.mkdirSync(docsDir);

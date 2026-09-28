@@ -108,6 +108,7 @@ contextBridge.exposeInMainWorld("claude", {
   },
   readFile: (filePath: string) => ipcRenderer.invoke("file:read", filePath),
   previewFile: (filePath: string) => ipcRenderer.invoke("file:preview", filePath),
+  calculateFileSize: (filePath: string) => ipcRenderer.invoke("file:calculate-size", filePath),
   // Synchronously resolve the absolute disk path of a File object (e.g. one
   // obtained from a drag-and-drop DataTransfer.files entry). Electron 32+
   // removed File.path; webUtils.getPathForFile is the supported replacement

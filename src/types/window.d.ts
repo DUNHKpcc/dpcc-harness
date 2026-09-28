@@ -113,6 +113,12 @@ declare global {
       };
       readFile: (filePath: string) => Promise<{ content?: string; error?: string }>;
       previewFile: (filePath: string) => Promise<FilePreviewResult>;
+      calculateFileSize: (filePath: string) => Promise<{
+        totalSize: number;
+        fileCount: number;
+        isDirectory: boolean;
+        error?: string;
+      }>;
       getDroppedFilePath: (file: File) => string;
       renameFile: (oldPath: string, newPath: string) => Promise<IpcResult>;
       trashItem: (filePath: string) => Promise<IpcResult>;

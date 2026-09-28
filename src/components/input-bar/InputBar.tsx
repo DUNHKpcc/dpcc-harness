@@ -265,19 +265,47 @@ export const InputBar = memo(function InputBar({
 
   const addFileAttachments = useCallback((files: globalThis.File[]) => {
     if (files.length === 0) return;
-    const newOnes: FileAttachment[] = files.map((f) => ({
-      id: `file-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    const newOnes: FileAttachment[] = files.map((f) => {
       // webUtils.getPathForFile exposed via preload; returns "" if the File
       // wasn't sourced from a real disk path (e.g. clipboard-synthesised File).
-      path: window.claude.getDroppedFilePath(f),
-      fileName: f.name,
-      size: f.size,
-    }));
+      const resolvedPath = window.claude.getDroppedFilePath(f);
+      return {
+        id: `file-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        path: resolvedPath,
+        fileName: f.name,
+        size: f.size,
+      };
+    });
     // Drop entries we couldn't resolve a path for -- without an absolute path
     // we can't read the file at send-time.
     const valid = newOnes.filter((f) => f.path);
     if (valid.length === 0) return;
     setFileAttachments((prev) => [...prev, ...valid]);
+
+    // File.size for a dropped directory is platform-dependent (0 on Windows,
+    // often the directory inode size on macOS). Resolve every disk path to
+    // distinguish folders and calculate their contents asynchronously.
+    void Promise.all(
+      valid.map(async (file) => {
+        try {
+          const sizeInfo = await window.claude.calculateFileSize(file.path);
+          return sizeInfo.error ? null : { id: file.id, size: sizeInfo.totalSize, isDirectory: sizeInfo.isDirectory };
+        } catch {
+          return null;
+        }
+      }),
+    ).then((updates) => {
+      const infoById = new Map(
+        updates
+          .filter((update): update is { id: string; size: number; isDirectory: boolean } => update !== null)
+          .map((update) => [update.id, update]),
+      );
+      if (infoById.size === 0) return;
+      setFileAttachments((current) => current.map((file) => {
+        const info = infoById.get(file.id);
+        return info ? { ...file, size: info.size, isDirectory: info.isDirectory } : file;
+      }));
+    });
   }, []);
 
   const removeFileAttachment = useCallback((id: string) => {

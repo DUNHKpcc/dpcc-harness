@@ -8,7 +8,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { ImageAttachment, FileAttachment, GrabbedElement } from "@/types";
-import { FileTypeIcon } from "./FileTypeIcon";
+import { FileAttachmentTile } from "./FileAttachmentTile";
 
 export interface AttachmentPreviewProps {
   attachments: ImageAttachment[];
@@ -18,13 +18,6 @@ export interface AttachmentPreviewProps {
   onRemoveFileAttachment: (id: string) => void;
   grabbedElements: GrabbedElement[];
   onRemoveGrabbedElement: (id: string) => void;
-}
-
-/** Format a file size as B / KB / MB. Keep one decimal for KB/MB. */
-function formatBytes(size: number): string {
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 /** Image attachment thumbnails, selected/dropped file chips, and grabbed DOM element
@@ -47,9 +40,9 @@ export const AttachmentPreview = memo(function AttachmentPreview({
 
   return (
     <>
-      {/* Image thumbnails and their separate action rails. */}
-      {hasAttachments && (
-        <div className="flex flex-wrap gap-2.5 px-5 pb-2.5">
+      {(hasAttachments || hasFileAttachments) && (
+        <div data-slot="composer-attachment-strip" className="flex w-full min-w-0 flex-nowrap gap-2.5 overflow-x-auto overflow-y-hidden px-5 pb-2.5 overscroll-x-contain">
+          {/* Image thumbnails and their separate action rails. */}
           {attachments.map((att) => (
             <div
               key={att.id}
@@ -114,38 +107,29 @@ export const AttachmentPreview = memo(function AttachmentPreview({
               </div>
             </div>
           ))}
-        </div>
-      )}
-
-      {/* Non-image file chips (selected or dropped from Finder / Explorer) */}
-      {hasFileAttachments && (
-        <div className="flex flex-wrap gap-2.5 px-5 pb-2.5">
+          {/* Non-image files selected or dropped from Finder / Explorer. */}
           {fileAttachments.map((fa) => (
-            <div
-              key={fa.id}
-              className="group/file relative flex items-center gap-2.5 rounded-xl border border-border/30 bg-foreground/[0.04] px-3 py-2 shadow-sm transition-all duration-150 hover:border-border/50 hover:bg-foreground/[0.06]"
-              title={`Path reference. The agent will read this file on demand: ${fa.path}`}
-            >
-              <FileTypeIcon
+            <div key={fa.id} data-slot="file-attachment" className="flex h-16 shrink-0 items-center gap-1.5">
+              <FileAttachmentTile
+                variant="composer"
                 fileName={fa.fileName}
-                className="h-4 w-4 shrink-0 text-muted-foreground"
+                path={fa.path}
+                size={fa.size}
+                isDirectory={fa.isDirectory}
               />
-              <div className="flex max-w-56 flex-col">
-                <span className="truncate text-[11px] font-medium text-foreground/85">
-                  {fa.fileName}
-                </span>
-                <span className="text-[10px] text-muted-foreground">
-                  {formatBytes(fa.size)} · path reference
-                </span>
+              <div className="flex h-16 w-6 shrink-0 flex-col justify-start">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  data-slot="file-attachment-remove"
+                  onClick={() => onRemoveFileAttachment(fa.id)}
+                  className="size-6 rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                  aria-label={`Remove ${fa.fileName}`}
+                >
+                  <X className="size-3" />
+                </Button>
               </div>
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                onClick={() => onRemoveFileAttachment(fa.id)}
-                className="absolute -end-1 -top-1 size-4 rounded-full bg-background/90 text-muted-foreground opacity-0 shadow-sm transition-opacity hover:bg-background/95 hover:text-foreground group-hover/file:opacity-100"
-              >
-                <X className="size-2.5" />
-              </Button>
             </div>
           ))}
         </div>

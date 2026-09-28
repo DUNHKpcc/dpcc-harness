@@ -8,6 +8,8 @@ import {
   FileAudio,
   FileVideo,
   FileImage,
+  Folder,
+  Presentation,
   Braces,
   Terminal,
   type LucideIcon,
@@ -30,7 +32,7 @@ const ICON_BY_EXT: Record<string, LucideIcon> = {
   ini: Braces, env: Braces,
   // Docs / text
   md: FileText, mdx: FileText, txt: FileText, log: FileText, rtf: FileText,
-  pdf: FileText, doc: FileText, docx: FileText,
+  pdf: FileText, doc: FileText, docx: FileText, ppt: Presentation, pptx: Presentation,
   // Data
   csv: FileSpreadsheet, tsv: FileSpreadsheet, xls: FileSpreadsheet, xlsx: FileSpreadsheet, ods: FileSpreadsheet,
   // Archives
@@ -46,15 +48,28 @@ const ICON_BY_EXT: Record<string, LucideIcon> = {
 export interface FileTypeIconProps {
   fileName: string;
   className?: string;
+  isDirectory?: boolean;
 }
 
 export const FileTypeIcon = memo(function FileTypeIcon({
   fileName,
   className,
+  isDirectory = false,
 }: FileTypeIconProps) {
   const ext = fileName.includes(".")
     ? fileName.split(".").pop()!.toLowerCase()
     : "";
-  const Icon = ICON_BY_EXT[ext] ?? File;
-  return <Icon className={className} />;
+  const Icon = isDirectory ? Folder : ICON_BY_EXT[ext] ?? File;
+  const color = isDirectory ? "text-amber-500"
+    : ["doc", "docx"].includes(ext) ? "text-blue-600 dark:text-blue-400"
+    : ["xls", "xlsx", "ods", "csv", "tsv"].includes(ext) ? "text-emerald-600 dark:text-emerald-400"
+    : ["ppt", "pptx"].includes(ext) ? "text-orange-600 dark:text-orange-400"
+    : ext === "pdf" ? "text-red-600 dark:text-red-400"
+    : ["zip", "tar", "gz", "bz2", "rar", "7z"].includes(ext) ? "text-amber-600 dark:text-amber-400"
+    : ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "ico"].includes(ext) ? "text-violet-600 dark:text-violet-400"
+    : ["mp3", "wav", "flac", "ogg", "m4a"].includes(ext) ? "text-pink-600 dark:text-pink-400"
+    : ["mp4", "mov", "webm", "mkv", "avi"].includes(ext) ? "text-indigo-600 dark:text-indigo-400"
+    : ["ts", "tsx", "js", "jsx", "py", "go", "rs", "java", "html", "css", "sh"].includes(ext) ? "text-cyan-600 dark:text-cyan-400"
+    : "text-muted-foreground";
+  return <Icon className={`${color} ${className ?? ""}`} />;
 });

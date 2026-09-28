@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { guessLanguage } from "@/lib/languages";
 import { useStreamingTextReveal } from "@/hooks/useStreamingTextReveal";
+import { localFileName, parseLocalFileReferences } from "@/lib/chat/local-file-references";
+import { FileAttachmentTile } from "./input-bar/FileAttachmentTile";
 import type { UIMessage, ImageAttachment } from "@/types";
 import { ThinkingBlock } from "./ThinkingBlock";
 import { CopyButton } from "./CopyButton";
@@ -247,9 +249,16 @@ export const MessageBubble = memo(function MessageBubble({
   const isUser = message.role === "user";
   const [viewingImage, setViewingImage] = useState<ImageAttachment | null>(null);
   const time = useMemo(() => new Date(message.timestamp).toLocaleTimeString(), [message.timestamp]);
-  const displayContent = useMemo(() => isUser ? (message.displayContent ?? stripFileContext(message.content)) : message.content, [isUser, message.content, message.displayContent]);
+  const filePaths = useMemo(
+    () => isUser ? parseLocalFileReferences(message.content).paths : [],
+    [isUser, message.content],
+  );
+  const displayContent = useMemo(() => isUser
+    ? parseLocalFileReferences(stripFileContext(message.displayContent ?? message.content)).text
+    : message.content, [isUser, message.content, message.displayContent]);
   const messageImages = message.images ?? [];
   const hasMessageImages = messageImages.length > 0;
+  const hasMessageFiles = filePaths.length > 0;
   const hasUserTextContent = isUser && displayContent.trim().length > 0;
   const shouldRenderUserTextBubble = hasUserTextContent || !!message.isQueued;
 
@@ -350,11 +359,11 @@ export const MessageBubble = memo(function MessageBubble({
           <Tooltip>
             <TooltipTrigger asChild>
               <div className="flex w-full min-w-0 max-w-full flex-col items-end">
-                {hasMessageImages && (
+                {(hasMessageImages || hasMessageFiles) && (
                   <div
-                    data-slot="message-image-strip"
+                    data-slot="message-attachment-strip"
                     className={cn(
-                      "flex w-fit min-w-0 max-w-full gap-1.5 overflow-x-auto overflow-y-hidden overscroll-x-contain scrollbar-none",
+                      "flex w-fit min-w-0 max-w-full flex-nowrap gap-1.5 overflow-x-auto overflow-y-hidden overscroll-x-contain scrollbar-none",
                       shouldRenderUserTextBubble && CHAT_IMAGE_THUMBNAIL_STACK_GAP_CLASS,
                     )}
                   >
@@ -377,6 +386,14 @@ export const MessageBubble = memo(function MessageBubble({
                           className="h-full w-full object-cover"
                         />
                       </button>
+                    ))}
+                    {filePaths.map((filePath, index) => (
+                      <FileAttachmentTile
+                        key={`${filePath}-${index}`}
+                        variant="message"
+                        fileName={localFileName(filePath)}
+                        path={filePath}
+                      />
                     ))}
                   </div>
                 )}

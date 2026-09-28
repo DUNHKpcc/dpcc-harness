@@ -1,4 +1,5 @@
 import type { RowDescriptor } from "@/components/ChatView";
+import { parseLocalFileReferences } from "./local-file-references";
 import {
   CHAT_IMAGE_THUMBNAIL_SIZE_PX,
   CHAT_IMAGE_THUMBNAIL_STACK_GAP_PX,
@@ -84,20 +85,22 @@ export function estimateRowHeight(row: RowDescriptor): number {
   }
 
   if (msg.role === "user") {
-    const text = msg.displayContent ?? msg.content;
+    const filePaths = parseLocalFileReferences(msg.content).paths;
+    const text = parseLocalFileReferences(msg.displayContent ?? msg.content).text;
     const lines = estimateLineCount(text);
     const hasImages = (msg.images?.length ?? 0) > 0;
+    const hasAttachments = hasImages || filePaths.length > 0;
     const hasTextBubble = text.trim().length > 0 || !!msg.isQueued;
-    const imageHeight = hasImages ? CHAT_IMAGE_THUMBNAIL_SIZE_PX : 0;
+    const attachmentHeight = hasAttachments ? CHAT_IMAGE_THUMBNAIL_SIZE_PX : 0;
 
     if (!hasTextBubble) {
-      // Image-only messages render without a text bubble.
-      return imageHeight > 0 ? imageHeight + 8 : 8;
+      // Attachment-only messages render without a text bubble.
+      return hasAttachments ? attachmentHeight + 8 : 8;
     }
 
-    // The attachment strip stays on one responsive, horizontally scrollable row.
-    const attachmentGap = hasImages ? CHAT_IMAGE_THUMBNAIL_STACK_GAP_PX : 0;
-    return Math.min(400, 48 + lines * LINE_HEIGHT_PX + imageHeight + attachmentGap);
+    // Images and files share one horizontally scrollable row.
+    const attachmentGap = hasAttachments ? CHAT_IMAGE_THUMBNAIL_STACK_GAP_PX : 0;
+    return Math.min(400, 48 + lines * LINE_HEIGHT_PX + attachmentHeight + attachmentGap);
   }
 
   // assistant — most complex: prose + optional thinking + code blocks

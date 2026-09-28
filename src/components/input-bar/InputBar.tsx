@@ -411,9 +411,7 @@ export const InputBar = memo(function InputBar({
       const messageText = fileReferences.length > 0
         ? buildFileReferenceMessage(trimmed, fileReferences)
         : trimmed;
-      const displayBase = fileReferences.length > 0
-        ? buildFileReferenceMessage(trimmed, fileReferences)
-        : trimmed;
+      const displayBase = trimmed;
       const displayText =
         grabbedElementDisplayTokens.length > 0
           ? `${displayBase}${displayBase ? "\n\n" : ""}${grabbedElementDisplayTokens.join(" ")}`

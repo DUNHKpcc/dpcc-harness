@@ -188,3 +188,64 @@ describe("image attachment preview", () => {
     expect(html).toContain('aria-label="Remove image"');
   });
 });
+
+
+describe("mixed attachment preview", () => {
+  it("keeps multiple images and files in one horizontal scrollable row with equal thumbnails", () => {
+    const html = renderToStaticMarkup(
+      createElement(TooltipProvider, null, createElement(AttachmentPreview, {
+        attachments: ["first", "second"].map((id) => ({
+          id, data: "aGVsbG8=", mediaType: "image/png" as const, fileName: `${id}.png`,
+        })),
+        onRemoveAttachment: () => {},
+        onEditAttachment: () => {},
+        fileAttachments: ["document.docx", "notes.pdf", "data.csv"].map((fileName) => ({
+          id: fileName, path: `/tmp/${fileName}`, fileName, size: 128,
+        })),
+        onRemoveFileAttachment: () => {},
+        grabbedElements: [],
+        onRemoveGrabbedElement: () => {},
+      })),
+    );
+
+    expect((html.match(/data-slot="composer-attachment-strip"/g) ?? [])).toHaveLength(1);
+    expect(html).toContain("flex-nowrap");
+    expect(html).toContain("overflow-x-auto");
+    expect((html.match(/data-slot="image-attachment-thumbnail"/g) ?? [])).toHaveLength(2);
+    expect((html.match(/data-slot="file-attachment-tile"/g) ?? [])).toHaveLength(3);
+    expect((html.match(/size-16/g) ?? [])).toHaveLength(5);
+    expect(html.indexOf('data-slot="image-attachment-thumbnail"')).toBeLessThan(html.indexOf('data-slot="file-attachment-tile"'));
+    expect((html.match(/data-slot="image-attachment-remove"/g) ?? [])).toHaveLength(2);
+    expect((html.match(/data-slot="file-attachment-remove"/g) ?? [])).toHaveLength(3);
+  });
+});
+
+describe("file attachment preview", () => {
+  it("renders a prominent, uniform square with a colored Word icon and truncated name", () => {
+    const html = renderToStaticMarkup(
+      createElement(AttachmentPreview, {
+        attachments: [],
+        onRemoveAttachment: () => {},
+        onEditAttachment: () => {},
+        fileAttachments: [{
+          id: "file-1", path: "/tmp/very-long-document.docx", fileName: "very-long-document.docx", size: 1_572_864,
+        }],
+        onRemoveFileAttachment: () => {},
+        grabbedElements: [],
+        onRemoveGrabbedElement: () => {},
+      }),
+    );
+
+    expect(html).toContain('data-slot="file-attachment-tile"');
+    expect(html).toContain('data-variant="composer"');
+    expect(html).toContain("size-16");
+    expect(html).toContain("text-blue-600");
+    expect(html).toContain('title="very-long-document.docx"');
+    expect(html).toContain("truncate");
+    expect(html).toContain("DOCX · 1.5 MB");
+    const tileStart = html.indexOf('data-slot="file-attachment-tile"');
+    const tileEnd = html.indexOf("</div>", html.indexOf("</div>", tileStart) + 6);
+    expect(html).toContain('data-slot="file-attachment-remove"');
+    expect(html.indexOf('data-slot="file-attachment-remove"')).toBeGreaterThan(tileEnd);
+  });
+});

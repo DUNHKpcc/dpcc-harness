@@ -47,7 +47,7 @@ describe("ChatView", () => {
       ),
     );
 
-    expect(html).toContain('data-slot="message-image-strip"');
+    expect(html).toContain('data-slot="message-attachment-strip"');
     expect(html).toContain("max-w-full");
     expect(html).toContain("overflow-x-auto");
     expect(html).toContain("object-cover");
@@ -65,10 +65,30 @@ describe("ChatView", () => {
         createElement(MessageBubble, { message: messageWithText }),
       ),
     );
-    const stripIndex = htmlWithText.indexOf('data-slot="message-image-strip"');
+    const stripIndex = htmlWithText.indexOf('data-slot="message-attachment-strip"');
     const bubbleIndex = htmlWithText.indexOf('data-slot="user-message-bubble"');
     expect(stripIndex).toBeGreaterThanOrEqual(0);
     expect(bubbleIndex).toBeGreaterThan(stripIndex);
+  });
+
+  it("keeps mixed sent attachments on one row at identical size, even with many files", () => {
+    const message: UIMessage = {
+      ...createImageMessage(2),
+      content: "Please use these local file references as needed:\n- /tmp/notes.docx\n- /tmp/data.pdf\n- /tmp/report.csv",
+    };
+    const html = renderToStaticMarkup(
+      createElement(TooltipProvider, null, createElement(MessageBubble, { message })),
+    );
+
+    expect((html.match(/data-slot="message-attachment-strip"/g) ?? [])).toHaveLength(1);
+    expect(html).toContain("flex-nowrap");
+    expect(html).toContain("overflow-x-auto");
+    expect((html.match(/data-slot="message-image-thumbnail"/g) ?? [])).toHaveLength(2);
+    expect((html.match(/data-slot="file-attachment-tile"/g) ?? [])).toHaveLength(3);
+    expect((html.match(/size-20/g) ?? [])).toHaveLength(5);
+    expect(html.indexOf('data-slot="message-image-thumbnail"')).toBeLessThan(html.indexOf('data-slot="file-attachment-tile"'));
+    expect(html).not.toContain('data-slot="user-message-bubble"');
+    expect(estimateRowHeight({ kind: "message", msg: message, originalIndex: 0 })).toBe(88);
   });
 
   it("keeps long unbroken user text inside the chat width", () => {

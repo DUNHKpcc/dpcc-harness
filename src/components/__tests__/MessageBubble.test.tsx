@@ -61,3 +61,37 @@ describe("MessageBubble message actions", () => {
     expect(markup).toContain("Here is the answer.");
   });
 });
+
+
+describe("sent file references", () => {
+  it("renders file cards at image-thumbnail size and omits the raw path block from the text bubble", () => {
+    const message: UIMessage = {
+      id: "user-file",
+      role: "user",
+      content: "看一下这个文档\n\nAttached local file references:\n- /Users/me/very-long-document.docx",
+      displayContent: "看一下这个文档\n\nAttached local file references:\n- /Users/me/very-long-document.docx",
+      timestamp: 0,
+    };
+    const html = renderMessage(message);
+
+    expect(html).toContain('data-slot="message-attachment-strip"');
+    expect(html).toContain('data-variant="message"');
+    expect(html).toContain('data-slot="file-attachment-tile"');
+    expect(html).toContain("size-20");
+    expect(html).toContain("text-blue-600");
+    expect(html).toContain("看一下这个文档");
+    expect(html).not.toContain("Attached local file references:");
+    expect(html).not.toContain("<span>/Users/me/");
+  });
+
+  it("renders a file-only message without an empty text bubble", () => {
+    const html = renderMessage({
+      id: "user-file-only", role: "user", timestamp: 0,
+      content: "Please use these local file references as needed:\n- C:\\Users\\me\\notes.pdf",
+    });
+
+    expect(html).toContain('data-slot="message-attachment-strip"');
+    expect(html).toContain("text-red-600");
+    expect(html).not.toContain('data-slot="user-message-bubble"');
+  });
+});

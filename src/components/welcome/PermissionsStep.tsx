@@ -1,9 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { motion } from "motion/react";
-import { Shield, ShieldCheck, ShieldOff, Check } from "lucide-react";
-import { PERMISSION_MODES, type PermissionsStepProps } from "./shared";
-
-const ICON_MAP = { Shield, ShieldCheck, ShieldOff } as const;
+import { PermissionBehaviorPicker } from "@/components/PermissionBehaviorPicker";
+import type { PermissionsStepProps } from "./shared";
 
 export function PermissionsStep({
   permissionBehavior,
@@ -34,50 +32,7 @@ export function PermissionsStep({
           </p>
         </motion.div>
 
-        {/* Permission cards */}
-        <div className="flex flex-col gap-3">
-          {PERMISSION_MODES.map((mode, i) => {
-            const isSelected = permissionBehavior === mode.id;
-            const Icon = ICON_MAP[mode.icon];
-
-            return (
-              <motion.button
-                key={mode.id}
-                onClick={() => onPermissionBehaviorChange(mode.id)}
-                className={`flex items-center gap-4 rounded-xl border-2 px-5 py-4 text-start transition-all ${
-                  isSelected
-                    ? "border-foreground/80 bg-foreground/[0.05]"
-                    : "border-transparent bg-foreground/[0.03] hover:bg-foreground/[0.06]"
-                }`}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: 0.06 + i * 0.06 }}
-              >
-                {/* Icon */}
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-foreground/[0.06]">
-                  <Icon className="h-5 w-5 text-foreground/60" />
-                </div>
-
-                {/* Text */}
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-semibold text-foreground">
-                    {t(`permissionsStep.modes.${mode.id}.label`)}
-                  </div>
-                  <div className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                    {t(`permissionsStep.modes.${mode.id}.description`)}
-                  </div>
-                </div>
-
-                {/* Check indicator */}
-                {isSelected && (
-                  <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-foreground">
-                    <Check className="h-3 w-3 text-background" />
-                  </div>
-                )}
-              </motion.button>
-            );
-          })}
-        </div>
+        <PermissionBehaviorPicker value={permissionBehavior} onChange={onPermissionBehaviorChange} />
       </div>
     </div>
   );

@@ -27,6 +27,8 @@ import {
 import { estimateRowHeight } from "@/lib/chat/virtualization";
 import { CHAT_CONTENT_WIDTH_CLASS, CHAT_ROW_CLASS } from "@/components/lib/chat-layout";
 import { useSettingsStore } from "@/stores/settings-store";
+import { QuestionNavigation } from "./QuestionNavigation";
+import { questionEntries, type QuestionEntry } from "@/lib/chat/question-navigation";
 
 // ── Row model ──
 
@@ -47,6 +49,7 @@ const CHAT_BOTTOM_PADDING_PX = 144;
 const CHAT_EXTRA_BOTTOM_PADDING_PX = 280;
 const CHAT_COMPOSER_CLEARANCE_PX = 24;
 const NARROW_CHAT_MESSAGE_WIDTH_THRESHOLD_PX = 900;
+const QUESTION_NAVIGATION_MIN_WIDTH_PX = 600;
 // Progressive rendering: render bottom rows immediately, hydrate older rows in background
 const INITIAL_RENDER_ROWS = 20;
 const HYDRATION_BATCH_SIZE = 40;
@@ -231,7 +234,7 @@ const ChatMessageRow = memo(function ChatMessageRow({
   }
 
   return (
-    <div data-message-id={msg.id}>
+    <div data-message-id={msg.id} data-question-id={msg.role === "user" && !msg.isQueued ? msg.id : undefined}>
       <MessageBubble
         message={msg}
         showThinking={showThinking}
@@ -369,6 +372,14 @@ function ChatViewContent({
   const avoidGroupingEdits = useSettingsStore((s) => s.avoidGroupingEdits);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [useFullWidthMessages, setUseFullWidthMessages] = useState(false);
+  const [hasQuestionNavigationSpace, setHasQuestionNavigationSpace] = useState(false);
+  const [questionTarget, setQuestionTarget] = useState<{ id: string }>();
+  const previousQuestionsRef = useRef<QuestionEntry[]>([]);
+  const questions = useMemo(() => {
+    const entries = questionEntries(messages, previousQuestionsRef.current);
+    previousQuestionsRef.current = entries;
+    return entries;
+  }, [messages]);
 
   // ── Scroll state (refs, not state — rerender-use-ref-transient-values) ──
   const bottomLockedRef = useRef(true);
@@ -720,6 +731,7 @@ function ChatViewContent({
     const updateMessageWidths = () => {
       const next = el.clientWidth <= NARROW_CHAT_MESSAGE_WIDTH_THRESHOLD_PX;
       setUseFullWidthMessages((prev) => (prev === next ? prev : next));
+      setHasQuestionNavigationSpace(el.clientWidth >= QUESTION_NAVIGATION_MIN_WIDTH_PX);
     };
 
     updateMessageWidths();
@@ -798,39 +810,56 @@ function ChatViewContent({
     });
   }, [followBottomNow, sessionId]);
 
-  // ── Scroll-to-message (search navigation) ──
+  const navigateToQuestion = useCallback((id: string) => {
+    bottomLockedRef.current = false;
+    userScrollIntentRef.current = 1;
+    onScrolledToMessageRef.current?.();
+    setQuestionTarget({ id });
+  }, []);
+
+  // ── Scroll-to-message (search and question navigation) ──
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
   useEffect(() => {
-    if (!scrollToMessageId) return;
+    if (scrollToMessageId && questionTarget) {
+      setQuestionTarget(undefined);
+      return;
+    }
+    const targetId = scrollToMessageId ?? questionTarget?.id;
+    if (!targetId || !contentReady) return;
+    bottomLockedRef.current = false;
 
     // If target is in the unhydrated portion (no DOM element exists), force-hydrate first
-    const targetIndex = rows.findIndex(
-      (row) => row.kind === "message" && row.msg.id === scrollToMessageId,
+    const targetIndex = rowsRef.current.findIndex(
+      (row) => row.kind === "message" && row.msg.id === targetId,
     );
     if (targetIndex >= 0 && targetIndex < effectiveHydratedFrom) {
       setHydratedFrom(Math.max(0, targetIndex - 2));
       return; // Effect re-fires after hydration with new effectiveHydratedFrom
     }
 
-    // Find the DOM element by data-message-id and scroll into view
-    requestAnimationFrame(() => {
-      const el = scrollContainerRef.current?.querySelector(`[data-message-id="${scrollToMessageId}"]`);
-      if (el) {
-        bottomLockedRef.current = false;
-        el.scrollIntoView({ block: "center" });
-
-        // Flash highlight after scroll settles
-        setTimeout(() => {
-          el.classList.add("search-highlight");
-          setTimeout(() => {
-            el.classList.remove("search-highlight");
-            onScrolledToMessageRef.current?.();
-          }, 1500);
-        }, 100);
-      } else {
-        onScrolledToMessageRef.current?.();
-      }
+    const complete = () => {
+      if (scrollToMessageId) onScrolledToMessageRef.current?.();
+      else setQuestionTarget(undefined);
+    };
+    let highlighted: Element | null = null;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const frame = requestAnimationFrame(() => {
+      const container = scrollContainerRef.current;
+      const el = container?.querySelector(`[data-message-id="${CSS.escape(targetId)}"]`);
+      if (!container || !el) { complete(); return; }
+      const offset = scrollToMessageId ? (container.clientHeight - el.clientHeight) / 2 : CHAT_TOP_PADDING_PX;
+      container.scrollTop += el.getBoundingClientRect().top - container.getBoundingClientRect().top - offset;
+      highlighted = el;
+      el.classList.add("search-highlight");
+      timer = setTimeout(complete, 1500);
     });
-  }, [scrollToMessageId, effectiveHydratedFrom, rows]);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(timer);
+      highlighted?.classList.remove("search-highlight");
+    };
+  }, [scrollToMessageId, questionTarget, effectiveHydratedFrom, contentReady]);
 
   // ── Render ──
 
@@ -848,12 +877,14 @@ function ChatViewContent({
     "--chat-assistant-message-max-width": useFullWidthMessages ? "100%" : "85%",
     "--chat-user-message-max-width": useFullWidthMessages ? "100%" : "80%",
   } as CSSProperties;
+  const showQuestionNavigation = hasQuestionNavigationSpace && questions.length >= 2;
 
   return (
     <ChatUiStateProvider>
       <div
         ref={scrollContainerRef}
-        className="relative min-h-0 flex-1 overflow-y-auto"
+        data-slot="chat-scroll-container"
+        className={`relative min-h-0 flex-1 overflow-y-auto ${showQuestionNavigation ? "ps-7" : ""}`}
         style={{ overscrollBehaviorY: "contain" }}
         onScroll={handleScroll}
         onPointerDown={handlePointerDown}
@@ -881,6 +912,15 @@ function ChatViewContent({
           ))}
         </div>
       </div>
+      {showQuestionNavigation && (
+        <QuestionNavigation
+          entries={questions}
+          scrollContainerRef={scrollContainerRef}
+          hydratedFrom={effectiveHydratedFrom}
+          bottomInset={composerInset}
+          onNavigate={navigateToQuestion}
+        />
+      )}
     </ChatUiStateProvider>
   );
 }

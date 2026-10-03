@@ -49,24 +49,8 @@ export interface ReadyStepProps {
   onComplete: () => void;
 }
 
-// ── Permission mode data ──
-// Text lives in the `welcome` i18n namespace under `permissionsStep.modes.<id>`
-// and is resolved with `t()` at render time.
-
-export const PERMISSION_MODES = [
-  {
-    id: "ask",
-    icon: "Shield" as const,
-  },
-  {
-    id: "auto_accept",
-    icon: "ShieldCheck" as const,
-  },
-  {
-    id: "allow_all",
-    icon: "ShieldOff" as const,
-  },
-] as const;
+// Keep onboarding and live chat on the same ACP permission catalog.
+export { ACP_PERMISSION_BEHAVIORS as PERMISSION_MODES } from "@/components/input-bar/constants";
 
 // ── Animation ──
 

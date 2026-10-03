@@ -38,21 +38,7 @@
   },
   "permissionsStep": {
     "title": "Your rules",
-    "subtitle": "Set how much freedom Pi gets. Change this anytime.",
-    "modes": {
-      "ask": {
-        "label": "Ask Before Edits",
-        "description": "Pi asks for approval before making file changes or running commands."
-      },
-      "auto_accept": {
-        "label": "Auto Accept",
-        "description": "Pi automatically approves each tool call for this session."
-      },
-      "allow_all": {
-        "label": "Allow All",
-        "description": "Pi automatically approves tools and uses always-allow when supported."
-      }
-    }
+    "subtitle": "Choose how to respond to Agent permission requests. You can change this anytime."
   },
   "accountStep": {
     "title": "DPCC API",

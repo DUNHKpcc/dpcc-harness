@@ -1,4 +1,9 @@
 {
+  "questionNavigation": {
+    "label": "Question navigation",
+    "question": "Question {{number}}",
+    "attachmentOnly": "Attachment message"
+  },
   "empty": {
     "title": "Send a message to start",
     "subtitle": "Your conversation will appear here"

@@ -38,21 +38,7 @@
   },
   "permissionsStep": {
     "title": "你的规则",
-    "subtitle": "设置赋予 Pi 多大的自由度，随时可更改。",
-    "modes": {
-      "ask": {
-        "label": "编辑前询问",
-        "description": "Pi 在修改文件或运行命令前会请求确认。"
-      },
-      "auto_accept": {
-        "label": "自动接受",
-        "description": "Pi 会自动批准当前会话中的每次工具调用。"
-      },
-      "allow_all": {
-        "label": "全部允许",
-        "description": "Pi 会自动批准工具，并在支持时使用始终允许。"
-      }
-    }
+    "subtitle": "选择如何回应 Agent 的权限请求，随时可更改。"
   },
   "accountStep": {
     "title": "DPCC API",

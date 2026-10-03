@@ -1,4 +1,9 @@
 {
+  "questionNavigation": {
+    "label": "历史提问导航",
+    "question": "第 {{number}} 条提问",
+    "attachmentOnly": "附件消息"
+  },
   "empty": {
     "title": "发送消息开始对话",
     "subtitle": "你的对话将显示在这里"

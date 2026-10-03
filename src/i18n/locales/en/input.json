@@ -104,11 +104,11 @@
   "control": {
     "acpBehavior": {
       "ask": "Ask",
-      "askDesc": "Show permission prompt",
       "auto_accept": "Auto Accept",
-      "auto_acceptDesc": "Auto-approve each tool call",
       "allow_all": "Allow All",
-      "allow_allDesc": "Auto-approve with always-allow"
+      "askDesc": "Ask for each permission request",
+      "auto_acceptDesc": "Approve each request once",
+      "allow_allDesc": "Prefer always-allow approval"
     }
   },
   "context": {
@@ -196,5 +196,12 @@
       "overflow": "Overflow retry",
       "unknown": "Unknown"
     }
+  },
+  "permissionPolicy": {
+    "title": "Agent permissions",
+    "confirmTitle": "Enable Allow All?",
+    "cancel": "Keep current mode",
+    "confirm": "Enable Allow All",
+    "confirmDescription": "Automatically approve the allow options offered by an Agent in all local ACP chats. This may permit file changes or commands without your review. Use only with trusted tasks."
   }
 }

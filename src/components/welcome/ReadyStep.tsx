@@ -9,10 +9,11 @@ export function ReadyStep({
   onComplete,
 }: ReadyStepProps) {
   const { t } = useTranslation("welcome");
+  const { t: inputT } = useTranslation("input");
   const theme = useSettingsStore((s) => s.theme);
   const selectedMode = PERMISSION_MODES.find((m) => m.id === permissionBehavior);
   const modeLabel = selectedMode
-    ? t(`permissionsStep.modes.${selectedMode.id}.label`)
+    ? inputT(`control.acpBehavior.${selectedMode.id}`)
     : permissionBehavior;
   const themeName =
     theme === "dark" || theme === "light" || theme === "system"

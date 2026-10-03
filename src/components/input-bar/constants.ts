@@ -15,27 +15,12 @@ export const ACCEPTED_IMAGE_TYPES = [
 
 export type AcceptedMediaType = (typeof ACCEPTED_IMAGE_TYPES)[number];
 
+// Labels and behavior descriptions live in the input i18n namespace.
 export const ACP_PERMISSION_BEHAVIORS = [
-  {
-    id: "ask" as const,
-    label: "Ask",
-    description: "Show permission prompt",
-  },
-  {
-    id: "auto_accept" as const,
-    label: "Auto Accept",
-    description: "Auto-approve each tool call",
-  },
-  {
-    id: "allow_all" as const,
-    label: "Allow All",
-    description: "Auto-approve with always-allow",
-  },
-] as const satisfies ReadonlyArray<{
-  id: AcpPermissionBehavior;
-  label: string;
-  description: string;
-}>;
+  { id: "ask" },
+  { id: "auto_accept" },
+  { id: "allow_all" },
+] as const satisfies ReadonlyArray<{ id: AcpPermissionBehavior }>;
 
 export const PERMISSION_MODES = [
   { id: "default", label: "Ask Before Edits" },

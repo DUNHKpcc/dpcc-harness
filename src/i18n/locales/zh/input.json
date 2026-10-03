@@ -104,11 +104,11 @@
   "control": {
     "acpBehavior": {
       "ask": "询问",
-      "askDesc": "显示权限提示",
       "auto_accept": "自动接受",
-      "auto_acceptDesc": "自动批准每次工具调用",
       "allow_all": "全部允许",
-      "allow_allDesc": "自动批准并始终允许"
+      "askDesc": "收到权限请求时逐次确认",
+      "auto_acceptDesc": "自动批准单次请求",
+      "allow_allDesc": "优先使用始终允许"
     }
   },
   "context": {
@@ -196,5 +196,12 @@
       "overflow": "溢出重试",
       "unknown": "未知"
     }
+  },
+  "permissionPolicy": {
+    "title": "Agent 权限",
+    "confirmTitle": "启用“全部允许”？",
+    "cancel": "保留当前模式",
+    "confirm": "启用全部允许",
+    "confirmDescription": "将自动批准 Agent 提供的允许选项，作用于本机所有 ACP 聊天。可能未经你审阅便修改文件或执行命令，请仅用于可信任务。"
   }
 }

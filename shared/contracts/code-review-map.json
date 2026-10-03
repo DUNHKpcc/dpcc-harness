@@ -2,6 +2,41 @@
   "version": 1,
   "relationships": [
     {
+      "contract": "acp-permission-behavior-ui",
+      "sources": [
+        "src/components/PermissionBehaviorPicker.tsx",
+        "src/components/input-bar/EngineControls.tsx",
+        "src/components/settings/GeneralSettings.tsx",
+        "src/components/welcome/PermissionsStep.tsx",
+        "src/components/welcome/ReadyStep.tsx",
+        "src/lib/engine/acp-adapter.ts",
+        "src/components/input-bar/constants.ts",
+        "src/components/welcome/shared.ts"
+      ],
+      "tests": [
+        "src/lib/engine/__tests__/permission-behavior.test.ts",
+        "tests/ui/permission-behavior.e2e.ts",
+        "tests/ui/onboarding.e2e.ts",
+        "src/components/welcome/shared.test.ts"
+      ]
+    },
+    {
+      "contract": "chat-question-navigation",
+      "sources": [
+        "src/components/ChatView.tsx",
+        "src/components/QuestionNavigation.tsx",
+        "src/components/MessageBubble.tsx",
+        "src/lib/chat/question-navigation.ts",
+        "src/lib/chat/user-message-text.ts"
+      ],
+      "tests": [
+        "src/lib/chat/question-navigation.test.ts",
+        "src/components/__tests__/ChatView.test.tsx",
+        "src/components/__tests__/MessageBubble.test.tsx",
+        "tests/ui/question-navigation.e2e.ts"
+      ]
+    },
+    {
       "contract": "desktop-authorization-v2",
       "sources": [
         "electron/src/lib/account-auth-flow.ts",

@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { guessLanguage } from "@/lib/languages";
 import { useStreamingTextReveal } from "@/hooks/useStreamingTextReveal";
 import { localFileName, parseLocalFileReferences } from "@/lib/chat/local-file-references";
+import { userMessageText } from "@/lib/chat/user-message-text";
 import { FileAttachmentTile } from "./input-bar/FileAttachmentTile";
 import type { UIMessage, ImageAttachment } from "@/types";
 import { ThinkingBlock } from "./ThinkingBlock";
@@ -115,14 +116,6 @@ const SYNTAX_STYLE: React.CSSProperties = {
 
 /** Override oneDark's background on the inner <code> element */
 const CODE_TAG_PROPS = { style: { background: "transparent", textShadow: "none" } };
-
-/** Strip `<file path="...">...</file>` and `<folder path="...">...</folder>` context blocks from user messages */
-function stripFileContext(text: string): string {
-  let result = text.replace(/<file path="[^"]*">[\s\S]*?<\/file>\s*/g, "");
-  result = result.replace(/<folder path="[^"]*">[\s\S]*?<\/folder>\s*/g, "");
-  result = result.replace(/<element [^>]*>[\s\S]*?<\/element>\s*/g, "");
-  return result.trim();
-}
 
 /** Render @path references and grabbed-element markers as styled inline badges */
 function renderWithMentions(text: string): ReactNode[] {
@@ -254,7 +247,7 @@ export const MessageBubble = memo(function MessageBubble({
     [isUser, message.content],
   );
   const displayContent = useMemo(() => isUser
-    ? parseLocalFileReferences(stripFileContext(message.displayContent ?? message.content)).text
+    ? userMessageText(message)
     : message.content, [isUser, message.content, message.displayContent]);
   const messageImages = message.images ?? [];
   const hasMessageImages = messageImages.length > 0;

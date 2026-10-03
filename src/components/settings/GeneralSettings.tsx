@@ -1,6 +1,7 @@
 import { memo, useState, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  Shield,
   Code,
   Download,
   FolderOpen,
@@ -16,6 +17,8 @@ import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { SettingRow, SettingsSelect, SettingsHeader, SettingsSection } from "@/components/settings/shared";
+import { PermissionBehaviorPicker } from "@/components/PermissionBehaviorPicker";
+import { useSettingsStore } from "@/stores/settings-store";
 import { isImeComposing } from "@/lib/utils";
 import type {
   AppSettings,
@@ -39,6 +42,9 @@ export const GeneralSettings = memo(function GeneralSettings({
   onUpdateAppSettings,
 }: GeneralSettingsProps) {
   const { t } = useTranslation("settings");
+  const { t: inputT } = useTranslation("input");
+  const permissionBehavior = useSettingsStore((s) => s.acpPermissionBehavior);
+  const setPermissionBehavior = useSettingsStore((s) => s.setAcpPermissionBehavior);
   // Local optimistic state — synced from props once loaded
   const [allowPrerelease, setAllowPrerelease] = useState(false);
   const [updateSource, setUpdateSource] = useState<UpdateSource>("github");
@@ -254,8 +260,11 @@ export const GeneralSettings = memo(function GeneralSettings({
 
       <ScrollArea className="min-h-0 flex-1">
         <div className="px-6 py-2">
+          <SettingsSection icon={Shield} label={inputT("permissionPolicy.title")} first>
+            <PermissionBehaviorPicker value={permissionBehavior} onChange={setPermissionBehavior} />
+          </SettingsSection>
           {/* ── Updates section ── */}
-          <SettingsSection icon={Download} label={t("general.updates.section")} first>
+          <SettingsSection icon={Download} label={t("general.updates.section")}>
             <SettingRow
               label={t("general.updates.sourceLabel")}
               description={t("general.updates.sourceDesc")}

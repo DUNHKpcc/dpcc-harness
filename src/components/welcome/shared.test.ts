@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import enWelcome from "@/i18n/locales/en/welcome.json";
-import zhWelcome from "@/i18n/locales/zh/welcome.json";
+import enInput from "@/i18n/locales/en/input.json";
+import zhInput from "@/i18n/locales/zh/input.json";
 import { PERMISSION_MODES } from "./shared";
 
 describe("welcome ACP permission contract", () => {
@@ -19,10 +19,10 @@ describe("welcome ACP permission contract", () => {
 
   it("keeps every ACP permission behavior localized", () => {
     for (const { id } of PERMISSION_MODES) {
-      expect(enWelcome.permissionsStep.modes[id].label).toBeTruthy();
-      expect(enWelcome.permissionsStep.modes[id].description).toBeTruthy();
-      expect(zhWelcome.permissionsStep.modes[id].label).toBeTruthy();
-      expect(zhWelcome.permissionsStep.modes[id].description).toBeTruthy();
+      expect(enInput.control.acpBehavior[id]).toBeTruthy();
+      expect(zhInput.control.acpBehavior[id]).toBeTruthy();
+      expect(enInput.control.acpBehavior[`${id}Desc`]).toBeTruthy();
+      expect(zhInput.control.acpBehavior[`${id}Desc`]).toBeTruthy();
     }
   });
 });

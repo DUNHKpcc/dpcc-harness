@@ -26,9 +26,11 @@ describe("AboutSettings", () => {
 
     expect(INITIAL_RELEASE_HISTORY_LIMIT).toBe(3);
     expect(html).toContain("Release history");
-    expect(html).toContain("v3.0.0");
+    for (const release of RELEASE_HISTORY.slice(0, INITIAL_RELEASE_HISTORY_LIMIT)) {
+      expect(html).toContain(`v${release.version}`);
+    }
     expect(html).toContain('aria-expanded="true"');
-    expect(html).toContain("release-details-v3_0_0");
+    expect(html).toContain(`release-details-${releaseTranslationKey(packageJson.version)}`);
     expect(html).toContain("Show older releases");
   });
 
@@ -37,7 +39,6 @@ describe("AboutSettings", () => {
     const toParts = (version: string) => version.split(".").map(Number);
 
     expect(new Set(versions).size).toBe(versions.length);
-    expect(versions[0]).toBe(packageJson.version);
     expect(versions[0]).toBe(packageJson.version);
 
     for (let index = 0; index < RELEASE_HISTORY.length; index += 1) {

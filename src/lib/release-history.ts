@@ -20,6 +20,13 @@ function release(version: string, date: string, changeKeys: readonly string[]): 
 
 /** Bundled release history, newest first, so settings remain useful offline. */
 export const RELEASE_HISTORY: readonly ReleaseHistoryEntry[] = [
+  release("3.0.3", "2026-10-03", [
+    "attachmentTiles",
+    "windowAlwaysOnTop",
+    "piRetryRecovery",
+    "sessionTitleCleanup",
+    "piShellCompatibility",
+  ]),
   release("3.0.2", "2026-09-14", [
     "windowsPiPackagedSmoke",
     "sessionReliability",

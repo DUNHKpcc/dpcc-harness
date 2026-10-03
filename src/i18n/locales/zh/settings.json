@@ -533,6 +533,14 @@
       "showOlder": "显示更早版本",
       "showLess": "收起早期版本",
       "entries": {
+        "v3_0_3": {
+          "title": "统一附件展示、窗口置顶与可靠重试",
+          "attachmentTiles": "图片与文件在输入框和已发送消息中统一显示为可横向滚动的附件卡片，拖入文件夹时显示实际总大小。",
+          "windowAlwaysOnTop": "通过置顶按钮让应用保持在其他窗口上方，重新打开时恢复该偏好。",
+          "piRetryRecovery": "失败后可保留文字和附件重新发送；模型目录暂时不可用时可使用缓存，并明确显示限流与本地保存失败。",
+          "sessionTitleCleanup": "防止协议通知与异常文本混入对话标题，读取已保存对话时也会清理异常标题。",
+          "piShellCompatibility": "Pi 使用已配置的终端 shell 路径，并改善 Windows 上 Git Bash 的查找。"
+        },
         "v3_0_2": {
           "title": "可靠的 Windows 生产包检查",
           "windowsPiPackagedSmoke": "修复 Windows 生产包检查，确保通过正确的 runtime 入口启动内置 Pi 并验证版本。",

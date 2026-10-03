@@ -533,6 +533,14 @@
       "showOlder": "Show older releases",
       "showLess": "Hide older releases",
       "entries": {
+        "v3_0_3": {
+          "title": "Unified attachments, window pinning and reliable retries",
+          "attachmentTiles": "Images and files now share a consistent, horizontally scrollable attachment row in the composer and sent messages; dropped folders show their actual total size.",
+          "windowAlwaysOnTop": "Keep the app above other windows with a pin button, and restore that preference when reopening.",
+          "piRetryRecovery": "Retry failed prompts without losing their text or attachments; temporary model catalog outages can use the cached catalog, and rate limits or local save failures are shown clearly.",
+          "sessionTitleCleanup": "Prevent protocol notifications and malformed text from appearing in chat titles, including when reading saved chats.",
+          "piShellCompatibility": "Pi now follows the configured terminal shell path and finds Git Bash more reliably on Windows."
+        },
         "v3_0_2": {
           "title": "Reliable Windows packaged app checks",
           "windowsPiPackagedSmoke": "Fixed the Windows packaged-app check so the bundled Pi version is launched through the correct runtime entry point.",

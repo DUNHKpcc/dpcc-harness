@@ -21,6 +21,8 @@ export type UpstreamModelErrorCode =
 export interface UpstreamModelFetchResult {
   models: string[];
   error: string | null;
+  /** Explicit per-model token capacity, when supplied by the upstream. */
+  contextWindows?: Record<string, number>;
   errorCode?: UpstreamModelErrorCode;
   httpStatus?: number;
   retryAfterMs?: number;
@@ -87,7 +89,17 @@ export async function fetchUpstreamModels(
       .filter(isRecord)
       .map((model) => (typeof model.id === "string" ? model.id : ""))
       .filter(Boolean);
-    return { models, error: null };
+    const contextWindows: Record<string, number> = Object.create(null);
+    for (const model of body.data.filter(isRecord)) {
+      if (typeof model.id !== "string" || !model.id) continue;
+      const capacity = [model.context_window, model.contextWindow, model.context_length]
+        .find((value) => typeof value === "number" && Number.isSafeInteger(value) && value > 0);
+      if (typeof capacity === "number") contextWindows[model.id] = capacity;
+    }
+    return {
+      models, error: null,
+      ...(Object.keys(contextWindows).length > 0 ? { contextWindows } : {}),
+    };
   } catch (e) {
     const timedOut = controller.signal.aborted;
     return {

@@ -359,6 +359,19 @@
         "tests/ui/question-navigation.e2e.ts",
         "tests/ui/message-deletion.e2e.ts"
       ]
+    },
+    {
+      "contract": "dpcc-pi-context-window-capacities",
+      "sources": [
+        "shared/lib/model-context-windows.ts",
+        "electron/src/lib/upstream-models.ts",
+        "electron/src/lib/pi-acp-config.ts"
+      ],
+      "tests": [
+        "src/lib/__tests__/model-context-windows.test.ts",
+        "electron/src/lib/upstream-models.test.ts",
+        "electron/src/lib/pi-acp-config.test.ts"
+      ]
     }
   ]
 }

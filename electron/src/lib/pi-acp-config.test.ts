@@ -1,4 +1,7 @@
 import fs from "fs";
+import { spawn } from "node:child_process";
+import { createRequire } from "node:module";
+import { createInterface } from "node:readline";
 import os from "os";
 import path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -530,6 +533,91 @@ describe("Pi ACP config", () => {
     });
     expect(codexModels.get("gpt-image-2")?.compat).toBeUndefined();
   });
+
+  it("writes documented capacities, prefers explicit upstream limits and refreshes the config fingerprint", async () => {
+    const { preparePiAcpLaunch } = await loadModule();
+    mockResolvePiUpstream.mockReturnValue(dpccUpstream());
+    const models = ["gpt-6.1-sol", "claude-sonnet-4-6", "claude-haiku-4-5", "gemini-3.8-flash", "deepseek-v4-flash", "grok-4.7", "unknown-model"];
+    mockFetchUpstreamModels.mockResolvedValue({ models, error: null });
+    const first = await preparePiAcpLaunch(piAgent("ignored-pi-acp", "ignored-pi"));
+    const readModels = (dir: string) => JSON.parse(fs.readFileSync(path.join(dir, "models.json"), "utf-8"))
+      .providers["pcc-agent-dpcc-codex"].models as Array<{ id: string; contextWindow?: number }>;
+    expect(readModels(first.env!.PI_CODING_AGENT_DIR!)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "gpt-6.1-sol", contextWindow: 1_050_000 }),
+      expect.objectContaining({ id: "claude-sonnet-4-6", contextWindow: 1_000_000 }),
+      expect.objectContaining({ id: "claude-haiku-4-5", contextWindow: 200_000 }),
+      expect.objectContaining({ id: "gemini-3.8-flash", contextWindow: 1_048_576 }),
+      expect.objectContaining({ id: "deepseek-v4-flash", contextWindow: 1_000_000 }),
+      expect.objectContaining({ id: "grok-4.7", contextWindow: 500_000 }),
+    ]));
+    expect(readModels(first.env!.PI_CODING_AGENT_DIR!).find((model) => model.id === "unknown-model")?.contextWindow).toBeUndefined();
+    mockFetchUpstreamModels.mockResolvedValue({ models, error: null, contextWindows: { "gpt-6.1-sol": 256_000, "unknown-model": 64_000 } });
+    const second = await preparePiAcpLaunch(piAgent("ignored-pi-acp", "ignored-pi"));
+    expect(second.env!.PI_CODING_AGENT_DIR).not.toBe(first.env!.PI_CODING_AGENT_DIR);
+    expect(readModels(second.env!.PI_CODING_AGENT_DIR!)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "gpt-6.1-sol", contextWindow: 256_000 }),
+      expect.objectContaining({ id: "unknown-model", contextWindow: 64_000 }),
+    ]));
+  });
+
+  it("does not apply DPCC context fallbacks to a custom Pi gateway", async () => {
+    const { preparePiAcpLaunch } = await loadModule();
+    mockResolvePiUpstream.mockReturnValue({ tier: "gateway", model: "gpt-6.1-sol", providers: [{
+      id: "pcc-agent-gateway", name: "Custom", baseUrl: "https://custom.example/v1",
+      apiKey: "fixture-key", api: "openai-completions", models: ["gpt-6.1-sol"],
+    }] });
+    const launch = await preparePiAcpLaunch(piAgent("ignored-pi-acp", "ignored-pi"));
+    const config = JSON.parse(fs.readFileSync(path.join(launch.env!.PI_CODING_AGENT_DIR!, "models.json"), "utf-8"));
+    expect(config.providers["pcc-agent-gateway"].models[0].contextWindow).toBeUndefined();
+  });
+
+  it("the real bundled Pi loads and switches the generated context capacities offline", async () => {
+    const { preparePiAcpLaunch } = await loadModule();
+    mockResolvePiUpstream.mockReturnValue(dpccUpstream());
+    mockFetchUpstreamModels.mockResolvedValue({ models: ["gpt-6.1-sol", "claude-haiku-4-5"], error: null });
+    const launch = await preparePiAcpLaunch(piAgent("ignored-pi-acp", "ignored-pi"));
+    const require = createRequire(path.join(process.cwd(), "package.json"));
+    const electron = String(require("electron"));
+    const host = process.platform === "darwin"
+      ? path.join(path.dirname(electron), "../Frameworks/Electron Helper.app/Contents/MacOS/Electron Helper")
+      : electron;
+    const entry = path.resolve("node_modules/@earendil-works/pi-coding-agent/dist/cli.js");
+    const child = spawn(host, [entry, "--mode", "rpc", "--offline", "--no-extensions", "--no-skills",
+      "--no-prompt-templates", "--no-themes", "--no-context-files", "--no-tools",
+      "--provider", "pcc-agent-dpcc-codex", "--model", "gpt-6.1-sol"], {
+      cwd: dataDirRef.current,
+      env: {
+        PATH: process.env.PATH, HOME: dataDirRef.current, USERPROFILE: dataDirRef.current,
+        ELECTRON_RUN_AS_NODE: "1", PI_OFFLINE: "1", PI_TELEMETRY: "0",
+        PI_CODING_AGENT_DIR: launch.env!.PI_CODING_AGENT_DIR!,
+        PCC_AGENT_PI_DPCC_CLAUDE_KEY: "offline-fixture-key", PCC_AGENT_PI_DPCC_CODEX_KEY: "offline-fixture-key",
+      },
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    const lines = createInterface({ input: child.stdout });
+    const responses = new Map<string, (response: { success: boolean; data: { model?: { contextWindow: number }; contextWindow?: number } }) => void>();
+    lines.on("line", (line) => {
+      try { const response = JSON.parse(line); if (response.id) responses.get(response.id)?.(response); } catch { /* Ignore non-protocol diagnostics. */ }
+    });
+    const exit = new Promise<void>((resolve) => child.once("exit", () => resolve()));
+    const request = (id: string, type: string, extra: Record<string, string> = {}) => new Promise<{ success: boolean; data: { model?: { contextWindow: number }; contextWindow?: number } }>((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error(`Pi RPC timeout: ${type}`)), 15_000);
+      responses.set(id, (response) => { clearTimeout(timeout); responses.delete(id); resolve(response); });
+      child.stdin.write(`${JSON.stringify({ id, type, ...extra })}\n`);
+    });
+    try {
+      const state = await request("state", "get_state");
+      expect(state.success).toBe(true);
+      expect(state.data.model?.contextWindow).toBe(1_050_000);
+      const switched = await request("switch", "set_model", { provider: "pcc-agent-dpcc-codex", modelId: "claude-haiku-4-5" });
+      expect(switched.success).toBe(true);
+      expect(switched.data.contextWindow).toBe(200_000);
+    } finally {
+      lines.close();
+      child.kill("SIGTERM");
+      await exit;
+    }
+  }, 30_000);
 
   it("leaves the user's Pi config and provider environment alone in local mode", async () => {
     mockResolvePiUpstream.mockReturnValue({ tier: "local", providers: [], model: "" });

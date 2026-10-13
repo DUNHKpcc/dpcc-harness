@@ -3,6 +3,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { getDataDir } from "./data-dir";
+import { getDpccModelContextWindow } from "@shared/lib/model-context-windows";
 import { fetchUpstreamModels, type UpstreamModelErrorCode } from "./upstream-models";
 import {
   buildPiThinkingLevelMap,
@@ -189,6 +190,7 @@ export interface PiAcpLaunchDefinition {
 interface PiProviderCatalog {
   provider: PiProviderUpstream;
   models: string[];
+  contextWindows?: Record<string, number>;
 }
 
 interface PiModelListResult {
@@ -252,7 +254,10 @@ async function fetchProviderCatalogs(upstream: PiUpstream): Promise<{
     };
   }
   return {
-    catalogs: results.map(({ provider, result }) => ({ provider, models: result.models })),
+    catalogs: results.map(({ provider, result }) => ({
+      provider, models: result.models,
+      ...(result.contextWindows ? { contextWindows: result.contextWindows } : {}),
+    })),
     error: null,
   };
 }
@@ -536,16 +541,29 @@ function preparePiAgentDirectory(
   selected: { provider: string; model: string },
   shellPath?: string,
 ): string {
+  const resolvedCatalogs = catalogs.map((catalog) => ({
+    ...catalog,
+    contextWindows: Object.fromEntries(catalog.models.flatMap<[string, number]>((modelId) => {
+      const upstreamCapacity = Object.hasOwn(catalog.contextWindows ?? {}, modelId)
+        ? catalog.contextWindows?.[modelId]
+        : undefined;
+      const contextWindow = upstreamCapacity ?? (upstream.tier === "default"
+        ? getDpccModelContextWindow(modelId)
+        : undefined);
+      return contextWindow === undefined ? [] : [[modelId, contextWindow]];
+    })),
+  }));
   const sessionDir = path.join(getDataDir(), "pi-sessions");
   const fingerprint = crypto.createHash("sha256").update(JSON.stringify({
     tier: upstream.tier,
-    providers: catalogs.map(({ provider, models }) => ({
+    providers: resolvedCatalogs.map(({ provider, models, contextWindows }) => ({
       id: provider.id,
       name: provider.name,
       baseUrl: provider.baseUrl,
       api: provider.api,
       authHeader: provider.authHeader === true,
       models,
+      contextWindows,
     })),
     selected,
   })).digest("hex").slice(0, 16);
@@ -553,7 +571,7 @@ function preparePiAgentDirectory(
   fs.mkdirSync(agentDir, { recursive: true, mode: 0o700 });
   fs.mkdirSync(sessionDir, { recursive: true, mode: 0o700 });
 
-  const providers = Object.fromEntries(catalogs.map(({ provider, models }) => [
+  const providers = Object.fromEntries(resolvedCatalogs.map(({ provider, models, contextWindows }) => [
     provider.id,
     {
       name: provider.name,
@@ -578,6 +596,9 @@ function preparePiAgentDirectory(
         return {
           id: modelId,
           name: `${modelId} (${provider.name})`,
+          ...(Object.hasOwn(contextWindows, modelId)
+            ? { contextWindow: contextWindows[modelId] }
+            : {}),
           ...(upstream.tier === "default"
             ? {
               reasoning: reasoningProfile ? piThinking !== null : true,

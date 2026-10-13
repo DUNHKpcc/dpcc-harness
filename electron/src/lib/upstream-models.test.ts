@@ -47,6 +47,27 @@ describe("fetchUpstreamModels", () => {
       .resolves.toEqual({ models: ["codex-dpcc"], error: null });
   });
 
+  it("retains valid explicit capacities while rejecting invalid or inherited values", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ data: [
+        { id: "snake", context_window: 1_050_000 },
+        { id: "camel", contextWindow: 200_000 },
+        { id: "length", context_length: 1_048_576 },
+        { id: "zero", context_window: 0 },
+        { id: "negative", context_window: -1 },
+        { id: "fraction", context_window: 1.5 },
+        { id: "string", context_window: "1000000" },
+        { id: "infinite", context_window: Infinity },
+        { id: "unsafe", context_window: Number.MAX_SAFE_INTEGER + 1 },
+        { id: "__proto__", context_window: 4096 },
+      ] }),
+    })));
+    const result = await fetchUpstreamModels("https://api.dpcc.example/v1", "fixture-key");
+    expect(result.contextWindows).toEqual({ snake: 1_050_000, camel: 200_000, length: 1_048_576, ["__proto__"]: 4096 });
+    expect(Object.getPrototypeOf(result.contextWindows)).toBeNull();
+  });
+
   it("ignores non-object model items", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => ({
       ok: true,

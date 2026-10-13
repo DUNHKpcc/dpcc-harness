@@ -46,6 +46,9 @@ export interface PaneControllerContext {
     acpConfigOptionsLoading: boolean;
     acpConfigOptionsDormant: boolean;
     setACPConfig: (key: string, value: string) => void;
+    deleteMessage?: (sessionId: string, messageId: string, pane?: SessionPaneState) => Promise<void>;
+    unqueueMessage?: (messageId: string) => void;
+    deletingSessionIds?: ReadonlySet<string>;
   };
   splitView?: { setFocusedSession: (sessionId: string | null) => void };
   createSplitPaneDraftSession?: (

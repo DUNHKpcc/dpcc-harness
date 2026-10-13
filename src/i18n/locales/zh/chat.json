@@ -57,6 +57,12 @@
   "message": {
     "attachedImage": "附加图片",
     "copy": "复制",
+    "delete": "删除消息",
+    "deleteTitle": "删除这条消息？",
+    "deleteDescription": "仅从本地聊天记录中删除这条消息，模型仍可能保留相关上下文。不会删除其他消息、撤销工具操作或删除附件原文件。",
+    "deleteReplyTitle": "删除这整轮回复？",
+    "deleteReplyDescription": "从本地聊天记录中删除这整轮回复，包括思考、工具调用及结果、执行步骤和耗时。保留用户提问和其他轮回复，不改变模型上下文、不撤销工具操作，也不删除附件原文件。",
+    "deleteFailed": "删除未能保存，消息已恢复。",
     "queued": "排队中",
     "sendNext": "下一个发送",
     "unqueue": "移出队列"

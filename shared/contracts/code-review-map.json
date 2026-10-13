@@ -324,6 +324,27 @@
         "scripts/test-pi-native-integration.mjs",
         "tests/ui/session-workspace.e2e.ts"
       ]
+    },
+    {
+      "contract": "local-message-and-complete-reply-deletion",
+      "sources": [
+        "src/components/CopyButton.tsx",
+        "src/components/MessageBubble.tsx",
+        "src/components/ChatView.tsx",
+        "src/components/AppLayout.tsx",
+        "src/components/split/SplitChatPane.tsx",
+        "src/hooks/session/useSessionPersistence.ts",
+        "src/hooks/useSessionManager.ts",
+        "src/hooks/useACP.ts",
+        "src/lib/session/message-deletion.ts",
+        "src/types/session.ts"
+      ],
+      "tests": [
+        "src/components/__tests__/MessageBubble.test.tsx",
+        "src/lib/session/message-deletion.test.ts",
+        "src/hooks/session/__tests__/useSessionMessageDeletion.test.ts",
+        "tests/ui/message-deletion.e2e.ts"
+      ]
     }
   ]
 }

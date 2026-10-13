@@ -371,13 +371,18 @@ export function useSessionManager(
     sendNextId,
   } = useMessageQueue({ refs, setters, engines, activeSessionId });
 
-  const { saveCurrentSession, seedBackgroundStore, generateSessionTitle } = useSessionPersistence({
+  const { deleteMessage, deletingSessionIds, saveCurrentSession, seedBackgroundStore, generateSessionTitle } = useSessionPersistence({
     refs,
     setters,
     engines,
     activeSessionId,
     continueQueuedBackgroundSession,
   });
+
+  const deleteActiveMessage = useCallback((messageId: string) => {
+    const sessionId = activeSessionIdRef.current;
+    return sessionId ? deleteMessage(sessionId, messageId) : Promise.resolve();
+  }, [deleteMessage]);
 
   const {
     probeMcpServers,
@@ -753,6 +758,9 @@ export function useSessionManager(
     requestLog: engine.requestLog,
     send,
     retryFailedMessage,
+    deleteMessage,
+    deletingSessionIds,
+    deleteActiveMessage,
     unqueueMessage,
     sendQueuedMessageNext,
     sendNextId,

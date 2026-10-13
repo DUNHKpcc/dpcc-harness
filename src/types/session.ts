@@ -28,6 +28,8 @@ interface UIMessageBase {
   id: string;
   content: string;
   timestamp: number;
+  /** Local reply boundary retained when its user question is deleted; not an ACP turn ID. */
+  replyToMessageId?: string;
   toolName?: string;
   toolInput?: Record<string, unknown>;
   toolResult?: ToolUseResult;

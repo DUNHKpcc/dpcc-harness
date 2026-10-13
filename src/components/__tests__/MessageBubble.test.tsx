@@ -4,11 +4,15 @@ import type { UIMessage } from "@/types";
 import { MessageBubble } from "../MessageBubble";
 import { TooltipProvider } from "../ui/tooltip";
 
-function renderMessage(message: UIMessage): string {
+function renderMessage(
+  message: UIMessage,
+  actions: { onDeleteMessage?: (id: string) => void; deleteDisabled?: boolean } = {},
+): string {
   return renderToStaticMarkup(
     <TooltipProvider>
       <MessageBubble
         message={message}
+        {...actions}
       />
     </TooltipProvider>,
   );
@@ -93,5 +97,33 @@ describe("sent file references", () => {
     expect(html).toContain('data-slot="message-attachment-strip"');
     expect(html).toContain("text-red-600");
     expect(html).not.toContain('data-slot="user-message-bubble"');
+  });
+});
+
+
+describe("MessageBubble delete actions", () => {
+  it.each(["user", "assistant"] as const)("reuses the copy action style below %s messages", (role) => {
+    const markup = renderMessage({ id: role, role, content: "Text", timestamp: 1 }, { onDeleteMessage: () => {} });
+    expect(markup).toContain('aria-label="Delete message"');
+    expect(markup).toContain(`group-hover/${role}:opacity-100`);
+    expect(markup).toContain("focus-within:opacity-100");
+    expect(markup).toContain("hover:text-destructive");
+    expect(markup.indexOf('aria-label="Copy"')).toBeLessThan(markup.indexOf('aria-label="Delete message"'));
+  });
+
+  it("shows deletion for thinking-only replies even when thinking is hidden", () => {
+    const markup = renderMessage({ id: "thinking", role: "assistant", content: "", thinking: "Reasoning", timestamp: 1 }, { onDeleteMessage: () => {} });
+    expect(markup).toContain('aria-label="Delete message"');
+    expect(markup).not.toContain('aria-label="Copy"');
+  });
+
+  it("disables deletion for a streaming reply and blocked messages", () => {
+    const markup = renderMessage({ id: "stream", role: "assistant", content: "Partial", isStreaming: true, timestamp: 1 }, { onDeleteMessage: () => {} });
+    expect(markup).toMatch(/<button[^>]*aria-label="Delete message"[^>]*disabled=""/);
+    expect(renderMessage({ id: "user", role: "user", content: "Question", timestamp: 1 }, { onDeleteMessage: () => {}, deleteDisabled: true })).toMatch(/<button[^>]*aria-label="Delete message"[^>]*disabled=""/);
+  });
+
+  it("does not add deletion to callers without a deletion handler", () => {
+    expect(renderMessage({ id: "user", role: "user", content: "Text", timestamp: 1 })).not.toContain('aria-label="Delete message"');
   });
 });

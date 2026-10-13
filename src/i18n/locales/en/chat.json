@@ -57,6 +57,12 @@
   "message": {
     "attachedImage": "attached image",
     "copy": "Copy",
+    "delete": "Delete message",
+    "deleteTitle": "Delete this message?",
+    "deleteDescription": "This removes only this message from the local chat record. The model may still retain it in its context. Other messages, tool actions and original attachment files are not deleted.",
+    "deleteReplyTitle": "Delete this entire reply?",
+    "deleteReplyDescription": "This removes the entire reply, including thinking, tool calls and results, execution steps and timing, from the local chat record. Your question and other replies are kept. The model may still retain it in its context. Tool actions are not undone and original attachment files are not deleted.",
+    "deleteFailed": "Could not save the deletion. The message has been restored.",
     "queued": "Queued",
     "sendNext": "Send next",
     "unqueue": "Unqueue"

@@ -2,6 +2,7 @@ import { test as base, expect, _electron as electron } from "@playwright/test";
 import type { ElectronApplication, Page } from "@playwright/test";
 import fs from "node:fs";
 import { createServer } from "node:http";
+import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 
@@ -19,6 +20,13 @@ interface ElectronFixtures {
 }
 
 const repoRoot = process.cwd();
+const nodeRequire = createRequire(path.join(repoRoot, "package.json"));
+const monacoPackagePath = nodeRequire.resolve("monaco-editor/package.json", {
+  paths: [path.dirname(nodeRequire.resolve("@monaco-editor/react"))],
+});
+const monacoRoot = path.dirname(monacoPackagePath);
+const monacoVersion: string = JSON.parse(fs.readFileSync(monacoPackagePath, "utf8")).version;
+const monacoCdnBase = `https://cdn.jsdelivr.net/npm/monaco-editor@${monacoVersion}/`;
 
 function createProfile(): UiProfile {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "harnss-playwright-ui-"));
@@ -35,6 +43,30 @@ function launchArgs(): string[] {
     repoRoot,
     ...(process.platform === "darwin" ? ["--use-mock-keychain"] : []),
   ];
+}
+
+/** Reuse the isolated launch contract for persistence tests that restart Electron. */
+export async function launchUiElectron(uiProfile: UiProfile, catalogServerUrl: string): Promise<ElectronApplication> {
+  return electron.launch({
+    args: launchArgs(),
+    env: {
+      ...process.env,
+      CI: process.env.CI || "true",
+      HOME: uiProfile.home,
+      USERPROFILE: uiProfile.home,
+      XDG_CONFIG_HOME: path.join(uiProfile.home, ".config"),
+      XDG_CACHE_HOME: path.join(uiProfile.home, ".cache"),
+      XDG_DATA_HOME: path.join(uiProfile.home, ".local", "share"),
+      APPDATA: path.join(uiProfile.home, "AppData", "Roaming"),
+      LOCALAPPDATA: path.join(uiProfile.home, "AppData", "Local"),
+      HARNSS_E2E_MODE: "ui",
+      HARNSS_E2E_USER_DATA: uiProfile.userData,
+      PCC_DEV_SERVER_URL: "http://127.0.0.1:4173",
+      PCC_SKILLS_CATALOG_BASE_URL: catalogServerUrl,
+      PCC_MCP_REGISTRY_BASE_URL: catalogServerUrl,
+      ELECTRON_ENABLE_LOGGING: "1",
+    },
+  });
 }
 
 export const test = base.extend<ElectronFixtures>({
@@ -91,26 +123,7 @@ export const test = base.extend<ElectronFixtures>({
   },
 
   electronApp: async ({ catalogServerUrl, uiProfile }, use, testInfo) => {
-    const application = await electron.launch({
-      args: launchArgs(),
-      env: {
-        ...process.env,
-        CI: process.env.CI || "true",
-        HOME: uiProfile.home,
-        USERPROFILE: uiProfile.home,
-        XDG_CONFIG_HOME: path.join(uiProfile.home, ".config"),
-        XDG_CACHE_HOME: path.join(uiProfile.home, ".cache"),
-        XDG_DATA_HOME: path.join(uiProfile.home, ".local", "share"),
-        APPDATA: path.join(uiProfile.home, "AppData", "Roaming"),
-        LOCALAPPDATA: path.join(uiProfile.home, "AppData", "Local"),
-        HARNSS_E2E_MODE: "ui",
-        HARNSS_E2E_USER_DATA: uiProfile.userData,
-        PCC_DEV_SERVER_URL: "http://127.0.0.1:4173",
-        PCC_SKILLS_CATALOG_BASE_URL: catalogServerUrl,
-        PCC_MCP_REGISTRY_BASE_URL: catalogServerUrl,
-        ELECTRON_ENABLE_LOGGING: "1",
-      },
-    });
+    const application = await launchUiElectron(uiProfile, catalogServerUrl);
 
     const processLogs: string[] = [];
     application.process().stdout?.on("data", (chunk) => processLogs.push(String(chunk)));
@@ -137,6 +150,19 @@ export const test = base.extend<ElectronFixtures>({
       /^https:\/\/(?:github\.com|avatars\.githubusercontent\.com|raw\.githubusercontent\.com)\//,
       (route) => route.abort(),
     );
+    // Serve the exact installed peer version for CDN-shaped editor requests.
+    // File-preview UI checks must not depend on external CDN availability.
+    await page.context().route(`${monacoCdnBase}**`, async (route) => {
+      const relativePath = decodeURIComponent(new URL(route.request().url()).pathname)
+        .slice(`/npm/monaco-editor@${monacoVersion}/`.length);
+      const asset = path.resolve(monacoRoot, relativePath);
+      const resolvedRelativePath = path.relative(monacoRoot, asset);
+      if (resolvedRelativePath.startsWith("..") || path.isAbsolute(resolvedRelativePath) || !fs.existsSync(asset)) {
+        await route.abort();
+        return;
+      }
+      await route.fulfill({ path: asset, headers: { "access-control-allow-origin": "*" } });
+    });
     await page.waitForSelector("#root");
     await electronApp.context().tracing.start({ screenshots: true, snapshots: true, sources: true });
 

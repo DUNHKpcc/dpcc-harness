@@ -936,7 +936,7 @@ export function useACP({ sessionId, initialMessages, initialConfigOptions, initi
 
   return {
     hydrate,
-    messages, setMessages,
+    messages, setMessages, messagesRef: base.messagesRef,
     isProcessing, setIsProcessing,
     isConnected, setIsConnected,
     sessionInfo, setSessionInfo,

@@ -28,6 +28,9 @@ import { estimateRowHeight } from "@/lib/chat/virtualization";
 import { CHAT_CONTENT_WIDTH_CLASS, CHAT_ROW_CLASS } from "@/components/lib/chat-layout";
 import { useSettingsStore } from "@/stores/settings-store";
 import { QuestionNavigation } from "./QuestionNavigation";
+import { ConfirmDialog } from "./ui/confirm-dialog";
+import { canDeleteMessage } from "@/lib/session/message-deletion";
+import { toast } from "sonner";
 import { questionEntries, type QuestionEntry } from "@/lib/chat/question-navigation";
 
 // ── Row model ──
@@ -150,6 +153,8 @@ interface ChatMessageRowProps {
   onSendQueuedNow?: (messageId: string) => void;
   onUnqueueQueuedMessage?: (messageId: string) => void;
   onRetryRecovery?: (messageId: string) => void;
+  onDeleteMessage?: (messageId: string) => void;
+  deletionBlocked: boolean;
 }
 
 const ChatMessageRow = memo(function ChatMessageRow({
@@ -162,6 +167,8 @@ const ChatMessageRow = memo(function ChatMessageRow({
   onSendQueuedNow,
   onUnqueueQueuedMessage,
   onRetryRecovery,
+  onDeleteMessage,
+  deletionBlocked,
 }: ChatMessageRowProps) {
   const { t } = useTranslation("chat");
   // ── Display preferences from Zustand store ──
@@ -244,6 +251,8 @@ const ChatMessageRow = memo(function ChatMessageRow({
         onSendQueuedNow={onSendQueuedNow}
         onUnqueueQueued={onUnqueueQueuedMessage}
         onRetryRecovery={onRetryRecovery}
+        onDeleteMessage={onDeleteMessage}
+        deleteDisabled={msg.isQueued ? !onUnqueueQueuedMessage : !canDeleteMessage(msg, deletionBlocked)}
       />
     </div>
   );
@@ -256,7 +265,9 @@ const ChatMessageRow = memo(function ChatMessageRow({
   prev.sendNextId === next.sendNextId &&
   prev.onSendQueuedNow === next.onSendQueuedNow &&
   prev.onUnqueueQueuedMessage === next.onUnqueueQueuedMessage &&
-  prev.onRetryRecovery === next.onRetryRecovery,
+  prev.onRetryRecovery === next.onRetryRecovery &&
+  prev.onDeleteMessage === next.onDeleteMessage &&
+  prev.deletionBlocked === next.deletionBlocked,
 );
 
 // ── ChatViewProps ──
@@ -273,6 +284,8 @@ interface ChatViewProps {
   onSendQueuedNow?: (messageId: string) => void;
   onUnqueueQueuedMessage?: (messageId: string) => void;
   onRetryRecovery?: (messageId: string) => void;
+  onDeleteMessage?: (messageId: string) => Promise<void>;
+  messageDeletionBlocked?: boolean;
   sendNextId?: string | null;
   /** Current space ID — included in remount key so space switches show spinner immediately */
   spaceId?: string;
@@ -352,10 +365,9 @@ export const ChatView = memo(function ChatView(props: ChatViewProps) {
     );
   }
 
-  // Key by spaceId + sessionId + first message ID to force a clean remount on space or session switch.
-  // spaceId ensures the spinner shows immediately when switching spaces (before the 60ms debounced
-  // session switch fires). sessionId + messages[0]?.id handle same-space session switches.
-  const contentKey = `${props.spaceId ?? "s"}-${props.sessionId ?? "__empty__"}-${messages[0]?.id ?? ""}`;
+  // A deletion (including the first message) must not remount the conversation
+  // and reset scroll/navigation state. Use the first ID only for identity-less callers.
+  const contentKey = `${props.spaceId ?? "s"}-${props.sessionId ?? messages[0]?.id ?? "__empty__"}`;
   return <ChatViewContent key={contentKey} {...props} />;
 });
 
@@ -365,8 +377,33 @@ function ChatViewContent({
   messages, isProcessing, showThinking, extraBottomPadding, scrollToMessageId, onScrolledToMessage,
   sessionId, onTopScrollProgress,
   onSendQueuedNow, onUnqueueQueuedMessage, sendNextId,
-  onRetryRecovery,
+  onRetryRecovery, onDeleteMessage, messageDeletionBlocked = false,
 }: ChatViewProps) {
+  const { t } = useTranslation("chat");
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const deletionBlocked = isProcessing || messageDeletionBlocked;
+  const deleteTarget = deleteTargetId ? messages.find((message) => message.id === deleteTargetId) : undefined;
+  const deletionActionsRef = useRef({ messages, deletionBlocked, onUnqueueQueuedMessage });
+  deletionActionsRef.current = { messages, deletionBlocked, onUnqueueQueuedMessage };
+  useEffect(() => {
+    if (deletionBlocked || !deleteTarget) setDeleteTargetId(null);
+  }, [deletionBlocked, deleteTarget]);
+  const requestDelete = useCallback((messageId: string) => {
+    const { messages, deletionBlocked, onUnqueueQueuedMessage } = deletionActionsRef.current;
+    const message = messages.find((entry) => entry.id === messageId);
+    if (!message || !canDeleteMessage(message, deletionBlocked)) return;
+    if (message.isQueued) {
+      onUnqueueQueuedMessage?.(messageId);
+    } else {
+      setDeleteTargetId(messageId);
+    }
+  }, []);
+  const confirmDelete = useCallback(() => {
+    if (!deleteTarget || !canDeleteMessage(deleteTarget, deletionBlocked)) return;
+    void onDeleteMessage?.(deleteTarget.id).catch(() => {
+      toast.error(t("message.deleteFailed"));
+    });
+  }, [deleteTarget, deletionBlocked, onDeleteMessage, t]);
   // ── Display preferences from Zustand store (only those used directly in ChatViewContent) ──
   const autoGroupTools = useSettingsStore((s) => s.autoGroupTools);
   const avoidGroupingEdits = useSettingsStore((s) => s.avoidGroupingEdits);
@@ -907,6 +944,8 @@ function ChatViewContent({
                 onSendQueuedNow={onSendQueuedNow}
                 onUnqueueQueuedMessage={onUnqueueQueuedMessage}
                 onRetryRecovery={onRetryRecovery}
+                onDeleteMessage={onDeleteMessage || onUnqueueQueuedMessage ? requestDelete : undefined}
+                deletionBlocked={deletionBlocked}
               />
             </div>
           ))}
@@ -921,6 +960,14 @@ function ChatViewContent({
           onNavigate={navigateToQuestion}
         />
       )}
+      <ConfirmDialog
+        open={!!deleteTarget && !deletionBlocked}
+        onOpenChange={(open) => { if (!open) setDeleteTargetId(null); }}
+        onConfirm={confirmDelete}
+        title={t(deleteTarget?.role === "assistant" ? "message.deleteReplyTitle" : "message.deleteTitle")}
+        description={t(deleteTarget?.role === "assistant" ? "message.deleteReplyDescription" : "message.deleteDescription")}
+        confirmLabel={t("message.delete")}
+      />
     </ChatUiStateProvider>
   );
 }

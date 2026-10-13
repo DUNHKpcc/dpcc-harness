@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import type { PersistedSession, EngineId, ACPSessionEvent, ACPPermissionEvent, ACPTurnCompleteEvent, ACPTransportErrorEvent } from "@/types";
+import type { PersistedSession, UIMessage, EngineId, ACPSessionEvent, ACPPermissionEvent, ACPTurnCompleteEvent, ACPTransportErrorEvent } from "@/types";
 import { getSessionNotificationActor } from "@/lib/session-notifications";
 import { toastText } from "@/lib/toast-i18n";
 import { buildPersistedSession, toChatSession } from "../../lib/session/records";
 import { normalizeToolInput as acpNormalizeToolInput, pickAutoResponseOption } from "../../lib/engine/acp-adapter";
 import { DRAFT_ID } from "./types";
+import type { SessionPaneState } from "./useSessionPane";
+import { canDeleteMessage, getMessageDeletionPlan, restoreDeletedMessages } from "@/lib/session/message-deletion";
 import { createSystemMessage } from "@/lib/message-factory";
 import { createPersistenceFailureMessage } from "@/lib/acp-failure";
 import { getPiContextSnapshots } from "@/lib/pi-context-store";
@@ -14,6 +16,8 @@ import {
   type SessionSendFailureDetail,
 } from "@/lib/session-send-failure";
 import {
+  getSplitPaneStateSnapshot,
+  publishSplitPaneStateSnapshot,
   isSplitPaneRoutingReady,
   subscribeSplitPaneState,
   type SplitPaneStateSnapshot,
@@ -93,6 +97,41 @@ export function useSessionPersistence({
   const pendingPersistenceWritesRef = useRef(new Set<Promise<void>>());
   const persistenceGenerationRef = useRef(0);
   const persistenceFailureReportedRef = useRef(new Set<string>());
+  const latestEngineRef = useRef(engine);
+  latestEngineRef.current = engine;
+  const deletedMessageIdsRef = useRef(new Map<string, Set<string>>());
+  const replyOwnersRef = useRef(new Map<string, Map<string, string>>());
+  const deletingSessionIdsRef = useRef(new Set<string>());
+  const [deletingSessionIds, setDeletingSessionIds] = useState<ReadonlySet<string>>(new Set());
+  const sessionWriteTailsRef = useRef(new Map<string, Promise<void>>());
+
+  // Explicit edits and autosaves share a per-session queue. An older snapshot
+  // must never finish after a deletion and resurrect the removed message.
+  const queuePersistenceWrite = useCallback((sessionId: string, save: () => Promise<void>) => {
+    const previous = sessionWriteTailsRef.current.get(sessionId) ?? Promise.resolve();
+    const write = previous.catch(() => undefined).then(save);
+    sessionWriteTailsRef.current.set(sessionId, write);
+    pendingPersistenceWritesRef.current.add(write);
+    const finish = () => {
+      pendingPersistenceWritesRef.current.delete(write);
+      if (sessionWriteTailsRef.current.get(sessionId) === write) {
+        sessionWriteTailsRef.current.delete(sessionId);
+      }
+    };
+    void write.then(finish, finish);
+    return write;
+  }, []);
+
+  const filterDeletedMessages = useCallback((sessionId: string, messages: UIMessage[]) => {
+    const deletedIds = deletedMessageIdsRef.current.get(sessionId);
+    const replyOwners = replyOwnersRef.current.get(sessionId);
+    return messages.filter((message) => !deletedIds?.has(message.id)).map((message) => {
+      const owner = replyOwners?.get(message.id);
+      return owner && message.replyToMessageId !== owner
+        ? { ...message, replyToMessageId: owner }
+        : message;
+    });
+  }, []);
 
   const persistRuntimeSession = useCallback((data: PersistedSession) => {
     const disposition = getSessionRuntimeDisposition({
@@ -102,13 +141,13 @@ export function useSessionPersistence({
     if (disposition.kind !== "runtime") return Promise.resolve();
 
     persistenceGenerationRef.current += 1;
-    const write = (async () => {
+    return queuePersistenceWrite(data.id, async () => {
       const agent = installedAgentsRef.current.find((entry) => entry.id === disposition.agentId)
         ?? (disposition.agentId === BUILTIN_PI_AGENT_ID ? BUILTIN_PI_AGENT : undefined);
       const piContextSnapshots = isProtectedBuiltInPiAgent(agent)
         ? getPiContextSnapshots(data.id)
         : [];
-      const persistableData = { ...data };
+      const persistableData = { ...data, messages: filterDeletedMessages(data.id, data.messages) };
       delete persistableData.piContextSnapshots;
       const result = await window.claude.sessions.save({
         ...persistableData,
@@ -117,7 +156,7 @@ export function useSessionPersistence({
         agentId: disposition.agentId,
       });
       if (result?.error) throw new Error(result.error);
-    })().then(undefined, (error) => {
+    }).catch((error) => {
       if (activeSessionIdRef.current === data.id && !persistenceFailureReportedRef.current.has(data.id)) {
         persistenceFailureReportedRef.current.add(data.id);
         acp.setMessages((previous) => [
@@ -127,13 +166,103 @@ export function useSessionPersistence({
       }
       throw error;
     });
-    pendingPersistenceWritesRef.current.add(write);
-    void write.then(
-      () => pendingPersistenceWritesRef.current.delete(write),
-      () => pendingPersistenceWritesRef.current.delete(write),
-    );
-    return write;
-  }, []);
+  }, [queuePersistenceWrite, filterDeletedMessages]);
+
+  const deleteMessage = useCallback(async (
+    sessionId: string,
+    messageId: string,
+    pane?: SessionPaneState,
+  ) => {
+    if (sessionId === DRAFT_ID || deletingSessionIdsRef.current.has(sessionId)) return;
+    if (!pane && activeSessionIdRef.current !== sessionId) return;
+    const session = sessionsRef.current.find((entry) => entry.id === sessionId);
+    if (!session) return;
+    const state = pane ?? latestEngineRef.current;
+    const paneEngine = pane?.engine ?? latestEngineRef.current;
+    const original = paneEngine.messagesRef.current;
+    const target = original.find((message) => message.id === messageId);
+    const blocked = state.isProcessing || state.isCompacting || !!state.pendingPermission;
+    // Queued messages belong to useMessageQueue, never to persisted history.
+    if (!target || target.isQueued || !canDeleteMessage(target, blocked)) return;
+    const disposition = getSessionRuntimeDisposition({
+      engine: session.invalidEngine ?? session.engine,
+      agentId: session.agentId,
+    });
+    if (disposition.kind === "invalid") return;
+
+    const { deleted, next } = getMessageDeletionPlan(original, messageId);
+    if (deleted.length === 0) return;
+    const deletedIds = deletedMessageIdsRef.current.get(sessionId) ?? new Set<string>();
+    for (const message of deleted) deletedIds.add(message.id);
+    const replyOwners = replyOwnersRef.current.get(sessionId) ?? new Map<string, string>();
+    for (const message of next) {
+      if (message.replyToMessageId) replyOwners.set(message.id, message.replyToMessageId);
+    }
+    replyOwnersRef.current.set(sessionId, replyOwners);
+    deletedMessageIdsRef.current.set(sessionId, deletedIds);
+    deletingSessionIdsRef.current.add(sessionId);
+    setDeletingSessionIds(new Set(deletingSessionIdsRef.current));
+    const updatePane = (messages: UIMessage[]) => {
+      paneEngine.messagesRef.current = messages;
+      paneEngine.setMessages(messages);
+      if (activeSessionIdRef.current === sessionId) messagesRef.current = messages;
+      const split = getSplitPaneStateSnapshot(sessionId);
+      if (split) publishSplitPaneStateSnapshot({ ...split, messages });
+    };
+    updatePane(next);
+    backgroundStoreRef.current.updateMessages(sessionId, (messages) => (
+      filterDeletedMessages(sessionId, messages)
+    ));
+
+    try {
+      if (disposition.kind === "runtime") {
+        const data = buildPersistedSession(
+          session, next.filter((message) => !message.isQueued), state.totalCost,
+          state.contextUsage, state.requestLog, state.upstreamRequestCount,
+        );
+        // Do not route this through autosave: an intentional empty transcript
+        // must be written even though hydration's transient empty state is not.
+        await persistRuntimeSession(data);
+      } else {
+        await queuePersistenceWrite(sessionId, async () => {
+          const persisted = await window.claude.sessions.load(session.projectId, sessionId);
+          if (!persisted) throw new Error("Session record is no longer available");
+          const result = await window.claude.sessions.save({
+            ...persisted,
+            messages: filterDeletedMessages(sessionId, persisted.messages),
+          });
+          if (result?.error) throw new Error(result.error);
+        });
+      }
+    } catch (error) {
+      for (const message of deleted) deletedIds.delete(message.id);
+      backgroundStoreRef.current.updateMessages(sessionId, (messages) => (
+        restoreDeletedMessages(messages, deleted, original)
+      ));
+      // Never restore into the newly selected primary chat after a switch.
+      const split = getSplitPaneStateSnapshot(sessionId);
+      const ownsPrimary = !pane && activeSessionIdRef.current === sessionId;
+      if (ownsPrimary || (pane && split)) {
+        updatePane(restoreDeletedMessages(paneEngine.messagesRef.current, deleted, original));
+      }
+      // A slow failing write may already have autosaves queued behind it.
+      // Queue the restored state after those snapshots, so rollback is durable too.
+      const restoredState = ownsPrimary ? latestEngineRef.current
+        : getSplitPaneStateSnapshot(sessionId) ?? backgroundStoreRef.current.get(sessionId);
+      if (disposition.kind === "runtime" && restoredState) {
+        const restoredMessages = ownsPrimary ? messagesRef.current : restoredState.messages;
+        await persistRuntimeSession(buildPersistedSession(
+          session, restoredMessages.filter((message) => !message.isQueued),
+          restoredState.totalCost, restoredState.contextUsage,
+          restoredState.requestLog, restoredState.upstreamRequestCount,
+        )).catch(() => undefined);
+      }
+      throw error;
+    } finally {
+      deletingSessionIdsRef.current.delete(sessionId);
+      setDeletingSessionIds(new Set(deletingSessionIdsRef.current));
+    }
+  }, [persistRuntimeSession, queuePersistenceWrite, filterDeletedMessages]);
 
   const persistActiveSession = useCallback(async (sessionId: string) => {
     if (activeSessionIdRef.current !== sessionId) return;
@@ -915,6 +1044,8 @@ export function useSessionPersistence({
   );
 
   return {
+    deleteMessage,
+    deletingSessionIds,
     saveCurrentSession,
     seedBackgroundStore,
     generateSessionTitle,

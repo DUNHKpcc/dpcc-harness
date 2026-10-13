@@ -1,6 +1,6 @@
 import { memo, useState, useMemo, createContext, useContext, lazy, Suspense, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertCircle, Clock, Crosshair, File, Folder, Info, Send, X } from "lucide-react";
+import { AlertCircle, Clock, Crosshair, File, Folder, Info, Send, Trash2, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -13,7 +13,7 @@ import { userMessageText } from "@/lib/chat/user-message-text";
 import { FileAttachmentTile } from "./input-bar/FileAttachmentTile";
 import type { UIMessage, ImageAttachment } from "@/types";
 import { ThinkingBlock } from "./ThinkingBlock";
-import { CopyButton } from "./CopyButton";
+import { CopyButton, MessageActionButton } from "./CopyButton";
 import { ImageLightbox } from "./ImageLightbox";
 import { CodeSyntaxHighlighter } from "./CodeSyntaxHighlighter";
 // Lazy-loaded: mermaid is a very large dependency (~70MB unpacked) and most
@@ -225,6 +225,8 @@ interface MessageBubbleProps {
   /** Called when user removes a queued user message before it is sent */
   onUnqueueQueued?: (messageId: string) => void;
   onRetryRecovery?: (messageId: string) => void;
+  onDeleteMessage?: (messageId: string) => void;
+  deleteDisabled?: boolean;
 }
 
 export const MessageBubble = memo(function MessageBubble({
@@ -236,6 +238,8 @@ export const MessageBubble = memo(function MessageBubble({
   onSendQueuedNow,
   onUnqueueQueued,
   onRetryRecovery,
+  onDeleteMessage,
+  deleteDisabled = false,
 }: MessageBubbleProps) {
   const { t } = useTranslation("chat");
   // All hooks must be called before any early returns (Rules of Hooks)
@@ -445,6 +449,17 @@ export const MessageBubble = memo(function MessageBubble({
           </Tooltip>
           <div className="mt-0.5 flex justify-end gap-0.5 opacity-0 transition-opacity group-hover/user:opacity-100 focus-within:opacity-100">
             <CopyButton text={displayContent} label={t("message.copy")} />
+            {onDeleteMessage && (
+              <MessageActionButton
+                aria-label={t("message.delete")}
+                title={t("message.delete")}
+                className="hover:bg-destructive/10 hover:text-destructive"
+                disabled={deleteDisabled}
+                onClick={() => onDeleteMessage(message.id)}
+              >
+                <Trash2 className="h-2.5 w-2.5" />
+              </MessageActionButton>
+            )}
           </div>
           <ImageLightbox
             image={viewingImage}
@@ -516,9 +531,20 @@ export const MessageBubble = memo(function MessageBubble({
                   </div>
                 ) : null}
               </div>
-              {message.content && (
-                <div className="mt-0.5 flex items-center opacity-0 transition-opacity group-hover/assistant:opacity-100 focus-within:opacity-100">
-                  <CopyButton text={message.content} label={t("message.copy")} />
+              {(message.content || onDeleteMessage) && (
+                <div className="mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity group-hover/assistant:opacity-100 focus-within:opacity-100">
+                  {message.content && <CopyButton text={message.content} label={t("message.copy")} />}
+                  {onDeleteMessage && (
+                    <MessageActionButton
+                      aria-label={t("message.delete")}
+                      title={t("message.delete")}
+                      className="hover:bg-destructive/10 hover:text-destructive"
+                      disabled={deleteDisabled || !!message.isStreaming}
+                      onClick={() => onDeleteMessage(message.id)}
+                    >
+                      <Trash2 className="h-2.5 w-2.5" />
+                    </MessageActionButton>
+                  )}
                 </div>
               )}
             </div>
@@ -545,7 +571,10 @@ export const MessageBubble = memo(function MessageBubble({
   prev.showThinking === next.showThinking &&
   prev.isContinuation === next.isContinuation &&
   prev.onSendQueuedNow === next.onSendQueuedNow &&
-  prev.onUnqueueQueued === next.onUnqueueQueued,
+  prev.onUnqueueQueued === next.onUnqueueQueued &&
+  prev.onRetryRecovery === next.onRetryRecovery &&
+  prev.onDeleteMessage === next.onDeleteMessage &&
+  prev.deleteDisabled === next.deleteDisabled,
 );
 
 /**

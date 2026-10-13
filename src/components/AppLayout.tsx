@@ -979,6 +979,9 @@ export function AppLayout() {
       acpConfigOptionsLoading: manager.acpConfigOptionsLoading,
       acpConfigOptionsDormant: manager.acpConfigOptionsDormant,
       setACPConfig: manager.setACPConfig,
+      deleteMessage: manager.deleteMessage,
+      unqueueMessage: manager.unqueueMessage,
+      deletingSessionIds: manager.deletingSessionIds,
     },
     splitView: {
       setFocusedSession: splitView.setFocusedSession,
@@ -1717,6 +1720,8 @@ export function AppLayout() {
                     onSendQueuedNow={handleSendQueuedNow}
                     onUnqueueQueuedMessage={handleUnqueueMessage}
                     onRetryRecovery={manager.retryFailedMessage}
+                    onDeleteMessage={manager.deleteActiveMessage}
+                    messageDeletionBlocked={manager.primaryPane.isCompacting || !!manager.primaryPane.pendingPermission || !!manager.activeSession?.invalidEngine || manager.deletingSessionIds.has(manager.activeSessionId ?? "")}
                     sendNextId={manager.sendNextId}
                   />
                   <div

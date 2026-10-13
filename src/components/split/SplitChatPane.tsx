@@ -212,6 +212,12 @@ function SplitChatPaneInner({
     }
   }, [paneController, paneState.messages]);
 
+  const deleteMessage = useCallback((messageId: string) => (
+    paneControllerCtx.manager.deleteMessage?.(
+      sessionId, messageId, isActiveSessionPane ? undefined : paneState,
+    ) ?? Promise.resolve()
+  ), [sessionId, isActiveSessionPane, paneState, paneControllerCtx.manager.deleteMessage]);
+
   const openPanelTools = useMemo(() => {
     return new Set<ToolId>((
       ["terminal", "browser", "git", "files", "project-files", "mcp"] as const
@@ -299,6 +305,9 @@ function SplitChatPaneInner({
                 sessionId={sessionId}
                 onTopScrollProgress={onTopScrollProgress}
                 onRetryRecovery={retryRecovery}
+                onDeleteMessage={paneControllerCtx.manager.deleteMessage ? deleteMessage : undefined}
+                onUnqueueQueuedMessage={isActiveSessionPane ? paneControllerCtx.manager.unqueueMessage : undefined}
+                messageDeletionBlocked={paneState.isCompacting || !!paneState.pendingPermission || readOnlyReason === "invalid" || !!paneControllerCtx.manager.deletingSessionIds?.has(sessionId)}
               />
               <div
                 className={`pointer-events-none absolute inset-x-0 bottom-0 z-[5] transition-opacity duration-200 ${isIsland ? "h-24" : "h-28"}`}

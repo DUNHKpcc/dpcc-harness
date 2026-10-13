@@ -1,7 +1,28 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, type ComponentProps } from "react";
 import { Check, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { copyToClipboard } from "@/lib/clipboard";
+import { cn } from "@/lib/utils";
+
+/** Shared compact interaction for actions below message bubbles and code blocks. */
+export function MessageActionButton({
+  className, onClick, ...props
+}: ComponentProps<typeof Button>) {
+  return (
+    <Button
+      {...props}
+      type="button"
+      variant="ghost"
+      size="icon"
+      className={cn("h-5 w-5 text-muted-foreground hover:text-foreground", className)}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onClick?.(event);
+      }}
+    />
+  );
+}
 
 interface CopyButtonProps {
   text: string;
@@ -22,20 +43,13 @@ export function CopyButton({ text, className, label }: CopyButtonProps) {
   }, [text]);
 
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      className={`h-5 w-5 text-muted-foreground hover:text-foreground ${className ?? ""}`}
+    <MessageActionButton
+      className={className}
       aria-label={accessibleLabel}
       title={accessibleLabel}
-      onClick={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        void handleCopy();
-      }}
+      onClick={() => { void handleCopy(); }}
     >
       {copied ? <Check className="h-2.5 w-2.5 text-foreground/60" /> : <Copy className="h-2.5 w-2.5" />}
-    </Button>
+    </MessageActionButton>
   );
 }

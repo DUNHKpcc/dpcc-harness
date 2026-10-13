@@ -345,6 +345,20 @@
         "src/hooks/session/__tests__/useSessionMessageDeletion.test.ts",
         "tests/ui/message-deletion.e2e.ts"
       ]
+    },
+    {
+      "contract": "floating-composer-content-occlusion",
+      "sources": [
+        "src/components/ChatView.tsx",
+        "src/components/input-bar/InputBar.tsx",
+        "src/lib/chat/composer-fade.ts"
+      ],
+      "tests": [
+        "src/lib/chat/composer-fade.test.ts",
+        "tests/ui/composer-fade.e2e.ts",
+        "tests/ui/question-navigation.e2e.ts",
+        "tests/ui/message-deletion.e2e.ts"
+      ]
     }
   ]
 }

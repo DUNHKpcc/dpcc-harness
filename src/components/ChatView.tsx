@@ -32,6 +32,7 @@ import { ConfirmDialog } from "./ui/confirm-dialog";
 import { canDeleteMessage } from "@/lib/session/message-deletion";
 import { toast } from "sonner";
 import { questionEntries, type QuestionEntry } from "@/lib/chat/question-navigation";
+import { getChatComposerLayout } from "@/lib/chat/composer-fade";
 
 // ── Row model ──
 
@@ -48,9 +49,6 @@ const EMPTY_TOOL_GROUP_INFO: ToolGroupInfo = {
 const EMPTY_STRING_SET: Set<string> = new Set();
 const PROCESSING_ROW: RowDescriptor = { kind: "processing" };
 const CHAT_TOP_PADDING_PX = 56;
-const CHAT_BOTTOM_PADDING_PX = 144;
-const CHAT_EXTRA_BOTTOM_PADDING_PX = 280;
-const CHAT_COMPOSER_CLEARANCE_PX = 24;
 const NARROW_CHAT_MESSAGE_WIDTH_THRESHOLD_PX = 900;
 const QUESTION_NAVIGATION_MIN_WIDTH_PX = 600;
 // Progressive rendering: render bottom rows immediately, hydrate older rows in background
@@ -444,11 +442,10 @@ function ChatViewContent({
   const onScrolledToMessageRef = useRef(onScrolledToMessage);
   onScrolledToMessageRef.current = onScrolledToMessage;
   const lastTopProgressRef = useRef(-1);
-  const bottomPadding = useMemo(() => {
-    const fallbackPadding = extraBottomPadding ? CHAT_EXTRA_BOTTOM_PADDING_PX : CHAT_BOTTOM_PADDING_PX;
-    if (composerInset <= 0) return fallbackPadding;
-    return Math.max(fallbackPadding, composerInset + CHAT_COMPOSER_CLEARANCE_PX);
-  }, [composerInset, extraBottomPadding]);
+  const { bottomPadding, scrollStyle } = useMemo(
+    () => getChatComposerLayout(composerInset, extraBottomPadding),
+    [composerInset, extraBottomPadding],
+  );
 
   // ── Single-pass partition: queued vs non-queued (js-combine-iterations) ──
   const { nonQueuedMessages, queuedMessages } = useMemo(() => {
@@ -922,7 +919,7 @@ function ChatViewContent({
         ref={scrollContainerRef}
         data-slot="chat-scroll-container"
         className={`relative min-h-0 flex-1 overflow-y-auto ${showQuestionNavigation ? "ps-7" : ""}`}
-        style={{ overscrollBehaviorY: "contain" }}
+        style={{ overscrollBehaviorY: "contain", ...scrollStyle }}
         onScroll={handleScroll}
         onPointerDown={handlePointerDown}
       >

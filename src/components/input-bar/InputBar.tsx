@@ -1044,7 +1044,7 @@ export const InputBar = memo(function InputBar({
       </div>
 
       {/* Sunken meta row -- model + thinking, permission, context usage */}
-      <div className="pointer-events-auto mt-1.5 flex items-center gap-1 px-1 text-xs text-muted-foreground/80">
+      <div data-slot="composer-meta-row" className="pointer-events-auto mt-1.5 flex items-center gap-1 px-1 text-xs text-muted-foreground/80">
         {isRuntimeACP ? (
           <ModelThinkingDropdown
             open={nativeCommandMenu === "model"}
